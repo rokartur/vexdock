@@ -1,0 +1,11 @@
+{
+  "name": "platform",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "cd apps/web && bun run dev",
+    "build": "cd apps/web && bun run build",
+    "typecheck": "cd apps/web && bun run typecheck"
+  }
+}

@@ -1,0 +1,62 @@
+# System stack. The installer copies this to /opt/platform/compose.yml and runs
+# it from there; the updater recreates it with a new VERSION.
+#
+# PLATFORM_ROOT is mounted at the *same* path inside the manager so that bind
+# mounts declared in user compose files resolve identically on host and in
+# container.
+
+services:
+  manager:
+    image: ghcr.io/vexdock/platform-manager:${VERSION:-latest}
+    container_name: platform-manager
+    restart: unless-stopped
+
+    environment:
+      PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/platform}
+      PLATFORM_LISTEN: ":8080"
+      PLATFORM_VERSION: ${VERSION:-latest}
+      PLATFORM_PROXY_NETWORK: platform-proxy
+      PLATFORM_NGINX_CONTAINER: platform-nginx
+      PLATFORM_PUBLIC_URL: ${PUBLIC_URL:-}
+      PLATFORM_ACME_EMAIL: ${ACME_EMAIL:-}
+      PLATFORM_ACME_STAGING: ${ACME_STAGING:-false}
+      PLATFORM_LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${PLATFORM_ROOT:-/opt/platform}:${PLATFORM_ROOT:-/opt/platform}
+
+    networks:
+      - internal
+
+  nginx:
+    image: ghcr.io/vexdock/platform-nginx:${VERSION:-latest}
+    container_name: platform-nginx
+    restart: unless-stopped
+
+    depends_on:
+      - manager
+
+    ports:
+      - "80:80"
+      - "443:443"
+      - "${DASHBOARD_PORT:-3000}:3000"
+
+    volumes:
+      - ${PLATFORM_ROOT:-/opt/platform}/nginx/generated:/etc/nginx/generated:ro
+      - ${PLATFORM_ROOT:-/opt/platform}/nginx/custom:/etc/nginx/custom:ro
+      - ${PLATFORM_ROOT:-/opt/platform}/nginx/acme-challenge:/acme-challenge:ro
+      - ${PLATFORM_ROOT:-/opt/platform}/certificates:/certificates:ro
+
+    networks:
+      - internal
+      - proxy
+
+networks:
+  internal:
+    name: platform-internal
+
+  # Shared with every deployed service that has a domain.
+  proxy:
+    external: true
+    name: platform-proxy

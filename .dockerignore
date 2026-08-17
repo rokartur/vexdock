@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/dist
+.platform
+bin
+.git
+.github
+*.md
+apps/web/.output
+apps/web/.tanstack
+apps/web/.vite

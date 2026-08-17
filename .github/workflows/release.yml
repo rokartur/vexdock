@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  MANAGER: ghcr.io/${{ github.repository_owner }}/platform-manager
+  PROXY: ghcr.io/${{ github.repository_owner }}/platform-nginx
+
+jobs:
+  images:
+    name: Publish images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Manager image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/manager.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ github.ref_name }}
+          tags: |
+            ${{ env.MANAGER }}:${{ github.ref_name }}
+            ${{ env.MANAGER }}:latest
+
+      - name: Nginx image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/nginx.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.PROXY }}:${{ github.ref_name }}
+            ${{ env.PROXY }}:latest
+
+      - name: Create the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            installer/install.sh
+            compose.yml

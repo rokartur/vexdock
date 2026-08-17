@@ -1,0 +1,288 @@
+package api
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/vexdock/platform/manager/internal/database"
+	"github.com/vexdock/platform/manager/internal/domains"
+	"github.com/vexdock/platform/manager/internal/events"
+	"github.com/vexdock/platform/manager/internal/metrics"
+)
+
+// handleHealth is the unauthenticated liveness/readiness probe used by the
+// installer, the updater and Docker's own healthcheck.
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	checks := map[string]string{}
+	healthy := true
+
+	if err := s.db.PingContext(r.Context()); err != nil {
+		checks["database"], healthy = err.Error(), false
+	} else {
+		checks["database"] = "ok"
+	}
+	if err := s.docker.Ping(r.Context()); err != nil {
+		checks["docker"], healthy = err.Error(), false
+	} else {
+		checks["docker"] = "ok"
+	}
+	if err := writable(s.cfg.DataDir); err != nil {
+		checks["storage"], healthy = err.Error(), false
+	} else {
+		checks["storage"] = "ok"
+	}
+	host := metrics.Read(s.cfg.Root)
+	if host.DiskTotal > 0 && host.DiskTotal-host.DiskUsed < 512<<20 {
+		checks["disk"], healthy = "less than 512 MB free", false
+	} else {
+		checks["disk"] = "ok"
+	}
+	if _, err := s.nginx.Test(r.Context()); err != nil {
+		// A failing proxy is reported but does not make the manager unhealthy:
+		// the panel must stay reachable precisely so it can be fixed.
+		checks["nginx"] = err.Error()
+	} else {
+		checks["nginx"] = "ok"
+	}
+
+	status := "healthy"
+	code := http.StatusOK
+	if !healthy {
+		status, code = "unhealthy", http.StatusServiceUnavailable
+	}
+	writeJSON(w, code, map[string]any{"status": status, "checks": checks})
+}
+
+func writable(dir string) error {
+	probe := filepath.Join(dir, ".write-probe")
+	if err := os.WriteFile(probe, []byte("ok"), 0o600); err != nil {
+		return err
+	}
+	return os.Remove(probe)
+}
+
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.updater.Status(r.Context()))
+}
+
+// handleSystemInfo powers the dashboard summary.
+func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
+	info, err := s.docker.Info(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	projects, err := s.db.ListProjects(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	recent, err := s.db.RecentDeployments(r.Context(), 10)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	names := map[string]string{}
+	for _, p := range projects {
+		names[p.ID] = p.Name
+	}
+	activity := make([]map[string]any, 0, len(recent))
+	for _, d := range recent {
+		activity = append(activity, map[string]any{"deployment": d, "project_name": names[d.ProjectID]})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"host": map[string]any{
+			"docker_version": info.ServerVersion,
+			"os":             info.OperatingSystem,
+			"architecture":   info.Architecture,
+			"cpus":           info.NCPU,
+			"memory_total":   info.MemTotal,
+			"name":           info.Name,
+		},
+		"projects":           len(projects),
+		"containers":         info.Containers,
+		"containers_running": info.ContainersRunning,
+		"containers_stopped": info.ContainersStopped,
+		"images":             info.Images,
+		"recent_deployments": activity,
+		"version":            s.cfg.Version,
+	})
+}
+
+// handleSystemStats streams host CPU/RAM/disk over SSE.
+func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
+	sse, err := newSSE(w)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		if err := sse.send("stats", metrics.Read(s.cfg.Root)); err != nil {
+			return
+		}
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// handleSystemEvents streams docker/platform events so the panel updates itself.
+func (s *Server) handleSystemEvents(w http.ResponseWriter, r *http.Request) {
+	ch, unsubscribe := s.bus.Subscribe(events.TopicSystem)
+	defer unsubscribe()
+	sse, err := newSSE(w)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	streamBus(r.Context(), sse, ch)
+}
+
+type settingsPayload struct {
+	DashboardDomain string `json:"dashboard_domain"`
+	DashboardHTTPS  bool   `json:"dashboard_https"`
+	ACMEEmail       string `json:"acme_email"`
+}
+
+func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, settingsPayload{
+		DashboardDomain: s.setting(r.Context(), domains.SettingDashboardDomain),
+		DashboardHTTPS:  s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
+		ACMEEmail:       s.cfg.ACMEEmail,
+	})
+}
+
+func (s *Server) setting(ctx context.Context, key string) string {
+	v, err := s.db.Setting(ctx, key)
+	if err != nil {
+		return ""
+	}
+	return v
+}
+
+func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
+	var req settingsPayload
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if err := s.domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
+		badRequest(w, err)
+		return
+	}
+	s.handleGetSettings(w, r)
+}
+
+func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
+	snapshot, err := s.backups.Create(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, snapshot)
+}
+
+func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
+	list, err := s.backups.List()
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// handleUpdate hands the swap to a detached updater container.
+func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Version string `json:"version"`
+	}
+	if err := decode(r, &req); err != nil && !errors.Is(err, http.ErrBodyNotAllowed) {
+		// An empty body means "update to latest".
+		req.Version = ""
+	}
+	if err := s.updater.Start(r.Context(), req.Version); err != nil {
+		badRequest(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status":  "started",
+		"message": "The platform is updating. The dashboard will reconnect automatically.",
+	})
+}
+
+func (s *Server) handleListRegistries(w http.ResponseWriter, r *http.Request) {
+	list, err := s.db.ListRegistries(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// handleCreateRegistry stores credentials encrypted and verifies them by
+// logging in, so a typo is caught here rather than during a deployment.
+func (s *Server) handleCreateRegistry(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name     string `json:"name"`
+		URL      string `json:"url"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if req.Name == "" || req.URL == "" || req.Username == "" || req.Password == "" {
+		badRequest(w, errors.New("name, url, username and token are all required"))
+		return
+	}
+	encrypted, err := s.cipher.Encrypt(req.Password)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	registry := &database.Registry{Name: req.Name, URL: req.URL, Username: req.Username, EncryptedPassword: encrypted}
+	if err := s.db.CreateRegistry(r.Context(), registry); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if err := s.dockerLogin(r.Context(), req.URL, req.Username, req.Password); err != nil {
+		_ = s.db.DeleteRegistry(r.Context(), registry.ID)
+		badRequest(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, registry)
+}
+
+func (s *Server) handleDeleteRegistry(w http.ResponseWriter, r *http.Request) {
+	if err := s.db.DeleteRegistry(r.Context(), r.PathValue("id")); err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// dockerLogin authenticates the daemon against a registry. The token is piped
+// on stdin so it never appears in the process arguments.
+func (s *Server) dockerLogin(ctx context.Context, registryURL, username, password string) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "docker", "login", "--username", username, "--password-stdin", registryURL)
+	cmd.Stdin = strings.NewReader(password)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("registry login failed: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}

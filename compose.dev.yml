@@ -1,0 +1,21 @@
+# Local development stack: identical topology to production, built from source.
+#
+#   make dev-up     build and start
+#   make dev-logs   follow the manager
+#
+# PLATFORM_ROOT defaults to ./.platform so a laptop never writes to /opt.
+
+services:
+  manager:
+    build:
+      context: .
+      dockerfile: docker/manager.Dockerfile
+      args:
+        VERSION: dev
+    image: platform-manager:dev
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx.Dockerfile
+    image: platform-nginx:dev

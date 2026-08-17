@@ -1,0 +1,76 @@
+@import 'tailwindcss';
+@import '@xterm/xterm/css/xterm.css';
+
+/*
+ * True black, white primary text, information dense. No decorative chrome and
+ * no continuously repainting animation: the panel is often left open on a
+ * second monitor.
+ */
+@theme {
+  --color-bg: #000000;
+  --color-surface: #0a0a0a;
+  --color-line: #1f1f1f;
+  --color-line-strong: #2e2e2e;
+  --color-text: #ffffff;
+  --color-muted: #8a8a8a;
+  --color-ok: #3ddc84;
+  --color-warn: #f5c451;
+  --color-bad: #ff5f56;
+  --color-accent: #4c8dff;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #ffffff;
+  color: #000000;
+}
+
+/* One shared scrollbar treatment; dense views scroll a lot. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 2px;
+  padding: 6px 8px;
+  width: 100%;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-line-strong);
+}
+
+.terminal-host .xterm {
+  padding: 8px;
+}

@@ -1,0 +1,74 @@
+# Contributing
+
+## Getting set up
+
+```sh
+git clone https://github.com/vexdock/platform
+cd platform
+bun install
+make check
+```
+
+`make check` runs `go vet`, the Go tests and the dashboard typecheck. It is
+exactly what CI runs.
+
+## Running the whole thing locally
+
+```sh
+make dev-up             # builds both images, starts manager + nginx
+./scripts/smoke-test.sh # end-to-end: setup, deploy, domain, proxy
+make dev-logs
+make dev-down
+```
+
+State goes to `./.platform`, never `/opt`.
+
+For fast frontend iteration run the two halves separately:
+
+```sh
+make run       # manager on :8080 against ./.platform
+make web-dev   # dashboard on :5173, proxying /api to :8080
+```
+
+## Layout
+
+| Path | What lives there |
+|---|---|
+| `manager/internal/api` | HTTP handlers, routing, middleware |
+| `manager/internal/database` | SQLite connection, models and every query |
+| `manager/internal/deployments` | The deploy pipeline |
+| `manager/internal/domains` | Domain to service mapping and proxy reconciliation |
+| `manager/internal/nginx` | Configuration generation and safe reload |
+| `manager/internal/security` | Validation, encryption, path confinement |
+| `apps/web/src/routes` | One file per page |
+| `apps/web/src/lib/api.ts` | The typed API client |
+
+`database` depends on nothing but the driver, so the import graph stays acyclic:
+business packages depend on it, never the other way round.
+
+## Conventions
+
+**Go.** Standard library first. No framework, no ORM. Errors are wrapped with
+context and returned, not logged and swallowed. Anything that reaches a command
+line is validated in `internal/security` before it gets there, and arguments are
+always separate slice elements.
+
+**TypeScript.** Strict mode, no `any`, inferred types wherever possible. Server
+state belongs to TanStack Query; component state is local.
+
+**UI.** True black background, white primary text, dense tables, no decorative
+chrome. No continuously repainting animation: the panel is often left open.
+
+## Tests
+
+Focused tests for logic that can break silently: the Nginx generator, the
+compose parser, validation, encryption, path confinement, webhook signatures and
+the deployment state machine. `scripts/smoke-test.sh` covers the real path
+through a running stack. Please do not add tests that only restate the
+implementation.
+
+## Pull requests
+
+- One concern per pull request.
+- `make check` passes.
+- If behaviour changed, the docs changed with it.

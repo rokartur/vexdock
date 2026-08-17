@@ -1,0 +1,11 @@
+node_modules/
+dist/
+bin/
+.platform/
+.output/
+.tanstack/
+.vite/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
