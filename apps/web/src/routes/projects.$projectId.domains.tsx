@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '../lib/api'
-import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/$projectId/domains')({ component: ProjectDomains })
 

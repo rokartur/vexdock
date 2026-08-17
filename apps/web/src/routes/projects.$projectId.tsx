@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '../lib/api'
-import { Button, ErrorText, Status } from '../components/ui'
+import { Button, ErrorText, Status } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/$projectId')({ component: ProjectLayout })
 

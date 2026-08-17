@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api, type SourceType } from '../lib/api'
 import { since } from '../lib/format'
-import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/')({ component: ProjectsPage })
 

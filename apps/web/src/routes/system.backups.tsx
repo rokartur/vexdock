@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
 import { bytes, since } from '../lib/format'
-import { Button, Cell, Empty, ErrorText, Row, Section, Skeleton, Table } from '../components/ui'
+import { Button, Cell, Empty, ErrorText, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/system/backups')({ component: BackupsPage })
 

@@ -1,9 +1,22 @@
+import { fileURLToPath, URL } from 'node:url'
+
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  ssr: {
+    // The shell is prerendered once at build time. Dependencies left external
+    // would be loaded as CJS and pick up a second React instance, which fails
+    // the moment a component calls a hook.
+    noExternal: true,
+  },
   plugins: [
     // SPA mode: the build emits a static shell plus client assets. Production
     // has no JavaScript runtime, Nginx serves the files directly.

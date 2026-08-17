@@ -58,7 +58,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	s.auth.SetSessionCookie(w, token)
+	s.auth.SetSessionCookie(w, r, token)
 	writeJSON(w, http.StatusCreated, sessionResponse{User: user, CSRFToken: csrf})
 }
 
@@ -80,7 +80,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	s.auth.SetSessionCookie(w, token)
+	s.auth.SetSessionCookie(w, r, token)
 	writeJSON(w, http.StatusOK, sessionResponse{User: user, CSRFToken: csrf})
 }
 
@@ -91,7 +91,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.auth.ClearSessionCookie(w)
+	s.auth.ClearSessionCookie(w, r)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

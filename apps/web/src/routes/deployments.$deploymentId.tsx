@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
 import { clock, duration, shortSha } from '../lib/format'
-import { Button, ErrorText, Section, Status } from '../components/ui'
+import { Button, ErrorText, Section, Status } from '../components/primitives'
 import { useEventSource } from '../lib/sse'
 
 export const Route = createFileRoute('/deployments/$deploymentId')({ component: DeploymentPage })

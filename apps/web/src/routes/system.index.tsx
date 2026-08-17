@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
 import { bytes } from '../lib/format'
-import { Cell, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Cell, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/system/')({ component: SystemOverview })
 

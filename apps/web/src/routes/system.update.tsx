@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '../lib/api'
-import { Button, ErrorText, Section } from '../components/ui'
+import { Button, ErrorText, Section } from '../components/primitives'
 
 export const Route = createFileRoute('/system/update')({ component: UpdatePage })
 

@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { api } from '../lib/api'
 import { duration, shortSha, since } from '../lib/format'
-import { Button, Cell, Empty, ErrorText, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Button, Cell, Empty, ErrorText, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/$projectId/deployments')({ component: ProjectDeployments })
 

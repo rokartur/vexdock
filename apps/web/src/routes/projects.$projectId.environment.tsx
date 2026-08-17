@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { api, type EnvVar } from '../lib/api'
-import { Button, ErrorText, Section } from '../components/ui'
+import { Button, ErrorText, Section } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/$projectId/environment')({ component: ProjectEnvironment })
 

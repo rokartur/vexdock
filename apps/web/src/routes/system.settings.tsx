@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { api } from '../lib/api'
-import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Table } from '../components/ui'
+import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Table } from '../components/primitives'
 import { since } from '../lib/format'
 
 export const Route = createFileRoute('/system/settings')({ component: SettingsPage })

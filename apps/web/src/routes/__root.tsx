@@ -4,7 +4,12 @@ import type { ReactNode } from 'react'
 
 import { AuthGate } from '../components/auth-gate'
 import { Shell } from '../components/shell'
-import styles from '../styles.css?url'
+import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
+// Side-effect import: Vite emits and injects the hashed stylesheet itself.
+// Referencing it by ?url instead would bake the server build's hash into the
+// prerendered shell, which does not match the client build's hash.
+import '../styles.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,7 +31,6 @@ export const Route = createRootRoute({
       { name: 'color-scheme', content: 'dark' },
       { title: 'Platform' },
     ],
-    links: [{ rel: 'stylesheet', href: styles }],
   }),
   component: RootComponent,
 })
@@ -41,7 +45,10 @@ function RootComponent() {
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
-        <AuthGate>{isPublic ? <Outlet /> : <Shell>{<Outlet />}</Shell>}</AuthGate>
+        <TooltipProvider delayDuration={300}>
+          <AuthGate>{isPublic ? <Outlet /> : <Shell>{<Outlet />}</Shell>}</AuthGate>
+          <Toaster position="bottom-right" />
+        </TooltipProvider>
       </QueryClientProvider>
     </RootDocument>
   )
@@ -49,11 +56,14 @@ function RootComponent() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    // The panel is dark only; there is no theme switch to keep in sync.
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>
-      <body>
+      {/* The inline colours paint before the stylesheet arrives, so booting
+          the SPA never flashes white. */}
+      <body style={{ background: '#000', color: '#fff' }}>
         <div id="root">{children}</div>
         <Scripts />
       </body>

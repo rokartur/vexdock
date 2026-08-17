@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api, type ContainerStats } from '../lib/api'
 import { bytes, percent, since } from '../lib/format'
-import { Button, Section, Status } from '../components/ui'
+import { Button, Section, Status } from '../components/primitives'
 import { LogViewer } from '../components/log-viewer'
 import { Terminal } from '../components/terminal'
 import { useEventSource } from '../lib/sse'

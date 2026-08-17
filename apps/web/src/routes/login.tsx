@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api, setCsrfToken } from '../lib/api'
-import { Button, ErrorText, Field } from '../components/ui'
+import { Button, ErrorText, Field } from '../components/primitives'
 
 export const Route = createFileRoute('/login')({ component: LoginPage })
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { api, type CredentialKind } from '../lib/api'
-import { Button, ErrorText, Field, Section } from '../components/ui'
+import { Button, ErrorText, Field, Section } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/$projectId/settings')({ component: ProjectSettings })
 

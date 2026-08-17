@@ -47,9 +47,6 @@ type Config struct {
 
 	// SessionTTL bounds how long a login stays valid.
 	SessionTTL time.Duration
-
-	// DevMode relaxes cookie Secure flags for plain-HTTP local development.
-	DevMode bool
 }
 
 const (
@@ -91,7 +88,6 @@ func Load() (*Config, error) {
 		ACMEEmail:       env("PLATFORM_ACME_EMAIL", ""),
 		ACMERenewBefore: 30 * 24 * time.Hour,
 		SessionTTL:      time.Duration(intEnv("PLATFORM_SESSION_TTL_HOURS", 24*14)) * time.Hour,
-		DevMode:         boolEnv("PLATFORM_DEV", false),
 	}
 
 	for _, dir := range []string{c.DataDir, c.ProjectsDir, c.NginxDir, c.CertificatesDir, c.BackupsDir, c.SystemDir} {

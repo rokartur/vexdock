@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api, type HostStats } from '../lib/api'
 import { bytes, percent, since } from '../lib/format'
-import { Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 import { useEventSource } from '../lib/sse'
 
 export const Route = createFileRoute('/')({ component: DashboardPage })

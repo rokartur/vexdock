@@ -55,5 +55,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
       </div>
     )
   }
+  // Hold the route back while the redirect above is in flight. Rendering the
+  // authenticated shell first would mount every dashboard query and fire a
+  // burst of requests that can only answer 401.
+  const target = requiredRoute(status.data)
+  if (target && target !== pathname) return null
+
   return <>{children}</>
+}
+
+/** The only route an unauthenticated or unconfigured visitor may see. */
+function requiredRoute(status: { needs_setup: boolean; authenticated: boolean } | undefined) {
+  if (!status) return null
+  if (status.needs_setup) return '/setup'
+  if (!status.authenticated) return '/login'
+  return null
 }

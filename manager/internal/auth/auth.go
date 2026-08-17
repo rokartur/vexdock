@@ -109,31 +109,43 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 	return s.db.DeleteSession(ctx, security.HashToken(token))
 }
 
-// SetSessionCookie writes the HttpOnly session cookie. Secure is dropped only
-// in dev mode, because the dashboard is reachable over plain HTTP by IP before
-// the user attaches a domain.
-func (s *Service) SetSessionCookie(w http.ResponseWriter, token string) {
+// SetSessionCookie writes the HttpOnly session cookie.
+//
+// Secure follows the actual scheme of the request rather than a static setting:
+// a fresh install is reached over plain HTTP by IP, and a browser silently
+// discards a Secure cookie there, which would make login impossible. Once the
+// panel has a domain with TLS, the flag turns itself on.
+func (s *Service) SetSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookie,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   !s.cfg.DevMode,
+		Secure:   isHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(s.cfg.SessionTTL.Seconds()),
 	})
 }
 
-func (s *Service) ClearSessionCookie(w http.ResponseWriter) {
+func (s *Service) ClearSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookie,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   !s.cfg.DevMode,
+		Secure:   isHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
+}
+
+// isHTTPS reports whether the browser reached the platform over TLS. The
+// manager always sits behind Nginx, which forwards the original scheme.
+func isHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 type contextKey string

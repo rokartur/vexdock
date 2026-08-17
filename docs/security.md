@@ -7,8 +7,8 @@ Everything in front of it is therefore treated as untrusted input.
 
 - The manager listens only on the internal Docker network. Nginx is the sole
   public entry point.
-- Sessions are HttpOnly cookies with `SameSite=Lax`, `Secure` outside of dev
-  mode, hashed with SHA-256 before storage.
+- Sessions are HttpOnly cookies with `SameSite=Lax`, `Secure` whenever the
+  request arrived over TLS, hashed with SHA-256 before storage.
 - Every cookie-authenticated mutation requires a matching `X-CSRF-Token` header.
 - Login is rate limited per client IP in the manager and again in Nginx, and a
   missing user costs the same bcrypt comparison as a wrong password so accounts

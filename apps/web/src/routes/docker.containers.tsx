@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api } from '../lib/api'
 import { since } from '../lib/format'
-import { Button, Cell, ErrorText, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Button, Cell, ErrorText, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 import { LogViewer } from '../components/log-viewer'
 
 export const Route = createFileRoute('/docker/containers')({ component: ContainersPage })

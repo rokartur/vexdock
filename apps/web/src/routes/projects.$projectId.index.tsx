@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
 import { since } from '../lib/format'
-import { Button, Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Button, Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/$projectId/')({ component: ProjectServices })
 

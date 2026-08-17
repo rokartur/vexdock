@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
-import { Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/ui'
+import { Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/domains')({ component: DomainsPage })
 

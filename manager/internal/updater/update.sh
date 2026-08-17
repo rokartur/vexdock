@@ -47,23 +47,41 @@ wait_healthy() {
 }
 
 set_version "$VERSION"
+compose() {
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+}
+
+# Every failure after the version is written must come back through here,
+# otherwise `set -e` would abort with the new version recorded and the old
+# containers still running.
+rollback() {
+    log "rolling back to $PREVIOUS"
+    set_version "$PREVIOUS"
+    compose up -d --remove-orphans || log "rollback recreate reported an error"
+    if wait_healthy; then
+        log "rollback to $PREVIOUS completed"
+    else
+        log "rollback did not become healthy - manual intervention required"
+    fi
+    exit 1
+}
+
 log "pulling images"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
+if ! compose pull; then
+    log "pull failed"
+    rollback
+fi
 
 log "recreating stack"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+if ! compose up -d --remove-orphans; then
+    log "recreate failed"
+    rollback
+fi
 
 if wait_healthy; then
     log "update to $VERSION completed"
     exit 0
 fi
 
-log "health check failed, rolling back to $PREVIOUS"
-set_version "$PREVIOUS"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
-if wait_healthy; then
-    log "rollback to $PREVIOUS completed"
-else
-    log "rollback did not become healthy - manual intervention required"
-fi
-exit 1
+log "health check failed"
+rollback

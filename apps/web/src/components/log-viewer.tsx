@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useEventSource } from '../lib/sse'
-import { Button } from './ui'
+import { Button } from './primitives'
 
 type Line = { stream: string; text: string }
 

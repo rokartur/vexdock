@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
-import { Cell, Row, Section, Skeleton, Table } from '../components/ui'
+import { Cell, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/docker/networks')({ component: NetworksPage })
 

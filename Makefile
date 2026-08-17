@@ -17,7 +17,7 @@ manager: ## Build the manager binary into ./bin
 
 .PHONY: run
 run: ## Run the manager against ./.platform on :8080
-	cd manager && PLATFORM_ROOT=$(PLATFORM_ROOT) PLATFORM_DEV=true PLATFORM_LOG_LEVEL=debug go run ./cmd/server
+	cd manager && PLATFORM_ROOT=$(PLATFORM_ROOT) PLATFORM_LOG_LEVEL=debug go run ./cmd/server
 
 .PHONY: test
 test: ## Run Go tests

@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api } from '../lib/api'
 import { bytes, since } from '../lib/format'
-import { Button, Cell, ErrorText, Row, Section, Skeleton, Table } from '../components/ui'
+import { Button, Cell, ErrorText, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/docker/volumes')({ component: VolumesPage })
 
