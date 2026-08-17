@@ -27,6 +27,7 @@ project at a Git repository, press Deploy.
 - **Templates.** PostgreSQL, MySQL, MariaDB, Valkey, MongoDB and MinIO as
   ordinary compose projects you can edit.
 - **API tokens.** The same REST API the dashboard uses, for CI.
+- **Audit log.** Who changed what, when, and from where.
 
 ## What it deliberately does not do
 

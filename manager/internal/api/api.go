@@ -4,6 +4,7 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"log/slog"
 	"net"
@@ -145,6 +146,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/system/settings", s.protected(s.handleGetSettings))
 	mux.Handle("PUT /api/system/settings", s.protected(s.handlePutSettings))
 	mux.Handle("GET /api/system/certificates", s.protected(s.handleListCertificates))
+	mux.Handle("GET /api/system/audit", s.protected(s.handleAudit))
 	mux.Handle("POST /api/system/backup", s.protected(s.handleBackup))
 	mux.Handle("GET /api/system/backups", s.protected(s.handleListBackups))
 	mux.Handle("POST /api/system/update", s.protected(s.handleUpdate))
@@ -165,11 +167,61 @@ func (s *Server) protected(h http.HandlerFunc) http.Handler {
 		// mutations must prove they originate from the panel. Bearer tokens are
 		// never sent automatically and need no such check.
 		if viaCookie && isMutation(r.Method) && !auth.SameOrigin(r) {
+			// A rejected mutation from an authenticated session is worth more in
+			// the audit log than a successful one.
+			s.audit(r, user, http.StatusForbidden, viaCookie)
 			writeError(w, http.StatusForbidden, "CROSS_ORIGIN", "Cross-origin request rejected", nil)
 			return
 		}
-		h(w, r.WithContext(auth.WithUser(r.Context(), user)))
+
+		if !isMutation(r.Method) {
+			h(w, r.WithContext(auth.WithUser(r.Context(), user)))
+			return
+		}
+		// Every state-changing call is recorded, whoever made it and however
+		// they authenticated.
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		h(rec, r.WithContext(auth.WithUser(r.Context(), user)))
+		s.audit(r, user, rec.status, viaCookie)
 	})
+}
+
+// clientIP identifies the caller for audit entries, honouring the header Nginx
+// sets.
+func clientIP(r *http.Request) string {
+	if forwarded := r.Header.Get("X-Real-IP"); forwarded != "" {
+		return forwarded
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// audit records a mutation. A failed write is logged and swallowed: losing an
+// audit line must never turn a successful action into an error for the user.
+func (s *Server) audit(r *http.Request, user *auth.User, status int, viaCookie bool) {
+	credential := "api-token"
+	if viaCookie {
+		credential = "session"
+	}
+	actor := "unknown"
+	if user != nil && user.Email != "" {
+		actor = user.Email
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+	defer cancel()
+	if err := s.db.RecordAudit(ctx, database.AuditEntry{
+		Actor:      actor,
+		Method:     r.Method,
+		Path:       r.URL.Path,
+		Status:     status,
+		ClientIP:   clientIP(r),
+		Credential: credential,
+	}); err != nil {
+		s.log.Warn("audit write failed", "path", r.URL.Path, "error", err)
+	}
 }
 
 func isMutation(method string) bool {

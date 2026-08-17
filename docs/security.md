@@ -14,8 +14,11 @@ Everything in front of it is therefore treated as untrusted input.
 - Every cookie-authenticated mutation must carry an `Origin` matching the
   dashboard. Browsers cannot forge it, so this is the CSRF defence.
 - Sign-up closes permanently once the first administrator exists.
-- Credential endpoints are rate limited in Nginx as well, so a flood never
-  reaches password hashing.
+- Credential endpoints are rate limited twice: better-auth allows five attempts
+  a minute per client, and Nginx throttles the same paths independently.
+- Every state-changing API call is recorded in an audit log with the actor, the
+  path, the resulting status, the credential type and the client address.
+  Rejected cross-origin attempts are recorded too.
 
 ## Command execution
 

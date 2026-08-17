@@ -108,6 +108,7 @@ var apiRoutes = []route{
 	{"get", "/api/system/settings", "Read platform settings", "system", false},
 	{"put", "/api/system/settings", "Update platform settings", "system", false},
 	{"get", "/api/system/certificates", "Certificate inventory", "system", false},
+	{"get", "/api/system/audit", "Recent state-changing calls", "system", false},
 	{"post", "/api/system/backup", "Create a configuration backup", "system", false},
 	{"get", "/api/system/backups", "List backups", "system", false},
 	{"post", "/api/system/update", "Start a platform update", "system", false},

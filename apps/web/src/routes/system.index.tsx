@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
-import { bytes } from '../lib/format'
+import { bytes, since } from '../lib/format'
 import { Cell, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/system/')({ component: SystemOverview })
@@ -11,6 +11,7 @@ function SystemOverview() {
   const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo })
   const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 30_000 })
   const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
+  const audit = useQuery({ queryKey: ['audit'], queryFn: api.audit, refetchInterval: 30_000 })
 
   return (
     <>
@@ -60,6 +61,28 @@ function SystemOverview() {
                 </Cell>
                 <Cell mono>{certificate.expires_at ? certificate.expires_at.slice(0, 10) : '-'}</Cell>
                 <Cell mono>{certificate.last_renewed_at ? certificate.last_renewed_at.slice(0, 10) : '-'}</Cell>
+              </Row>
+            ))}
+          </Table>
+        )}
+      </Section>
+      <Section title="Audit" description="every state-changing call, newest first">
+        {audit.isLoading ? (
+          <Skeleton rows={4} />
+        ) : audit.data?.length === 0 ? (
+          <p className="text-muted-foreground border-t py-6 text-xs">Nothing recorded yet.</p>
+        ) : (
+          <Table head={['When', 'Actor', 'Action', 'Status', 'Via', 'From']}>
+            {audit.data?.map((entry) => (
+              <Row key={entry.id}>
+                <Cell>{since(entry.at)}</Cell>
+                <Cell>{entry.actor}</Cell>
+                <Cell mono>
+                  {entry.method} {entry.path}
+                </Cell>
+                <Cell mono>{entry.status}</Cell>
+                <Cell>{entry.credential}</Cell>
+                <Cell mono>{entry.client_ip || '-'}</Cell>
               </Row>
             ))}
           </Table>

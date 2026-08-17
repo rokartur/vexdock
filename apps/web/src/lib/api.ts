@@ -236,6 +236,17 @@ export type Settings = {
   acme_email: string
 }
 
+export type AuditEntry = {
+  id: string
+  at: string
+  actor: string
+  method: string
+  path: string
+  status: number
+  client_ip: string
+  credential: string
+}
+
 export type Backup = {
   name: string
   path: string
@@ -410,6 +421,7 @@ export const api = {
   settings: () => request<Settings>('/api/system/settings'),
   saveSettings: (body: Settings) => request<Settings>('/api/system/settings', { method: 'PUT', body }),
   certificates: () => request<Certificate[]>('/api/system/certificates'),
+  audit: () => request<AuditEntry[]>('/api/system/audit'),
   backups: () => request<Backup[]>('/api/system/backups'),
   createBackup: () => request<Backup>('/api/system/backup', { method: 'POST' }),
   version: () => request<VersionStatus>('/api/system/version'),

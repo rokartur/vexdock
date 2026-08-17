@@ -48,6 +48,18 @@ export const authOptions = {
     expiresIn: 60 * 60 * 24 * 14,
     updateAge: 60 * 60 * 24,
   },
+  // better-auth only rate limits in production by default, and the panel does
+  // not set NODE_ENV, so it is enabled explicitly. Nginx throttles the same
+  // endpoints as a second layer.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 60,
+    customRules: {
+      '/sign-in/email': { window: 60, max: 5 },
+      '/sign-up/email': { window: 60, max: 5 },
+    },
+  },
   advanced: {
     // Set Secure only when the request actually arrived over TLS: a browser
     // discards a Secure cookie on the plain-HTTP address a fresh install uses.

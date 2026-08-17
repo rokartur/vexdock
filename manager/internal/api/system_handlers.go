@@ -221,6 +221,16 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleAudit lists recent state-changing calls.
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	entries, err := s.db.ListAudit(r.Context(), 100)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entries)
+}
+
 func (s *Server) handleListRegistries(w http.ResponseWriter, r *http.Request) {
 	list, err := s.db.ListRegistries(r.Context())
 	if err != nil {

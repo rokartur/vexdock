@@ -126,7 +126,7 @@ func run() error {
 
 	reconciler := events.NewReconciler(dockerClient, domainService, bus, log.With("component", "reconciler"))
 	go reconciler.Run(ctx)
-	go scheduler(ctx, domainService, backupService, log.With("component", "scheduler"))
+	go scheduler(ctx, db, domainService, backupService, log.With("component", "scheduler"))
 
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -160,7 +160,7 @@ func run() error {
 
 // scheduler runs the platform's periodic work: certificate renewal, session
 // cleanup and backup retention. One goroutine, no cron dependency.
-func scheduler(ctx context.Context, domainService *domains.Service,
+func scheduler(ctx context.Context, db *database.DB, domainService *domains.Service,
 	backupService *backup.Service, log *slog.Logger) {
 	// Renewals are checked shortly after boot and then every six hours.
 	first := time.NewTimer(time.Minute)
@@ -170,6 +170,9 @@ func scheduler(ctx context.Context, domainService *domains.Service,
 
 	work := func() {
 		domainService.RenewExpiring(ctx)
+		if err := db.PruneAudit(ctx, 5000); err != nil {
+			log.Warn("audit retention", "error", err)
+		}
 		if err := backupService.Prune(10); err != nil {
 			log.Warn("backup retention", "error", err)
 		}
