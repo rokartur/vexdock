@@ -20,6 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The tag is the release version; package.json files must say the same.
+      - name: Versions match the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          for f in package.json apps/web/package.json apps/auth/package.json; do
+            v=$(jq -r .version "$f")
+            [ "v$v" = "$TAG" ] || { echo "$f is $v, tag is $TAG"; exit 1; }
+          done
+
       - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
