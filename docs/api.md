@@ -5,11 +5,13 @@ machine-readable description is served at `GET /api/openapi.json`.
 
 ## Authentication
 
-Two credentials are accepted.
+Everything under `/api/auth` is served by the better-auth service; the rest is
+the Go manager. Two credentials are accepted.
 
-**Session cookie.** `POST /api/auth/login` sets an HttpOnly cookie and returns a
-CSRF token. Every non-GET request made with the cookie must carry that token in
-the `X-CSRF-Token` header.
+**Session cookie.** `POST /api/auth/sign-in/email` sets an HttpOnly cookie. The
+manager validates it against better-auth's session table. Because browsers
+attach cookies to cross-site requests as well, a mutation must come from the
+dashboard's own origin; a foreign `Origin` header is answered `403`.
 
 **Bearer token.** Create one under **System → Settings → API tokens**; the value
 is shown once. Browsers never send it automatically, so no CSRF header is
@@ -31,9 +33,9 @@ Every error uses one envelope:
 |---|---|---|
 | `INVALID_REQUEST` | 400 | Validation failed; `message` is safe to show a user |
 | `UNAUTHORIZED` | 401 | No valid session or token |
-| `CSRF_INVALID` | 403 | Cookie session without a matching CSRF token |
+| `CROSS_ORIGIN` | 403 | Cookie session used from another origin |
 | `NOT_FOUND` | 404 | No such resource |
-| `SETUP_CLOSED` | 409 | An administrator already exists |
+| `SETUP_CLOSED` | 409 | An administrator already exists (from the auth service) |
 | `CONFIRMATION_REQUIRED` | 428 | Destructive action needs `confirm=true` |
 | `RATE_LIMITED` | 429 | Too many login attempts |
 | `CERTIFICATE_FAILED` | 502 | ACME issuance failed; `message` explains why |

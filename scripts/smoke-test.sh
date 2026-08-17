@@ -7,7 +7,8 @@
 #   make dev-up && ./scripts/smoke-test.sh
 set -euo pipefail
 
-API="${API:-http://127.0.0.1:3000/api}"
+ORIGIN="${ORIGIN:-http://127.0.0.1:3000}"
+API="$ORIGIN/api"
 COOKIES="$(mktemp)"
 EMAIL="smoke@example.com"
 PASSWORD="smoke-test-password"
@@ -25,25 +26,36 @@ curl -fsS "$API/health" | grep -q '"status":"healthy"' || fail 'manager is not h
 pass 'manager reports healthy'
 
 step 'authentication'
-status=$(curl -fsS "$API/auth/status")
+# Login belongs to the better-auth service, which Nginx serves on the same origin.
+status=$(curl -fsS "$API/auth/platform-status")
 if echo "$status" | grep -q '"needs_setup":true'; then
-    curl -fsS -c "$COOKIES" -H 'Content-Type: application/json' \
-        -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" "$API/auth/setup" >/dev/null
+    curl -fsS -c "$COOKIES" -H 'Content-Type: application/json' -H "Origin: $ORIGIN" \
+        -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"name\":\"smoke\"}" \
+        "$API/auth/sign-up/email" >/dev/null
     pass 'administrator created'
 else
-    curl -fsS -c "$COOKIES" -H 'Content-Type: application/json' \
-        -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" "$API/auth/login" >/dev/null
+    curl -fsS -c "$COOKIES" -H 'Content-Type: application/json' -H "Origin: $ORIGIN" \
+        -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" "$API/auth/sign-in/email" >/dev/null
     pass 'signed in'
 fi
-CSRF=$(curl -fsS -b "$COOKIES" "$API/auth/me" | json "d['csrf_token']")
 
-auth_post() { curl -fsS -b "$COOKIES" -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' "$@"; }
+principal=$(curl -fsS -b "$COOKIES" "$API/me" | json "d['user']['email']")
+[ "$principal" = "$EMAIL" ] || fail "the manager resolved the session to '$principal'"
+pass 'the manager validates the better-auth session'
 
-step 'csrf protection'
-code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIES" -X POST \
+auth_post() { curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -H 'Content-Type: application/json' "$@"; }
+
+step 'cross-origin protection'
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIES" -X POST -H 'Origin: https://evil.example.com' \
     -H 'Content-Type: application/json' -d '{"name":"x","source_type":"compose"}' "$API/projects")
-[ "$code" = "403" ] || fail "a mutation without a CSRF token returned $code, expected 403"
-pass 'mutations without a CSRF token are rejected'
+[ "$code" = "403" ] || fail "a cross-origin mutation returned $code, expected 403"
+pass 'cross-origin mutations are rejected'
+
+step 'sign-up is closed'
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -H "Origin: $ORIGIN" \
+    -d '{"email":"second@example.com","password":"another-password","name":"second"}' "$API/auth/sign-up/email")
+[ "$code" = "409" ] || fail "a second sign-up returned $code, expected 409"
+pass 'only one administrator can be created'
 
 step 'project'
 project=$(auth_post -d '{"name":"Smoke Test","source_type":"compose","compose_content":"services:\n  web:\n    image: nginx:alpine\n"}' "$API/projects")
@@ -96,7 +108,7 @@ masked=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/environment" | json 
 pass 'secrets are masked in API responses'
 
 step 'cleanup'
-curl -fsS -b "$COOKIES" -H "X-CSRF-Token: $CSRF" -X DELETE "$API/projects/$PROJECT_ID?volumes=true" >/dev/null
+curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/projects/$PROJECT_ID?volumes=true" >/dev/null
 pass 'project removed'
 
 printf '\nSmoke test passed.\n'

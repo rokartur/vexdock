@@ -39,8 +39,9 @@ web-dev: ## Run the dashboard dev server on :5173 (proxies /api to :8080)
 	cd apps/web && bun run dev
 
 .PHONY: web-check
-web-check: ## Typecheck the dashboard
+web-check: ## Typecheck the dashboard and the auth service
 	cd apps/web && bun run typecheck
+	cd apps/auth && bun run typecheck
 
 ## ---- images ----
 

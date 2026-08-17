@@ -52,19 +52,21 @@ func (db *DB) DeleteAPIToken(ctx context.Context, id string) error {
 	return err
 }
 
-// UserByAPIToken resolves a bearer token and records its use.
-func (db *DB) UserByAPIToken(ctx context.Context, tokenHash string) (*User, error) {
-	var userID, tokenID string
-	err := db.QueryRowContext(ctx, `SELECT id, user_id FROM api_tokens WHERE token_hash = ?`, tokenHash).
-		Scan(&tokenID, &userID)
+// APITokenByHash resolves a bearer token and records its use. The user it
+// points at lives in the better-auth database, which this package never opens.
+func (db *DB) APITokenByHash(ctx context.Context, tokenHash string) (*APIToken, error) {
+	var t APIToken
+	err := db.QueryRowContext(ctx,
+		`SELECT id, user_id, name, prefix, last_used_at, created_at FROM api_tokens WHERE token_hash = ?`, tokenHash).
+		Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &t.LastUsedAt, &t.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, Now(), tokenID); err != nil {
+	if _, err := db.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, Now(), t.ID); err != nil {
 		return nil, err
 	}
-	return db.UserByID(ctx, userID)
+	return &t, nil
 }

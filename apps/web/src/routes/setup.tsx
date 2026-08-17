@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { api, setCsrfToken } from '../lib/api'
+import { signUp } from '../lib/auth-client'
 import { Button, ErrorText, Field } from '../components/primitives'
 
 export const Route = createFileRoute('/setup')({ component: SetupPage })
@@ -17,9 +17,12 @@ function SetupPage() {
   const mismatch = confirm.length > 0 && confirm !== password
 
   const setup = useMutation({
-    mutationFn: () => api.setup(email, password),
-    onSuccess: async (result) => {
-      setCsrfToken(result.csrf_token)
+    mutationFn: async () => {
+      // The auth service refuses a second sign-up, so this form closes itself.
+      const { error } = await signUp.email({ email, password, name: email.split('@')[0] ?? 'admin' })
+      if (error) throw new Error(error.message ?? 'Could not create the account')
+    },
+    onSuccess: async () => {
       await queryClient.invalidateQueries()
       await navigate({ to: '/', replace: true })
     },
@@ -28,7 +31,9 @@ function SetupPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
       <h1 className="mb-1 text-[15px] font-medium">Create administrator</h1>
-      <p className="mb-6 text-[12px] text-[#8a8a8a]">This is the only account creation step. It closes afterwards.</p>
+      <p className="text-muted-foreground mb-6 text-xs">
+        This is the only account creation step. It closes afterwards.
+      </p>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -63,7 +68,7 @@ function SetupPage() {
             onChange={(event) => setConfirm(event.target.value)}
           />
         </Field>
-        {mismatch ? <p className="py-2 text-[12px] text-[#ff5f56]">Passwords do not match.</p> : null}
+        {mismatch ? <p className="text-destructive py-2 text-xs">Passwords do not match.</p> : null}
         <ErrorText error={setup.error} />
         <Button type="submit" variant="primary" disabled={setup.isPending || mismatch}>
           {setup.isPending ? 'Creating…' : 'Create account'}

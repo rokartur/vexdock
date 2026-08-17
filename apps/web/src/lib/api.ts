@@ -5,14 +5,10 @@
  * mutation, matching what the manager enforces for cookie sessions.
  */
 
-export type Role = 'admin'
-
 export type User = {
   id: string
   email: string
-  role: Role
-  created_at: string
-  updated_at: string
+  name: string
 }
 
 export type SourceType = 'git' | 'compose'
@@ -265,12 +261,6 @@ export class ApiError extends Error {
   }
 }
 
-let csrfToken = ''
-
-export function setCsrfToken(token: string) {
-  csrfToken = token
-}
-
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
@@ -281,7 +271,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const method = options.method ?? 'GET'
   const headers: Record<string, string> = {}
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
-  if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken
 
   const response = await fetch(path, {
     method,
@@ -318,13 +307,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const api = {
-  authStatus: () => request<{ needs_setup: boolean; authenticated: boolean }>('/api/auth/status'),
-  setup: (email: string, password: string) =>
-    request<{ user: User; csrf_token: string }>('/api/auth/setup', { method: 'POST', body: { email, password } }),
-  login: (email: string, password: string) =>
-    request<{ user: User; csrf_token: string }>('/api/auth/login', { method: 'POST', body: { email, password } }),
-  logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
-  me: () => request<{ user: User; csrf_token: string }>('/api/auth/me'),
+  // Sign-in and sessions belong to better-auth (src/lib/auth-client.ts); this
+  // is the manager's own view of the caller.
+  me: () => request<{ user: User }>('/api/me'),
 
   projects: () => request<Project[]>('/api/projects'),
   project: (id: string) => request<Project>(`/api/projects/${id}`),

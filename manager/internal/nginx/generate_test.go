@@ -82,6 +82,9 @@ func TestAliasIsStableAndSafe(t *testing.T) {
 func TestRenderDashboard(t *testing.T) {
 	conf := RenderDashboard("panel.example.com", "manager:8080", "/usr/share/nginx/html", false, "")
 	mustContain(t, conf, "proxy_pass http://manager:8080;")
+	// Authentication lives in its own service and must not reach the manager.
+	mustContain(t, conf, "location /api/auth/ {")
+	mustContain(t, conf, "proxy_pass http://"+AuthUpstream+";")
 	mustContain(t, conf, "try_files $uri $uri/ /index.html;")
 	mustContain(t, conf, "root /usr/share/nginx/html;")
 

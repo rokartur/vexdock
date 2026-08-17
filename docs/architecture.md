@@ -21,6 +21,11 @@
 The manager is the only component with access to the Docker socket. It is not
 published on any host port; Nginx is the sole entry point.
 
+A third container runs better-auth, which owns accounts and sessions in its own
+SQLite file. Nginx routes `/api/auth` there and everything else to the manager,
+which opens that file read-only to authenticate requests. Authentication is
+therefore implemented once, by a library built for it, rather than twice.
+
 ## Why Nginx and not Traefik
 
 Traefik configures itself from container labels, which is elegant until a label

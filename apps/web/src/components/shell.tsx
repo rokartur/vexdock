@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { api } from '../lib/api'
+import { signOut, useSession } from '../lib/auth-client'
 import { CommandPalette } from './command-palette'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
@@ -62,10 +63,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
 
   const version = useQuery({ queryKey: ['version'], queryFn: api.version, staleTime: 60_000 })
-  const session = useQuery({ queryKey: ['auth', 'me'], queryFn: api.me, staleTime: Infinity })
+  const session = useSession()
 
   const logout = useMutation({
-    mutationFn: api.logout,
+    mutationFn: () => signOut(),
     onSuccess: async () => {
       queryClient.clear()
       await navigate({ to: '/login', replace: true })
@@ -114,9 +115,13 @@ export function Shell({ children }: { children: ReactNode }) {
                       item.to === '/' ? pathname === '/' : pathname.startsWith(item.to)
                     return (
                       <SidebarMenuItem key={item.to}>
-                        <SidebarMenuButton asChild isActive={active} size="sm" tooltip={item.label}>
-                          <Link to={item.to}>{item.label}</Link>
-                        </SidebarMenuButton>
+                        {/* Base UI composes through render, not asChild. */}
+                        <SidebarMenuButton
+                          isActive={active}
+                          size="sm"
+                          tooltip={item.label}
+                          render={<Link to={item.to}>{item.label}</Link>}
+                        />
                       </SidebarMenuItem>
                     )
                   })}

@@ -44,8 +44,8 @@ func TestMigrationsAreIdempotent(t *testing.T) {
 		t.Fatalf("second open: %v", err)
 	}
 	defer second.Close()
-	if n, err := second.CountUsers(context.Background()); err != nil || n != 0 {
-		t.Fatalf("unexpected user count %d (%v)", n, err)
+	if _, err := second.ListProjects(context.Background()); err != nil {
+		t.Fatalf("schema is not usable after reopening: %v", err)
 	}
 }
 
@@ -174,32 +174,5 @@ func TestDeletingAProjectCascades(t *testing.T) {
 	}
 	if len(secrets) != 0 {
 		t.Fatal("secrets survived the project")
-	}
-}
-
-func TestSessionExpiry(t *testing.T) {
-	ctx := context.Background()
-	db := open(t)
-	user, err := db.CreateUser(ctx, "admin@example.com", "hash", "admin")
-	if err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-	if _, err := db.CreateSession(ctx, user.ID, "livehash", "csrf", "2999-01-01T00:00:00Z"); err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := db.CreateSession(ctx, user.ID, "deadhash", "csrf", "2000-01-01T00:00:00Z"); err != nil {
-		t.Fatalf("create expired session: %v", err)
-	}
-	if _, err := db.SessionByTokenHash(ctx, "livehash"); err != nil {
-		t.Fatalf("valid session not found: %v", err)
-	}
-	if _, err := db.SessionByTokenHash(ctx, "deadhash"); err == nil {
-		t.Fatal("an expired session must not authenticate")
-	}
-	if err := db.DeleteExpiredSessions(ctx); err != nil {
-		t.Fatalf("cleanup: %v", err)
-	}
-	if _, err := db.SessionByTokenHash(ctx, "livehash"); err != nil {
-		t.Fatalf("cleanup removed a valid session: %v", err)
 	}
 }

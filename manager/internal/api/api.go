@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/vexdock/platform/manager/internal/auth"
@@ -77,15 +76,11 @@ func (s *Server) Handler() http.Handler {
 	// Public.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/system/version", s.handleVersion)
-	mux.HandleFunc("GET /api/auth/status", s.handleAuthStatus)
-	mux.HandleFunc("POST /api/auth/setup", s.handleSetup)
-	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.HandleFunc("POST /api/webhooks/projects/{token}", s.handleWebhook)
 	mux.HandleFunc("GET /api/openapi.json", s.handleOpenAPI)
 
 	// Authenticated.
-	mux.Handle("POST /api/auth/logout", s.protected(s.handleLogout))
-	mux.Handle("GET /api/auth/me", s.protected(s.handleMe))
+	mux.Handle("GET /api/me", s.protected(s.handleMe))
 
 	mux.Handle("GET /api/projects", s.protected(s.handleListProjects))
 	mux.Handle("POST /api/projects", s.protected(s.handleCreateProject))
@@ -157,37 +152,24 @@ func (s *Server) Handler() http.Handler {
 	return s.recoverPanics(s.requestLogger(mux))
 }
 
-// protected requires authentication and, for mutations, a valid CSRF token.
+// protected requires authentication and, for cookie sessions, that the request
+// came from the dashboard itself.
 func (s *Server) protected(h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, session, err := s.authenticate(r)
+		user, viaCookie, err := s.auth.Authenticate(r)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required", nil)
 			return
 		}
-		// Cookie sessions need CSRF protection; bearer tokens are not sent
-		// automatically by browsers and therefore do not.
-		if session != nil && isMutation(r.Method) {
-			if !security.ConstantTimeEqual(r.Header.Get(auth.CSRFHeader), session.CSRFToken) {
-				writeError(w, http.StatusForbidden, "CSRF_INVALID", "Missing or invalid CSRF token", nil)
-				return
-			}
+		// A cookie is attached by the browser to cross-site requests too, so
+		// mutations must prove they originate from the panel. Bearer tokens are
+		// never sent automatically and need no such check.
+		if viaCookie && isMutation(r.Method) && !auth.SameOrigin(r) {
+			writeError(w, http.StatusForbidden, "CROSS_ORIGIN", "Cross-origin request rejected", nil)
+			return
 		}
-		h(w, r.WithContext(auth.WithUser(r.Context(), user, session)))
+		h(w, r.WithContext(auth.WithUser(r.Context(), user)))
 	})
-}
-
-// authenticate accepts either the session cookie or a bearer API token.
-func (s *Server) authenticate(r *http.Request) (*database.User, *database.Session, error) {
-	if header := r.Header.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
-		token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
-		user, err := s.db.UserByAPIToken(r.Context(), security.HashToken(token))
-		if err != nil {
-			return nil, nil, err
-		}
-		return user, nil, nil
-	}
-	return s.auth.Authenticate(r)
 }
 
 func isMutation(method string) bool {

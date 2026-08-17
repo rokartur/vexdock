@@ -10,6 +10,7 @@ permissions:
 
 env:
   MANAGER: ghcr.io/${{ github.repository_owner }}/platform-manager
+  AUTH: ghcr.io/${{ github.repository_owner }}/platform-auth
   PROXY: ghcr.io/${{ github.repository_owner }}/platform-nginx
 
 jobs:
@@ -40,6 +41,17 @@ jobs:
           tags: |
             ${{ env.MANAGER }}:${{ github.ref_name }}
             ${{ env.MANAGER }}:latest
+
+      - name: Auth image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/auth.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.AUTH }}:${{ github.ref_name }}
+            ${{ env.AUTH }}:latest
 
       - name: Nginx image
         uses: docker/build-push-action@v6

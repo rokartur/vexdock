@@ -110,6 +110,10 @@ func Load() (*Config, error) {
 // DatabasePath is the SQLite file backing the whole management plane.
 func (c *Config) DatabasePath() string { return filepath.Join(c.DataDir, "app.db") }
 
+// AuthDatabasePath is the better-auth database. The auth service writes it and
+// the manager reads it to validate sessions.
+func (c *Config) AuthDatabasePath() string { return filepath.Join(c.DataDir, "auth.db") }
+
 // MasterKeyPath holds the AES-GCM key protecting secrets stored in SQLite.
 func (c *Config) MasterKeyPath() string { return filepath.Join(c.SecretsDir, "master.key") }
 

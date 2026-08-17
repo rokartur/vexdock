@@ -35,12 +35,20 @@ require_root() {
     [ "$(id -u)" -eq 0 ] || die "This installer must run as root. Try: curl -fsSL … | sudo sh"
 }
 
+# os_release reads one field without sourcing the file into this shell:
+# /etc/os-release defines VERSION, which would otherwise silently overwrite the
+# platform version being installed.
+os_release() {
+    # shellcheck disable=SC1091
+    (. /etc/os-release && eval "printf '%s' \"\${$1:-}\"")
+}
+
 detect_os() {
     [ -r /etc/os-release ] || die "Cannot detect the operating system (/etc/os-release is missing)."
-    # shellcheck disable=SC1091
-    . /etc/os-release
-    OS_ID="${ID:-unknown}"
-    OS_NAME="${PRETTY_NAME:-$OS_ID}"
+    OS_ID="$(os_release ID)"
+    [ -n "$OS_ID" ] || OS_ID=unknown
+    OS_NAME="$(os_release PRETTY_NAME)"
+    [ -n "$OS_NAME" ] || OS_NAME="$OS_ID"
     case "$OS_ID" in
         ubuntu|debian) ok "System supported: $OS_NAME" ;;
         *) warn "Untested system: $OS_NAME. Ubuntu LTS and Debian stable are supported." ;;

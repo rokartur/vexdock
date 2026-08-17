@@ -6,6 +6,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"sort"
@@ -96,6 +97,9 @@ func (db *DB) migrate(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ErrNotFound is returned by every lookup helper when no row matches.
+var ErrNotFound = errors.New("not found")
 
 // Now is the single timestamp format used across every table (RFC3339 UTC),
 // which keeps string comparison in SQL chronologically correct.

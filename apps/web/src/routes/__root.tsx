@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 
 import { AuthGate } from '../components/auth-gate'
 import { Shell } from '../components/shell'
-import { Toaster } from '@/components/ui/sonner'
+import { Toaster } from '@/components/ui/toast'
 import { TooltipProvider } from '@/components/ui/tooltip'
 // Side-effect import: Vite emits and injects the hashed stylesheet itself.
 // Referencing it by ?url instead would bake the server build's hash into the
@@ -45,9 +45,9 @@ function RootComponent() {
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={300}>
+        <TooltipProvider delay={300}>
           <AuthGate>{isPublic ? <Outlet /> : <Shell>{<Outlet />}</Shell>}</AuthGate>
-          <Toaster position="bottom-right" />
+          <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
     </RootDocument>

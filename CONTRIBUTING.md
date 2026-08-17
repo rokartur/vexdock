@@ -27,6 +27,7 @@ For fast frontend iteration run the two halves separately:
 
 ```sh
 make run       # manager on :8080 against ./.platform
+bun run auth   # better-auth on :8081
 make web-dev   # dashboard on :5173, proxying /api to :8080
 ```
 
@@ -42,6 +43,8 @@ make web-dev   # dashboard on :5173, proxying /api to :8080
 | `manager/internal/security` | Validation, encryption, path confinement |
 | `apps/web/src/routes` | One file per page |
 | `apps/web/src/lib/api.ts` | The typed API client |
+| `apps/web/src/lib/auth-client.ts` | better-auth client: sign-in, sign-up, session |
+| `apps/auth/src` | The better-auth service |
 
 `database` depends on nothing but the driver, so the import graph stays acyclic:
 business packages depend on it, never the other way round.

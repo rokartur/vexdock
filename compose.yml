@@ -29,6 +29,24 @@ services:
     networks:
       - internal
 
+  # better-auth owns login, sign-up and sessions. The manager reads its SQLite
+  # file to authenticate requests, so there is one implementation of auth.
+  auth:
+    image: ghcr.io/vexdock/platform-auth:${VERSION:-latest}
+    container_name: platform-auth
+    restart: unless-stopped
+
+    environment:
+      PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/platform}
+      PLATFORM_PUBLIC_URL: ${PUBLIC_URL:-}
+      PORT: "8081"
+
+    volumes:
+      - ${PLATFORM_ROOT:-/opt/platform}/data:${PLATFORM_ROOT:-/opt/platform}/data
+
+    networks:
+      - internal
+
   nginx:
     image: ghcr.io/vexdock/platform-nginx:${VERSION:-latest}
     container_name: platform-nginx
@@ -36,6 +54,7 @@ services:
 
     depends_on:
       - manager
+      - auth
 
     ports:
       - "80:80"

@@ -1,0 +1,20 @@
+{
+  "name": "@platform/auth",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "module": "src/server.ts",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "migrate": "bunx @better-auth/cli@latest migrate --config src/auth.ts -y",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-auth": "^1.6.29"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}

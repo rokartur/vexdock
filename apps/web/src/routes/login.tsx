@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { api, setCsrfToken } from '../lib/api'
+import { signIn } from '../lib/auth-client'
 import { Button, ErrorText, Field } from '../components/primitives'
 
 export const Route = createFileRoute('/login')({ component: LoginPage })
@@ -14,9 +14,11 @@ function LoginPage() {
   const [password, setPassword] = useState('')
 
   const login = useMutation({
-    mutationFn: () => api.login(email, password),
-    onSuccess: async (result) => {
-      setCsrfToken(result.csrf_token)
+    mutationFn: async () => {
+      const { error } = await signIn.email({ email, password })
+      if (error) throw new Error(error.message ?? 'Invalid email or password')
+    },
+    onSuccess: async () => {
       await queryClient.invalidateQueries()
       await navigate({ to: '/', replace: true })
     },

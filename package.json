@@ -2,10 +2,13 @@
   "name": "platform",
   "private": true,
   "license": "AGPL-3.0-or-later",
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "cd apps/web && bun run dev",
     "build": "cd apps/web && bun run build",
-    "typecheck": "cd apps/web && bun run typecheck"
+    "auth": "cd apps/auth && bun run dev",
+    "typecheck": "cd apps/web && bun run typecheck && cd ../auth && bun run typecheck"
   }
 }

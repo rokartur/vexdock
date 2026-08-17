@@ -7,13 +7,15 @@ Everything in front of it is therefore treated as untrusted input.
 
 - The manager listens only on the internal Docker network. Nginx is the sole
   public entry point.
-- Sessions are HttpOnly cookies with `SameSite=Lax`, `Secure` whenever the
-  request arrived over TLS, hashed with SHA-256 before storage.
-- Every cookie-authenticated mutation requires a matching `X-CSRF-Token` header.
-- Login is rate limited per client IP in the manager and again in Nginx, and a
-  missing user costs the same bcrypt comparison as a wrong password so accounts
-  cannot be enumerated by timing.
-- Passwords are bcrypt with cost 12.
+- Accounts, password hashing and sessions belong to better-auth, running as its
+  own service with its own SQLite database. The manager never issues a
+  credential; it validates the session cookie by reading that database.
+- Sessions are HttpOnly cookies with `SameSite=Lax`.
+- Every cookie-authenticated mutation must carry an `Origin` matching the
+  dashboard. Browsers cannot forge it, so this is the CSRF defence.
+- Sign-up closes permanently once the first administrator exists.
+- Credential endpoints are rate limited in Nginx as well, so a flood never
+  reaches password hashing.
 
 ## Command execution
 

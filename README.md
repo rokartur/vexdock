@@ -37,11 +37,12 @@ works if the platform is removed.
 
 ## Architecture
 
-Two containers.
+Three containers.
 
 | Component | Role |
 |---|---|
 | `platform-manager` | Go binary. Owns the Docker socket, SQLite state, the deploy pipeline, Nginx generation and ACME. |
+| `platform-auth` | better-auth on Bun. Owns accounts and sessions; the manager only validates them. |
 | `platform-nginx` | Reverse proxy for every application plus the static dashboard. |
 
 Applications are ordinary compose projects joined to a shared `platform-proxy`
@@ -55,6 +56,7 @@ State lives in `/opt/platform`:
 ├── compose.yml          system stack
 ├── .env                 installed version and options
 ├── data/app.db          SQLite: projects, domains, deployments
+├── data/auth.db         SQLite: accounts and sessions (better-auth)
 ├── projects/<id>/       one directory per project (repository + .env)
 ├── nginx/generated/     one .conf per domain, written by the manager
 ├── certificates/        Let's Encrypt certificates and the account key
@@ -82,7 +84,8 @@ make web-dev    # dashboard on :5173, proxying /api to :8080
 ```
 
 - `manager/` Go manager. Standard library HTTP, SQLite, Docker SDK.
-- `apps/web/` dashboard. TanStack Start in SPA mode, built to static files.
+- `apps/auth/` authentication. better-auth on Bun, its own SQLite database.
+- `apps/web/` dashboard. TanStack Start in SPA mode with shadcn/ui, built to static files.
 - `docker/` image definitions and the Nginx base configuration.
 - `installer/` the install, update and uninstall script.
 

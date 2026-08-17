@@ -27,6 +27,9 @@ type Upstream struct {
 // for every hostname so issuance works before a certificate exists.
 const ChallengeRoot = "/acme-challenge"
 
+// AuthUpstream is the better-auth service, which serves /api/auth.
+const AuthUpstream = "auth:8081"
+
 // FileName is the deterministic config filename for a hostname.
 func FileName(hostname string) string { return hostname + ".conf" }
 
@@ -86,7 +89,7 @@ func proxyLocation(target, custom string) string {
 	fmt.Fprintf(&b, "        set $upstream %s;\n", target)
 	b.WriteString("        proxy_pass $upstream;\n\n")
 	b.WriteString("        proxy_http_version 1.1;\n\n")
-	b.WriteString("        proxy_set_header Host $host;\n")
+	b.WriteString("        proxy_set_header Host $http_host;\n")
 	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
 	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n\n")
@@ -134,10 +137,21 @@ func dashboardBody(managerAddr, webRoot string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "    root %s;\n", webRoot)
 	b.WriteString("    index index.html;\n\n")
+
+	// Authentication is a separate service; everything else is the manager.
+	b.WriteString("    location /api/auth/ {\n")
+	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", AuthUpstream)
+	b.WriteString("        proxy_http_version 1.1;\n")
+	b.WriteString("        proxy_set_header Host $http_host;\n")
+	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
+	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
+	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
+	b.WriteString("    }\n\n")
+
 	b.WriteString("    location /api/ {\n")
 	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", managerAddr)
 	b.WriteString("        proxy_http_version 1.1;\n")
-	b.WriteString("        proxy_set_header Host $host;\n")
+	b.WriteString("        proxy_set_header Host $http_host;\n")
 	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
 	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")

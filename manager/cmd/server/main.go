@@ -101,7 +101,11 @@ func run() error {
 		cfg.ACMEDirectory,
 		cfg.ACMEEmail,
 	)
-	authService := auth.New(db, cfg)
+	authService, err := auth.New(db, cfg)
+	if err != nil {
+		return err
+	}
+	defer authService.Close()
 	projectService := projects.New(db, cfg, cipher)
 	domainService := domains.New(db, cfg, dockerClient, nginxManager, certIssuer, log.With("component", "domains"))
 	deploymentEngine := deployments.NewEngine(db, cfg, projectService, domainService, dockerClient, bus,
@@ -122,7 +126,7 @@ func run() error {
 
 	reconciler := events.NewReconciler(dockerClient, domainService, bus, log.With("component", "reconciler"))
 	go reconciler.Run(ctx)
-	go scheduler(ctx, db, domainService, backupService, log.With("component", "scheduler"))
+	go scheduler(ctx, domainService, backupService, log.With("component", "scheduler"))
 
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -156,7 +160,7 @@ func run() error {
 
 // scheduler runs the platform's periodic work: certificate renewal, session
 // cleanup and backup retention. One goroutine, no cron dependency.
-func scheduler(ctx context.Context, db *database.DB, domainService *domains.Service,
+func scheduler(ctx context.Context, domainService *domains.Service,
 	backupService *backup.Service, log *slog.Logger) {
 	// Renewals are checked shortly after boot and then every six hours.
 	first := time.NewTimer(time.Minute)
@@ -166,9 +170,6 @@ func scheduler(ctx context.Context, db *database.DB, domainService *domains.Serv
 
 	work := func() {
 		domainService.RenewExpiring(ctx)
-		if err := db.DeleteExpiredSessions(ctx); err != nil {
-			log.Warn("session cleanup", "error", err)
-		}
 		if err := backupService.Prune(10); err != nil {
 			log.Warn("backup retention", "error", err)
 		}

@@ -1,224 +1,196 @@
-// Package auth owns password hashing, session cookies, CSRF and login rate
-// limiting. Every mutating API route goes through Middleware + RequireCSRF.
+// Package auth authenticates API requests. It does not issue credentials:
+// logging in, signing up and session lifetime belong to the better-auth
+// service, which owns its own SQLite database. The manager opens that database
+// read-only and validates the session cookie the browser presents.
 package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
+	_ "modernc.org/sqlite"
 
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
-const (
-	SessionCookie = "platform_session"
-	CSRFHeader    = "X-CSRF-Token"
-	// bcryptCost is deliberately above the library default: logins are rare and
-	// the manager runs on a box where a leaked hash matters more than 100ms.
-	bcryptCost = 12
-)
+// SessionCookie is the cookie better-auth sets. Its value is
+// "<token>.<signature>"; the token is what the session table stores.
+const SessionCookie = "better-auth.session_token"
 
-var (
-	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrRateLimited        = errors.New("too many attempts, try again later")
-	ErrSetupClosed        = errors.New("an administrator already exists")
-)
+// ErrNoSession means the request carried no usable credential.
+var ErrNoSession = errors.New("no valid session")
+
+// User is the authenticated principal, as stored by better-auth.
+type User struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
 
 type Service struct {
-	db      *database.DB
-	cfg     *config.Config
-	limiter *rateLimiter
+	cfg  *config.Config
+	db   *database.DB
+	auth *sql.DB
 }
 
-func New(db *database.DB, cfg *config.Config) *Service {
-	return &Service{db: db, cfg: cfg, limiter: newRateLimiter(5, time.Minute)}
-}
-
-// NeedsSetup reports whether the first-run admin wizard should be shown.
-func (s *Service) NeedsSetup(ctx context.Context) (bool, error) {
-	n, err := s.db.CountUsers(ctx)
-	return n == 0, err
-}
-
-// Setup creates the first administrator. It is permanently closed afterwards.
-func (s *Service) Setup(ctx context.Context, email, password string) (*database.User, error) {
-	needs, err := s.NeedsSetup(ctx)
+// New opens the better-auth database read-only. A missing file is not fatal:
+// the auth service creates it on first boot and the manager picks it up on the
+// next request.
+func New(db *database.DB, cfg *config.Config) (*Service, error) {
+	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", cfg.AuthDatabasePath())
+	authDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open auth database: %w", err)
 	}
-	if !needs {
-		return nil, ErrSetupClosed
-	}
-	return s.createUser(ctx, email, password, "admin")
+	authDB.SetMaxOpenConns(2)
+	return &Service{cfg: cfg, db: db, auth: authDB}, nil
 }
 
-func (s *Service) createUser(ctx context.Context, email, password, role string) (*database.User, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if !strings.Contains(email, "@") || len(email) < 3 {
-		return nil, errors.New("a valid email address is required")
-	}
-	if len(password) < 10 {
-		return nil, errors.New("password must be at least 10 characters")
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
-	if err != nil {
-		return nil, err
-	}
-	return s.db.CreateUser(ctx, email, string(hash), role)
-}
+func (s *Service) Close() error { return s.auth.Close() }
 
-// Login verifies credentials and returns the raw session token plus the CSRF
-// token the frontend must echo on mutations.
-func (s *Service) Login(ctx context.Context, email, password, clientKey string) (*database.User, string, string, error) {
-	if !s.limiter.allow(clientKey) {
-		return nil, "", "", ErrRateLimited
-	}
-	email = strings.ToLower(strings.TrimSpace(email))
-	user, err := s.db.UserByEmail(ctx, email)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			// Compare against a dummy hash so a missing user costs the same as a
-			// wrong password and cannot be probed by timing.
-			_ = bcrypt.CompareHashAndPassword([]byte("$2a$12$eImiTXuWVxfM37uY4JANjQ.uJqjJcXm7f4bBiZBoUdBEUxwn8Rj/y"), []byte(password))
-			return nil, "", "", ErrInvalidCredentials
+// Authenticate resolves a request to a user, accepting either a better-auth
+// session cookie or a platform API token.
+func (s *Service) Authenticate(r *http.Request) (*User, bool, error) {
+	if header := r.Header.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
+		token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+		user, err := s.userByAPIToken(r.Context(), token)
+		if err != nil {
+			return nil, false, err
 		}
-		return nil, "", "", err
+		// API tokens are not sent automatically by browsers, so no CSRF check.
+		return user, false, nil
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, "", "", ErrInvalidCredentials
+
+	cookie, err := r.Cookie(SessionCookie)
+	if err != nil || cookie.Value == "" {
+		return nil, false, ErrNoSession
 	}
-	s.limiter.reset(clientKey)
-
-	token := security.RandomToken(32)
-	csrf := security.RandomToken(32)
-	expires := time.Now().UTC().Add(s.cfg.SessionTTL).Format(time.RFC3339Nano)
-	if _, err := s.db.CreateSession(ctx, user.ID, security.HashToken(token), csrf, expires); err != nil {
-		return nil, "", "", err
+	user, err := s.userBySession(r.Context(), sessionToken(cookie.Value))
+	if err != nil {
+		return nil, false, err
 	}
-	return user, token, csrf, nil
+	return user, true, nil
 }
 
-func (s *Service) Logout(ctx context.Context, token string) error {
-	return s.db.DeleteSession(ctx, security.HashToken(token))
+// sessionToken strips the signature better-auth appends to the cookie value.
+func sessionToken(cookieValue string) string {
+	if idx := strings.IndexByte(cookieValue, '.'); idx > 0 {
+		return cookieValue[:idx]
+	}
+	return cookieValue
 }
 
-// SetSessionCookie writes the HttpOnly session cookie.
-//
-// Secure follows the actual scheme of the request rather than a static setting:
-// a fresh install is reached over plain HTTP by IP, and a browser silently
-// discards a Secure cookie there, which would make login impossible. Once the
-// panel has a domain with TLS, the flag turns itself on.
-func (s *Service) SetSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     SessionCookie,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   isHTTPS(r),
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int(s.cfg.SessionTTL.Seconds()),
-	})
+func (s *Service) userBySession(ctx context.Context, token string) (*User, error) {
+	if token == "" {
+		return nil, ErrNoSession
+	}
+	var user User
+	var expires time.Time
+	err := s.auth.QueryRowContext(ctx,
+		`SELECT u.id, u.email, u.name, s.expiresAt
+		 FROM session s JOIN user u ON u.id = s.userId
+		 WHERE s.token = ?`, token).
+		Scan(&user.ID, &user.Email, &user.Name, &expires)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNoSession
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read session: %w", err)
+	}
+	if !expires.IsZero() && expires.Before(time.Now()) {
+		return nil, ErrNoSession
+	}
+	return &user, nil
 }
 
-func (s *Service) ClearSessionCookie(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     SessionCookie,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   isHTTPS(r),
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,
-	})
+func (s *Service) userByAPIToken(ctx context.Context, raw string) (*User, error) {
+	token, err := s.db.APITokenByHash(ctx, security.HashToken(raw))
+	if err != nil {
+		return nil, ErrNoSession
+	}
+	// The token records which better-auth user created it; look up the current
+	// details so a renamed account is reflected everywhere.
+	user, err := s.userByID(ctx, token.UserID)
+	if err != nil {
+		return &User{ID: token.UserID, Email: "api-token:" + token.Name}, nil
+	}
+	return user, nil
 }
 
-// isHTTPS reports whether the browser reached the platform over TLS. The
-// manager always sits behind Nginx, which forwards the original scheme.
-func isHTTPS(r *http.Request) bool {
-	if r.TLS != nil {
+func (s *Service) userByID(ctx context.Context, id string) (*User, error) {
+	var user User
+	err := s.auth.QueryRowContext(ctx, `SELECT id, email, name FROM user WHERE id = ?`, id).
+		Scan(&user.ID, &user.Email, &user.Name)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// NeedsSetup reports whether the first administrator still has to be created.
+func (s *Service) NeedsSetup(ctx context.Context) bool {
+	var n int
+	if err := s.auth.QueryRowContext(ctx, `SELECT COUNT(*) FROM user`).Scan(&n); err != nil {
 		return true
 	}
-	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	return n == 0
 }
 
 type contextKey string
 
-const (
-	userKey    contextKey = "user"
-	sessionKey contextKey = "session"
-)
+const userKey contextKey = "user"
 
-// Authenticate resolves the session cookie; it returns ErrNotFound when absent.
-func (s *Service) Authenticate(r *http.Request) (*database.User, *database.Session, error) {
-	c, err := r.Cookie(SessionCookie)
-	if err != nil || c.Value == "" {
-		return nil, nil, database.ErrNotFound
-	}
-	session, err := s.db.SessionByTokenHash(r.Context(), security.HashToken(c.Value))
-	if err != nil {
-		return nil, nil, err
-	}
-	user, err := s.db.UserByID(r.Context(), session.UserID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return user, session, nil
+func WithUser(ctx context.Context, u *User) context.Context {
+	return context.WithValue(ctx, userKey, u)
 }
 
-// WithUser stores the authenticated principal on the request context.
-func WithUser(ctx context.Context, u *database.User, s *database.Session) context.Context {
-	return context.WithValue(context.WithValue(ctx, userKey, u), sessionKey, s)
-}
-
-func UserFrom(ctx context.Context) (*database.User, bool) {
-	u, ok := ctx.Value(userKey).(*database.User)
+func UserFrom(ctx context.Context) (*User, bool) {
+	u, ok := ctx.Value(userKey).(*User)
 	return u, ok
 }
 
-func SessionFrom(ctx context.Context) (*database.Session, bool) {
-	s, ok := ctx.Value(sessionKey).(*database.Session)
-	return s, ok
-}
-
-// rateLimiter is a fixed-window counter keyed by client IP.
-// ponytail: in-memory only; move to SQLite if the manager ever runs replicated.
-type rateLimiter struct {
-	mu       sync.Mutex
-	attempts map[string]*window
-	limit    int
-	period   time.Duration
-}
-
-type window struct {
-	count int
-	since time.Time
-}
-
-func newRateLimiter(limit int, period time.Duration) *rateLimiter {
-	return &rateLimiter{attempts: map[string]*window{}, limit: limit, period: period}
-}
-
-func (r *rateLimiter) allow(key string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	w, ok := r.attempts[key]
-	if !ok || time.Since(w.since) > r.period {
-		r.attempts[key] = &window{count: 1, since: time.Now()}
+// SameOrigin reports whether a state-changing request came from the dashboard
+// itself. Browsers cannot forge Origin, and same-origin fetches always send it
+// for non-GET requests, so this is the CSRF defence for cookie sessions.
+func SameOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		// No Origin means the request was not made by a browser page; a
+		// cross-site form post would always carry one.
 		return true
 	}
-	w.count++
-	return w.count <= r.limit
+	parsed, err := parseHost(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed, hostOnly(r.Host))
 }
 
-func (r *rateLimiter) reset(key string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.attempts, key)
+func parseHost(origin string) (string, error) {
+	trimmed := origin
+	for _, prefix := range []string{"https://", "http://"} {
+		if strings.HasPrefix(trimmed, prefix) {
+			trimmed = strings.TrimPrefix(trimmed, prefix)
+			return hostOnly(trimmed), nil
+		}
+	}
+	return "", fmt.Errorf("unsupported origin %q", origin)
+}
+
+// hostOnly drops the port so http://host:3000 matches a Host of host.
+func hostOnly(value string) string {
+	if idx := strings.IndexByte(value, '/'); idx >= 0 {
+		value = value[:idx]
+	}
+	if idx := strings.LastIndexByte(value, ':'); idx > 0 && !strings.Contains(value[idx:], "]") {
+		value = value[:idx]
+	}
+	return value
 }

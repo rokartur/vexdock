@@ -38,7 +38,7 @@ jobs:
         run: CGO_ENABLED=0 go build ./...
 
   web:
-    name: Dashboard (TypeScript)
+    name: Dashboard and auth (TypeScript)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +50,9 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Typecheck
-        run: cd apps/web && bun run typecheck
+        run: |
+          cd apps/web && bun run typecheck
+          cd ../auth && bun run typecheck
 
       - name: Build
         run: cd apps/web && bun run build
