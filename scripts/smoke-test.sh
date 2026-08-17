@@ -22,6 +22,13 @@ json() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 step() { printf '\n%s\n' "$1"; }
 
 step 'health'
+# `docker compose up -d` returns before the stack serves traffic, so poll instead
+# of probing once: Nginx answers on the published port while the manager is still
+# starting, which shows up as a connection reset.
+for _ in $(seq 1 60); do
+    curl -fsS "$API/health" 2>/dev/null | grep -q '"status":"healthy"' && break
+    sleep 2
+done
 curl -fsS "$API/health" | grep -q '"status":"healthy"' || fail 'manager is not healthy'
 pass 'manager reports healthy'
 
