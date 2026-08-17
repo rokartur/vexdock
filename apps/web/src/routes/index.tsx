@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api, type HostStats } from '../lib/api'
 import { bytes, percent, since } from '../lib/format'
-import { Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/primitives'
+import { Cell, Empty, Page, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 import { useEventSource } from '../lib/sse'
 
 export const Route = createFileRoute('/')({ component: DashboardPage })
@@ -18,11 +18,10 @@ function DashboardPage() {
   })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Dashboard</h1>
+    <Page title="Dashboard">
 
       <Section title="System">
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-[#1f1f1f] pt-2 sm:grid-cols-3 lg:grid-cols-6">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 sm:grid-cols-3 lg:grid-cols-6">
           <Metric label="CPU" value={stats ? percent(stats.cpu_percent) : '-'} />
           <Metric
             label="RAM"
@@ -82,22 +81,22 @@ function DashboardPage() {
       </Section>
 
       <Section title="Host">
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-[#1f1f1f] pt-2 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 lg:grid-cols-4">
           <Metric label="Hostname" value={info.data?.host.name ?? '-'} />
           <Metric label="OS" value={info.data?.host.os ?? '-'} />
           <Metric label="Docker" value={info.data?.host.docker_version ?? '-'} />
           <Metric label="Architecture" value={info.data?.host.architecture ?? '-'} />
         </dl>
       </Section>
-    </>
+    </Page>
   )
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="py-1">
-      <dt className="text-[11px] tracking-wide text-[#8a8a8a] uppercase">{label}</dt>
-      <dd className="font-mono text-[13px]">{value}</dd>
+      <dt className="text-[12px] tracking-wide text-muted-foreground uppercase">{label}</dt>
+      <dd className="font-mono text-[14px]">{value}</dd>
     </div>
   )
 }

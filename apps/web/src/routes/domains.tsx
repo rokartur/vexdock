@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
-import { Cell, Empty, Row, Section, Skeleton, Status, Table } from '../components/primitives'
+import { Cell, Empty, Page, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/domains')({ component: DomainsPage })
 
@@ -12,8 +12,7 @@ function DomainsPage() {
   const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Domains</h1>
+    <Page title="Domains">
       <Section title="All domains" description="add and edit them inside a project">
         {domains.isLoading ? (
           <Skeleton />
@@ -47,7 +46,7 @@ function DomainsPage() {
                   </Cell>
                   <Cell mono>{domain.container_port}</Cell>
                   <Cell>{domain.https_enabled ? 'on' : 'off'}</Cell>
-                  <Cell>{certificate ? <Status value={certificate.status} /> : <span className="text-[#5a5a5a]">none</span>}</Cell>
+                  <Cell>{certificate ? <Status value={certificate.status} /> : <span className="text-zinc-600">none</span>}</Cell>
                   <Cell mono>{certificate?.expires_at ? certificate.expires_at.slice(0, 10) : '-'}</Cell>
                 </Row>
               )
@@ -55,6 +54,6 @@ function DomainsPage() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }

@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api } from '../lib/api'
 import { bytes } from '../lib/format'
-import { Button, Cell, ErrorText, Row, Section, Skeleton, Table } from '../components/primitives'
+import { Button, Cell, ErrorText, Page, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/system/docker')({ component: CleanupPage })
 
@@ -36,11 +36,10 @@ function CleanupPage() {
   })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Docker cleanup</h1>
+    <Page title="Docker cleanup">
       <Section title="Reclaimable space" description="review before removing anything">
         <ErrorText error={cleanup.error} />
-        {result ? <p className="pb-2 text-[12px] text-[#3ddc84]">{result}</p> : null}
+        {result ? <p className="pb-2 text-[13px] text-emerald-400">{result}</p> : null}
         {preview.isLoading ? (
           <Skeleton rows={4} />
         ) : (
@@ -70,6 +69,6 @@ function CleanupPage() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }

@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api } from '../lib/api'
 import { bytes, since } from '../lib/format'
-import { Button, Cell, ErrorText, Row, Section, Skeleton, Table } from '../components/primitives'
+import { Button, Cell, ErrorText, Page, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/docker/volumes')({ component: VolumesPage })
 
@@ -23,8 +23,7 @@ function VolumesPage() {
   })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Volumes</h1>
+    <Page title="Volumes">
       <Section title="All volumes" description="deleting a volume destroys its data">
         <ErrorText error={remove.error} />
         {volumes.isLoading ? (
@@ -59,6 +58,6 @@ function VolumesPage() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }

@@ -92,37 +92,37 @@
  ---break---
  */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0f1012;
+  --foreground: #f3f3f4;
+  --card: #151619;
+  --card-foreground: #f3f3f4;
+  --popover: #151619;
+  --popover-foreground: #f3f3f4;
+  --primary: #f3f3f4;
+  --primary-foreground: #070708;
+  --secondary: #1a1c1e;
+  --secondary-foreground: #f3f3f4;
+  --muted: #1a1c1e;
+  --muted-foreground: #8c8f94;
+  --accent: #1a1c1e;
+  --accent-foreground: #f3f3f4;
+  --destructive: #dc4c4c;
+  --border: #26282d;
+  --input: #26282d;
+  --ring: #3b3e45;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: #080809;
+  --sidebar-foreground: #8c8f94;
+  --sidebar-primary: #f3f3f4;
+  --sidebar-primary-foreground: #080809;
+  --sidebar-accent: #151619;
+  --sidebar-accent-foreground: #f3f3f4;
+  --sidebar-border: #1a1c1e;
+  --sidebar-ring: #3b3e45;
 }
 /*
  ---break---
@@ -131,29 +131,32 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+  /*
+   * The root size is the one knob that scales the panel: every rem-based
+   * size (control heights, padding, shadcn type) grows with it.
+   */
   html {
     @apply font-sans;
+    font-size: 17px;
   }
-}
-
-/*
- * Dashboard surface: true black rather than the preset's near-black, and a
- * denser base type scale. The panel is a dense control surface, not a document.
- */
-.dark {
-  --background: oklch(0 0 0);
-  --card: oklch(0.16 0 0);
-  --popover: oklch(0.16 0 0);
+  /* The page surface is the sidebar colour; the content panel floats on it. */
+  body {
+    @apply bg-sidebar text-foreground;
+  }
 }
 
 @layer base {
   body {
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Tailwind v4 drops the pointer cursor; the panel wants it back. */
+  :is(button, a[href], summary, select, [role='button'], [role='link'], [role='menuitem'], [role='option'], [role='tab']):not(
+      :disabled
+    ):not([aria-disabled='true']):not([data-disabled]) {
+    cursor: pointer;
   }
 
   ::selection {

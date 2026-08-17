@@ -3,19 +3,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { api } from '../lib/api'
-import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Table } from '../components/primitives'
+import { Button, Cell, Empty, ErrorText, Field, Page, Row, Section, Skeleton, Table } from '../components/primitives'
 import { since } from '../lib/format'
 
 export const Route = createFileRoute('/system/settings')({ component: SettingsPage })
 
 function SettingsPage() {
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Settings</h1>
+    <Page title="Settings">
       <DashboardDomain />
       <Registries />
       <ApiTokens />
-    </>
+    </Page>
   )
 }
 
@@ -44,12 +43,12 @@ function DashboardDomain() {
 
   return (
     <Section title="Dashboard domain" description="serve the panel on your own hostname with HTTPS">
-      <div className="grid gap-x-6 border-t border-[#1f1f1f] pt-3 md:grid-cols-2">
+      <div className="grid gap-x-6 border-t border-border pt-3 md:grid-cols-2">
         <Field label="Hostname" hint="Leave empty to keep using the server IP on port 3000.">
           <input value={domain} placeholder="panel.example.com" onChange={(event) => setDomain(event.target.value)} />
         </Field>
         <div className="flex items-center pb-3">
-          <label className="flex items-center gap-1.5 text-[12px]">
+          <label className="flex items-center gap-1.5 text-[13px]">
             <input
               type="checkbox"
               className="!w-auto"
@@ -197,9 +196,9 @@ function ApiTokens() {
       )}
 
       {issued ? (
-        <p className="mt-3 border border-[#2e2e2e] p-2 font-mono text-[12px] break-all">
+        <p className="mt-3 border border-border p-2 font-mono text-[13px] break-all">
           {issued}
-          <span className="mt-1 block font-sans text-[11px] text-[#f5c451]">
+          <span className="mt-1 block font-sans text-[12px] text-amber-400">
             Copy it now. It is not shown again.
           </span>
         </p>

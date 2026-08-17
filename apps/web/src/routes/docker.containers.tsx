@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api } from '../lib/api'
 import { since } from '../lib/format'
-import { Button, Cell, ErrorText, Row, Section, Skeleton, Status, Table } from '../components/primitives'
+import { Button, Cell, ErrorText, Page, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 import { LogViewer } from '../components/log-viewer'
 
 export const Route = createFileRoute('/docker/containers')({ component: ContainersPage })
@@ -33,13 +33,12 @@ function ContainersPage() {
   const rows = (containers.data ?? []).filter((container) => !onlyManaged || container.managed)
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Containers</h1>
+    <Page title="Containers">
       <Section
         title="All containers"
         description={`${rows.length} shown`}
         actions={
-          <label className="flex items-center gap-1.5 text-[12px] text-[#8a8a8a]">
+          <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <input
               type="checkbox"
               className="!w-auto"
@@ -59,7 +58,7 @@ function ContainersPage() {
               <Row key={container.id}>
                 <Cell mono>
                   {container.names[0]?.replace(/^\//, '') ?? container.id.slice(0, 12)}
-                  {container.managed ? null : <span className="ml-2 text-[10px] text-[#5a5a5a]">external</span>}
+                  {container.managed ? null : <span className="ml-2 text-[11px] text-zinc-600">external</span>}
                 </Cell>
                 <Cell>
                   <Status value={container.state} />
@@ -103,6 +102,6 @@ function ContainersPage() {
           <LogViewer key={logsFor} url={`/api/docker/containers/${logsFor}/logs`} />
         </Section>
       ) : null}
-    </>
+    </Page>
   )
 }

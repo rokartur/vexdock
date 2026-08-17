@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { api } from '../lib/api'
 import { bytes, since } from '../lib/format'
-import { Button, Cell, ErrorText, Row, Section, Skeleton, Table } from '../components/primitives'
+import { Button, Cell, ErrorText, Page, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/docker/images')({ component: ImagesPage })
 
@@ -28,12 +28,11 @@ function ImagesPage() {
   })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Images</h1>
+    <Page title="Images">
 
       <Section title="Pull image">
         <form
-          className="flex gap-2 border-t border-[#1f1f1f] pt-3"
+          className="flex gap-2 border-t border-border pt-3"
           onSubmit={(event) => {
             event.preventDefault()
             pull.mutate()
@@ -44,7 +43,7 @@ function ImagesPage() {
             value={reference}
             placeholder="ghcr.io/user/app:latest"
             onChange={(event) => setReference(event.target.value)}
-            className="max-w-md font-mono text-[12px]"
+            className="max-w-md font-mono text-[13px]"
           />
           <Button type="submit" variant="primary" disabled={pull.isPending}>
             {pull.isPending ? 'Pulling…' : 'Pull'}
@@ -75,6 +74,6 @@ function ImagesPage() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }

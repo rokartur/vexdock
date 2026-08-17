@@ -30,7 +30,7 @@ function SetupPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="mb-1 text-[15px] font-medium">Create administrator</h1>
+      <h1 className="mb-1 text-[16px] font-medium">Create administrator</h1>
       <p className="text-muted-foreground mb-6 text-xs">
         This is the only account creation step. It closes afterwards.
       </p>

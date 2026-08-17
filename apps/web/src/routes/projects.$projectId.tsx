@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '../lib/api'
-import { Button, ErrorText, Status } from '../components/primitives'
+import { Button, ErrorText, Page, Status } from '../components/primitives'
 
 export const Route = createFileRoute('/projects/$projectId')({ component: ProjectLayout })
 
@@ -52,17 +52,20 @@ function ProjectLayout() {
   const base = `/projects/${projectId}`
 
   return (
-    <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          <Link to="/projects" className="text-[12px] text-[#8a8a8a] hover:text-white">
-            projects
-          </Link>
-          <span className="text-[#3a3a3a]">/</span>
-          <h1 className="text-[15px] font-medium">{project.data?.name ?? projectId}</h1>
+    <Page
+      breadcrumb={
+        <Link to="/projects" className="text-muted-foreground hover:text-foreground text-[13px]">
+          projects
+        </Link>
+      }
+      title={
+        <span className="flex items-baseline gap-3">
+          {project.data?.name ?? projectId}
           {project.data?.latest_deployment ? <Status value={project.data.latest_deployment.status} /> : null}
-        </div>
-        <div className="flex gap-2">
+        </span>
+      }
+      actions={
+        <>
           <Button variant="primary" onClick={() => deploy.mutate()} disabled={deploy.isPending}>
             {deploy.isPending ? 'Starting…' : 'Deploy'}
           </Button>
@@ -83,29 +86,26 @@ function ProjectLayout() {
               Delete
             </Button>
           )}
-        </div>
-      </div>
-
-      <nav className="mb-5 flex gap-4 border-b border-[#1f1f1f]">
-        {tabs.map((tab) => {
-          const to = base + tab.suffix
-          const active = tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(to)
-          return (
-            <Link
-              key={tab.label}
-              to={to}
-              className={`-mb-px border-b px-0.5 pb-1.5 text-[12px] ${
-                active ? 'border-white text-white' : 'border-transparent text-[#8a8a8a] hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          )
-        })}
-      </nav>
-
+        </>
+      }
+      toolbar={tabs.map((tab) => {
+        const to = base + tab.suffix
+        const active = tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(to)
+        return (
+          <Link
+            key={tab.label}
+            to={to}
+            className={`-mb-px border-b px-0.5 pb-1.5 text-[13px] ${
+              active ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        )
+      })}
+    >
       <ErrorText error={deploy.error ?? stop.error ?? remove.error} />
       <Outlet />
-    </>
+    </Page>
   )
 }

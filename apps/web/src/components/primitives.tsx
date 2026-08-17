@@ -83,6 +83,44 @@ export function Status({ value }: { value: string }) {
   )
 }
 
+/**
+ * Fills the shell's content panel: a fixed title bar with optional actions,
+ * then the scrolling body. Every page is a Page; nothing else scrolls.
+ */
+export function Page({
+  title,
+  breadcrumb,
+  actions,
+  toolbar,
+  children,
+}: {
+  title: ReactNode
+  breadcrumb?: ReactNode
+  actions?: ReactNode
+  toolbar?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <>
+      <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b px-5">
+        <div className="flex min-w-0 items-center gap-2">
+          {breadcrumb ? (
+            <>
+              {breadcrumb}
+              <span className="text-zinc-700">/</span>
+            </>
+          ) : null}
+          <h1 className="truncate text-[14px] font-medium text-zinc-100">{title}</h1>
+        </div>
+        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      </header>
+      {/* Bottom-aligned so a tab's own underline meets the row's border. */}
+      {toolbar ? <div className="flex h-10 shrink-0 items-end gap-4 border-b px-5">{toolbar}</div> : null}
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+    </>
+  )
+}
+
 export function Section({
   title,
   actions,
@@ -98,7 +136,7 @@ export function Section({
     <section className="mb-8">
       <header className="mb-2 flex h-7 items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-[13px] font-medium">{title}</h2>
+          <h2 className="text-[14px] font-medium">{title}</h2>
           {description ? <span className="text-muted-foreground text-xs">{description}</span> : null}
         </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
@@ -115,7 +153,7 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
         <TableHeader>
           <TableRow>
             {head.map((label) => (
-              <TableHead key={label} className="h-8 text-[11px] tracking-wide uppercase">
+              <TableHead key={label} className="h-8 text-[12px] tracking-wide uppercase">
                 {label}
               </TableHead>
             ))}
@@ -178,9 +216,9 @@ export function ErrorText({ error }: { error: unknown }) {
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <ShadcnField className="mb-3 gap-1">
-      <FieldLabel className="text-muted-foreground text-[11px] tracking-wide uppercase">{label}</FieldLabel>
+      <FieldLabel className="text-muted-foreground text-[12px] tracking-wide uppercase">{label}</FieldLabel>
       {children}
-      {hint ? <FieldDescription className="text-[11px]">{hint}</FieldDescription> : null}
+      {hint ? <FieldDescription className="text-[12px]">{hint}</FieldDescription> : null}
     </ShadcnField>
   )
 }

@@ -26,7 +26,7 @@ function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="mb-6 text-[15px] font-medium">Sign in</h1>
+      <h1 className="mb-6 text-[16px] font-medium">Sign in</h1>
       <form
         onSubmit={(event) => {
           event.preventDefault()

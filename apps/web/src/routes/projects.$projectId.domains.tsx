@@ -117,7 +117,7 @@ function ProjectDomains() {
                       <span className="flex items-center gap-2">
                         <Status value={certificate.status} />
                         {certificate.expires_at ? (
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-[12px] text-muted-foreground">
                             until {certificate.expires_at.slice(0, 10)}
                           </span>
                         ) : null}
@@ -150,7 +150,7 @@ function ProjectDomains() {
         )}
         <ErrorText error={remove.error ?? issue.error} />
         {certificates.data?.some((cert) => cert.status === 'failed') ? (
-          <p className="pt-2 text-[12px] text-amber-400">
+          <p className="pt-2 text-[13px] text-amber-400">
             {certificates.data.find((cert) => cert.status === 'failed')?.last_error}
           </p>
         ) : null}
@@ -172,7 +172,7 @@ function ProjectDomains() {
                 spellCheck={false}
                 value={replaceCert}
                 onChange={(event) => setReplaceCert(event.target.value)}
-                className="font-mono text-[11px]"
+                className="font-mono text-[12px]"
               />
             </Field>
             <Field label="Private key">
@@ -182,7 +182,7 @@ function ProjectDomains() {
                 spellCheck={false}
                 value={replaceKey}
                 onChange={(event) => setReplaceKey(event.target.value)}
-                className="font-mono text-[11px]"
+                className="font-mono text-[12px]"
               />
             </Field>
             <div className="md:col-span-2">
@@ -237,7 +237,7 @@ function ProjectDomains() {
             />
           </Field>
           <div className="flex flex-col justify-center gap-1.5 pb-3">
-            <label className="flex items-center gap-1.5 text-[12px]">
+            <label className="flex items-center gap-1.5 text-[13px]">
               <input
                 type="checkbox"
                 className="!w-auto"
@@ -246,7 +246,7 @@ function ProjectDomains() {
               />
               Enable HTTPS
             </label>
-            <label className="flex items-center gap-1.5 text-[12px]">
+            <label className="flex items-center gap-1.5 text-[13px]">
               <input
                 type="checkbox"
                 className="!w-auto"
@@ -261,7 +261,7 @@ function ProjectDomains() {
             <div className="md:col-span-4">
               <div className="mb-3 flex flex-wrap gap-4">
                 {(['letsencrypt', 'custom'] as const).map((option) => (
-                  <label key={option} className="flex items-center gap-1.5 text-[12px]">
+                  <label key={option} className="flex items-center gap-1.5 text-[13px]">
                     <input
                       type="radio"
                       name="certificate-source"
@@ -283,7 +283,7 @@ function ProjectDomains() {
                       placeholder="-----BEGIN CERTIFICATE-----"
                       value={certPem}
                       onChange={(event) => setCertPem(event.target.value)}
-                      className="font-mono text-[11px]"
+                      className="font-mono text-[12px]"
                     />
                   </Field>
                   <Field label="Private key" hint="Never leaves this server. Stored with 0600 permissions.">
@@ -294,7 +294,7 @@ function ProjectDomains() {
                       placeholder="-----BEGIN PRIVATE KEY-----"
                       value={keyPem}
                       onChange={(event) => setKeyPem(event.target.value)}
-                      className="font-mono text-[11px]"
+                      className="font-mono text-[12px]"
                     />
                   </Field>
                 </div>
@@ -304,7 +304,7 @@ function ProjectDomains() {
 
           <div className="md:col-span-4">
             <ErrorText error={create.error} />
-            {warning ? <p className="pb-2 text-[12px] text-amber-400">{warning}</p> : null}
+            {warning ? <p className="pb-2 text-[13px] text-amber-400">{warning}</p> : null}
             <Button type="submit" variant="primary" disabled={create.isPending}>
               {create.isPending ? 'Adding…' : 'Add domain'}
             </Button>

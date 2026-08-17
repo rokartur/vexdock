@@ -4,7 +4,19 @@ import { useState } from 'react'
 
 import { api, type SourceType } from '../lib/api'
 import { since } from '../lib/format'
-import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Status, Table } from '../components/primitives'
+import {
+  Button,
+  Cell,
+  Empty,
+  ErrorText,
+  Field,
+  Page,
+  Row,
+  Section,
+  Skeleton,
+  Status,
+  Table,
+} from '../components/primitives'
 
 export const Route = createFileRoute('/projects/')({ component: ProjectsPage })
 
@@ -13,14 +25,14 @@ function ProjectsPage() {
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects, refetchInterval: 10_000 })
 
   return (
-    <>
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-[15px] font-medium">Projects</h1>
+    <Page
+      title="Projects"
+      actions={
         <Button variant="primary" onClick={() => setCreating((open) => !open)}>
           {creating ? 'Cancel' : 'New project'}
         </Button>
-      </div>
-
+      }
+    >
       {creating ? <NewProjectWizard onDone={() => setCreating(false)} /> : null}
 
       <Section title="All projects" description={`${projects.data?.length ?? 0} total`}>
@@ -39,7 +51,7 @@ function ProjectsPage() {
                 </Cell>
                 <Cell mono>
                   {project.source_type === 'git' ? shortRepo(project.repository_url) : 'compose'}
-                  {project.source_type === 'git' ? <span className="text-[#5a5a5a]"> @{project.branch}</span> : null}
+                  {project.source_type === 'git' ? <span className="text-zinc-600"> @{project.branch}</span> : null}
                 </Cell>
                 <Cell mono>
                   {project.running_count}/{project.service_count}
@@ -49,17 +61,17 @@ function ProjectsPage() {
                   {project.latest_deployment ? (
                     <span className="flex items-center gap-2">
                       <Status value={project.latest_deployment.status} />
-                      <span className="text-[#8a8a8a]">{since(project.latest_deployment.created_at)}</span>
+                      <span className="text-muted-foreground">{since(project.latest_deployment.created_at)}</span>
                     </span>
                   ) : (
-                    <span className="text-[#8a8a8a]">never</span>
+                    <span className="text-muted-foreground">never</span>
                   )}
                 </Cell>
                 <Cell right>
                   <Link
                     to="/projects/$projectId"
                     params={{ projectId: project.id }}
-                    className="text-[12px] text-[#8a8a8a] hover:text-white"
+                    className="text-[13px] text-muted-foreground hover:text-white"
                   >
                     open
                   </Link>
@@ -69,7 +81,7 @@ function ProjectsPage() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }
 
@@ -121,7 +133,7 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
 
   return (
     <form
-      className="mb-8 border border-[#1f1f1f] p-4"
+      className="mb-8 border border-border p-4"
       onSubmit={(event) => {
         event.preventDefault()
         create.mutate()
@@ -129,7 +141,7 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
     >
       <div className="mb-4 flex gap-4">
         {(['git', 'compose', 'template'] as const).map((option) => (
-          <label key={option} className="flex items-center gap-1.5 text-[12px]">
+          <label key={option} className="flex items-center gap-1.5 text-[13px]">
             <input
               type="radio"
               name="source"
@@ -179,7 +191,7 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
                   rows={credentialKind === 'token' ? 1 : 5}
                   value={credentialSecret}
                   onChange={(event) => setCredentialSecret(event.target.value)}
-                  className="font-mono text-[12px]"
+                  className="font-mono text-[13px]"
                 />
               </Field>
             ) : null}
@@ -206,14 +218,14 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
             rows={10}
             value={composeContent}
             onChange={(event) => setComposeContent(event.target.value)}
-            className="font-mono text-[12px]"
+            className="font-mono text-[13px]"
           />
         </Field>
       ) : null}
 
       <div className="mb-3 flex flex-wrap gap-4">
         {source === 'git' ? (
-          <label className="flex items-center gap-1.5 text-[12px]">
+          <label className="flex items-center gap-1.5 text-[13px]">
             <input
               type="checkbox"
               className="!w-auto"
@@ -223,7 +235,7 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
             Auto deploy on push
           </label>
         ) : null}
-        <label className="flex items-center gap-1.5 text-[12px]">
+        <label className="flex items-center gap-1.5 text-[13px]">
           <input
             type="checkbox"
             className="!w-auto"

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
 import { bytes, since } from '../lib/format'
-import { Cell, Row, Section, Skeleton, Status, Table } from '../components/primitives'
+import { Cell, Page, Row, Section, Skeleton, Status, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/system/')({ component: SystemOverview })
 
@@ -14,8 +14,7 @@ function SystemOverview() {
   const audit = useQuery({ queryKey: ['audit'], queryFn: api.audit, refetchInterval: 30_000 })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">System</h1>
+    <Page title="System">
 
       <Section title="Health">
         {health.isLoading ? (
@@ -25,7 +24,7 @@ function SystemOverview() {
             {Object.entries(health.data?.checks ?? {}).map(([name, result]) => (
               <Row key={name}>
                 <Cell mono>{name}</Cell>
-                <Cell>{result === 'ok' ? <Status value="healthy" /> : <span className="text-[#ff5f56]">{result}</span>}</Cell>
+                <Cell>{result === 'ok' ? <Status value="healthy" /> : <span className="text-destructive">{result}</span>}</Cell>
               </Row>
             ))}
           </Table>
@@ -33,7 +32,7 @@ function SystemOverview() {
       </Section>
 
       <Section title="Host">
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-[#1f1f1f] pt-2 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 lg:grid-cols-4">
           <Item label="Platform version" value={info.data?.version ?? '-'} />
           <Item label="Docker" value={info.data?.host.docker_version ?? '-'} />
           <Item label="OS" value={info.data?.host.os ?? '-'} />
@@ -47,7 +46,7 @@ function SystemOverview() {
 
       <Section title="Certificates">
         {certificates.data?.length === 0 ? (
-          <p className="border-t border-[#1f1f1f] py-6 text-[12px] text-[#8a8a8a]">
+          <p className="border-t border-border py-6 text-[13px] text-muted-foreground">
             No certificates issued yet.
           </p>
         ) : (
@@ -88,15 +87,15 @@ function SystemOverview() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }
 
 function Item({ label, value }: { label: string; value: string }) {
   return (
     <div className="py-1">
-      <dt className="text-[11px] tracking-wide text-[#8a8a8a] uppercase">{label}</dt>
-      <dd className="font-mono text-[12px] break-all">{value}</dd>
+      <dt className="text-[12px] tracking-wide text-muted-foreground uppercase">{label}</dt>
+      <dd className="font-mono text-[13px] break-all">{value}</dd>
     </div>
   )
 }

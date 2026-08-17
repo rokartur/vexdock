@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
 import { clock, duration, shortSha } from '../lib/format'
-import { Button, ErrorText, Section, Status } from '../components/primitives'
+import { Button, ErrorText, Page, Section, Status } from '../components/primitives'
 import { useEventSource } from '../lib/sse'
 
 export const Route = createFileRoute('/deployments/$deploymentId')({ component: DeploymentPage })
@@ -66,26 +66,29 @@ function DeploymentPage() {
   const isRunning = deployment?.status === 'running' || deployment?.status === 'queued'
 
   return (
-    <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          {deployment ? (
-            <Link
-              to="/projects/$projectId/deployments"
-              params={{ projectId: deployment.project_id }}
-              className="text-[12px] text-[#8a8a8a] hover:text-white"
-            >
-              deployments
-            </Link>
-          ) : null}
-          <span className="text-[#3a3a3a]">/</span>
-          <h1 className="text-[15px] font-medium">#{deployment?.number ?? ''}</h1>
+    <Page
+      breadcrumb={
+        deployment ? (
+          <Link
+            to="/projects/$projectId/deployments"
+            params={{ projectId: deployment.project_id }}
+            className="text-muted-foreground hover:text-foreground text-[13px]"
+          >
+            deployments
+          </Link>
+        ) : null
+      }
+      title={
+        <span className="flex items-baseline gap-3">
+          #{deployment?.number ?? ''}
           {deployment ? <Status value={deployment.status} /> : null}
-          <span className="font-mono text-[12px] text-[#8a8a8a]">
+          <span className="text-muted-foreground font-mono text-[13px]">
             {deployment?.branch} {shortSha(deployment?.commit_sha)}
           </span>
-        </div>
-        <div className="flex gap-2">
+        </span>
+      }
+      actions={
+        <>
           {isRunning ? (
             <Button variant="danger" onClick={() => cancel.mutate()}>
               Cancel
@@ -94,22 +97,22 @@ function DeploymentPage() {
           {!isRunning && deployment?.commit_sha ? (
             <Button onClick={() => rollback.mutate()}>Redeploy this commit</Button>
           ) : null}
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <ErrorText error={cancel.error ?? rollback.error} />
-      {deployment?.error ? <p className="mb-3 text-[12px] text-[#ff5f56]">{deployment.error}</p> : null}
+      {deployment?.error ? <p className="mb-3 text-[13px] text-destructive">{deployment.error}</p> : null}
 
       <Section title="Pipeline">
-        <ol className="border-t border-[#1f1f1f]">
+        <ol className="border-t border-border">
           {steps.length === 0 ? (
-            <li className="py-3 text-[12px] text-[#8a8a8a]">Waiting for the runner…</li>
+            <li className="py-3 text-[13px] text-muted-foreground">Waiting for the runner…</li>
           ) : (
             steps.map((step) => (
-              <li key={step.id} className="flex items-center gap-4 border-b border-[#141414] py-1.5">
-                <span className="w-28 font-mono text-[12px]">{step.name}</span>
+              <li key={step.id} className="flex items-center gap-4 border-b border-border/50 py-1.5">
+                <span className="w-28 font-mono text-[13px]">{step.name}</span>
                 <Status value={step.status} />
-                <span className="font-mono text-[11px] text-[#8a8a8a]">
+                <span className="font-mono text-[12px] text-muted-foreground">
                   {duration(step.started_at, step.finished_at)}
                 </span>
               </li>
@@ -119,9 +122,9 @@ function DeploymentPage() {
       </Section>
 
       <Section title="Log" description={live ? 'streaming' : 'finished'}>
-        <div className="h-[50vh] overflow-auto border border-[#1f1f1f] bg-[#050505] p-2 font-mono text-[12px] leading-[1.45]">
+        <div className="h-[50vh] overflow-auto border border-border bg-zinc-950 p-2 font-mono text-[13px] leading-[1.45]">
           {lines.length === 0 ? (
-            <p className="text-[#5a5a5a]">
+            <p className="text-zinc-600">
               {steps.some((step) => step.output)
                 ? steps.map((step) => step.output).filter(Boolean).join('\n')
                 : 'No output yet.'}
@@ -129,15 +132,15 @@ function DeploymentPage() {
           ) : (
             lines.map((line, index) => (
               <div key={index} className="flex gap-3">
-                <span className="shrink-0 text-[#4a4a4a]">{clock(line.at)}</span>
-                <span className="text-[#d4d4d4] break-all whitespace-pre-wrap">{line.text}</span>
+                <span className="shrink-0 text-zinc-600">{clock(line.at)}</span>
+                <span className="text-zinc-300 break-all whitespace-pre-wrap">{line.text}</span>
               </div>
             ))
           )}
           <div ref={bottomRef} />
         </div>
       </Section>
-    </>
+    </Page>
   )
 }
 

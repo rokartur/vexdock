@@ -45,7 +45,7 @@ function ProjectServices() {
               <Cell>
                 <Status value={service.state || 'stopped'} />
               </Cell>
-              <Cell>{service.health ? <Status value={service.health} /> : <span className="text-[#5a5a5a]">-</span>}</Cell>
+              <Cell>{service.health ? <Status value={service.health} /> : <span className="text-zinc-600">-</span>}</Cell>
               <Cell mono>{service.image || '-'}</Cell>
               <Cell mono>{service.restart_count}</Cell>
               <Cell>{service.created_unix ? since(service.created_unix) : '-'}</Cell>

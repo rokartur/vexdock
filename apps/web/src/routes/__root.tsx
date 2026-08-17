@@ -46,7 +46,15 @@ function RootComponent() {
     <RootDocument>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delay={300}>
-          <AuthGate>{isPublic ? <Outlet /> : <Shell>{<Outlet />}</Shell>}</AuthGate>
+          <AuthGate>
+            {isPublic ? (
+              <Outlet />
+            ) : (
+              <Shell>
+                <Outlet />
+              </Shell>
+            )}
+          </AuthGate>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
@@ -62,8 +70,8 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <HeadContent />
       </head>
       {/* The inline colours paint before the stylesheet arrives, so booting
-          the SPA never flashes white. */}
-      <body style={{ background: '#000', color: '#fff' }}>
+          the SPA never flashes white. They match --sidebar, the page surface. */}
+      <body style={{ background: '#080809', color: '#f3f3f4' }}>
         <div id="root">{children}</div>
         <Scripts />
       </body>

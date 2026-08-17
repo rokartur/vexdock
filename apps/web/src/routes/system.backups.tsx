@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
 import { bytes, since } from '../lib/format'
-import { Button, Cell, Empty, ErrorText, Row, Section, Skeleton, Table } from '../components/primitives'
+import { Button, Cell, Empty, ErrorText, Page, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/system/backups')({ component: BackupsPage })
 
@@ -17,8 +17,7 @@ function BackupsPage() {
   })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Backups</h1>
+    <Page title="Backups">
       <Section
         title="Platform configuration"
         description="database, proxy config and certificates. Application data is separate."
@@ -46,6 +45,6 @@ function BackupsPage() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }

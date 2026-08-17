@@ -68,7 +68,7 @@ export function Terminal({ url }: { url: string }) {
 
   return (
     <div>
-      <div className="mb-2 text-[11px] text-[#8a8a8a]">{status}</div>
+      <div className="mb-2 text-[12px] text-[#8a8a8a]">{status}</div>
       <div ref={hostRef} className="terminal-host h-[60vh] border border-[#1f1f1f] bg-[#050505]" />
     </div>
   )

@@ -68,7 +68,7 @@ function ProjectSettings() {
   return (
     <>
       <Section title="Project">
-        <div className="grid gap-x-6 border-t border-[#1f1f1f] pt-3 md:grid-cols-2">
+        <div className="grid gap-x-6 border-t border-border pt-3 md:grid-cols-2">
           <Field label="Name">
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
@@ -102,7 +102,7 @@ function ProjectSettings() {
                     rows={credentialKind === 'token' ? 1 : 5}
                     value={credentialSecret}
                     onChange={(event) => setCredentialSecret(event.target.value)}
-                    className="font-mono text-[12px]"
+                    className="font-mono text-[13px]"
                   />
                 </Field>
               ) : null}
@@ -110,7 +110,7 @@ function ProjectSettings() {
           ) : null}
         </div>
         {isGit ? (
-          <label className="mb-3 flex items-center gap-1.5 text-[12px]">
+          <label className="mb-3 flex items-center gap-1.5 text-[13px]">
             <input
               type="checkbox"
               className="!w-auto"
@@ -128,7 +128,7 @@ function ProjectSettings() {
 
       {isGit ? (
         <Section title="Webhook" description="point your git provider here to auto deploy">
-          <code className="block border-t border-[#1f1f1f] pt-2 font-mono text-[12px] break-all text-[#c4c4c4]">
+          <code className="block border-t border-border pt-2 font-mono text-[13px] break-all text-zinc-300">
             {project.data?.webhook_url}
           </code>
           <div className="mt-3 max-w-md">
@@ -165,7 +165,7 @@ function ProjectSettings() {
             rows={18}
             value={composeContent}
             onChange={(event) => setComposeContent(event.target.value)}
-            className="font-mono text-[12px]"
+            className="font-mono text-[13px]"
             spellCheck={false}
           />
         </Section>

@@ -57,7 +57,7 @@ export function CommandPalette({
                   onSelect={() => go(`/projects/${project.id}`)}
                 >
                   {project.name}
-                  <span className="text-muted-foreground ml-auto font-mono text-[10px]">
+                  <span className="text-muted-foreground ml-auto font-mono text-[11px]">
                     {project.running_count}/{project.service_count}
                   </span>
                 </CommandItem>

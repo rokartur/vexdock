@@ -40,10 +40,10 @@ function ServiceDetail() {
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-3">
-          <Link to="/projects/$projectId" params={{ projectId }} className="text-[12px] text-[#8a8a8a] hover:text-white">
+          <Link to="/projects/$projectId" params={{ projectId }} className="text-[13px] text-muted-foreground hover:text-white">
             services
           </Link>
-          <span className="text-[#3a3a3a]">/</span>
+          <span className="text-zinc-700">/</span>
           <h2 className="text-[14px] font-medium">{service.data?.compose_service_name ?? serviceId}</h2>
           <Status value={service.data?.state || 'stopped'} />
         </div>
@@ -54,13 +54,13 @@ function ServiceDetail() {
         </div>
       </div>
 
-      <nav className="mb-4 flex gap-4 border-b border-[#1f1f1f]">
+      <nav className="mb-4 flex gap-4 border-b border-border">
         {tabs.map((item) => (
           <button
             key={item}
             onClick={() => setTab(item)}
-            className={`-mb-px border-b px-0.5 pb-1.5 text-[12px] capitalize ${
-              tab === item ? 'border-white text-white' : 'border-transparent text-[#8a8a8a] hover:text-white'
+            className={`-mb-px border-b px-0.5 pb-1.5 text-[13px] capitalize ${
+              tab === item ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'
             }`}
           >
             {item}
@@ -70,7 +70,7 @@ function ServiceDetail() {
 
       {tab === 'overview' ? (
         <Section title="Overview">
-          <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-[#1f1f1f] pt-2 lg:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 lg:grid-cols-4">
             <Item label="Image" value={service.data?.image || '-'} />
             <Item label="Created" value={service.data?.created_unix ? since(service.data.created_unix) : '-'} />
             <Item label="Restarts" value={String(service.data?.restart_count ?? 0)} />
@@ -94,7 +94,7 @@ function ServiceDetail() {
         running ? (
           <Terminal url={terminalUrl(serviceId)} />
         ) : (
-          <p className="text-[12px] text-[#8a8a8a]">Start the service to open a terminal.</p>
+          <p className="text-[13px] text-muted-foreground">Start the service to open a terminal.</p>
         )
       ) : null}
     </>
@@ -109,8 +109,8 @@ function terminalUrl(serviceId: string): string {
 function Item({ label, value }: { label: string; value: string }) {
   return (
     <div className="py-1">
-      <dt className="text-[11px] tracking-wide text-[#8a8a8a] uppercase">{label}</dt>
-      <dd className="font-mono text-[12px] break-all">{value}</dd>
+      <dt className="text-[12px] tracking-wide text-muted-foreground uppercase">{label}</dt>
+      <dd className="font-mono text-[13px] break-all">{value}</dd>
     </div>
   )
 }

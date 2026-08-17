@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../lib/api'
-import { Cell, Row, Section, Skeleton, Table } from '../components/primitives'
+import { Cell, Page, Row, Section, Skeleton, Table } from '../components/primitives'
 
 export const Route = createFileRoute('/docker/networks')({ component: NetworksPage })
 
@@ -10,8 +10,7 @@ function NetworksPage() {
   const networks = useQuery({ queryKey: ['networks'], queryFn: api.networks })
 
   return (
-    <>
-      <h1 className="mb-5 text-[15px] font-medium">Networks</h1>
+    <Page title="Networks">
       <Section title="All networks">
         {networks.isLoading ? (
           <Skeleton rows={4} />
@@ -32,6 +31,6 @@ function NetworksPage() {
           </Table>
         )}
       </Section>
-    </>
+    </Page>
   )
 }
