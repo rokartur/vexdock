@@ -185,10 +185,22 @@ start_stack() {
     ok "Manager and Nginx started"
 }
 
+# The manager implements its own health check, so the container status is the
+# authoritative signal. Probing the published port is only a fallback, since it
+# is not reachable when the installer itself runs inside a container.
+container_healthy() {
+    status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' platform-manager 2>/dev/null || echo missing)"
+    [ "$status" = "healthy" ] || [ "$status" = "running" ]
+}
+
 wait_healthy() {
     info "Waiting for the health check…"
     i=0
     while [ "$i" -lt 60 ]; do
+        if container_healthy; then
+            ok "Health check passed"
+            return 0
+        fi
         if curl -fsS "http://127.0.0.1:$DASHBOARD_PORT/api/health" >/dev/null 2>&1; then
             ok "Health check passed"
             return 0
