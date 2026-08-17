@@ -4,6 +4,7 @@ import { IconChevronDown, IconLayoutSidebar, IconSearch, IconSettings } from '@t
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { api } from '../lib/api'
+import { cn } from '@/lib/utils'
 import { signOut, useSession } from '../lib/auth-client'
 import { CommandPalette } from './command-palette'
 import { NavigationSidebar } from './navigation-sidebar'
@@ -54,10 +55,11 @@ const useHydrationEffect = typeof window === 'undefined' ? useEffect : useLayout
 const linkClass =
   'group flex h-7 items-center gap-2 rounded-lg px-2 text-[14px] font-medium text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 data-[status=active]:bg-zinc-800 data-[status=active]:text-zinc-100 data-[status=active]:hover:bg-zinc-800'
 
-function NavigationLink({ to, label, exact }: NavItem) {
+function NavigationLink({ to, label, exact, dot }: NavItem & { dot?: boolean }) {
   return (
     <Link draggable={false} to={to} activeOptions={{ exact: exact ?? false }} className={linkClass}>
       <span className="truncate">{label}</span>
+      {dot ? <span className="ml-auto size-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden /> : null}
     </Link>
   )
 }
@@ -70,7 +72,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const version = useQuery({ queryKey: ['version'], queryFn: api.version, staleTime: 60_000 })
+  const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
+  const updateAvailable = version.data?.update_available ?? false
   const session = useSession()
 
   const logout = useMutation({
@@ -177,7 +180,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </span>
               <div className="flex flex-col gap-0.5">
                 {group.items.map((item) => (
-                  <NavigationLink key={item.to} {...item} />
+                  <NavigationLink key={item.to} {...item} dot={updateAvailable && item.to === '/system/update'} />
                 ))}
               </div>
             </div>
@@ -200,9 +203,15 @@ export function Shell({ children }: { children: ReactNode }) {
             </span>
             <IconSettings className="size-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400" />
           </Link>
-          <Link to="/system/update" className="px-2 font-mono text-[12px] text-zinc-600 hover:text-zinc-400">
+          <Link
+            to="/system/update"
+            className={cn(
+              'px-2 font-mono text-[12px]',
+              updateAvailable ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-600 hover:text-zinc-400',
+            )}
+          >
             {version.data?.current ?? 'dev'}
-            {version.data?.update_available ? ' →' : ''}
+            {updateAvailable ? ` → ${version.data?.latest}` : ''}
           </Link>
         </div>
       </NavigationSidebar>
