@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,11 @@ type CreateInput struct {
 	ContainerPort int
 	HTTPS         bool
 	RedirectHTTPS bool
+	// CertificateSource is database.CertLetsEncrypt or database.CertCustom.
+	CertificateSource string
+	// CertificatePEM and PrivateKeyPEM are only read for a custom source.
+	CertificatePEM string
+	PrivateKeyPEM  string
 }
 
 // Create validates and stores a domain, then reconciles the proxy so it starts
@@ -75,17 +81,36 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 		return nil, err
 	}
 
+	source, err := normaliseSource(in.CertificateSource)
+	if err != nil {
+		return nil, err
+	}
+	// A custom certificate is validated before the domain exists, so a bad
+	// paste fails the form instead of leaving a domain that cannot serve TLS.
+	if in.HTTPS && source == database.CertCustom {
+		if _, err := certificates.Validate(host, in.CertificatePEM, in.PrivateKeyPEM); err != nil {
+			return nil, err
+		}
+	}
+
 	d := &database.Domain{
-		ID:            database.NewID(),
-		ProjectID:     project.ID,
-		ServiceID:     service.ID,
-		Hostname:      host,
-		ContainerPort: in.ContainerPort,
-		HTTPSEnabled:  in.HTTPS,
-		RedirectHTTPS: in.RedirectHTTPS,
+		ID:                database.NewID(),
+		ProjectID:         project.ID,
+		ServiceID:         service.ID,
+		Hostname:          host,
+		ContainerPort:     in.ContainerPort,
+		HTTPSEnabled:      in.HTTPS,
+		RedirectHTTPS:     in.RedirectHTTPS,
+		CertificateSource: source,
 	}
 	if err := s.db.CreateDomain(ctx, d); err != nil {
 		return nil, fmt.Errorf("domain %s is already in use: %w", host, err)
+	}
+	if d.HTTPSEnabled && source == database.CertCustom {
+		if err := s.InstallCustomCertificate(ctx, d, in.CertificatePEM, in.PrivateKeyPEM); err != nil {
+			return d, err
+		}
+		return d, nil
 	}
 	if err := s.Reconcile(ctx); err != nil {
 		return d, err
@@ -100,9 +125,61 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 	return d, nil
 }
 
+// normaliseSource defaults to Let's Encrypt and rejects anything unknown.
+func normaliseSource(source string) (string, error) {
+	switch source {
+	case "", database.CertLetsEncrypt:
+		return database.CertLetsEncrypt, nil
+	case database.CertCustom:
+		return database.CertCustom, nil
+	default:
+		return "", fmt.Errorf("unknown certificate source %q", source)
+	}
+}
+
+// InstallCustomCertificate stores a user-supplied pair and reloads the proxy.
+func (s *Service) InstallCustomCertificate(ctx context.Context, d *database.Domain, certPEM, keyPEM string) error {
+	result, err := s.certs.InstallCustom(d.Hostname, certPEM, keyPEM)
+	if err != nil {
+		_ = s.db.UpsertCertificate(ctx, &database.Certificate{
+			DomainID:  d.ID,
+			Hostname:  d.Hostname,
+			Status:    database.CertFailed,
+			LastError: err.Error(),
+			Source:    database.CertCustom,
+		})
+		return err
+	}
+	if err := s.db.UpsertCertificate(ctx, &database.Certificate{
+		DomainID:      d.ID,
+		Hostname:      d.Hostname,
+		Issuer:        result.Issuer,
+		IssuedAt:      result.NotBefore.UTC().Format(time.RFC3339),
+		ExpiresAt:     result.NotAfter.UTC().Format(time.RFC3339),
+		LastRenewedAt: database.Now(),
+		Status:        database.CertIssued,
+		Source:        database.CertCustom,
+	}); err != nil {
+		return err
+	}
+	s.log.Info("custom certificate installed", "domain", d.Hostname, "expires", result.NotAfter)
+	return s.Reconcile(ctx)
+}
+
 // Update changes an existing mapping and re-reconciles.
-func (s *Service) Update(ctx context.Context, d *database.Domain) error {
+// UpdateInput carries the optional new certificate material alongside the
+// changed domain.
+type UpdateInput struct {
+	CertificatePEM string
+	PrivateKeyPEM  string
+}
+
+func (s *Service) Update(ctx context.Context, d *database.Domain, in UpdateInput) error {
 	host, err := security.ValidateHostname(d.Hostname)
+	if err != nil {
+		return err
+	}
+	previous, err := s.db.DomainByID(ctx, d.ID)
 	if err != nil {
 		return err
 	}
@@ -110,8 +187,39 @@ func (s *Service) Update(ctx context.Context, d *database.Domain) error {
 	if err := security.ValidatePort(d.ContainerPort); err != nil {
 		return err
 	}
+	source, err := normaliseSource(d.CertificateSource)
+	if err != nil {
+		return err
+	}
+	d.CertificateSource = source
+
+	uploading := strings.TrimSpace(in.CertificatePEM) != "" || strings.TrimSpace(in.PrivateKeyPEM) != ""
+	if d.HTTPSEnabled && source == database.CertCustom && uploading {
+		if _, err := certificates.Validate(host, in.CertificatePEM, in.PrivateKeyPEM); err != nil {
+			return err
+		}
+	}
+	// Switching source or hostname invalidates whatever is on disk, so drop it
+	// rather than serve a certificate that no longer belongs to this domain.
+	if previous.CertificateSource != source || previous.Hostname != host {
+		if err := s.certs.Remove(previous.Hostname); err != nil {
+			s.log.Warn("remove previous certificate", "domain", previous.Hostname, "error", err)
+		}
+	}
+
 	if err := s.db.UpdateDomain(ctx, d); err != nil {
 		return err
+	}
+	if d.HTTPSEnabled && source == database.CertCustom {
+		if uploading {
+			return s.InstallCustomCertificate(ctx, d, in.CertificatePEM, in.PrivateKeyPEM)
+		}
+		if !s.certs.Exists(d.Hostname) {
+			if err := s.Reconcile(ctx); err != nil {
+				return err
+			}
+			return fmt.Errorf("upload a certificate for %s to enable HTTPS", d.Hostname)
+		}
 	}
 	if err := s.Reconcile(ctx); err != nil {
 		return err
@@ -123,8 +231,15 @@ func (s *Service) Update(ctx context.Context, d *database.Domain) error {
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
+	domain, err := s.db.DomainByID(ctx, id)
+	if err != nil {
+		return err
+	}
 	if err := s.db.DeleteDomain(ctx, id); err != nil {
 		return err
+	}
+	if err := s.certs.Remove(domain.Hostname); err != nil {
+		s.log.Warn("remove certificate for deleted domain", "domain", domain.Hostname, "error", err)
 	}
 	return s.Reconcile(ctx)
 }
@@ -228,6 +343,13 @@ func (s *Service) EnsureCertificate(ctx context.Context, d *database.Domain) err
 	if !d.HTTPSEnabled {
 		return nil
 	}
+	if d.CertificateSource == database.CertCustom {
+		// The user owns this certificate; the platform never replaces it.
+		if !s.certs.Exists(d.Hostname) {
+			return fmt.Errorf("no certificate uploaded for %s yet", d.Hostname)
+		}
+		return nil
+	}
 	if s.certs.Exists(d.Hostname) {
 		if expiry, err := s.certs.Expiry(d.Hostname); err == nil && time.Until(expiry) > s.cfg.ACMERenewBefore {
 			return nil
@@ -268,6 +390,13 @@ func (s *Service) RenewExpiring(ctx context.Context) {
 	}
 	for _, d := range domains {
 		if !d.HTTPSEnabled {
+			continue
+		}
+		if d.CertificateSource == database.CertCustom {
+			// Nothing to renew, but an expiring upload is worth saying out loud.
+			if expiry, err := s.certs.Expiry(d.Hostname); err == nil && time.Until(expiry) < s.cfg.ACMERenewBefore {
+				s.log.Warn("uploaded certificate is expiring", "domain", d.Hostname, "expires", expiry)
+			}
 			continue
 		}
 		if s.certs.Exists(d.Hostname) {

@@ -17,24 +17,30 @@ func (s *Server) handleListDomains(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ProjectID     string `json:"project_id"`
-		Service       string `json:"service"`
-		Hostname      string `json:"hostname"`
-		ContainerPort int    `json:"container_port"`
-		HTTPS         bool   `json:"https_enabled"`
-		RedirectHTTPS bool   `json:"redirect_https"`
+		ProjectID         string `json:"project_id"`
+		Service           string `json:"service"`
+		Hostname          string `json:"hostname"`
+		ContainerPort     int    `json:"container_port"`
+		HTTPS             bool   `json:"https_enabled"`
+		RedirectHTTPS     bool   `json:"redirect_https"`
+		CertificateSource string `json:"certificate_source"`
+		CertificatePEM    string `json:"certificate_pem"`
+		PrivateKeyPEM     string `json:"private_key_pem"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
 		return
 	}
 	domain, err := s.domains.Create(r.Context(), domains.CreateInput{
-		ProjectID:     req.ProjectID,
-		ServiceName:   req.Service,
-		Hostname:      req.Hostname,
-		ContainerPort: req.ContainerPort,
-		HTTPS:         req.HTTPS,
-		RedirectHTTPS: req.RedirectHTTPS,
+		ProjectID:         req.ProjectID,
+		ServiceName:       req.Service,
+		Hostname:          req.Hostname,
+		ContainerPort:     req.ContainerPort,
+		HTTPS:             req.HTTPS,
+		RedirectHTTPS:     req.RedirectHTTPS,
+		CertificateSource: req.CertificateSource,
+		CertificatePEM:    req.CertificatePEM,
+		PrivateKeyPEM:     req.PrivateKeyPEM,
 	})
 	if err != nil {
 		// A domain that exists but failed certificate issuance is a partial
@@ -55,10 +61,13 @@ func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Hostname      *string `json:"hostname"`
-		ContainerPort *int    `json:"container_port"`
-		HTTPS         *bool   `json:"https_enabled"`
-		RedirectHTTPS *bool   `json:"redirect_https"`
+		Hostname          *string `json:"hostname"`
+		ContainerPort     *int    `json:"container_port"`
+		HTTPS             *bool   `json:"https_enabled"`
+		RedirectHTTPS     *bool   `json:"redirect_https"`
+		CertificateSource *string `json:"certificate_source"`
+		CertificatePEM    *string `json:"certificate_pem"`
+		PrivateKeyPEM     *string `json:"private_key_pem"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
@@ -76,7 +85,17 @@ func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 	if req.RedirectHTTPS != nil {
 		domain.RedirectHTTPS = *req.RedirectHTTPS
 	}
-	if err := s.domains.Update(r.Context(), domain); err != nil {
+	if req.CertificateSource != nil {
+		domain.CertificateSource = *req.CertificateSource
+	}
+	update := domains.UpdateInput{}
+	if req.CertificatePEM != nil {
+		update.CertificatePEM = *req.CertificatePEM
+	}
+	if req.PrivateKeyPEM != nil {
+		update.PrivateKeyPEM = *req.PrivateKeyPEM
+	}
+	if err := s.domains.Update(r.Context(), domain, update); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"domain": domain, "warning": err.Error()})
 		return
 	}

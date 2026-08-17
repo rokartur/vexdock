@@ -6,22 +6,25 @@ import (
 	"errors"
 )
 
-const domainColumns = `id, project_id, service_id, hostname, container_port, https_enabled, redirect_https, created_at, updated_at`
+const domainColumns = `id, project_id, service_id, hostname, container_port, https_enabled, redirect_https,
+	certificate_source, created_at, updated_at`
 
 func (db *DB) CreateDomain(ctx context.Context, d *Domain) error {
 	d.CreatedAt, d.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO domains (`+domainColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO domains (`+domainColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		d.ID, d.ProjectID, d.ServiceID, d.Hostname, d.ContainerPort,
-		boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS), d.CreatedAt, d.UpdatedAt)
+		boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS), d.CertificateSource, d.CreatedAt, d.UpdatedAt)
 	return err
 }
 
 func (db *DB) UpdateDomain(ctx context.Context, d *Domain) error {
 	d.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
-		`UPDATE domains SET service_id=?, hostname=?, container_port=?, https_enabled=?, redirect_https=?, updated_at=? WHERE id=?`,
-		d.ServiceID, d.Hostname, d.ContainerPort, boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS), d.UpdatedAt, d.ID)
+		`UPDATE domains SET service_id=?, hostname=?, container_port=?, https_enabled=?, redirect_https=?,
+		 certificate_source=?, updated_at=? WHERE id=?`,
+		d.ServiceID, d.Hostname, d.ContainerPort, boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS),
+		d.CertificateSource, d.UpdatedAt, d.ID)
 	return err
 }
 
@@ -62,7 +65,8 @@ func (db *DB) queryDomains(ctx context.Context, query string, args ...any) ([]Do
 func scanDomain(row scanner) (*Domain, error) {
 	var d Domain
 	var https, redirect int
-	err := row.Scan(&d.ID, &d.ProjectID, &d.ServiceID, &d.Hostname, &d.ContainerPort, &https, &redirect, &d.CreatedAt, &d.UpdatedAt)
+	err := row.Scan(&d.ID, &d.ProjectID, &d.ServiceID, &d.Hostname, &d.ContainerPort, &https, &redirect,
+		&d.CertificateSource, &d.CreatedAt, &d.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -73,7 +77,7 @@ func scanDomain(row scanner) (*Domain, error) {
 	return &d, nil
 }
 
-const certColumns = `id, domain_id, hostname, issuer, issued_at, expires_at, last_renewed_at, status, last_error`
+const certColumns = `id, domain_id, hostname, issuer, issued_at, expires_at, last_renewed_at, status, last_error, source`
 
 // UpsertCertificate records the outcome of an ACME issuance or renewal.
 func (db *DB) UpsertCertificate(ctx context.Context, c *Certificate) error {
@@ -81,18 +85,19 @@ func (db *DB) UpsertCertificate(ctx context.Context, c *Certificate) error {
 		c.ID = NewID()
 	}
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO certificates (`+certColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO certificates (`+certColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (domain_id) DO UPDATE SET hostname=excluded.hostname, issuer=excluded.issuer,
 		   issued_at=excluded.issued_at, expires_at=excluded.expires_at, last_renewed_at=excluded.last_renewed_at,
-		   status=excluded.status, last_error=excluded.last_error`,
-		c.ID, c.DomainID, c.Hostname, c.Issuer, c.IssuedAt, c.ExpiresAt, c.LastRenewedAt, c.Status, c.LastError)
+		   status=excluded.status, last_error=excluded.last_error, source=excluded.source`,
+		c.ID, c.DomainID, c.Hostname, c.Issuer, c.IssuedAt, c.ExpiresAt, c.LastRenewedAt, c.Status, c.LastError, c.Source)
 	return err
 }
 
 func (db *DB) CertificateByDomain(ctx context.Context, domainID string) (*Certificate, error) {
 	var c Certificate
 	err := db.QueryRowContext(ctx, `SELECT `+certColumns+` FROM certificates WHERE domain_id = ?`, domainID).
-		Scan(&c.ID, &c.DomainID, &c.Hostname, &c.Issuer, &c.IssuedAt, &c.ExpiresAt, &c.LastRenewedAt, &c.Status, &c.LastError)
+		Scan(&c.ID, &c.DomainID, &c.Hostname, &c.Issuer, &c.IssuedAt, &c.ExpiresAt, &c.LastRenewedAt, &c.Status,
+			&c.LastError, &c.Source)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -112,7 +117,7 @@ func (db *DB) ListCertificates(ctx context.Context) ([]Certificate, error) {
 	for rows.Next() {
 		var c Certificate
 		if err := rows.Scan(&c.ID, &c.DomainID, &c.Hostname, &c.Issuer, &c.IssuedAt, &c.ExpiresAt,
-			&c.LastRenewedAt, &c.Status, &c.LastError); err != nil {
+			&c.LastRenewedAt, &c.Status, &c.LastError, &c.Source); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

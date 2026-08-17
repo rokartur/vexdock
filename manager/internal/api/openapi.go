@@ -70,10 +70,10 @@ var apiRoutes = []route{
 	{"get", "/api/services/{id}/terminal", "Interactive terminal (WebSocket)", "services", false},
 
 	{"get", "/api/domains", "List all domains", "domains", false},
-	{"post", "/api/domains", "Add a domain", "domains", false},
-	{"patch", "/api/domains/{id}", "Update a domain", "domains", false},
+	{"post", "/api/domains", "Add a domain, with Let's Encrypt or an uploaded certificate", "domains", false},
+	{"patch", "/api/domains/{id}", "Update a domain or replace its certificate", "domains", false},
 	{"delete", "/api/domains/{id}", "Remove a domain", "domains", false},
-	{"post", "/api/domains/{id}/certificate", "Issue or renew the certificate", "domains", false},
+	{"post", "/api/domains/{id}/certificate", "Issue or renew a Let's Encrypt certificate", "domains", false},
 
 	{"get", "/api/deployments/{id}", "Deployment with steps", "deployments", false},
 	{"get", "/api/deployments/{id}/events", "Stream deployment logs (SSE)", "deployments", false},

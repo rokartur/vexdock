@@ -89,8 +89,10 @@ type Domain struct {
 	ContainerPort int    `json:"container_port"`
 	HTTPSEnabled  bool   `json:"https_enabled"`
 	RedirectHTTPS bool   `json:"redirect_https"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
+	// CertificateSource is CertLetsEncrypt or CertCustom.
+	CertificateSource string `json:"certificate_source"`
+	CreatedAt         string `json:"created_at"`
+	UpdatedAt         string `json:"updated_at"`
 }
 
 // Certificate statuses.
@@ -98,6 +100,12 @@ const (
 	CertPending = "pending"
 	CertIssued  = "issued"
 	CertFailed  = "failed"
+)
+
+// Where a domain's certificate comes from.
+const (
+	CertLetsEncrypt = "letsencrypt"
+	CertCustom      = "custom"
 )
 
 type Certificate struct {
@@ -110,6 +118,7 @@ type Certificate struct {
 	LastRenewedAt string `json:"last_renewed_at"`
 	Status        string `json:"status"`
 	LastError     string `json:"last_error"`
+	Source        string `json:"source"`
 }
 
 // Deployment statuses form the state machine described in the plan.

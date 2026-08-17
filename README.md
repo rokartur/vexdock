@@ -16,8 +16,8 @@ project at a Git repository, press Deploy.
   clones, validates, builds, starts and health checks the stack. Every step is
   streamed live.
 - **Domains with HTTPS.** Add `app.example.com`, choose the service and port.
-  Nginx is generated, validated and reloaded; Let's Encrypt issues and renews
-  the certificate.
+  Nginx is generated, validated and reloaded. Let's Encrypt issues and renews
+  the certificate, or you upload your own and the platform leaves it alone.
 - **Instant rollback.** Every deployment records its commit. Redeploy any
   previous one from the history.
 - **Full Docker visibility.** Containers, images, volumes and networks on the

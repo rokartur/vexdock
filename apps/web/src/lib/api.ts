@@ -42,6 +42,8 @@ export type DeploymentStep = {
   finished_at: string
 }
 
+export type CertificateSource = 'letsencrypt' | 'custom'
+
 export type Domain = {
   id: string
   project_id: string
@@ -50,6 +52,7 @@ export type Domain = {
   container_port: number
   https_enabled: boolean
   redirect_https: boolean
+  certificate_source: CertificateSource
   created_at: string
   updated_at: string
 }
@@ -107,6 +110,7 @@ export type Certificate = {
   last_renewed_at: string
   status: 'pending' | 'issued' | 'failed'
   last_error: string
+  source: CertificateSource
 }
 
 export type ContainerSummary = {
@@ -375,10 +379,21 @@ export const api = {
     container_port: number
     https_enabled: boolean
     redirect_https: boolean
+    certificate_source?: CertificateSource
+    certificate_pem?: string
+    private_key_pem?: string
   }) => request<{ domain: Domain; warning?: string }>('/api/domains', { method: 'POST', body }),
   updateDomain: (
     id: string,
-    body: Partial<{ hostname: string; container_port: number; https_enabled: boolean; redirect_https: boolean }>,
+    body: Partial<{
+      hostname: string
+      container_port: number
+      https_enabled: boolean
+      redirect_https: boolean
+      certificate_source: CertificateSource
+      certificate_pem: string
+      private_key_pem: string
+    }>,
   ) => request<{ domain: Domain; warning?: string }>(`/api/domains/${id}`, { method: 'PATCH', body }),
   deleteDomain: (id: string) => request<{ ok: boolean }>(`/api/domains/${id}`, { method: 'DELETE' }),
   issueCertificate: (id: string) => request<Certificate>(`/api/domains/${id}/certificate`, { method: 'POST' }),

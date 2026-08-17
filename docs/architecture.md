@@ -93,7 +93,19 @@ straight from the Docker Engine on demand.
 
 ## Certificates
 
-HTTP-01 through the same Nginx that serves the application. The challenge token
+A domain either gets its certificate from Let's Encrypt or you upload one. Both
+end up as `fullchain.pem` and `privkey.pem` under `certificates/<hostname>/`, so
+the proxy and the vhost generator do not care which it was.
+
+An uploaded pair is validated before it touches disk: the key must match the
+certificate, the certificate must cover the hostname, and it must be inside its
+validity window. Nginx would refuse to reload on any of those, so the error
+belongs in the form. A rejected upload leaves the previous certificate in place.
+The renewal sweep never touches an uploaded certificate; it logs a warning when
+one is inside the renewal window, because only you can replace it.
+
+Let's Encrypt issuance is HTTP-01 through the same Nginx that serves the
+application. The challenge token
 is written to a shared directory that every generated vhost exposes at
 `/.well-known/acme-challenge/`, including the HTTPS block, so renewals keep
 working after the redirect is enabled. A renewal sweep runs six-hourly and
