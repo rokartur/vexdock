@@ -104,9 +104,20 @@ func (i *Issuer) Issue(ctx context.Context, hostname string) (*Result, error) {
 		}
 	}
 
-	order, err = client.WaitOrder(ctx, order.URI)
+	// The finalize URL is a property of the order and is returned when the order
+	// is created. A later poll of the same order is not required to repeat it,
+	// so keep the original rather than trusting the polled copy.
+	finalizeURL := order.FinalizeURL
+
+	ready, err := client.WaitOrder(ctx, order.URI)
 	if err != nil {
 		return nil, fmt.Errorf("acme order not ready: %w", err)
+	}
+	if finalizeURL == "" {
+		finalizeURL = ready.FinalizeURL
+	}
+	if finalizeURL == "" {
+		return nil, errors.New("acme server returned no finalize URL for the order")
 	}
 
 	certKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -120,11 +131,36 @@ func (i *Issuer) Issue(ctx context.Context, hostname string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain, _, err := client.CreateOrderCert(ctx, order.FinalizeURL, csr, true)
+	chain, _, err := client.CreateOrderCert(ctx, finalizeURL, csr, true)
 	if err != nil {
-		return nil, fmt.Errorf("acme finalize: %w", err)
+		// The library polls the order using the Location header of the finalize
+		// response, which RFC 8555 does not require the server to send. When it is
+		// missing, finish the order from the URL we already hold.
+		chain, err = i.collect(ctx, client, order.URI, err)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return i.store(hostname, chain, certKey)
+}
+
+// collect waits for a finalized order to become valid and downloads the chain.
+func (i *Issuer) collect(ctx context.Context, client *acme.Client, orderURI string, cause error) ([][]byte, error) {
+	if orderURI == "" {
+		return nil, fmt.Errorf("acme finalize: %w", cause)
+	}
+	issued, err := client.WaitOrder(ctx, orderURI)
+	if err != nil {
+		return nil, fmt.Errorf("acme finalize: %w (recovery failed: %v)", cause, err)
+	}
+	if issued.CertURL == "" {
+		return nil, fmt.Errorf("acme finalize: %w (order is %s with no certificate)", cause, issued.Status)
+	}
+	chain, err := client.FetchCert(ctx, issued.CertURL, true)
+	if err != nil {
+		return nil, fmt.Errorf("acme fetch certificate: %w", err)
+	}
+	return chain, nil
 }
 
 func (i *Issuer) solve(ctx context.Context, client *acme.Client, authzURL string) error {
