@@ -1,7 +1,7 @@
 node_modules
 **/node_modules
 **/dist
-.platform
+.vexdock
 bin
 .git
 .github

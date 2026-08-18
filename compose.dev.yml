@@ -3,7 +3,7 @@
 #   make dev-up     build and start
 #   make dev-logs   follow the manager
 #
-# PLATFORM_ROOT defaults to ./.platform so a laptop never writes to /opt.
+# PLATFORM_ROOT defaults to ./.vexdock so a laptop never writes to /opt.
 
 services:
   manager:

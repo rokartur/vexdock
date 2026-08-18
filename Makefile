@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/sh
 
-# Local development writes to ./.platform so nothing touches /opt.
-PLATFORM_ROOT ?= $(CURDIR)/.platform
+# Local development writes to ./.vexdock so nothing touches /opt.
+PLATFORM_ROOT ?= $(CURDIR)/.vexdock
 VERSION ?= dev
 
 .PHONY: help
@@ -16,7 +16,7 @@ manager: ## Build the manager binary into ./bin
 	cd manager && go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o ../bin/manager ./cmd/server
 
 .PHONY: run
-run: ## Run the manager against ./.platform on :8080
+run: ## Run the manager against ./.vexdock on :8080
 	cd manager && PLATFORM_ROOT=$(PLATFORM_ROOT) PLATFORM_LOG_LEVEL=debug go run ./cmd/server
 
 .PHONY: test

@@ -21,7 +21,7 @@ make dev-logs
 make dev-down
 ```
 
-State goes to `./.platform`, never `/opt`.
+State goes to `./.vexdock`, never `/opt`.
 
 Nginx serves `apps/web/dist/client` straight from the working tree, so a
 dashboard change only needs `make web` to show up on :3000.

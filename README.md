@@ -1,14 +1,7 @@
-# Platform
+# Vexdock
 
 Self-hosted deployment platform for a single Linux server. One command installs
 it, one screen deploys your app, and your own domain gets HTTPS automatically.
-
-```sh
-curl -fsSL https://get.vexdock.dev | sudo sh
-```
-
-Open `http://YOUR_SERVER_IP:3000`, create the administrator account, point a
-project at a Git repository, press Deploy.
 
 ## What it does
 
@@ -85,7 +78,7 @@ More detail in [docs/architecture.md](docs/architecture.md).
 ```sh
 make check      # go vet, go test, typecheck
 make dev-up     # build both images and run the whole stack locally
-make run        # manager only, against ./.platform
+make run        # manager only, against ./.vexdock
 make web        # rebuild the dashboard; the running stack serves it at once
 make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 ./scripts/smoke-test.sh
