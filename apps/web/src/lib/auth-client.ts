@@ -5,7 +5,7 @@ import { createAuthClient } from 'better-auth/react'
  * Nginx serves at /api/auth on the same origin as the dashboard.
  */
 export const authClient = createAuthClient({
-  basePath: '/api/auth',
+	basePath: '/api/auth',
 })
 
 export const { signIn, signUp, signOut, useSession } = authClient
@@ -15,7 +15,7 @@ export const { signIn, signUp, signOut, useSession } = authClient
  * service next to its own endpoints.
  */
 export async function fetchSetupStatus(): Promise<{ needs_setup: boolean }> {
-  const response = await fetch('/api/auth/platform-status', { credentials: 'same-origin' })
-  if (!response.ok) throw new Error('The auth service is unreachable')
-  return (await response.json()) as { needs_setup: boolean }
+	const response = await fetch('/api/auth/platform-status', { credentials: 'same-origin' })
+	if (!response.ok) throw new Error('The auth service is unreachable')
+	return (await response.json()) as { needs_setup: boolean }
 }
