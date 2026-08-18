@@ -19,6 +19,7 @@
 		"@tanstack/react-query": "^5.101.4",
 		"@tanstack/react-router": "^1.170.29",
 		"@tanstack/react-start": "^1.168.46",
+		"@tanstack/react-table": "^9.1.2",
 		"@xterm/addon-fit": "^0.11.0",
 		"@xterm/xterm": "^6.0.0",
 		"better-auth": "^1.7.0",

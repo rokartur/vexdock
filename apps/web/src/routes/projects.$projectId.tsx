@@ -53,7 +53,7 @@ function ProjectLayout() {
 	return (
 		<Page
 			breadcrumb={
-				<Link to='/projects' className='text-[13px] text-muted-foreground hover:text-foreground'>
+				<Link to='/projects' className='text-body text-muted-foreground hover:text-foreground'>
 					projects
 				</Link>
 			}
@@ -95,9 +95,9 @@ function ProjectLayout() {
 					<Link
 						key={tab.label}
 						to={to}
-						className={`-mb-px border-b px-0.5 pb-1.5 text-[13px] ${
+						className={`-mb-px border-b px-0.5 pb-1.5 text-body ${
 							active
-								? 'border-white text-white'
+								? 'border-foreground text-foreground'
 								: 'border-transparent text-muted-foreground hover:text-foreground'
 						}`}
 					>

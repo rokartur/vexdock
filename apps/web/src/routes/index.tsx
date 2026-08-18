@@ -1,10 +1,59 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Cell, Empty, Page, Row, Section, Skeleton, Status, Table } from '../components/primitives'
-import { api, type HostStats } from '../lib/api'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
+import { Page, Refresh, Section, Status } from '../components/primitives'
+import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
 import { bytes, percent, since } from '../lib/format'
 import { useEventSource } from '../lib/sse'
+
+type RecentDeployment = SystemInfo['recent_deployments'][number]
+
+
+const deploymentColumns: Columns<RecentDeployment> = (() => {
+	const cell = columnsFor<RecentDeployment>()
+	return [
+		cell.accessor(({ deployment }) => deployment.status, {
+			id: 'status',
+			header: '',
+			cell: ({ row }) => <Status value={row.original.deployment.status} />,
+		}),
+		cell.accessor(({ deployment, project_name }) => project_name || deployment.project_id, {
+			id: 'project',
+			header: 'Project',
+			cell: ({ row: { original } }) => (
+				<Link
+					to='/projects/$projectId'
+					params={{ projectId: original.deployment.project_id }}
+					className='hover:underline'
+				>
+					{original.project_name || original.deployment.project_id}
+				</Link>
+			),
+		}),
+		cell.accessor(({ deployment }) => deployment.number, {
+			id: 'commit',
+			header: 'Commit',
+			meta: { mono: true },
+			cell: ({ row: { original } }) => (
+				<Link
+					to='/deployments/$deploymentId'
+					params={{ deploymentId: original.deployment.id }}
+					className='hover:underline'
+				>
+					#{original.deployment.number} {original.deployment.commit_sha.slice(0, 7)}
+				</Link>
+			),
+		}),
+		cell.accessor(({ deployment }) => deployment.trigger, { id: 'trigger', header: 'Trigger' }),
+		cell.accessor(({ deployment }) => deployment.created_at, {
+			id: 'when',
+			header: 'When',
+			cell: ({ row }) => since(row.original.deployment.created_at),
+		}),
+	]
+})()
 
 export const Route = createFileRoute('/')({ component: DashboardPage })
 
@@ -46,57 +95,26 @@ function DashboardPage() {
 				</dl>
 			</Section>
 
-			<Section title='Deployments' description='most recent across all projects'>
-				{info.isLoading ? (
-					<Skeleton />
-				) : (info.data?.recent_deployments.length ?? 0) === 0 ? (
-					<Empty>
-						No deployments yet.{' '}
-						<Link to='/projects' className='underline'>
-							Create a project
-						</Link>{' '}
-						to get started.
-					</Empty>
-				) : (
-					<Table head={['', 'Project', 'Commit', 'Trigger', 'When']}>
-						{info.data?.recent_deployments.map(({ deployment, project_name }) => (
-							<Row key={deployment.id}>
-								<Cell>
-									<Status value={deployment.status} />
-								</Cell>
-								<Cell>
-									<Link
-										to='/projects/$projectId'
-										params={{ projectId: deployment.project_id }}
-										className='hover:underline'
-									>
-										{project_name || deployment.project_id}
-									</Link>
-								</Cell>
-								<Cell mono>
-									<Link
-										to='/deployments/$deploymentId'
-										params={{ deploymentId: deployment.id }}
-										className='hover:underline'
-									>
-										#{deployment.number} {deployment.commit_sha.slice(0, 7)}
-									</Link>
-								</Cell>
-								<Cell>{deployment.trigger}</Cell>
-								<Cell>{since(deployment.created_at)}</Cell>
-							</Row>
-						))}
-					</Table>
-				)}
-			</Section>
-
-			<Section title='Host'>
-				<dl className='grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 lg:grid-cols-4'>
-					<Metric label='Hostname' value={info.data?.host.name ?? '-'} />
-					<Metric label='OS' value={info.data?.host.os ?? '-'} />
-					<Metric label='Docker' value={info.data?.host.docker_version ?? '-'} />
-					<Metric label='Architecture' value={info.data?.host.architecture ?? '-'} />
-				</dl>
+			<Section
+				title='Deployments'
+				description='most recent across all projects'
+				actions={<Refresh onClick={() => info.refetch()} busy={info.isFetching} />}
+			>
+				<DataTable
+					data={info.data?.recent_deployments ?? []}
+					columns={deploymentColumns}
+					loading={info.isLoading}
+					getRowId={({ deployment }) => deployment.id}
+					empty={
+						<>
+							No deployments yet.{' '}
+							<Link to='/projects' className='underline'>
+								Create a project
+							</Link>{' '}
+							to get started.
+						</>
+					}
+				/>
 			</Section>
 		</Page>
 	)

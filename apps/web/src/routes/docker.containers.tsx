@@ -1,10 +1,77 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
-import { Button, Cell, ErrorText, Page, Row, Section, Skeleton, Status, Table } from '../components/primitives'
-import { api } from '../lib/api'
+import { Button, ErrorText, Page, Refresh, Section, Status } from '../components/primitives'
+import { api, type ContainerSummary } from '../lib/api'
 import { since } from '../lib/format'
+
+function containerName(container: ContainerSummary) {
+	return container.names[0]?.replace(/^\//u, '') ?? container.id.slice(0, 12)
+}
+
+type ContainerActions = {
+	showLogs: (id: string) => void
+	act: (id: string, action: 'start' | 'stop' | 'restart') => void
+}
+
+function containerTableColumns({ showLogs, act }: ContainerActions): Columns<ContainerSummary> {
+	const cell = columnsFor<ContainerSummary>()
+	return [
+		cell.accessor(containerName, {
+			id: 'name',
+			header: 'Name',
+			meta: { mono: true },
+			cell: ({ row }) => (
+				<>
+					{containerName(row.original)}
+					{row.original.managed ? null : (
+						<span className='ml-2 text-meta text-muted-foreground'>external</span>
+					)}
+				</>
+			),
+		}),
+		cell.accessor(container => container.state, {
+			id: 'state',
+			header: 'State',
+			cell: ({ row }) => <Status value={row.original.state} />,
+		}),
+		cell.accessor(container => container.image, { id: 'image', header: 'Image', meta: { mono: true } }),
+		cell.accessor(container => container.project || '-', {
+			id: 'project',
+			header: 'Project',
+			meta: { mono: true },
+		}),
+		cell.accessor(container => container.created, {
+			id: 'created',
+			header: 'Created',
+			cell: ({ row }) => since(row.original.created),
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row }) => {
+				const container = row.original
+				const running = container.state === 'running'
+				return (
+					<span className='flex justify-end gap-1.5'>
+						<Button variant='ghost' onClick={() => showLogs(container.id)}>
+							logs
+						</Button>
+						<Button variant='ghost' onClick={() => act(container.id, 'restart')}>
+							restart
+						</Button>
+						<Button variant='ghost' onClick={() => act(container.id, running ? 'stop' : 'start')}>
+							{running ? 'stop' : 'start'}
+						</Button>
+					</span>
+				)
+			},
+		}),
+	]
+}
 
 export const Route = createFileRoute('/docker/containers')({ component: ContainersPage })
 
@@ -15,7 +82,6 @@ export const Route = createFileRoute('/docker/containers')({ component: Containe
 function ContainersPage() {
 	const queryClient = useQueryClient()
 	const [logsFor, setLogsFor] = useState<string | null>(null)
-	const [onlyManaged, setOnlyManaged] = useState(false)
 
 	const containers = useQuery({
 		queryKey: ['containers'],
@@ -29,72 +95,28 @@ function ContainersPage() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['containers'] }),
 	})
 
-	const rows = (containers.data ?? []).filter(container => !onlyManaged || container.managed)
+	const data = containers.data ?? []
+	const { mutate: runAction } = act
+	const columns = useMemo(
+		() => containerTableColumns({ showLogs: setLogsFor, act: (id, action) => runAction({ id, action }) }),
+		[runAction],
+	)
 
 	return (
 		<Page title='Containers'>
 			<Section
 				title='All containers'
-				description={`${rows.length} shown`}
-				actions={
-					<label className='flex items-center gap-1.5 text-[13px] text-muted-foreground'>
-						<input
-							type='checkbox'
-							className='!w-auto'
-							checked={onlyManaged}
-							onChange={event => setOnlyManaged(event.target.checked)}
-						/>
-						managed only
-					</label>
-				}
+				description={`${data.length} total`}
+				actions={<Refresh onClick={() => containers.refetch()} busy={containers.isFetching} />}
 			>
 				<ErrorText error={act.error} />
-				{containers.isLoading ? (
-					<Skeleton rows={5} />
-				) : (
-					<Table head={['Name', 'State', 'Image', 'Project', 'Created', '']}>
-						{rows.map(container => (
-							<Row key={container.id}>
-								<Cell mono>
-									{container.names[0]?.replace(/^\//u, '') ?? container.id.slice(0, 12)}
-									{container.managed ? null : (
-										<span className='ml-2 text-[11px] text-zinc-600'>external</span>
-									)}
-								</Cell>
-								<Cell>
-									<Status value={container.state} />
-								</Cell>
-								<Cell mono>{container.image}</Cell>
-								<Cell mono>{container.project || '-'}</Cell>
-								<Cell>{since(container.created)}</Cell>
-								<Cell right>
-									<span className='flex justify-end gap-1.5'>
-										<Button variant='ghost' onClick={() => setLogsFor(container.id)}>
-											logs
-										</Button>
-										<Button
-											variant='ghost'
-											onClick={() => act.mutate({ id: container.id, action: 'restart' })}
-										>
-											restart
-										</Button>
-										<Button
-											variant='ghost'
-											onClick={() =>
-												act.mutate({
-													id: container.id,
-													action: container.state === 'running' ? 'stop' : 'start',
-												})
-											}
-										>
-											{container.state === 'running' ? 'stop' : 'start'}
-										</Button>
-									</span>
-								</Cell>
-							</Row>
-						))}
-					</Table>
-				)}
+				<DataTable
+					data={data}
+					columns={columns}
+					loading={containers.isLoading}
+					getRowId={container => container.id}
+					empty='No containers.'
+				/>
 			</Section>
 
 			{logsFor ? (

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, Cell, ErrorText, Page, Row, Section, Skeleton, Table } from '../components/primitives'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { Button, ErrorText, Page, Refresh, Section } from '../components/primitives'
 import { api } from '../lib/api'
 import { bytes } from '../lib/format'
 
@@ -13,6 +14,46 @@ const targets = [
 	{ kind: 'containers', label: 'Stopped containers', field: 'stopped_containers' },
 	{ kind: 'volumes', label: 'Unused volumes', field: 'unused_volumes' },
 ] as const
+
+type CleanupTarget = (typeof targets)[number]
+type CleanupRow = { kind: CleanupTarget['kind']; label: string; size: number | undefined }
+
+function cleanupTableColumns(
+	confirming: string | null,
+	setConfirming: (kind: string | null) => void,
+	clean: (kind: CleanupTarget['kind']) => void,
+): Columns<CleanupRow> {
+	const cell = columnsFor<CleanupRow>()
+	return [
+		cell.accessor(row => row.label, { id: 'target', header: 'Target' }),
+		cell.accessor(row => row.size ?? 0, {
+			id: 'size',
+			header: 'Size',
+			meta: { mono: true },
+			cell: ({ row }) => bytes(row.original.size),
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row: { original } }) =>
+				confirming === original.kind ? (
+					<span className='flex justify-end gap-1.5'>
+						<Button variant='danger' onClick={() => clean(original.kind)}>
+							confirm
+						</Button>
+						<Button variant='ghost' onClick={() => setConfirming(null)}>
+							cancel
+						</Button>
+					</span>
+				) : (
+					<Button variant='ghost' onClick={() => setConfirming(original.kind)}>
+						clean
+					</Button>
+				),
+		}),
+	]
+}
 
 /**
  * Nothing is pruned automatically. The user sees what each action reclaims and
@@ -34,39 +75,23 @@ function CleanupPage() {
 		},
 	})
 
+	const rows = useMemo<CleanupRow[]>(
+		() => targets.map(({ kind, label, field }) => ({ kind, label, size: preview.data?.[field] })),
+		[preview.data],
+	)
+	const { mutate: clean } = cleanup
+	const columns = useMemo(() => cleanupTableColumns(confirming, setConfirming, clean), [confirming, clean])
+
 	return (
 		<Page title='Docker cleanup'>
-			<Section title='Reclaimable space' description='review before removing anything'>
+			<Section
+				title='Reclaimable space'
+				description='review before removing anything'
+				actions={<Refresh onClick={() => preview.refetch()} busy={preview.isFetching} />}
+			>
 				<ErrorText error={cleanup.error} />
-				{result ? <p className='pb-2 text-[13px] text-emerald-400'>{result}</p> : null}
-				{preview.isLoading ? (
-					<Skeleton rows={4} />
-				) : (
-					<Table head={['Target', 'Size', '']}>
-						{targets.map(target => (
-							<Row key={target.kind}>
-								<Cell>{target.label}</Cell>
-								<Cell mono>{bytes(preview.data?.[target.field])}</Cell>
-								<Cell right>
-									{confirming === target.kind ? (
-										<span className='flex justify-end gap-1.5'>
-											<Button variant='danger' onClick={() => cleanup.mutate(target.kind)}>
-												confirm
-											</Button>
-											<Button variant='ghost' onClick={() => setConfirming(null)}>
-												cancel
-											</Button>
-										</span>
-									) : (
-										<Button variant='ghost' onClick={() => setConfirming(target.kind)}>
-											clean
-										</Button>
-									)}
-								</Cell>
-							</Row>
-						))}
-					</Table>
-				)}
+				{result ? <p className='pb-2 text-body text-emerald-400'>{result}</p> : null}
+				<DataTable data={rows} columns={columns} loading={preview.isLoading} getRowId={row => row.kind} />
 			</Section>
 		</Page>
 	)

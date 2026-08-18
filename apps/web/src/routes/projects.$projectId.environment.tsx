@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, ErrorText, Section } from '../components/primitives'
+import { Button, Check, ErrorText, Section } from '../components/primitives'
 import { api, type EnvVar } from '../lib/api'
 
 export const Route = createFileRoute('/projects/$projectId/environment')({ component: ProjectEnvironment })
@@ -57,7 +57,7 @@ function ProjectEnvironment() {
 			<ErrorText error={save.error} />
 			<div className='border-t border-border'>
 				{rows.length === 0 ? (
-					<p className='py-6 text-[13px] text-muted-foreground'>
+					<p className='py-6 text-body text-muted-foreground'>
 						No variables. Add one and redeploy to apply it.
 					</p>
 				) : (
@@ -67,24 +67,22 @@ function ProjectEnvironment() {
 								value={row.key}
 								placeholder='KEY'
 								onChange={event => update(index, { key: event.target.value })}
-								className='!w-56 font-mono text-[13px]'
+								className='!w-56 font-mono text-body'
 							/>
 							<input
 								value={row.value}
 								placeholder='value'
 								type={row.is_secret ? 'password' : 'text'}
 								onChange={event => update(index, { value: event.target.value })}
-								className='flex-1 font-mono text-[13px]'
+								className='flex-1 font-mono text-body'
 							/>
-							<label className='flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground'>
-								<input
-									type='checkbox'
-									className='!w-auto'
-									checked={row.is_secret}
-									onChange={event => update(index, { is_secret: event.target.checked })}
-								/>
-								secret
-							</label>
+							<Check
+								label='secret'
+								muted
+								className='shrink-0'
+								checked={row.is_secret}
+								onChange={is_secret => update(index, { is_secret })}
+							/>
 							<Button
 								variant='ghost'
 								onClick={() => setRows(current => current.filter((_, i) => i !== index))}

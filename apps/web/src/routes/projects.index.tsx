@@ -1,27 +1,85 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import {
-	Button,
-	Cell,
-	Empty,
-	ErrorText,
-	Field,
-	Page,
-	Row,
-	Section,
-	Skeleton,
-	Status,
-	Table,
-} from '../components/primitives'
-import { api, type SourceType } from '../lib/api'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { Button, Check, ErrorText, Field, Page, Refresh, Section, Status } from '../components/primitives'
+import { api, type Project, type SourceType } from '../lib/api'
 import { since } from '../lib/format'
+
+const projectTableColumns: Columns<Project> = (() => {
+	const cell = columnsFor<Project>()
+	return [
+		cell.accessor(project => project.name, {
+			id: 'name',
+			header: 'Name',
+			cell: ({ row }) => (
+				<Link to='/projects/$projectId' params={{ projectId: row.original.id }} className='hover:underline'>
+					{row.original.name}
+				</Link>
+			),
+		}),
+		cell.accessor(project => (project.source_type === 'git' ? shortRepo(project.repository_url) : 'compose'), {
+			id: 'source',
+			header: 'Source',
+			meta: { mono: true },
+			cell: ({ row: { original } }) => (
+				<>
+					{original.source_type === 'git' ? shortRepo(original.repository_url) : 'compose'}
+					{original.source_type === 'git' ? (
+						<span className='text-muted-foreground'> @{original.branch}</span>
+					) : null}
+				</>
+			),
+		}),
+		cell.accessor(project => project.running_count, {
+			id: 'services',
+			header: 'Services',
+			meta: { mono: true },
+			cell: ({ row: { original } }) => `${original.running_count}/${original.service_count}`,
+		}),
+		cell.accessor(project => project.domains.length, {
+			id: 'domains',
+			header: 'Domains',
+			meta: { mono: true },
+			cell: ({ row }) => row.original.domains.length || '-',
+		}),
+		cell.accessor(project => project.latest_deployment?.created_at ?? '', {
+			id: 'last-deploy',
+			header: 'Last deploy',
+			cell: ({ row: { original } }) =>
+				original.latest_deployment ? (
+					<span className='flex items-center gap-2'>
+						<Status value={original.latest_deployment.status} />
+						<span className='text-muted-foreground'>{since(original.latest_deployment.created_at)}</span>
+					</span>
+				) : (
+					<span className='text-muted-foreground'>never</span>
+				),
+		}),
+		cell.display({
+			id: 'open',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row }) => (
+				<Link
+					to='/projects/$projectId'
+					params={{ projectId: row.original.id }}
+					className='text-body text-muted-foreground hover:text-foreground'
+				>
+					open
+				</Link>
+			),
+		}),
+	]
+})()
 
 export const Route = createFileRoute('/projects/')({ component: ProjectsPage })
 
 function ProjectsPage() {
 	const [creating, setCreating] = useState(false)
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects, refetchInterval: 10_000 })
+
+	const data = projects.data ?? []
 
 	return (
 		<Page
@@ -34,59 +92,18 @@ function ProjectsPage() {
 		>
 			{creating ? <NewProjectWizard onDone={() => setCreating(false)} /> : null}
 
-			<Section title='All projects' description={`${projects.data?.length ?? 0} total`}>
-				{projects.isLoading ? (
-					<Skeleton />
-				) : projects.data?.length === 0 ? (
-					<Empty>No projects yet. Create one from a Git repository, a compose file or a template.</Empty>
-				) : (
-					<Table head={['Name', 'Source', 'Services', 'Domains', 'Last deploy', '']}>
-						{projects.data?.map(project => (
-							<Row key={project.id}>
-								<Cell>
-									<Link
-										to='/projects/$projectId'
-										params={{ projectId: project.id }}
-										className='hover:underline'
-									>
-										{project.name}
-									</Link>
-								</Cell>
-								<Cell mono>
-									{project.source_type === 'git' ? shortRepo(project.repository_url) : 'compose'}
-									{project.source_type === 'git' ? (
-										<span className='text-zinc-600'> @{project.branch}</span>
-									) : null}
-								</Cell>
-								<Cell mono>
-									{project.running_count}/{project.service_count}
-								</Cell>
-								<Cell mono>{project.domains.length || '-'}</Cell>
-								<Cell>
-									{project.latest_deployment ? (
-										<span className='flex items-center gap-2'>
-											<Status value={project.latest_deployment.status} />
-											<span className='text-muted-foreground'>
-												{since(project.latest_deployment.created_at)}
-											</span>
-										</span>
-									) : (
-										<span className='text-muted-foreground'>never</span>
-									)}
-								</Cell>
-								<Cell right>
-									<Link
-										to='/projects/$projectId'
-										params={{ projectId: project.id }}
-										className='text-[13px] text-muted-foreground hover:text-white'
-									>
-										open
-									</Link>
-								</Cell>
-							</Row>
-						))}
-					</Table>
-				)}
+			<Section
+				title='All projects'
+				description={`${data.length} total`}
+				actions={<Refresh onClick={() => projects.refetch()} busy={projects.isFetching} />}
+			>
+				<DataTable
+					data={data}
+					columns={projectTableColumns}
+					loading={projects.isLoading}
+					getRowId={project => project.id}
+					empty='No projects yet. Create one from a Git repository, a compose file or a template.'
+				/>
 			</Section>
 		</Page>
 	)
@@ -148,7 +165,7 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
 		>
 			<div className='mb-4 flex gap-4'>
 				{(['git', 'compose', 'template'] as const).map(option => (
-					<label key={option} className='flex items-center gap-1.5 text-[13px]'>
+					<label key={option} className='flex items-center gap-1.5 text-body'>
 						<input
 							type='radio'
 							name='source'
@@ -202,7 +219,7 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
 									rows={credentialKind === 'token' ? 1 : 5}
 									value={credentialSecret}
 									onChange={event => setCredentialSecret(event.target.value)}
-									className='font-mono text-[13px]'
+									className='font-mono text-body'
 								/>
 							</Field>
 						)}
@@ -229,32 +246,16 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
 						rows={10}
 						value={composeContent}
 						onChange={event => setComposeContent(event.target.value)}
-						className='font-mono text-[13px]'
+						className='font-mono text-body'
 					/>
 				</Field>
 			) : null}
 
 			<div className='mb-3 flex flex-wrap gap-4'>
 				{source === 'git' ? (
-					<label className='flex items-center gap-1.5 text-[13px]'>
-						<input
-							type='checkbox'
-							className='!w-auto'
-							checked={autoDeploy}
-							onChange={event => setAutoDeploy(event.target.checked)}
-						/>
-						Auto deploy on push
-					</label>
+					<Check label='Auto deploy on push' checked={autoDeploy} onChange={setAutoDeploy} />
 				) : null}
-				<label className='flex items-center gap-1.5 text-[13px]'>
-					<input
-						type='checkbox'
-						className='!w-auto'
-						checked={deployNow}
-						onChange={event => setDeployNow(event.target.checked)}
-					/>
-					Deploy immediately
-				</label>
+				<Check label='Deploy immediately' checked={deployNow} onChange={setDeployNow} />
 			</div>
 
 			<ErrorText error={create.error} />

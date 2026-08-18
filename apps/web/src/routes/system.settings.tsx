@@ -1,9 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, Cell, Empty, ErrorText, Field, Page, Row, Section, Skeleton, Table } from '../components/primitives'
-import { api } from '../lib/api'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { Button, Check, ErrorText, Field, Page, Refresh, Section } from '../components/primitives'
+import { api, type ApiToken, type Registry, type Settings, type SettingsUpdate } from '../lib/api'
 import { since } from '../lib/format'
+
+function registryTableColumns(remove: (id: string) => void): Columns<Registry> {
+	const cell = columnsFor<Registry>()
+	return [
+		cell.accessor(registry => registry.name, { id: 'name', header: 'Name' }),
+		cell.accessor(registry => registry.url, { id: 'url', header: 'URL', meta: { mono: true } }),
+		cell.accessor(registry => registry.username, { id: 'username', header: 'Username', meta: { mono: true } }),
+		cell.accessor(registry => registry.created_at, {
+			id: 'added',
+			header: 'Added',
+			cell: ({ row }) => since(row.original.created_at),
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row }) => (
+				<Button variant='ghost' onClick={() => remove(row.original.id)}>
+					remove
+				</Button>
+			),
+		}),
+	]
+}
+
+function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
+	const cell = columnsFor<ApiToken>()
+	return [
+		cell.accessor(token => token.name, { id: 'name', header: 'Name' }),
+		cell.accessor(token => token.prefix, {
+			id: 'prefix',
+			header: 'Prefix',
+			meta: { mono: true },
+			cell: ({ row }) => `${row.original.prefix}…`,
+		}),
+		cell.accessor(token => token.last_used_at ?? '', {
+			id: 'last-used',
+			header: 'Last used',
+			cell: ({ row }) => (row.original.last_used_at ? since(row.original.last_used_at) : 'never'),
+		}),
+		cell.accessor(token => token.created_at, {
+			id: 'created',
+			header: 'Created',
+			cell: ({ row }) => since(row.original.created_at),
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row }) => (
+				<Button variant='ghost' onClick={() => revoke(row.original.id)}>
+					revoke
+				</Button>
+			),
+		}),
+	]
+}
 
 export const Route = createFileRoute('/system/settings')({ component: SettingsPage })
 
@@ -68,15 +126,7 @@ function DashboardDomain() {
 					/>
 				</Field>
 				<div className='flex items-center pb-3'>
-					<label className='flex items-center gap-1.5 text-[13px]'>
-						<input
-							type='checkbox'
-							className='!w-auto'
-							checked={https}
-							onChange={event => setHttps(event.target.checked)}
-						/>
-						Request a certificate
-					</label>
+					<Check label='Request a certificate' checked={https} onChange={setHttps} />
 				</div>
 			</div>
 			<ErrorText error={save.error} />
@@ -199,29 +249,22 @@ function Registries() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['registries'] }),
 	})
 
+	const { mutate: removeRegistry } = remove
+	const columns = useMemo(() => registryTableColumns(removeRegistry), [removeRegistry])
+
 	return (
-		<Section title='Private registries' description='credentials are encrypted at rest'>
-			{registries.isLoading ? (
-				<Skeleton rows={2} />
-			) : registries.data?.length === 0 ? (
-				<Empty>No registries configured. Public images work without one.</Empty>
-			) : (
-				<Table head={['Name', 'URL', 'Username', 'Added', '']}>
-					{registries.data?.map(registry => (
-						<Row key={registry.id}>
-							<Cell>{registry.name}</Cell>
-							<Cell mono>{registry.url}</Cell>
-							<Cell mono>{registry.username}</Cell>
-							<Cell>{since(registry.created_at)}</Cell>
-							<Cell right>
-								<Button variant='ghost' onClick={() => remove.mutate(registry.id)}>
-									remove
-								</Button>
-							</Cell>
-						</Row>
-					))}
-				</Table>
-			)}
+		<Section
+			title='Private registries'
+			description='credentials are encrypted at rest'
+			actions={<Refresh onClick={() => registries.refetch()} busy={registries.isFetching} />}
+		>
+			<DataTable
+				data={registries.data ?? []}
+				columns={columns}
+				loading={registries.isLoading}
+				getRowId={registry => registry.id}
+				empty='No registries configured. Public images work without one.'
+			/>
 
 			<form
 				className='mt-3 grid gap-x-6 md:grid-cols-4'
@@ -291,32 +334,27 @@ function ApiTokens() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tokens'] }),
 	})
 
+	const { mutate: revokeToken } = remove
+	const columns = useMemo(() => tokenTableColumns(revokeToken), [revokeToken])
+
 	return (
-		<Section title='API tokens' description='for CI and scripted deploys'>
-			{tokens.data?.length === 0 ? (
-				<Empty>No tokens issued.</Empty>
-			) : (
-				<Table head={['Name', 'Prefix', 'Last used', 'Created', '']}>
-					{tokens.data?.map(token => (
-						<Row key={token.id}>
-							<Cell>{token.name}</Cell>
-							<Cell mono>{token.prefix}…</Cell>
-							<Cell>{token.last_used_at ? since(token.last_used_at) : 'never'}</Cell>
-							<Cell>{since(token.created_at)}</Cell>
-							<Cell right>
-								<Button variant='ghost' onClick={() => remove.mutate(token.id)}>
-									revoke
-								</Button>
-							</Cell>
-						</Row>
-					))}
-				</Table>
-			)}
+		<Section
+			title='API tokens'
+			description='for CI and scripted deploys'
+			actions={<Refresh onClick={() => tokens.refetch()} busy={tokens.isFetching} />}
+		>
+			<DataTable
+				data={tokens.data ?? []}
+				columns={columns}
+				loading={tokens.isLoading}
+				getRowId={token => token.id}
+				empty='No tokens issued.'
+			/>
 
 			{issued ? (
-				<p className='mt-3 border border-border p-2 font-mono text-[13px] break-all'>
+				<p className='mt-3 border border-border p-2 font-mono text-body break-all'>
 					{issued}
-					<span className='mt-1 block font-sans text-[12px] text-amber-400'>
+					<span className='mt-1 block font-sans text-label text-amber-400'>
 						Copy it now. It is not shown again.
 					</span>
 				</p>

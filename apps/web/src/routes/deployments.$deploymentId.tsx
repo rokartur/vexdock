@@ -71,7 +71,7 @@ function DeploymentPage() {
 					<Link
 						to='/projects/$projectId/deployments'
 						params={{ projectId: deployment.project_id }}
-						className='text-[13px] text-muted-foreground hover:text-foreground'
+						className='text-body text-muted-foreground hover:text-foreground'
 					>
 						deployments
 					</Link>
@@ -81,7 +81,7 @@ function DeploymentPage() {
 				<span className='flex items-baseline gap-3'>
 					#{deployment?.number ?? ''}
 					{deployment ? <Status value={deployment.status} /> : null}
-					<span className='font-mono text-[13px] text-muted-foreground'>
+					<span className='font-mono text-body text-muted-foreground'>
 						{deployment?.branch} {shortSha(deployment?.commit_sha)}
 					</span>
 				</span>
@@ -100,18 +100,18 @@ function DeploymentPage() {
 			}
 		>
 			<ErrorText error={cancel.error ?? rollback.error} />
-			{deployment?.error ? <p className='mb-3 text-[13px] text-destructive'>{deployment.error}</p> : null}
+			{deployment?.error ? <p className='mb-3 text-body text-destructive'>{deployment.error}</p> : null}
 
 			<Section title='Pipeline'>
 				<ol className='border-t border-border'>
 					{steps.length === 0 ? (
-						<li className='py-3 text-[13px] text-muted-foreground'>Waiting for the runner…</li>
+						<li className='py-3 text-body text-muted-foreground'>Waiting for the runner…</li>
 					) : (
 						steps.map(step => (
 							<li key={step.id} className='flex items-center gap-4 border-b border-border/50 py-1.5'>
-								<span className='w-28 font-mono text-[13px]'>{step.name}</span>
+								<span className='w-28 font-mono text-body'>{step.name}</span>
 								<Status value={step.status} />
-								<span className='font-mono text-[12px] text-muted-foreground'>
+								<span className='font-mono text-label text-muted-foreground'>
 									{duration(step.started_at, step.finished_at)}
 								</span>
 							</li>
@@ -121,9 +121,9 @@ function DeploymentPage() {
 			</Section>
 
 			<Section title='Log' description={live ? 'streaming' : 'finished'}>
-				<div className='h-[50vh] overflow-auto border border-border bg-zinc-950 p-2 font-mono text-[13px] leading-[1.45]'>
+				<div className='h-[50vh] overflow-auto border border-console-border bg-console p-2 font-mono text-body leading-[1.45] text-console-foreground'>
 					{lines.length === 0 ? (
-						<p className='text-zinc-600'>
+						<p className='text-console-muted'>
 							{steps.some(step => step.output)
 								? steps
 										.map(step => step.output)
@@ -134,8 +134,8 @@ function DeploymentPage() {
 					) : (
 						lines.map((line, index) => (
 							<div key={index} className='flex gap-3'>
-								<span className='shrink-0 text-zinc-600'>{clock(line.at)}</span>
-								<span className='break-all whitespace-pre-wrap text-zinc-300'>{line.text}</span>
+								<span className='shrink-0 text-console-muted'>{clock(line.at)}</span>
+								<span className='break-all whitespace-pre-wrap'>{line.text}</span>
 							</div>
 						))
 					)}

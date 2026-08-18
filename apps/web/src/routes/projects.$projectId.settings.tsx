@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, ErrorText, Field, Section } from '../components/primitives'
+import { Button, Check, ErrorText, Field, Section } from '../components/primitives'
 import { api, type CredentialKind } from '../lib/api'
 
 export const Route = createFileRoute('/projects/$projectId/settings')({ component: ProjectSettings })
@@ -101,7 +101,7 @@ function ProjectSettings() {
 										rows={credentialKind === 'token' ? 1 : 5}
 										value={credentialSecret}
 										onChange={event => setCredentialSecret(event.target.value)}
-										className='font-mono text-[13px]'
+										className='font-mono text-body'
 									/>
 								</Field>
 							)}
@@ -109,15 +109,12 @@ function ProjectSettings() {
 					) : null}
 				</div>
 				{isGit ? (
-					<label className='mb-3 flex items-center gap-1.5 text-[13px]'>
-						<input
-							type='checkbox'
-							className='!w-auto'
-							checked={autoDeploy}
-							onChange={event => setAutoDeploy(event.target.checked)}
-						/>
-						Deploy automatically when the branch is pushed
-					</label>
+					<Check
+						label='Deploy automatically when the branch is pushed'
+						className='mb-3'
+						checked={autoDeploy}
+						onChange={setAutoDeploy}
+					/>
 				) : null}
 				<ErrorText error={save.error} />
 				<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
@@ -127,7 +124,7 @@ function ProjectSettings() {
 
 			{isGit ? (
 				<Section title='Webhook' description='point your git provider here to auto deploy'>
-					<code className='block border-t border-border pt-2 font-mono text-[13px] break-all text-zinc-300'>
+					<code className='block border-t border-border pt-2 font-mono text-body break-all text-foreground'>
 						{project.data?.webhook_url}
 					</code>
 					<div className='mt-3 max-w-md'>
@@ -164,7 +161,7 @@ function ProjectSettings() {
 						rows={18}
 						value={composeContent}
 						onChange={event => setComposeContent(event.target.value)}
-						className='font-mono text-[13px]'
+						className='font-mono text-body'
 						spellCheck={false}
 					/>
 				</Section>

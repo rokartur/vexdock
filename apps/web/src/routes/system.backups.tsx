@@ -1,8 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, Cell, Empty, ErrorText, Page, Row, Section, Skeleton, Table } from '../components/primitives'
-import { api } from '../lib/api'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { Button, ErrorText, Page, Refresh, Section } from '../components/primitives'
+import { api, type Backup } from '../lib/api'
 import { bytes, since } from '../lib/format'
+
+const backupTableColumns: Columns<Backup> = (() => {
+	const cell = columnsFor<Backup>()
+	return [
+		cell.accessor(backup => backup.name, { id: 'name', header: 'Name', meta: { mono: true } }),
+		cell.accessor(backup => (backup.has_volumes ? 'platform + volumes' : 'platform'), {
+			id: 'contents',
+			header: 'Contents',
+		}),
+		cell.accessor(backup => backup.size_bytes, {
+			id: 'size',
+			header: 'Size',
+			meta: { mono: true },
+			cell: ({ row }) => bytes(row.original.size_bytes),
+		}),
+		cell.accessor(backup => backup.created_at, {
+			id: 'created',
+			header: 'Created',
+			cell: ({ row }) => since(row.original.created_at),
+		}),
+		cell.accessor(backup => backup.path, { id: 'path', header: 'Path', meta: { mono: true } }),
+	]
+})()
 
 export const Route = createFileRoute('/system/backups')({ component: BackupsPage })
 
@@ -14,6 +38,8 @@ function BackupsPage() {
 		mutationFn: (includeVolumes: boolean) => api.createBackup(includeVolumes),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
 	})
+
+	const data = backups.data ?? []
 
 	return (
 		<Page title='Backups'>
@@ -33,22 +59,13 @@ function BackupsPage() {
 				}
 			>
 				<ErrorText error={create.error} />
-				{backups.isLoading ? (
-					<Skeleton rows={3} />
-				) : backups.data?.length === 0 ? (
-					<Empty>No backups yet. One is taken automatically before every platform update.</Empty>
-				) : (
-					<Table head={['Name', 'Size', 'Created', 'Path']}>
-						{backups.data?.map(backup => (
-							<Row key={backup.name}>
-								<Cell mono>{backup.name}</Cell>
-								<Cell mono>{bytes(backup.size_bytes)}</Cell>
-								<Cell>{since(backup.created_at)}</Cell>
-								<Cell mono>{backup.path}</Cell>
-							</Row>
-						))}
-					</Table>
-				)}
+				<DataTable
+					data={data}
+					columns={backupTableColumns}
+					loading={backups.isLoading}
+					getRowId={backup => backup.name}
+					empty='No backups yet. One is taken automatically before every platform update.'
+				/>
 			</Section>
 		</Page>
 	)

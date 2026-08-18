@@ -1,9 +1,49 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, Cell, ErrorText, Page, Row, Section, Skeleton, Table } from '../components/primitives'
-import { api } from '../lib/api'
+import { columnsFor, DataTable, type Columns } from '../components/data-table'
+import { Button, ErrorText, Page, Refresh, Section } from '../components/primitives'
+import { api, type ImageSummary } from '../lib/api'
 import { bytes, since } from '../lib/format'
+
+function imageName(image: ImageSummary) {
+	return image.RepoTags?.join(', ') || image.Id.replace('sha256:', '').slice(0, 12)
+}
+
+function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> {
+	const cell = columnsFor<ImageSummary>()
+	return [
+		cell.accessor(imageName, { id: 'repository', header: 'Repository', meta: { mono: true } }),
+		cell.accessor(image => image.Size, {
+			id: 'size',
+			header: 'Size',
+			cell: ({ row }) => bytes(row.original.Size),
+			meta: { mono: true },
+		}),
+		cell.accessor(image => image.Containers, {
+			id: 'containers',
+			header: 'Containers',
+			cell: ({ row }) => (row.original.Containers < 0 ? '-' : row.original.Containers),
+			meta: { mono: true },
+		}),
+		cell.accessor(image => image.Created, {
+			id: 'created',
+			header: 'Created',
+			cell: ({ row }) => since(row.original.Created),
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			enableSorting: false,
+			meta: { align: 'right' },
+			cell: ({ row }) => (
+				<Button variant='ghost' onClick={() => remove(row.original.Id)}>
+					remove
+				</Button>
+			),
+		}),
+	]
+}
 
 export const Route = createFileRoute('/docker/images')({ component: ImagesPage })
 
@@ -26,6 +66,10 @@ function ImagesPage() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['images'] }),
 	})
 
+	const data = images.data ?? []
+	const { mutate: removeImage } = remove
+	const columns = useMemo(() => imageTableColumns(removeImage), [removeImage])
+
 	return (
 		<Page title='Images'>
 			<Section title='Pull image'>
@@ -41,7 +85,7 @@ function ImagesPage() {
 						value={reference}
 						placeholder='ghcr.io/user/app:latest'
 						onChange={event => setReference(event.target.value)}
-						className='max-w-md font-mono text-[13px]'
+						className='max-w-md font-mono text-body'
 					/>
 					<Button type='submit' variant='primary' disabled={pull.isPending}>
 						{pull.isPending ? 'Pulling…' : 'Pull'}
@@ -50,29 +94,19 @@ function ImagesPage() {
 				<ErrorText error={pull.error} />
 			</Section>
 
-			<Section title='Local images' description={`${images.data?.length ?? 0} total`}>
+			<Section
+				title='Local images'
+				description={`${data.length} total`}
+				actions={<Refresh onClick={() => images.refetch()} busy={images.isFetching} />}
+			>
 				<ErrorText error={remove.error} />
-				{images.isLoading ? (
-					<Skeleton rows={5} />
-				) : (
-					<Table head={['Repository', 'Size', 'Containers', 'Created', '']}>
-						{images.data?.map(image => (
-							<Row key={image.Id}>
-								<Cell mono>
-									{image.RepoTags?.join(', ') || image.Id.replace('sha256:', '').slice(0, 12)}
-								</Cell>
-								<Cell mono>{bytes(image.Size)}</Cell>
-								<Cell mono>{image.Containers < 0 ? '-' : image.Containers}</Cell>
-								<Cell>{since(image.Created)}</Cell>
-								<Cell right>
-									<Button variant='ghost' onClick={() => remove.mutate(image.Id)}>
-										remove
-									</Button>
-								</Cell>
-							</Row>
-						))}
-					</Table>
-				)}
+				<DataTable
+					data={data}
+					columns={columns}
+					loading={images.isLoading}
+					getRowId={image => image.Id}
+					empty='No images.'
+				/>
 			</Section>
 		</Page>
 	)

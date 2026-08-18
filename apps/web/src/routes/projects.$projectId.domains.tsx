@@ -1,8 +1,97 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, Cell, Empty, ErrorText, Field, Row, Section, Skeleton, Status, Table } from '../components/primitives'
-import { api, type CertificateSource, type Domain } from '../lib/api'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { Button, Check, ErrorText, Field, Refresh, Section, Status } from '../components/primitives'
+import { api, type Certificate, type CertificateSource, type Domain } from '../lib/api'
+
+type DomainTableDeps = {
+	certificateFor: (domainId: string) => Certificate | undefined
+	serviceName: (serviceId: string | null) => string
+	renew: (domainId: string) => void
+	renewing: boolean
+	replace: (domain: Domain) => void
+	remove: (domainId: string) => void
+}
+
+function domainTableColumns({
+	certificateFor,
+	serviceName,
+	renew,
+	renewing,
+	replace,
+	remove,
+}: DomainTableDeps): Columns<Domain> {
+	const cell = columnsFor<Domain>()
+	return [
+		cell.accessor(domain => domain.hostname, {
+			id: 'hostname',
+			header: 'Domain',
+			meta: { mono: true },
+			cell: ({ row: { original } }) => (
+				<a
+					href={`${original.https_enabled ? 'https' : 'http'}://${original.hostname}`}
+					target='_blank'
+					rel='noreferrer'
+					className='hover:underline'
+				>
+					{original.hostname}
+				</a>
+			),
+		}),
+		cell.accessor(domain => serviceName(domain.service_id), {
+			id: 'service',
+			header: 'Service',
+			meta: { mono: true },
+		}),
+		cell.accessor(domain => domain.container_port, { id: 'port', header: 'Port', meta: { mono: true } }),
+		cell.accessor(domain => (domain.https_enabled ? 'on' : 'off'), { id: 'https', header: 'HTTPS' }),
+		cell.accessor(domain => (domain.certificate_source === 'custom' ? 'uploaded' : "Let's Encrypt"), {
+			id: 'source',
+			header: 'Source',
+		}),
+		cell.accessor(domain => certificateFor(domain.id)?.status ?? 'none', {
+			id: 'certificate',
+			header: 'Certificate',
+			cell: ({ row }) => {
+				const certificate = certificateFor(row.original.id)
+				if (!certificate) return <span className='text-muted-foreground'>none</span>
+				return (
+					<span className='flex items-center gap-2'>
+						<Status value={certificate.status} />
+						{certificate.expires_at ? (
+							<span className='text-label text-muted-foreground'>
+								until {certificate.expires_at.slice(0, 10)}
+							</span>
+						) : null}
+					</span>
+				)
+			},
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row: { original } }) => (
+				<span className='flex justify-end gap-1.5'>
+					{original.https_enabled && original.certificate_source !== 'custom' ? (
+						<Button variant='ghost' onClick={() => renew(original.id)} disabled={renewing}>
+							renew
+						</Button>
+					) : null}
+					{original.certificate_source === 'custom' ? (
+						<Button variant='ghost' onClick={() => replace(original)}>
+							replace certificate
+						</Button>
+					) : null}
+					<Button variant='ghost' onClick={() => remove(original.id)}>
+						remove
+					</Button>
+				</span>
+			),
+		}),
+	]
+}
 
 export const Route = createFileRoute('/projects/$projectId/domains')({ component: ProjectDomains })
 
@@ -80,81 +169,40 @@ function ProjectDomains() {
 		},
 	})
 
-	const certificateFor = (domainId: string) => certificates.data?.find(cert => cert.domain_id === domainId)
+	const { mutate: issueCertificate, isPending: issuing } = issue
+	const { mutate: removeDomain } = remove
+	const { data: serviceList } = services
+	const { data: certificateList } = certificates
+	const columns = useMemo(
+		() =>
+			domainTableColumns({
+				certificateFor: domainId => certificateList?.find(cert => cert.domain_id === domainId),
+				serviceName: serviceId => serviceList?.find(item => item.id === serviceId)?.compose_service_name ?? '-',
+				renew: issueCertificate,
+				renewing: issuing,
+				replace: setReplacing,
+				remove: removeDomain,
+			}),
+		[certificateList, serviceList, issueCertificate, issuing, removeDomain],
+	)
 
 	return (
 		<>
-			<Section title='Domains' description='the platform generates and reloads Nginx for you'>
-				{domains.isLoading ? (
-					<Skeleton rows={2} />
-				) : domains.data?.length === 0 ? (
-					<Empty>No domains yet. Point an A record at this server, then add it below.</Empty>
-				) : (
-					<Table head={['Domain', 'Service', 'Port', 'HTTPS', 'Source', 'Certificate', '']}>
-						{domains.data?.map(domain => {
-							const certificate = certificateFor(domain.id)
-							return (
-								<Row key={domain.id}>
-									<Cell mono>
-										<a
-											href={`${domain.https_enabled ? 'https' : 'http'}://${domain.hostname}`}
-											target='_blank'
-											rel='noreferrer'
-											className='hover:underline'
-										>
-											{domain.hostname}
-										</a>
-									</Cell>
-									<Cell mono>
-										{services.data?.find(item => item.id === domain.service_id)
-											?.compose_service_name ?? '-'}
-									</Cell>
-									<Cell mono>{domain.container_port}</Cell>
-									<Cell>{domain.https_enabled ? 'on' : 'off'}</Cell>
-									<Cell>{domain.certificate_source === 'custom' ? 'uploaded' : "Let's Encrypt"}</Cell>
-									<Cell>
-										{certificate ? (
-											<span className='flex items-center gap-2'>
-												<Status value={certificate.status} />
-												{certificate.expires_at ? (
-													<span className='text-[12px] text-muted-foreground'>
-														until {certificate.expires_at.slice(0, 10)}
-													</span>
-												) : null}
-											</span>
-										) : (
-											<span className='text-zinc-600'>none</span>
-										)}
-									</Cell>
-									<Cell right>
-										<span className='flex justify-end gap-1.5'>
-											{domain.https_enabled && domain.certificate_source !== 'custom' ? (
-												<Button
-													variant='ghost'
-													onClick={() => issue.mutate(domain.id)}
-													disabled={issue.isPending}
-												>
-													renew
-												</Button>
-											) : null}
-											{domain.certificate_source === 'custom' ? (
-												<Button variant='ghost' onClick={() => setReplacing(domain)}>
-													replace certificate
-												</Button>
-											) : null}
-											<Button variant='ghost' onClick={() => remove.mutate(domain.id)}>
-												remove
-											</Button>
-										</span>
-									</Cell>
-								</Row>
-							)
-						})}
-					</Table>
-				)}
+			<Section
+				title='Domains'
+				description='the platform generates and reloads Nginx for you'
+				actions={<Refresh onClick={() => domains.refetch()} busy={domains.isFetching} />}
+			>
+				<DataTable
+					data={domains.data ?? []}
+					columns={columns}
+					loading={domains.isLoading}
+					getRowId={domain => domain.id}
+					empty='No domains yet. Point an A record at this server, then add it below.'
+				/>
 				<ErrorText error={remove.error ?? issue.error} />
 				{certificates.data?.some(cert => cert.status === 'failed') ? (
-					<p className='pt-2 text-[13px] text-amber-400'>
+					<p className='pt-2 text-body text-amber-400'>
 						{certificates.data.find(cert => cert.status === 'failed')?.last_error}
 					</p>
 				) : null}
@@ -176,7 +224,7 @@ function ProjectDomains() {
 								spellCheck={false}
 								value={replaceCert}
 								onChange={event => setReplaceCert(event.target.value)}
-								className='font-mono text-[12px]'
+								className='font-mono text-label'
 							/>
 						</Field>
 						<Field label='Private key'>
@@ -186,7 +234,7 @@ function ProjectDomains() {
 								spellCheck={false}
 								value={replaceKey}
 								onChange={event => setReplaceKey(event.target.value)}
-								className='font-mono text-[12px]'
+								className='font-mono text-label'
 							/>
 						</Field>
 						<div className='md:col-span-2'>
@@ -212,7 +260,7 @@ function ProjectDomains() {
 						create.mutate()
 					}}
 				>
-					<Field label='Domain'>
+					<Field label='Domain' hint='*.example.com needs a Cloudflare token in system settings.'>
 						<input
 							required
 							placeholder='app.example.com'
@@ -241,31 +289,19 @@ function ProjectDomains() {
 						/>
 					</Field>
 					<div className='flex flex-col justify-center gap-1.5 pb-3'>
-						<label className='flex items-center gap-1.5 text-[13px]'>
-							<input
-								type='checkbox'
-								className='!w-auto'
-								checked={https}
-								onChange={event => setHttps(event.target.checked)}
-							/>
-							Enable HTTPS
-						</label>
-						<label className='flex items-center gap-1.5 text-[13px]'>
-							<input
-								type='checkbox'
-								className='!w-auto'
-								checked={redirect}
-								disabled={!https}
-								onChange={event => setRedirect(event.target.checked)}
-							/>
-							Redirect HTTP to HTTPS
-						</label>
+						<Check label='Enable HTTPS' checked={https} onChange={setHttps} />
+						<Check
+							label='Redirect HTTP to HTTPS'
+							checked={redirect}
+							disabled={!https}
+							onChange={setRedirect}
+						/>
 					</div>
 					{https ? (
 						<div className='md:col-span-4'>
 							<div className='mb-3 flex flex-wrap gap-4'>
 								{(['letsencrypt', 'custom'] as const).map(option => (
-									<label key={option} className='flex items-center gap-1.5 text-[13px]'>
+									<label key={option} className='flex items-center gap-1.5 text-body'>
 										<input
 											type='radio'
 											name='certificate-source'
@@ -292,7 +328,7 @@ function ProjectDomains() {
 											placeholder='-----BEGIN CERTIFICATE-----'
 											value={certPem}
 											onChange={event => setCertPem(event.target.value)}
-											className='font-mono text-[12px]'
+											className='font-mono text-label'
 										/>
 									</Field>
 									<Field
@@ -306,7 +342,7 @@ function ProjectDomains() {
 											placeholder='-----BEGIN PRIVATE KEY-----'
 											value={keyPem}
 											onChange={event => setKeyPem(event.target.value)}
-											className='font-mono text-[12px]'
+											className='font-mono text-label'
 										/>
 									</Field>
 								</div>
@@ -316,7 +352,7 @@ function ProjectDomains() {
 
 					<div className='md:col-span-4'>
 						<ErrorText error={create.error} />
-						{warning ? <p className='pb-2 text-[13px] text-amber-400'>{warning}</p> : null}
+						{warning ? <p className='pb-2 text-body text-amber-400'>{warning}</p> : null}
 						<Button type='submit' variant='primary' disabled={create.isPending}>
 							{create.isPending ? 'Adding…' : 'Add domain'}
 						</Button>

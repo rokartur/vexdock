@@ -1,8 +1,65 @@
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Button, Cell, Empty, ErrorText, Row, Section, Skeleton, Status, Table } from '../components/primitives'
-import { api } from '../lib/api'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { Button, ErrorText, Refresh, Section, Status } from '../components/primitives'
+import { api, type Deployment } from '../lib/api'
 import { duration, shortSha, since } from '../lib/format'
+
+function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deployment> {
+	const cell = columnsFor<Deployment>()
+	return [
+		cell.accessor(deployment => deployment.number, {
+			id: 'number',
+			header: '#',
+			meta: { mono: true },
+			cell: ({ row }) => (
+				<Link
+					to='/deployments/$deploymentId'
+					params={{ deploymentId: row.original.id }}
+					className='hover:underline'
+				>
+					#{row.original.number}
+				</Link>
+			),
+		}),
+		cell.accessor(deployment => deployment.status, {
+			id: 'status',
+			header: 'Status',
+			cell: ({ row }) => <Status value={row.original.status} />,
+		}),
+		cell.accessor(deployment => deployment.branch, { id: 'branch', header: 'Branch', meta: { mono: true } }),
+		cell.accessor(deployment => deployment.commit_sha, {
+			id: 'commit',
+			header: 'Commit',
+			meta: { mono: true },
+			cell: ({ row }) => shortSha(row.original.commit_sha),
+		}),
+		cell.accessor(deployment => deployment.trigger, { id: 'trigger', header: 'Trigger' }),
+		cell.accessor(deployment => deployment.started_at ?? '', {
+			id: 'duration',
+			header: 'Duration',
+			meta: { mono: true },
+			cell: ({ row }) => duration(row.original.started_at, row.original.finished_at),
+		}),
+		cell.accessor(deployment => deployment.created_at, {
+			id: 'when',
+			header: 'When',
+			cell: ({ row }) => since(row.original.created_at),
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row: { original } }) =>
+				original.commit_sha && original.status === 'success' ? (
+					<Button variant='ghost' onClick={() => redeploy(original.id)} title='Redeploy this commit'>
+						redeploy this
+					</Button>
+				) : null,
+		}),
+	]
+}
 
 export const Route = createFileRoute('/projects/$projectId/deployments')({ component: ProjectDeployments })
 
@@ -25,49 +82,24 @@ function ProjectDeployments() {
 		},
 	})
 
+	const data = deployments.data ?? []
+	const { mutate: redeploy } = rollback
+	const columns = useMemo(() => deploymentTableColumns(redeploy), [redeploy])
+
 	return (
-		<Section title='Deployment history'>
+		<Section
+			title='Deployment history'
+			description={`${data.length} total`}
+			actions={<Refresh onClick={() => deployments.refetch()} busy={deployments.isFetching} />}
+		>
 			<ErrorText error={rollback.error} />
-			{deployments.isLoading ? (
-				<Skeleton />
-			) : deployments.data?.length === 0 ? (
-				<Empty>No deployments yet.</Empty>
-			) : (
-				<Table head={['#', 'Status', 'Branch', 'Commit', 'Trigger', 'Duration', 'When', '']}>
-					{deployments.data?.map(deployment => (
-						<Row key={deployment.id}>
-							<Cell mono>
-								<Link
-									to='/deployments/$deploymentId'
-									params={{ deploymentId: deployment.id }}
-									className='hover:underline'
-								>
-									#{deployment.number}
-								</Link>
-							</Cell>
-							<Cell>
-								<Status value={deployment.status} />
-							</Cell>
-							<Cell mono>{deployment.branch}</Cell>
-							<Cell mono>{shortSha(deployment.commit_sha)}</Cell>
-							<Cell>{deployment.trigger}</Cell>
-							<Cell mono>{duration(deployment.started_at, deployment.finished_at)}</Cell>
-							<Cell>{since(deployment.created_at)}</Cell>
-							<Cell right>
-								{deployment.commit_sha && deployment.status === 'success' ? (
-									<Button
-										variant='ghost'
-										onClick={() => rollback.mutate(deployment.id)}
-										title='Redeploy this commit'
-									>
-										redeploy this
-									</Button>
-								) : null}
-							</Cell>
-						</Row>
-					))}
-				</Table>
-			)}
+			<DataTable
+				data={data}
+				columns={columns}
+				loading={deployments.isLoading}
+				getRowId={deployment => deployment.id}
+				empty='No deployments yet.'
+			/>
 		</Section>
 	)
 }
