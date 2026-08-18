@@ -21,10 +21,11 @@ import { Route as DockerVolumesRouteImport } from './routes/docker.volumes'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as SystemIndexRouteImport } from './routes/system.index'
+import { Route as SystemAuditRouteImport } from './routes/system.audit'
 import { Route as SystemBackupsRouteImport } from './routes/system.backups'
+import { Route as SystemCertificatesRouteImport } from './routes/system.certificates'
 import { Route as SystemDockerRouteImport } from './routes/system.docker'
 import { Route as SystemSettingsRouteImport } from './routes/system.settings'
-import { Route as SystemUpdateRouteImport } from './routes/system.update'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects.$projectId.index'
 import { Route as ProjectsProjectIdDeploymentsRouteImport } from './routes/projects.$projectId.deployments'
 import { Route as ProjectsProjectIdDomainsRouteImport } from './routes/projects.$projectId.domains'
@@ -92,9 +93,19 @@ const SystemIndexRoute = SystemIndexRouteImport.update({
   path: '/system/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SystemAuditRoute = SystemAuditRouteImport.update({
+  id: '/system/audit',
+  path: '/system/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SystemBackupsRoute = SystemBackupsRouteImport.update({
   id: '/system/backups',
   path: '/system/backups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemCertificatesRoute = SystemCertificatesRouteImport.update({
+  id: '/system/certificates',
+  path: '/system/certificates',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SystemDockerRoute = SystemDockerRouteImport.update({
@@ -105,11 +116,6 @@ const SystemDockerRoute = SystemDockerRouteImport.update({
 const SystemSettingsRoute = SystemSettingsRouteImport.update({
   id: '/system/settings',
   path: '/system/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SystemUpdateRoute = SystemUpdateRouteImport.update({
-  id: '/system/update',
-  path: '/system/update',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
@@ -159,10 +165,11 @@ export interface FileRoutesByFullPath {
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/system/audit': typeof SystemAuditRoute
   '/system/backups': typeof SystemBackupsRoute
+  '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
   '/system/settings': typeof SystemSettingsRoute
-  '/system/update': typeof SystemUpdateRoute
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
   '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
@@ -182,10 +189,11 @@ export interface FileRoutesByTo {
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
+  '/system/audit': typeof SystemAuditRoute
   '/system/backups': typeof SystemBackupsRoute
+  '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
   '/system/settings': typeof SystemSettingsRoute
-  '/system/update': typeof SystemUpdateRoute
   '/projects': typeof ProjectsIndexRoute
   '/system': typeof SystemIndexRoute
   '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
@@ -207,10 +215,11 @@ export interface FileRoutesById {
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/system/audit': typeof SystemAuditRoute
   '/system/backups': typeof SystemBackupsRoute
+  '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
   '/system/settings': typeof SystemSettingsRoute
-  '/system/update': typeof SystemUpdateRoute
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
   '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
@@ -233,10 +242,11 @@ export interface FileRouteTypes {
     | '/docker/networks'
     | '/docker/volumes'
     | '/projects/$projectId'
+    | '/system/audit'
     | '/system/backups'
+    | '/system/certificates'
     | '/system/docker'
     | '/system/settings'
-    | '/system/update'
     | '/projects/'
     | '/system/'
     | '/projects/$projectId/deployments'
@@ -256,10 +266,11 @@ export interface FileRouteTypes {
     | '/docker/images'
     | '/docker/networks'
     | '/docker/volumes'
+    | '/system/audit'
     | '/system/backups'
+    | '/system/certificates'
     | '/system/docker'
     | '/system/settings'
-    | '/system/update'
     | '/projects'
     | '/system'
     | '/projects/$projectId/deployments'
@@ -280,10 +291,11 @@ export interface FileRouteTypes {
     | '/docker/networks'
     | '/docker/volumes'
     | '/projects/$projectId'
+    | '/system/audit'
     | '/system/backups'
+    | '/system/certificates'
     | '/system/docker'
     | '/system/settings'
-    | '/system/update'
     | '/projects/'
     | '/system/'
     | '/projects/$projectId/deployments'
@@ -305,10 +317,11 @@ export interface RootRouteChildren {
   DockerNetworksRoute: typeof DockerNetworksRoute
   DockerVolumesRoute: typeof DockerVolumesRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
+  SystemAuditRoute: typeof SystemAuditRoute
   SystemBackupsRoute: typeof SystemBackupsRoute
+  SystemCertificatesRoute: typeof SystemCertificatesRoute
   SystemDockerRoute: typeof SystemDockerRoute
   SystemSettingsRoute: typeof SystemSettingsRoute
-  SystemUpdateRoute: typeof SystemUpdateRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   SystemIndexRoute: typeof SystemIndexRoute
 }
@@ -399,11 +412,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SystemIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/system/audit': {
+      id: '/system/audit'
+      path: '/system/audit'
+      fullPath: '/system/audit'
+      preLoaderRoute: typeof SystemAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/system/backups': {
       id: '/system/backups'
       path: '/system/backups'
       fullPath: '/system/backups'
       preLoaderRoute: typeof SystemBackupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system/certificates': {
+      id: '/system/certificates'
+      path: '/system/certificates'
+      fullPath: '/system/certificates'
+      preLoaderRoute: typeof SystemCertificatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/system/docker': {
@@ -418,13 +445,6 @@ declare module '@tanstack/react-router' {
       path: '/system/settings'
       fullPath: '/system/settings'
       preLoaderRoute: typeof SystemSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/system/update': {
-      id: '/system/update'
-      path: '/system/update'
-      fullPath: '/system/update'
-      preLoaderRoute: typeof SystemUpdateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/$projectId/': {
@@ -505,10 +525,11 @@ const rootRouteChildren: RootRouteChildren = {
   DockerNetworksRoute: DockerNetworksRoute,
   DockerVolumesRoute: DockerVolumesRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
+  SystemAuditRoute: SystemAuditRoute,
   SystemBackupsRoute: SystemBackupsRoute,
+  SystemCertificatesRoute: SystemCertificatesRoute,
   SystemDockerRoute: SystemDockerRoute,
   SystemSettingsRoute: SystemSettingsRoute,
-  SystemUpdateRoute: SystemUpdateRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   SystemIndexRoute: SystemIndexRoute,
 }

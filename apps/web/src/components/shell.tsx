@@ -4,12 +4,13 @@ import {
 	IconAffiliate,
 	IconArchive,
 	IconBox,
+	IconCertificate,
 	IconChevronDown,
 	IconDatabase,
-	IconDownload,
 	IconFolder,
 	IconHome,
 	IconLayoutSidebar,
+	IconListDetails,
 	IconSearch,
 	IconSettings,
 	IconStack2,
@@ -58,9 +59,10 @@ const groups: { label: string; items: NavItem[] }[] = [
 		label: 'System',
 		items: [
 			{ to: '/system', label: 'Overview', icon: IconActivity, exact: true },
+			{ to: '/system/certificates', label: 'Certificates', icon: IconCertificate },
+			{ to: '/system/audit', label: 'Audit', icon: IconListDetails },
 			{ to: '/system/docker', label: 'Cleanup', icon: IconTrash },
 			{ to: '/system/backups', label: 'Backups', icon: IconArchive },
-			{ to: '/system/update', label: 'Update', icon: IconDownload },
 			{ to: '/system/settings', label: 'Settings', icon: IconSettings },
 		],
 	},
@@ -122,6 +124,12 @@ export function Shell({ children }: { children: ReactNode }) {
 				setPaletteOpen(open => !open)
 				return
 			}
+			// Sections handle Cmd/Ctrl+S themselves; swallow the rest so the browser
+			// never offers to save the page.
+			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+				event.preventDefault()
+				return
+			}
 			const target = event.target as HTMLElement | null
 			const typing =
 				target?.isContentEditable ||
@@ -137,7 +145,8 @@ export function Shell({ children }: { children: ReactNode }) {
 	const name = session.data?.user.name || 'Account'
 
 	return (
-		<div className='flex h-dvh w-full overflow-hidden'>
+		// The rail's colour is also the canvas the content panel floats on.
+		<div className='flex h-dvh w-full overflow-hidden bg-sidebar'>
 			<NavigationSidebar
 				isHidden={isHidden}
 				showTemporary={showTemporary}
@@ -201,7 +210,7 @@ export function Shell({ children }: { children: ReactNode }) {
 									<NavigationLink
 										key={item.to}
 										{...item}
-										dot={updateAvailable && item.to === '/system/update'}
+										dot={updateAvailable && item.to === '/system/settings'}
 									/>
 								))}
 							</div>
@@ -227,7 +236,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<IconSettings className='size-3.5 shrink-0 text-muted-foreground group-hover:text-muted-foreground' />
 					</Link>
 					<Link
-						to='/system/update'
+						to='/system/settings'
 						className={cn(
 							'text-center font-mono text-meta',
 							updateAvailable

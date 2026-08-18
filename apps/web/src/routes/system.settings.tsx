@@ -67,13 +67,49 @@ export const Route = createFileRoute('/system/settings')({ component: SettingsPa
 
 function SettingsPage() {
 	return (
-		<Page title='Settings'>
+		<Page>
 			<DashboardDomain />
 			<Notifications />
 			<DnsProvider />
 			<Registries />
 			<ApiTokens />
+			<Version />
 		</Page>
+	)
+}
+
+/** Installed vs published build, and the in-place upgrade. */
+function Version() {
+	const [message, setMessage] = useState('')
+	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
+
+	const update = useMutation({
+		mutationFn: () => api.update(version.data?.latest),
+		onSuccess: result => setMessage(result.message),
+	})
+
+	return (
+		<Section title='Version' description='a backup is taken before the swap and rolled back if health fails'>
+			<dl className='flex gap-8 border-t border-border pt-2'>
+				<div className='py-1'>
+					<dt className='text-label tracking-wide text-muted-foreground uppercase'>Installed</dt>
+					<dd className='font-mono text-title'>{version.data?.current ?? '-'}</dd>
+				</div>
+				<div className='py-1'>
+					<dt className='text-label tracking-wide text-muted-foreground uppercase'>Latest</dt>
+					<dd className='font-mono text-title'>{version.data?.latest || 'unknown'}</dd>
+				</div>
+			</dl>
+			<ErrorText error={update.error} />
+			{message ? <p className='pb-2 text-body text-emerald-400'>{message}</p> : null}
+			<Button
+				variant='primary'
+				onClick={() => update.mutate()}
+				disabled={update.isPending || !version.data?.update_available}
+			>
+				{version.data?.update_available ? `Update to ${version.data.latest}` : 'Up to date'}
+			</Button>
+		</Section>
 	)
 }
 
@@ -116,7 +152,11 @@ function DashboardDomain() {
 	})
 
 	return (
-		<Section title='Dashboard domain' description='serve the panel on your own hostname with HTTPS'>
+		<Section
+			title='Dashboard domain'
+			description='serve the panel on your own hostname with HTTPS'
+			onSave={() => save.mutate()}
+		>
 			<div className='grid gap-x-6 border-t border-border pt-3 md:grid-cols-2'>
 				<Field label='Hostname' hint='Leave empty to keep using the server IP on port 3000.'>
 					<input
@@ -154,7 +194,11 @@ function Notifications() {
 	})
 
 	return (
-		<Section title='Deploy notifications' description='posted when a deployment succeeds or fails'>
+		<Section
+			title='Deploy notifications'
+			description='posted when a deployment succeeds or fails'
+			onSave={() => save.mutate()}
+		>
 			<div className='border-t border-border pt-3'>
 				<Field
 					label='Webhook URL'
@@ -194,7 +238,13 @@ function DnsProvider() {
 	const configured = settings.data?.cloudflare_token_set ?? false
 
 	return (
-		<Section title='DNS challenge' description='required for wildcard certificates'>
+		<Section
+			title='DNS challenge'
+			description='required for wildcard certificates'
+			onSave={() => {
+				if (token) save.mutate(token)
+			}}
+		>
 			<div className='flex items-end gap-2 border-t border-border pt-3'>
 				<div className='w-96'>
 					<Field
