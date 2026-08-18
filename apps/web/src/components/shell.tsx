@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { IconChevronDown, IconLayoutSidebar, IconSearch, IconSettings } from '@tabler/icons-react'
+import {
+	IconActivity,
+	IconAffiliate,
+	IconArchive,
+	IconBox,
+	IconChevronDown,
+	IconDatabase,
+	IconDownload,
+	IconFolder,
+	IconHome,
+	IconLayoutSidebar,
+	IconSearch,
+	IconSettings,
+	IconStack2,
+	IconTrash,
+	IconWorld,
+	type Icon as TablerIcon,
+} from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -17,33 +34,34 @@ import { signOut, useSession } from '../lib/auth-client'
 import { CommandPalette } from './command-palette'
 import { NavigationSidebar } from './navigation-sidebar'
 
-type NavItem = { to: string; label: string; exact?: boolean }
-
-/** Shown above the labelled groups, the way the rail's most-used links are. */
-const quickLinks: NavItem[] = [
-	{ to: '/', label: 'Dashboard', exact: true },
-	{ to: '/projects', label: 'Projects' },
-	{ to: '/domains', label: 'Domains' },
-]
+type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
 const groups: { label: string; items: NavItem[] }[] = [
 	{
+		label: 'Home',
+		items: [
+			{ to: '/', label: 'Dashboard', icon: IconHome, exact: true },
+			{ to: '/projects', label: 'Projects', icon: IconFolder },
+			{ to: '/domains', label: 'Domains', icon: IconWorld },
+		],
+	},
+	{
 		label: 'Docker',
 		items: [
-			{ to: '/docker/containers', label: 'Containers' },
-			{ to: '/docker/images', label: 'Images' },
-			{ to: '/docker/volumes', label: 'Volumes' },
-			{ to: '/docker/networks', label: 'Networks' },
+			{ to: '/docker/containers', label: 'Containers', icon: IconBox },
+			{ to: '/docker/images', label: 'Images', icon: IconStack2 },
+			{ to: '/docker/volumes', label: 'Volumes', icon: IconDatabase },
+			{ to: '/docker/networks', label: 'Networks', icon: IconAffiliate },
 		],
 	},
 	{
 		label: 'System',
 		items: [
-			{ to: '/system', label: 'Overview', exact: true },
-			{ to: '/system/docker', label: 'Cleanup' },
-			{ to: '/system/backups', label: 'Backups' },
-			{ to: '/system/update', label: 'Update' },
-			{ to: '/system/settings', label: 'Settings' },
+			{ to: '/system', label: 'Overview', icon: IconActivity, exact: true },
+			{ to: '/system/docker', label: 'Cleanup', icon: IconTrash },
+			{ to: '/system/backups', label: 'Backups', icon: IconArchive },
+			{ to: '/system/update', label: 'Update', icon: IconDownload },
+			{ to: '/system/settings', label: 'Settings', icon: IconSettings },
 		],
 	},
 ]
@@ -54,11 +72,15 @@ const HIDDEN_KEY = 'navigation-leftBarIsHidden'
 const storedHidden = () => typeof localStorage !== 'undefined' && localStorage.getItem(HIDDEN_KEY) === 'true'
 
 const linkClass =
-	'group flex h-7 items-center gap-2 rounded-lg px-2 text-[14px] font-medium text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 data-[status=active]:bg-zinc-800 data-[status=active]:text-zinc-100 data-[status=active]:hover:bg-zinc-800'
+	'group flex h-7.5 items-center gap-2.5 rounded-lg border border-transparent px-2 text-[14px] text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 data-[status=active]:border-zinc-800 data-[status=active]:bg-zinc-900 data-[status=active]:text-zinc-100'
 
-function NavigationLink({ to, label, exact, dot }: NavItem & { dot?: boolean }) {
+function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?: boolean }) {
 	return (
 		<Link draggable={false} to={to} activeOptions={{ exact: exact ?? false }} className={linkClass}>
+			<Icon
+				stroke={1.5}
+				className='size-4 shrink-0 text-zinc-500 group-hover:text-zinc-300 group-data-[status=active]:text-zinc-100'
+			/>
 			<span className='truncate'>{label}</span>
 			{dot ? <span className='ml-auto size-1.5 shrink-0 rounded-full bg-emerald-400' aria-hidden /> : null}
 		</Link>
@@ -110,8 +132,9 @@ export function Shell({ children }: { children: ReactNode }) {
 		return () => window.removeEventListener('keydown', onKey)
 	}, [])
 
-	const links = useMemo(() => [...quickLinks, ...groups.flatMap(group => group.items)], [])
+	const links = useMemo(() => groups.flatMap(group => group.items), [])
 	const email = session.data?.user.email ?? ''
+	const name = session.data?.user.name || 'Account'
 
 	return (
 		<div className='flex h-dvh w-full overflow-hidden'>
@@ -168,17 +191,9 @@ export function Shell({ children }: { children: ReactNode }) {
 				</div>
 
 				<div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
-					<div className='flex flex-col gap-0.5'>
-						{quickLinks.map(item => (
-							<NavigationLink key={item.to} {...item} />
-						))}
-					</div>
-
 					{groups.map(group => (
 						<div key={group.label} className='flex flex-col gap-1'>
-							<span className='px-2 text-[12px] font-medium tracking-wide text-zinc-500 uppercase'>
-								{group.label}
-							</span>
+							<span className='px-2 text-[12px] text-zinc-500'>{group.label}</span>
 							<div className='flex flex-col gap-0.5'>
 								{group.items.map(item => (
 									<NavigationLink
@@ -192,26 +207,27 @@ export function Shell({ children }: { children: ReactNode }) {
 					))}
 				</div>
 
-				<div className='flex flex-col gap-0.5 border-t border-zinc-800/60 pt-2'>
+				<div className='flex flex-col gap-1 border-t border-zinc-800/60 pt-2'>
 					<Link
 						draggable={false}
 						to='/system/settings'
-						className='group flex h-8 items-center gap-2 rounded-lg px-2 text-left hover:bg-zinc-800/50'
+						className='group flex h-10 items-center gap-2.5 rounded-lg px-2 text-left hover:bg-zinc-800/50'
 					>
-						<Avatar className='size-5'>
-							<AvatarFallback className='bg-zinc-600 text-[9px] font-normal text-white'>
+						<Avatar className='size-6'>
+							<AvatarFallback className='bg-zinc-600 text-[10px] font-normal text-white'>
 								{(email || '?').slice(0, 2).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>
-						<span className='min-w-0 flex-1 truncate text-[14px] font-medium text-zinc-400 group-hover:text-zinc-200'>
-							{email || 'Account'}
-						</span>
+						<div className='min-w-0 flex-1'>
+							<div className='truncate text-[13px] font-medium text-zinc-200'>{name}</div>
+							<div className='truncate text-[12px] text-zinc-500'>{email}</div>
+						</div>
 						<IconSettings className='size-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400' />
 					</Link>
 					<Link
 						to='/system/update'
 						className={cn(
-							'px-2 font-mono text-[12px]',
+							'text-center font-mono text-[11px]',
 							updateAvailable
 								? 'text-emerald-400 hover:text-emerald-300'
 								: 'text-zinc-600 hover:text-zinc-400',
