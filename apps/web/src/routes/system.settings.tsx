@@ -12,6 +12,7 @@ function SettingsPage() {
 		<Page title='Settings'>
 			<DashboardDomain />
 			<Notifications />
+			<DnsProvider />
 			<Registries />
 			<ApiTokens />
 		</Page>
@@ -121,6 +122,61 @@ function Notifications() {
 			<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
 				{save.isPending ? 'Saving…' : 'Save'}
 			</Button>
+		</Section>
+	)
+}
+
+/** A Cloudflare token switches certificate issuance to DNS-01, which unlocks wildcards. */
+function DnsProvider() {
+	const queryClient = useQueryClient()
+	const settings = useQuery({ queryKey: ['settings'], queryFn: api.settings })
+	const [token, setToken] = useState('')
+
+	const save = useMutation({
+		mutationFn: (value: string) =>
+			settings.data ? api.saveSettings({ ...toUpdate(settings.data), cloudflare_api_token: value }) : notLoaded(),
+		onSuccess: async () => {
+			setToken('')
+			await queryClient.invalidateQueries({ queryKey: ['settings'] })
+		},
+	})
+
+	const configured = settings.data?.cloudflare_token_set ?? false
+
+	return (
+		<Section title='DNS challenge' description='required for wildcard certificates'>
+			<div className='flex items-end gap-2 border-t border-border pt-3'>
+				<div className='w-96'>
+					<Field
+						label='Cloudflare API token'
+						hint={
+							configured
+								? 'A token is stored. Enter a new one to replace it.'
+								: 'Scoped to Zone:Read and DNS:Edit. Without it only HTTP-01 is used and *.example.com cannot be issued.'
+						}
+					>
+						<input
+							type='password'
+							value={token}
+							placeholder={configured ? '••••••••' : ''}
+							onChange={event => setToken(event.target.value)}
+						/>
+					</Field>
+				</div>
+				<div className='pb-3'>
+					<Button variant='primary' onClick={() => save.mutate(token)} disabled={!token || save.isPending}>
+						{save.isPending ? 'Saving…' : 'Save token'}
+					</Button>
+				</div>
+				{configured ? (
+					<div className='pb-3'>
+						<Button variant='ghost' onClick={() => save.mutate('')} disabled={save.isPending}>
+							remove
+						</Button>
+					</div>
+				) : null}
+			</div>
+			<ErrorText error={save.error} />
 		</Section>
 	)
 }

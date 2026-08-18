@@ -16,8 +16,9 @@ var (
 	sshRepoPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9._/-]+$`)
 )
 
-// ValidateHostname accepts a DNS name usable as an Nginx server_name. Wildcards
-// are rejected because HTTP-01 cannot validate them.
+// ValidateHostname accepts a DNS name usable as an Nginx server_name. A single
+// leading "*." is allowed; whether it can actually be issued is decided at
+// certificate time, since only the DNS-01 challenge can validate a wildcard.
 func ValidateHostname(host string) (string, error) {
 	h := strings.ToLower(strings.TrimSpace(host))
 	h = strings.TrimSuffix(h, ".")
@@ -27,10 +28,10 @@ func ValidateHostname(host string) (string, error) {
 	if len(h) > 253 {
 		return "", fmt.Errorf("domain is too long")
 	}
-	if strings.Contains(h, "*") {
-		return "", fmt.Errorf("wildcard domains are not supported")
+	labels := strings.Split(strings.TrimPrefix(h, "*."), ".")
+	if strings.Contains(strings.TrimPrefix(h, "*."), "*") {
+		return "", fmt.Errorf("a wildcard is only allowed as the leftmost label, as in *.example.com")
 	}
-	labels := strings.Split(h, ".")
 	if len(labels) < 2 {
 		return "", fmt.Errorf("domain must contain at least one dot")
 	}

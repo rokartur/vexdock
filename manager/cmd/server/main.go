@@ -102,6 +102,9 @@ func run() error {
 		cfg.ACMEDirectory,
 		cfg.ACMEEmail,
 	)
+	if err := loadCloudflareToken(ctx, db, cipher, certIssuer); err != nil {
+		log.Warn("cloudflare token unavailable, falling back to http-01", "error", err)
+	}
 	authService, err := auth.New(db, cfg)
 	if err != nil {
 		return err
@@ -158,6 +161,22 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	return httpServer.Shutdown(shutdownCtx)
+}
+
+// loadCloudflareToken applies the stored DNS-01 credential to the issuer at
+// boot. Without it the issuer stays on HTTP-01, which cannot do wildcards.
+func loadCloudflareToken(ctx context.Context, db *database.DB, cipher *security.Cipher,
+	issuer *certificates.Issuer) error {
+	stored, err := db.Setting(ctx, certificates.SettingCloudflareToken)
+	if err != nil || stored == "" {
+		return err
+	}
+	token, err := cipher.Decrypt(stored)
+	if err != nil {
+		return err
+	}
+	issuer.SetCloudflareToken(token)
+	return nil
 }
 
 // scheduler runs the platform's periodic work: certificate renewal, session

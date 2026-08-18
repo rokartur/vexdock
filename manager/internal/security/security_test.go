@@ -72,7 +72,11 @@ func TestValidateHostname(t *testing.T) {
 	if got != "app.example.com" {
 		t.Fatalf("hostname not normalised: %q", got)
 	}
-	for _, bad := range []string{"", "localhost", "*.example.com", "-bad.example.com", "ex ample.com", "a..b.com"} {
+	if got, err := ValidateHostname("*.Example.com"); err != nil || got != "*.example.com" {
+		t.Fatalf("leftmost wildcard rejected: %q %v", got, err)
+	}
+	for _, bad := range []string{"", "localhost", "*.*.example.com", "a.*.example.com", "ex*ample.com",
+		"-bad.example.com", "ex ample.com", "a..b.com"} {
 		if _, err := ValidateHostname(bad); err == nil {
 			t.Fatalf("hostname %q should have been rejected", bad)
 		}

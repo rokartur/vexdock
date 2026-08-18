@@ -290,7 +290,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			Port:          d.ContainerPort,
 			HTTPS:         https,
 			RedirectHTTPS: d.RedirectHTTPS,
-			CertDir:       "/certificates/" + d.Hostname,
+			CertDir:       "/certificates/" + certificates.DirName(d.Hostname),
 		})
 	}
 

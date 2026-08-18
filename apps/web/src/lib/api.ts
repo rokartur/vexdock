@@ -239,6 +239,13 @@ export type Settings = {
 	dashboard_https: boolean
 	acme_email: string
 	notify_webhook_url: string
+	/** True when a Cloudflare token is stored. The token itself is never read back. */
+	cloudflare_token_set: boolean
+}
+
+/** Omit cloudflare_api_token to keep the stored token, send '' to clear it. */
+export type SettingsUpdate = Omit<Settings, 'cloudflare_token_set'> & {
+	cloudflare_api_token?: string
 }
 
 export type AuditEntry = {
@@ -436,7 +443,7 @@ export const api = {
 
 	systemInfo: () => request<SystemInfo>('/api/system/info'),
 	settings: () => request<Settings>('/api/system/settings'),
-	saveSettings: (body: Settings) => request<Settings>('/api/system/settings', { method: 'PUT', body }),
+	saveSettings: (body: SettingsUpdate) => request<Settings>('/api/system/settings', { method: 'PUT', body }),
 	certificates: () => request<Certificate[]>('/api/system/certificates'),
 	audit: () => request<AuditEntry[]>('/api/system/audit'),
 	backups: () => request<Backup[]>('/api/system/backups'),

@@ -1,5 +1,7 @@
-// Package certificates issues and renews Let's Encrypt certificates over the
-// HTTP-01 challenge, using the same Nginx that fronts every application.
+// Package certificates issues and renews Let's Encrypt certificates. The
+// default challenge is HTTP-01, served by the same Nginx that fronts every
+// application. When a Cloudflare API token is configured the issuer switches to
+// DNS-01, which is the only way to obtain a wildcard certificate.
 package certificates
 
 import (
@@ -14,18 +16,25 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/acme"
 )
 
-// Issuer writes certificates to <certificatesDir>/<hostname>/ and challenge
-// tokens to <challengeDir>/.well-known/acme-challenge/.
+// Issuer writes certificates to <certificatesDir>/<DirName(hostname)>/ and
+// challenge tokens to <challengeDir>/.well-known/acme-challenge/.
 type Issuer struct {
 	certificatesDir string
 	challengeDir    string
 	directoryURL    string
 	email           string
+
+	// cloudflareToken is loaded from settings and can change while a renewal
+	// is in flight, so it is guarded rather than fixed at construction.
+	mu              sync.RWMutex
+	cloudflareToken string
 }
 
 func NewIssuer(certificatesDir, challengeDir, directoryURL, email string) *Issuer {
@@ -45,8 +54,17 @@ type Result struct {
 	NotAfter  time.Time
 }
 
+// DirName maps a hostname to its certificate directory name. A wildcard becomes
+// "_wildcard.example.com" so no path on disk or in an Nginx config ever
+// contains a glob character.
+func DirName(hostname string) string {
+	return strings.Replace(hostname, "*", "_wildcard", 1)
+}
+
 // Dir is where Nginx reads fullchain.pem/privkey.pem for a hostname.
-func (i *Issuer) Dir(hostname string) string { return filepath.Join(i.certificatesDir, hostname) }
+func (i *Issuer) Dir(hostname string) string {
+	return filepath.Join(i.certificatesDir, DirName(hostname))
+}
 
 // Exists reports whether a usable certificate is already on disk.
 func (i *Issuer) Exists(hostname string) bool {
@@ -75,9 +93,12 @@ func (i *Issuer) Expiry(hostname string) (time.Time, error) {
 	return cert.NotAfter, nil
 }
 
-// Issue runs a complete HTTP-01 order for one hostname. reload is invoked after
-// the challenge file is written so a brand-new vhost can serve it.
+// Issue runs a complete order for one hostname, which may be a wildcard when
+// DNS-01 is configured.
 func (i *Issuer) Issue(ctx context.Context, hostname string) (*Result, error) {
+	if strings.HasPrefix(hostname, "*.") && !i.DNS01Enabled() {
+		return nil, errors.New("wildcard certificates need the DNS-01 challenge: add a Cloudflare API token in system settings")
+	}
 	accountKey, err := i.accountKey()
 	if err != nil {
 		return nil, err
@@ -171,15 +192,22 @@ func (i *Issuer) solve(ctx context.Context, client *acme.Client, authzURL string
 	if authz.Status == acme.StatusValid {
 		return nil
 	}
+	wanted := "http-01"
+	if i.DNS01Enabled() {
+		wanted = "dns-01"
+	}
 	var challenge *acme.Challenge
 	for _, c := range authz.Challenges {
-		if c.Type == "http-01" {
+		if c.Type == wanted {
 			challenge = c
 			break
 		}
 	}
 	if challenge == nil {
-		return errors.New("no http-01 challenge offered for this domain")
+		return fmt.Errorf("no %s challenge offered for %s", wanted, authz.Identifier.Value)
+	}
+	if wanted == "dns-01" {
+		return i.solveDNS01(ctx, client, authz, challenge)
 	}
 	body, err := client.HTTP01ChallengeResponse(challenge.Token)
 	if err != nil {

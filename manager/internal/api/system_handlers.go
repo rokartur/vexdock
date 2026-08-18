@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vexdock/platform/manager/internal/certificates"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/domains"
 	"github.com/vexdock/platform/manager/internal/events"
@@ -155,14 +156,20 @@ type settingsPayload struct {
 	DashboardHTTPS   bool   `json:"dashboard_https"`
 	ACMEEmail        string `json:"acme_email"`
 	NotifyWebhookURL string `json:"notify_webhook_url"`
+
+	// CloudflareAPIToken is write-only: nil leaves the stored token alone, ""
+	// clears it. Reads report only whether one is present.
+	CloudflareAPIToken *string `json:"cloudflare_api_token,omitempty"`
+	CloudflareTokenSet bool    `json:"cloudflare_token_set"`
 }
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, settingsPayload{
-		DashboardDomain:  s.setting(r.Context(), domains.SettingDashboardDomain),
-		DashboardHTTPS:   s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
-		ACMEEmail:        s.cfg.ACMEEmail,
-		NotifyWebhookURL: s.setting(r.Context(), notify.SettingWebhookURL),
+		DashboardDomain:    s.setting(r.Context(), domains.SettingDashboardDomain),
+		DashboardHTTPS:     s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
+		ACMEEmail:          s.cfg.ACMEEmail,
+		NotifyWebhookURL:   s.setting(r.Context(), notify.SettingWebhookURL),
+		CloudflareTokenSet: s.certs.DNS01Enabled(),
 	})
 }
 
@@ -192,7 +199,31 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
+	if req.CloudflareAPIToken != nil {
+		if err := s.setCloudflareToken(r.Context(), *req.CloudflareAPIToken); err != nil {
+			serverError(w, err)
+			return
+		}
+	}
 	s.handleGetSettings(w, r)
+}
+
+// setCloudflareToken persists the DNS-01 credential encrypted and applies it to
+// the live issuer, so the next renewal uses it without a restart.
+func (s *Server) setCloudflareToken(ctx context.Context, token string) error {
+	stored := ""
+	if token != "" {
+		encrypted, err := s.cipher.Encrypt(token)
+		if err != nil {
+			return err
+		}
+		stored = encrypted
+	}
+	if err := s.db.SetSetting(ctx, certificates.SettingCloudflareToken, stored); err != nil {
+		return err
+	}
+	s.certs.SetCloudflareToken(token)
+	return nil
 }
 
 func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
