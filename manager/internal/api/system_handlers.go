@@ -171,7 +171,7 @@ func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(statsInterval)
 	defer ticker.Stop()
 	for {
 		if err := sse.send("stats", metrics.Read(s.cfg.Root)); err != nil {

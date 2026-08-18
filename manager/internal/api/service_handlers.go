@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
 	dockersdk "github.com/vexdock/platform/manager/internal/docker"
@@ -224,36 +222,34 @@ func (s *Server) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, points)
 }
 
-// handleServiceStats streams CPU/RAM/network/block-IO for one service.
+// handleServiceStats streams CPU/RAM/network/block-IO for one service. Docker's
+// own stream pushes every second, which is far denser than anyone reads, so
+// this polls on statsInterval instead.
 func (s *Server) handleServiceStats(w http.ResponseWriter, r *http.Request) {
 	containerID, err := s.resolveServiceContainer(r.Context(), r.PathValue("id"))
 	if err != nil {
 		badRequest(w, err)
 		return
 	}
-	stats, err := s.docker.Stats(r.Context(), containerID, true)
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	defer stats.Body.Close()
-
 	sse, err := newSSE(w)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	dec := json.NewDecoder(stats.Body)
+	ticker := time.NewTicker(statsInterval)
+	defer ticker.Stop()
 	for {
-		if r.Context().Err() != nil {
+		sample, err := s.docker.Sample(r.Context(), containerID)
+		if err != nil {
 			return
 		}
-		var frame container.StatsResponse
-		if err := dec.Decode(&frame); err != nil {
+		if err := sse.send("stats", sample); err != nil {
 			return
 		}
-		if err := sse.send("stats", dockersdk.SampleFrom(&frame)); err != nil {
+		select {
+		case <-r.Context().Done():
 			return
+		case <-ticker.C:
 		}
 	}
 }

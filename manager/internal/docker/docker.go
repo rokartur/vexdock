@@ -100,13 +100,10 @@ func (c *Client) Logs(ctx context.Context, id string, tail string, follow, times
 	return rc, info.Config != nil && info.Config.Tty, err
 }
 
-// Stats returns a streaming stats reader for one container.
+// Stats returns a stats reader for one container. Streaming keeps the
+// connection open and lets the Engine fill in the previous CPU cycle.
 func (c *Client) Stats(ctx context.Context, id string, stream bool) (container.StatsResponseReader, error) {
 	return c.api.ContainerStats(ctx, id, stream)
-}
-
-func (c *Client) StatsOneShot(ctx context.Context, id string) (container.StatsResponseReader, error) {
-	return c.api.ContainerStatsOneShot(ctx, id)
 }
 
 // Events subscribes to the daemon event stream used by the reconciler.
