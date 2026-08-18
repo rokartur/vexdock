@@ -195,6 +195,31 @@ export type ContainerStats = {
 	pids: number
 }
 
+/** How far back a recorded metrics window may reach. */
+export type MetricWindow = '30m' | '1h' | '6h' | '24h' | '7d'
+
+/** One recorded bucket of host usage. `at` is unix seconds. */
+export type HostPoint = {
+	at: number
+	cpu_percent: number
+	memory_used: number
+	memory_total: number
+	disk_used: number
+	disk_total: number
+}
+
+/** One recorded bucket of service usage; the byte counters are cumulative. */
+export type ServicePoint = {
+	at: number
+	cpu_percent: number
+	memory_usage: number
+	memory_limit: number
+	network_rx: number
+	network_tx: number
+	block_read: number
+	block_write: number
+}
+
 export type CleanupPreview = {
 	unused_images: number
 	build_cache: number
@@ -377,6 +402,8 @@ export const api = {
 	projectDomains: (id: string) => request<Domain[]>(`/api/projects/${id}/domains`),
 
 	service: (id: string) => request<Service>(`/api/services/${id}`),
+	serviceMetrics: (id: string, window: MetricWindow = '30m') =>
+		request<ServicePoint[]>(`/api/services/${id}/metrics?window=${window}`),
 	serviceAction: (id: string, action: 'start' | 'stop' | 'restart') =>
 		request<{ ok: boolean }>(`/api/services/${id}/${action}`, { method: 'POST' }),
 
@@ -442,6 +469,7 @@ export const api = {
 	templates: () => request<Template[]>('/api/templates'),
 
 	systemInfo: () => request<SystemInfo>('/api/system/info'),
+	systemMetrics: (window: MetricWindow = '30m') => request<HostPoint[]>(`/api/system/metrics?window=${window}`),
 	settings: () => request<Settings>('/api/system/settings'),
 	saveSettings: (body: SettingsUpdate) => request<Settings>('/api/system/settings', { method: 'PUT', body }),
 	certificates: () => request<Certificate[]>('/api/system/certificates'),

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -10,6 +10,8 @@ import { useEventSource } from '../lib/sse'
 
 type RecentDeployment = SystemInfo['recent_deployments'][number]
 
+/** Recorded buckets are stamped in unix seconds; live samples use the browser clock. */
+const toMillis = (point: HostPoint): HostPoint => ({ ...point, at: point.at * 1000 })
 
 const deploymentColumns: Columns<RecentDeployment> = (() => {
 	const cell = columnsFor<RecentDeployment>()
@@ -59,40 +61,75 @@ export const Route = createFileRoute('/')({ component: DashboardPage })
 
 function DashboardPage() {
 	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo, refetchInterval: 15_000 })
-	const [stats, setStats] = useState<HostStats | null>(null)
+	const recorded = useQuery({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
+	const [stats, setStats] = useState<HostPoint | null>(null)
 
 	useEventSource('/api/system/stats', {
-		stats: data => setStats(data as HostStats),
+		stats: data => setStats({ ...(data as HostStats), at: Date.now() }),
 	})
+
+	const history = useHistory(
+		stats,
+		useMemo(() => (recorded.data ?? []).map(toMillis), [recorded.data]),
+	)
+	// Until the first live sample lands, the newest recorded bucket is the reading.
+	const current = stats ?? history.at(-1)
+	const diskUsed = current && current.disk_total > 0 ? current.disk_used / current.disk_total : 0
 
 	return (
 		<Page title='Dashboard'>
 			<Section title='System'>
-				<dl className='grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 sm:grid-cols-3 lg:grid-cols-6'>
-					<Metric label='CPU' value={stats ? percent(stats.cpu_percent) : '-'} />
-					<Metric
+				<div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-4'>
+					<MetricCard
+						label='CPU'
+						value={current ? percent(current.cpu_percent) : '-'}
+						series={[seriesOf(history, sample => sample.cpu_percent)]}
+						max={100}
+						format={([cpu]) => percent(cpu)}
+					/>
+					<MetricCard
 						label='RAM'
 						value={
-							stats && stats.memory_total > 0
-								? `${bytes(stats.memory_used)} / ${bytes(stats.memory_total)}`
+							current && current.memory_total > 0
+								? `${bytes(current.memory_used)} / ${bytes(current.memory_total)}`
 								: bytes(info.data?.host.memory_total)
 						}
+						series={[seriesOf(history, sample => sample.memory_used)]}
+						max={current?.memory_total}
+						format={([used]) => `${bytes(used)} / ${bytes(current?.memory_total)}`}
 					/>
-					<Metric
-						label='Disk'
-						value={
-							stats && stats.disk_total > 0
-								? `${bytes(stats.disk_used)} / ${bytes(stats.disk_total)}`
-								: '-'
-						}
-					/>
-					<Metric label='Projects' value={String(info.data?.projects ?? 0)} />
-					<Metric
-						label='Containers'
-						value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
-					/>
-					<Metric label='Images' value={String(info.data?.images ?? 0)} />
-				</dl>
+					{/* Disk moves in hours, so a line would be flat; the bar says more. */}
+					<div className='rounded-md border px-2.5 py-2'>
+						<div className='text-meta tracking-wide text-muted-foreground uppercase'>Disk</div>
+						<div className='font-mono text-title'>
+							{current && current.disk_total > 0
+								? `${bytes(current.disk_used)} / ${bytes(current.disk_total)}`
+								: '-'}
+						</div>
+						<div className='mt-3 h-1 rounded-full bg-muted'>
+							<div
+								className='h-full rounded-full bg-foreground'
+								style={{ width: percent(diskUsed * 100) }}
+							/>
+						</div>
+						<div className='mt-1.5 font-mono text-meta text-muted-foreground'>
+							{percent(diskUsed * 100)} used
+						</div>
+					</div>
+					<div className='rounded-md border px-2.5 py-2'>
+						<div className='text-meta tracking-wide text-muted-foreground uppercase'>Platform</div>
+						<dl className='mt-1 grid grid-cols-[auto_1fr] gap-x-3 text-body'>
+							<dt className='text-muted-foreground'>Projects</dt>
+							<dd className='text-right font-mono'>{info.data?.projects ?? 0}</dd>
+							<dt className='text-muted-foreground'>Containers</dt>
+							<dd className='text-right font-mono'>
+								{info.data?.containers_running ?? 0} / {info.data?.containers ?? 0}
+							</dd>
+							<dt className='text-muted-foreground'>Images</dt>
+							<dd className='text-right font-mono'>{info.data?.images ?? 0}</dd>
+						</dl>
+					</div>
+				</div>
 			</Section>
 
 			<Section
@@ -117,14 +154,5 @@ function DashboardPage() {
 				/>
 			</Section>
 		</Page>
-	)
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-	return (
-		<div className='py-1'>
-			<dt className='text-[12px] tracking-wide text-muted-foreground uppercase'>{label}</dt>
-			<dd className='font-mono text-[14px]'>{value}</dd>
-		</div>
 	)
 }
