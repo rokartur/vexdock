@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { IconChevronDown, IconLayoutSidebar, IconSearch, IconSettings } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -49,7 +49,9 @@ const groups: { label: string; items: NavItem[] }[] = [
 ]
 
 const HIDDEN_KEY = 'navigation-leftBarIsHidden'
-const useHydrationEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+
+/** Read on the first render for the same reason as the rail's width. */
+const storedHidden = () => typeof localStorage !== 'undefined' && localStorage.getItem(HIDDEN_KEY) === 'true'
 
 const linkClass =
 	'group flex h-7 items-center gap-2 rounded-lg px-2 text-[14px] font-medium text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 data-[status=active]:bg-zinc-800 data-[status=active]:text-zinc-100 data-[status=active]:hover:bg-zinc-800'
@@ -66,7 +68,7 @@ function NavigationLink({ to, label, exact, dot }: NavItem & { dot?: boolean }) 
 /** The rail plus the content panel it sits next to. Cmd/Ctrl+K opens the palette, `[` hides the rail. */
 export function Shell({ children }: { children: ReactNode }) {
 	const [paletteOpen, setPaletteOpen] = useState(false)
-	const [isHidden, setIsHidden] = useState(false)
+	const [isHidden, setIsHidden] = useState(storedHidden)
 	const [showTemporary, setShowTemporary] = useState(false)
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
@@ -82,10 +84,6 @@ export function Shell({ children }: { children: ReactNode }) {
 			await navigate({ to: '/login', replace: true })
 		},
 	})
-
-	useHydrationEffect(() => {
-		setIsHidden(localStorage.getItem(HIDDEN_KEY) === 'true')
-	}, [])
 
 	const toggleHidden = () => {
 		setIsHidden(hidden => {

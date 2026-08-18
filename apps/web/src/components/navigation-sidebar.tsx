@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/utils/cn'
 
 /** Width bounds of the navigation panel, in rem (219px / 329px / 252px). */
@@ -10,9 +10,17 @@ const NAV_COLLAPSED_WIDTH = 8
 
 const WIDTH_KEY = 'navigation-leftBarWidth'
 
-// The stored width is read after hydration so the prerendered markup and the
-// first client render agree; a layout effect applies it before the paint.
-const useHydrationEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+/**
+ * Read during the first render rather than restored afterwards, so no reload
+ * ever renders the default width and then corrects it. Safe because the rail
+ * is client-only: the auth gate resolves a session before the shell mounts,
+ * so this width is never part of the prerendered markup.
+ */
+function storedWidth() {
+	if (typeof localStorage === 'undefined') return DEFAULT_NAV_WIDTH_REM
+	const stored = Number(localStorage.getItem(WIDTH_KEY))
+	return stored >= MIN_NAV_WIDTH_REM && stored <= MAX_NAV_WIDTH_REM ? stored : DEFAULT_NAV_WIDTH_REM
+}
 
 /**
  * The shell's left rail: a fixed, resizable panel that can be hidden entirely
@@ -30,14 +38,9 @@ export function NavigationSidebar({
 	showTemporary?: boolean
 	onShowTemporaryChange?: (show: boolean) => void
 }) {
-	const [width, setWidth] = useState(DEFAULT_NAV_WIDTH_REM)
+	const [width, setWidth] = useState(storedWidth)
 	const [isResizing, setIsResizing] = useState(false)
 	const navRef = useRef<HTMLDivElement>(null)
-
-	useHydrationEffect(() => {
-		const stored = Number(localStorage.getItem(WIDTH_KEY))
-		if (stored >= MIN_NAV_WIDTH_REM && stored <= MAX_NAV_WIDTH_REM) setWidth(stored)
-	}, [])
 
 	const widthPx = width * 16
 	const transition = isResizing ? '' : 'transition-[width,left] duration-[250ms] ease-out'
