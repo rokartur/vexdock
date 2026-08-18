@@ -1,15 +1,23 @@
 {
-  "name": "vexdock",
-  "version": "0.1.0",
-  "private": true,
-  "license": "AGPL-3.0-or-later",
-  "workspaces": [
-    "apps/*"
-  ],
-  "scripts": {
-    "dev": "cd apps/web && bun run dev",
-    "build": "cd apps/web && bun run build",
-    "auth": "cd apps/auth && bun run dev",
-    "typecheck": "cd apps/web && bun run typecheck && cd ../auth && bun run typecheck"
-  }
+	"name": "vexdock",
+	"version": "0.1.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"workspaces": [
+		"apps/*"
+	],
+	"type": "module",
+	"scripts": {
+		"auth": "cd apps/auth && bun run dev",
+		"build": "cd apps/web && bun run build",
+		"check": "ultracite check",
+		"dev": "cd apps/web && bun run dev",
+		"fix": "ultracite fix",
+		"typecheck": "cd apps/web && bun run typecheck && cd ../auth && bun run typecheck"
+	},
+	"devDependencies": {
+		"oxfmt": "^0.63.0",
+		"oxlint": "^1.78.0",
+		"ultracite": "7.10.5"
+	}
 }
