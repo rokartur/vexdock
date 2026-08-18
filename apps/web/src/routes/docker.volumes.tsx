@@ -81,7 +81,7 @@ function VolumesPage() {
 	)
 
 	return (
-		<Page title='Volumes'>
+		<Page>
 			<Section
 				title='All volumes'
 				description='deleting a volume destroys its data'

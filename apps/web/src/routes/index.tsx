@@ -84,7 +84,7 @@ function DashboardPage() {
 	const diskUsed = current && current.disk_total > 0 ? current.disk_used / current.disk_total : 0
 
 	return (
-		<Page title='Dashboard'>
+		<Page>
 			<Section title='System'>
 				<div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-4'>
 					<MetricCard

@@ -83,7 +83,7 @@ function CleanupPage() {
 	const columns = useMemo(() => cleanupTableColumns(confirming, setConfirming, clean), [confirming, clean])
 
 	return (
-		<Page title='Docker cleanup'>
+		<Page labels={{ docker: 'Docker cleanup' }}>
 			<Section
 				title='Reclaimable space'
 				description='review before removing anything'

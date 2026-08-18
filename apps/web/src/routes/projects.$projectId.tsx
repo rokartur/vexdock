@@ -52,17 +52,16 @@ function ProjectLayout() {
 
 	return (
 		<Page
-			breadcrumb={
-				<Link to='/projects' className='text-body text-muted-foreground hover:text-foreground'>
-					projects
-				</Link>
-			}
-			title={
-				<span className='flex items-baseline gap-3'>
-					{project.data?.name ?? projectId}
-					{project.data?.latest_deployment ? <Status value={project.data.latest_deployment.status} /> : null}
-				</span>
-			}
+			labels={{
+				[projectId]: (
+					<>
+						{project.data?.name ?? projectId}
+						{project.data?.latest_deployment ? (
+							<Status value={project.data.latest_deployment.status} />
+						) : null}
+					</>
+				),
+			}}
 			actions={
 				<>
 					<Button variant='primary' onClick={() => deploy.mutate()} disabled={deploy.isPending}>

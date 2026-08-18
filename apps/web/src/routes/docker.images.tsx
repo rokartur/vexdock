@@ -71,7 +71,7 @@ function ImagesPage() {
 	const columns = useMemo(() => imageTableColumns(removeImage), [removeImage])
 
 	return (
-		<Page title='Images'>
+		<Page>
 			<Section title='Pull image'>
 				<form
 					className='flex gap-2 border-t border-border pt-3'

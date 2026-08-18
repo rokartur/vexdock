@@ -28,7 +28,7 @@ function NetworksPage() {
 	const columns = useMemo(networkTableColumns, [])
 
 	return (
-		<Page title='Networks'>
+		<Page>
 			<Section
 				title='All networks'
 				description={`${data.length} total`}

@@ -104,7 +104,7 @@ function ContainersPage() {
 	)
 
 	return (
-		<Page title='Containers'>
+		<Page>
 			<Section
 				title='All containers'
 				description={`${data.length} total`}

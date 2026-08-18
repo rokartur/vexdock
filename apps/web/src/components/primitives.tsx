@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react'
+import { Fragment, type KeyboardEvent, type ReactNode } from 'react'
 import { IconRefresh } from '@tabler/icons-react'
+import { Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { Button as ShadcnButton } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Field as ShadcnField, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { labelOf, trailOf } from '@/lib/breadcrumb'
 import { cn } from '@/utils/cn'
 
 /**
@@ -101,31 +103,59 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 /**
  * Fills the shell's content panel: a fixed title bar with optional actions,
  * then the scrolling body. Every page is a Page; nothing else scrolls.
+ *
+ * The header trail is read off the URL, so a page never spells out its own
+ * ancestors: /projects/api/settings renders Projects / api / Settings. Pass
+ * `labels` to name segments the URL cannot, keyed by segment: an id becomes
+ * the project's name, and that same label is reused once the page is an
+ * ancestor of a deeper one.
  */
 export function Page({
-	title,
-	breadcrumb,
+	labels,
 	actions,
 	toolbar,
 	children,
 }: {
-	title: ReactNode
-	breadcrumb?: ReactNode
+	labels?: Record<string, ReactNode>
 	actions?: ReactNode
 	toolbar?: ReactNode
 	children: ReactNode
 }) {
+	const router = useRouter()
+	const pathname = useRouterState({ select: state => state.location.pathname })
+	const trail = trailOf(pathname, Object.keys(router.routesByPath))
+
 	return (
 		<>
 			<header className='flex h-11 shrink-0 items-center justify-between gap-3 border-b px-5'>
 				<div className='flex min-w-0 items-center gap-2'>
-					{breadcrumb ? (
-						<>
-							{breadcrumb}
-							<span className='text-muted-foreground'>/</span>
-						</>
-					) : null}
-					<h1 className='truncate text-title font-medium text-foreground'>{title}</h1>
+					{trail.map(({ segment, to, linkable }, index) => {
+						const label = labels?.[segment] ?? labelOf(segment)
+						return (
+							<Fragment key={to}>
+								{index > 0 ? <span className='text-muted-foreground'>/</span> : null}
+								{linkable ? (
+									<Link
+										to={to}
+										className='truncate text-body text-muted-foreground hover:text-foreground'
+									>
+										{label}
+									</Link>
+								) : (
+									<span
+										className={cn(
+											'flex min-w-0 items-center gap-2 truncate text-body',
+											index === trail.length - 1
+												? 'font-medium text-foreground'
+												: 'text-muted-foreground',
+										)}
+									>
+										{label}
+									</span>
+								)}
+							</Fragment>
+						)
+					})}
 				</div>
 				{actions ? <div className='flex shrink-0 items-center gap-2'>{actions}</div> : null}
 			</header>
@@ -136,19 +166,31 @@ export function Page({
 	)
 }
 
+/**
+ * `onSave` binds Cmd+S (macOS) / Ctrl+S to this section while the caret is
+ * inside it, so a page with several sections saves the one being edited.
+ */
 export function Section({
 	title,
 	actions,
 	children,
 	description,
+	onSave,
 }: {
 	title: string
 	actions?: ReactNode
 	children: ReactNode
 	description?: string
+	onSave?: () => void
 }) {
+	const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+		if (!onSave || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
+		event.preventDefault()
+		onSave()
+	}
+
 	return (
-		<section className='mb-8'>
+		<section className='mb-8' onKeyDown={onKeyDown}>
 			<header className='mb-2 flex h-7 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-3'>
 					<h2 className='text-title font-medium'>{title}</h2>

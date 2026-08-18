@@ -42,7 +42,7 @@ function BackupsPage() {
 	const data = backups.data ?? []
 
 	return (
-		<Page title='Backups'>
+		<Page>
 			<Section
 				title='Snapshots'
 				description='database, proxy config and certificates, optionally with application volumes'

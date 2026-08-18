@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { Button, ErrorText, Page, Section, Status } from '../components/primitives'
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
 import { clock, duration, shortSha } from '../lib/format'
@@ -66,26 +66,17 @@ function DeploymentPage() {
 
 	return (
 		<Page
-			breadcrumb={
-				deployment ? (
-					<Link
-						to='/projects/$projectId/deployments'
-						params={{ projectId: deployment.project_id }}
-						className='text-body text-muted-foreground hover:text-foreground'
-					>
-						deployments
-					</Link>
-				) : null
-			}
-			title={
-				<span className='flex items-baseline gap-3'>
-					#{deployment?.number ?? ''}
-					{deployment ? <Status value={deployment.status} /> : null}
-					<span className='font-mono text-body text-muted-foreground'>
-						{deployment?.branch} {shortSha(deployment?.commit_sha)}
-					</span>
-				</span>
-			}
+			labels={{
+				[deploymentId]: (
+					<>
+						#{deployment?.number ?? ''}
+						{deployment ? <Status value={deployment.status} /> : null}
+						<span className='font-mono text-body text-muted-foreground'>
+							{deployment?.branch} {shortSha(deployment?.commit_sha)}
+						</span>
+					</>
+				),
+			}}
 			actions={
 				<>
 					{isRunning ? (

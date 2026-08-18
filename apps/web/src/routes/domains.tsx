@@ -80,7 +80,7 @@ function DomainsPage() {
 	const columns = useMemo(domainTableColumns, [])
 
 	return (
-		<Page title='Domains'>
+		<Page>
 			<Section
 				title='All domains'
 				description='add and edit them inside a project'
