@@ -23,12 +23,16 @@ make dev-down
 
 State goes to `./.platform`, never `/opt`.
 
-For fast frontend iteration run the two halves separately:
+Nginx serves `apps/web/dist/client` straight from the working tree, so a
+dashboard change only needs `make web` to show up on :3000.
+
+For instant feedback run the dev server instead. It keeps using the stack for
+`/api`, so auth, the manager and the terminal behave exactly as they do on
+:3000:
 
 ```sh
-make run       # manager on :8080 against ./.platform
-bun run auth   # better-auth on :8081
-make web-dev   # dashboard on :5173, proxying /api to :8080
+make dev-up    # the stack has to be running
+make web-dev   # dashboard on :5173 with HMR
 ```
 
 ## Layout

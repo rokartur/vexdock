@@ -8,6 +8,7 @@
 		"build": "vite build",
 		"dev": "vite dev --port 5173",
 		"preview": "vite preview",
+		"test": "bun test",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

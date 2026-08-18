@@ -24,4 +24,9 @@ services:
     build:
       context: .
       dockerfile: docker/nginx.Dockerfile
-    image: platform-nginx:dev
+    image: vexdock-nginx:dev
+
+    # The dashboard baked into the image is shadowed by the local build output,
+    # so `make web` is enough to refresh it; the image never has to be rebuilt.
+    volumes:
+      - ./apps/web/dist/client:/usr/share/nginx/html:ro

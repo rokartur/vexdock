@@ -35,12 +35,12 @@ web: ## Build the dashboard into apps/web/dist/client
 	cd apps/web && bun run build
 
 .PHONY: web-dev
-web-dev: ## Run the dashboard dev server on :5173 (proxies /api to :8080)
+web-dev: ## Run the dashboard dev server on :5173 with HMR (proxies /api to the stack on :3000)
 	cd apps/web && bun run dev
 
 .PHONY: web-check
-web-check: ## Typecheck the dashboard and the auth service
-	cd apps/web && bun run typecheck
+web-check: ## Typecheck and test the dashboard, typecheck the auth service
+	cd apps/web && bun run typecheck && bun run test
 	cd apps/auth && bun run typecheck
 
 ## ---- images ----
@@ -52,9 +52,10 @@ images: ## Build both container images locally
 
 ## ---- local stack ----
 
+# Nginx serves apps/web/dist/client from the host, so the build has to exist.
 .PHONY: dev-up
-dev-up: ## Build and start the full stack locally
-	docker network inspect platform-proxy >/dev/null 2>&1 || docker network create platform-proxy
+dev-up: web ## Build and start the full stack locally
+	docker network inspect vexdock-proxy >/dev/null 2>&1 || docker network create vexdock-proxy
 	mkdir -p $(PLATFORM_ROOT)/nginx/generated $(PLATFORM_ROOT)/nginx/custom $(PLATFORM_ROOT)/nginx/acme-challenge \
 	         $(PLATFORM_ROOT)/certificates $(PLATFORM_ROOT)/data $(PLATFORM_ROOT)/projects $(PLATFORM_ROOT)/backups \
 	         $(PLATFORM_ROOT)/secrets $(PLATFORM_ROOT)/system
