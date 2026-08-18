@@ -1,10 +1,36 @@
 import { useEffect, useRef, useState } from 'react'
+import { cn } from '@/utils/cn'
+import { bytes, parseAccessLine, parseLogLine } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 import { Button } from './primitives'
 
 type Line = { stream: string; text: string }
 
 const MAX_LINES = 5000
+
+/** HTTP status classes read faster as colour than as three digits. */
+const statusColor: Record<string, string> = {
+	'2': 'text-emerald-400',
+	'3': 'text-sky-400',
+	'4': 'text-amber-400',
+	'5': 'text-red-400',
+}
+
+const levelColor: Record<string, string> = {
+	emerg: 'text-red-400',
+	alert: 'text-red-400',
+	crit: 'text-red-400',
+	fatal: 'text-red-400',
+	panic: 'text-red-400',
+	error: 'text-red-400',
+	err: 'text-red-400',
+	warning: 'text-amber-400',
+	warn: 'text-amber-400',
+	notice: 'text-sky-400',
+	info: 'text-sky-400',
+	debug: 'text-console-muted',
+	trace: 'text-console-muted',
+}
 
 /**
  * Live container log tail with client-side search and pause. Logs are streamed
@@ -15,6 +41,7 @@ export function LogViewer({ url }: { url: string }) {
 	const [paused, setPaused] = useState(false)
 	const [filter, setFilter] = useState('')
 	const [follow, setFollow] = useState(true)
+	const [plain, setPlain] = useState(false)
 	const bottomRef = useRef<HTMLDivElement>(null)
 
 	const connected = useEventSource(
@@ -49,6 +76,7 @@ export function LogViewer({ url }: { url: string }) {
 				/>
 				<Button onClick={() => setPaused(value => !value)}>{paused ? 'Resume' : 'Pause'}</Button>
 				<Button onClick={() => setFollow(value => !value)}>{follow ? 'Unfollow' : 'Follow'}</Button>
+				<Button onClick={() => setPlain(value => !value)}>{plain ? 'Formatted' : 'Plain text'}</Button>
 				<Button onClick={() => setLines([])}>Clear</Button>
 				<Button onClick={() => download(visible)}>Download</Button>
 				<span className='text-label text-muted-foreground'>
@@ -59,14 +87,47 @@ export function LogViewer({ url }: { url: string }) {
 				{visible.length === 0 ? (
 					<p className='text-console-muted'>Waiting for output…</p>
 				) : (
-					visible.map((line, index) => (
-						<div key={index} className={line.stream === 'stderr' ? 'text-console-stderr' : undefined}>
-							{line.text}
-						</div>
-					))
+					visible.map((line, index) =>
+						plain ? (
+							<div key={index} className='break-all whitespace-pre-wrap'>
+								{line.text}
+							</div>
+						) : (
+							<LogLine key={index} line={line} />
+						),
+					)
 				)}
 				<div ref={bottomRef} />
 			</div>
+		</div>
+	)
+}
+
+function LogLine({ line }: { line: Line }) {
+	const { time, timestamp, body, level } = parseLogLine(line.text)
+	const request = parseAccessLine(body)
+	const tone = line.stream === 'stderr' ? 'text-console-stderr' : level ? levelColor[level] : undefined
+
+	return (
+		<div className='flex gap-3'>
+			{time ? (
+				<span className='shrink-0 text-console-muted tabular-nums' title={timestamp ?? undefined}>
+					{time}
+				</span>
+			) : null}
+			{request ? (
+				<>
+					<span className={cn('w-8 shrink-0 tabular-nums', statusColor[request.status[0] ?? ''])}>
+						{request.status}
+					</span>
+					<span className='w-14 shrink-0 text-console-muted'>{request.method}</span>
+					<span className='min-w-0 flex-1 break-all'>{request.path}</span>
+					<span className='shrink-0 text-console-muted tabular-nums'>{bytes(request.bytes)}</span>
+					<span className='shrink-0 text-console-muted'>{request.client}</span>
+				</>
+			) : (
+				<span className={cn('min-w-0 break-all whitespace-pre-wrap', tone)}>{body}</span>
+			)}
 		</div>
 	)
 }

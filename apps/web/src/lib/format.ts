@@ -50,3 +50,45 @@ export function clock(iso: string): string {
 	if (Number.isNaN(parsed)) return ''
 	return new Date(parsed).toLocaleTimeString([], { hour12: false })
 }
+
+/** Docker prefixes every log line with an RFC3339 timestamp when asked to. */
+const LOG_TIMESTAMP = /^(?<at>\d{4}-\d{2}-\d{2}T[\d:.]+Z) ?/u
+const LOG_LEVEL = /\b(?<level>EMERG|ALERT|CRIT|FATAL|PANIC|ERROR|ERR|WARNING|WARN|NOTICE|INFO|DEBUG|TRACE)\b/iu
+// Built from a char code because a literal escape trips the control-character lint.
+const ANSI = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*[A-Za-z]`, 'gu')
+
+/**
+ * Nginx combined access line: client, ident, user, [time], "method path proto",
+ * status, bytes, then quoted referer/agent the console has no room for.
+ */
+const NGINX_ACCESS =
+	/^(?<client>\S+) \S+ \S+ \[[^\]]+\] "(?<method>\S+) (?<path>\S+)[^"]*" (?<status>\d{3}) (?<sent>\d+|-)/u
+
+/**
+ * Recognises an nginx access line so the console can lay it out in columns.
+ * Returns null for anything else, including nginx error-log lines, which read
+ * fine as prose.
+ */
+export function parseAccessLine(text: string) {
+	const groups = NGINX_ACCESS.exec(text)?.groups
+	if (!groups) return null
+	const { client = '', method = '', path = '', status = '', sent = '-' } = groups
+	return { client, method, path, status, bytes: sent === '-' ? 0 : Number(sent) }
+}
+
+/**
+ * Splits one raw log line into the parts the console renders separately: the
+ * engine timestamp as local wall clock, the message with ANSI escapes removed,
+ * and the severity word the message announces itself with (used for colour).
+ */
+export function parseLogLine(text: string) {
+	const stamp = LOG_TIMESTAMP.exec(text)
+	const timestamp = stamp?.groups?.at ?? null
+	const body = (stamp ? text.slice(stamp[0].length) : text).replace(ANSI, '')
+	return {
+		time: timestamp ? clock(timestamp) || null : null,
+		timestamp,
+		body,
+		level: LOG_LEVEL.exec(body)?.groups?.level?.toLowerCase() ?? null,
+	}
+}
