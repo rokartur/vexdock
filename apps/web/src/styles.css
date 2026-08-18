@@ -23,7 +23,7 @@
  * is no theme toggle, so the light palette shadcn ships would never render.
  * Only theme-independent tokens live here; every colour is in .dark below. */
 :root {
-	--radius: 0.625rem;
+	--radius: 0.45rem;
 }
 
 .dark {
@@ -117,6 +117,15 @@
 	--color-console-muted: var(--console-muted);
 	--color-console-stderr: var(--console-stderr);
 	--color-console-border: var(--console-border);
+	--font-heading: var(--font-sans);
+	--font-sans: 'Inter Variable', sans-serif;
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
 }
 
 @layer base {
@@ -137,7 +146,7 @@
 	}
 
 	body {
-		@apply scroll-smooth bg-sidebar text-foreground antialiased;
+		@apply scroll-smooth bg-background text-foreground antialiased;
 		font-size: 13px;
 		line-height: 1.5;
 		scroll-behavior: auto;
@@ -177,6 +186,12 @@
 		)
 		:not(:disabled) {
 		cursor: pointer;
+	}
+	* {
+		@apply border-border outline-ring/50;
+	}
+	html {
+		@apply font-sans;
 	}
 }
 
@@ -221,33 +236,26 @@ html[data-popover-open] main [data-scroll-lock] {
 
 	/*
 	 * Plain form elements inherit the Input look, so pages can use a bare
-	 * <input> and still match the design system. Elements rendered by a ui
-	 * component carry data-slot (or cmdk's own attributes) and are left alone,
-	 * otherwise they would be styled twice.
+	 * <input> and still match the design system. The utilities are copied from
+	 * components/ui/input.tsx: keep them in sync when the preset changes.
+	 * Elements rendered by a ui component carry data-slot (or cmdk's own
+	 * attributes) and are left alone, otherwise they would be styled twice.
 	 */
 	input:not([type='checkbox'], [type='radio'], [data-slot], [cmdk-input]),
 	select:not([data-slot]),
 	textarea:not([data-slot]) {
-		width: 100%;
-		border: 1px solid var(--input);
-		border-radius: var(--radius-sm);
-		background: color-mix(in oklab, var(--background) 92%, var(--foreground));
-		padding: 0.35rem 0.5rem;
-		font: inherit;
+		@apply h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm transition-[color,box-shadow] duration-200 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
 		color: inherit;
 	}
 
-	input:not([data-slot], [cmdk-input]):focus-visible,
-	select:not([data-slot]):focus-visible,
-	textarea:not([data-slot]):focus-visible {
-		outline: none;
-		border-color: var(--ring);
-		box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 40%, transparent);
+	/* Grows with its content instead of sitting on the input's fixed height. */
+	textarea:not([data-slot]) {
+		@apply h-auto resize-none py-2;
 	}
 
-	input::placeholder,
-	textarea::placeholder {
-		color: var(--muted-foreground);
+	/* Room for the native disclosure arrow. */
+	select:not([data-slot]) {
+		@apply pr-1.5;
 	}
 }
 

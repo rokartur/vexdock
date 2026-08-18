@@ -1,11 +1,12 @@
-import type { ComponentProps } from 'react'
+import * as React from 'react'
+import { IconChevronLeft, IconChevronRight, IconDots } from '@tabler/icons-react'
 import { Button } from '@/components/ui/button'
-import { ArrowLeftIcon, ArrowRightIcon, MoreHorizontalIcon } from '@/components/icons'
 import { cn } from '@/utils/cn'
 
-function Pagination({ className, ...props }: ComponentProps<'nav'>) {
+function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
 	return (
 		<nav
+			role='navigation'
 			aria-label='pagination'
 			data-slot='pagination'
 			className={cn('mx-auto flex w-full justify-center', className)}
@@ -14,18 +15,18 @@ function Pagination({ className, ...props }: ComponentProps<'nav'>) {
 	)
 }
 
-function PaginationContent({ className, ...props }: ComponentProps<'ul'>) {
-	return <ul data-slot='pagination-content' className={cn('flex items-center gap-0.5', className)} {...props} />
+function PaginationContent({ className, ...props }: React.ComponentProps<'ul'>) {
+	return <ul data-slot='pagination-content' className={cn('flex items-center gap-1', className)} {...props} />
 }
 
-function PaginationItem({ ...props }: ComponentProps<'li'>) {
+function PaginationItem({ ...props }: React.ComponentProps<'li'>) {
 	return <li data-slot='pagination-item' {...props} />
 }
 
 type PaginationLinkProps = {
 	isActive?: boolean
-} & Pick<ComponentProps<typeof Button>, 'size'> &
-	ComponentProps<'a'>
+} & Pick<React.ComponentProps<typeof Button>, 'size'> &
+	React.ComponentProps<'a'>
 
 function PaginationLink({ className, isActive, size = 'icon', ...props }: PaginationLinkProps) {
 	return (
@@ -35,7 +36,6 @@ function PaginationLink({ className, isActive, size = 'icon', ...props }: Pagina
 			className={cn(className)}
 			nativeButton={false}
 			render={
-				// oxlint-disable-next-line jsx-a11y/anchor-has-content
 				<a
 					aria-current={isActive ? 'page' : undefined}
 					data-slot='pagination-link'
@@ -47,33 +47,41 @@ function PaginationLink({ className, isActive, size = 'icon', ...props }: Pagina
 	)
 }
 
-function PaginationPrevious({ className, ...props }: ComponentProps<typeof PaginationLink>) {
+function PaginationPrevious({
+	className,
+	text = 'Previous',
+	...props
+}: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
 	return (
-		<PaginationLink aria-label='Go to previous page' size='default' className={cn('pl-2!', className)} {...props}>
-			<ArrowLeftIcon className='size-3.5' data-icon='inline-start' />
-			<span className='hidden sm:block'>Previous</span>
+		<PaginationLink aria-label='Go to previous page' size='default' className={cn('pl-1.5!', className)} {...props}>
+			<IconChevronLeft data-icon='inline-start' />
+			<span className='hidden sm:block'>{text}</span>
 		</PaginationLink>
 	)
 }
 
-function PaginationNext({ className, ...props }: ComponentProps<typeof PaginationLink>) {
+function PaginationNext({
+	className,
+	text = 'Next',
+	...props
+}: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
 	return (
-		<PaginationLink aria-label='Go to next page' size='default' className={cn('pr-2!', className)} {...props}>
-			<span className='hidden sm:block'>Next</span>
-			<ArrowRightIcon className='size-3.5' data-icon='inline-end' />
+		<PaginationLink aria-label='Go to next page' size='default' className={cn('pr-1.5!', className)} {...props}>
+			<span className='hidden sm:block'>{text}</span>
+			<IconChevronRight data-icon='inline-end' />
 		</PaginationLink>
 	)
 }
 
-function PaginationEllipsis({ className, ...props }: ComponentProps<'span'>) {
+function PaginationEllipsis({ className, ...props }: React.ComponentProps<'span'>) {
 	return (
 		<span
 			aria-hidden
 			data-slot='pagination-ellipsis'
-			className={cn("flex size-7 items-center justify-center [&_svg:not([class*='size-'])]:size-3.5", className)}
+			className={cn("flex size-8 items-center justify-center [&_svg:not([class*='size-'])]:size-4", className)}
 			{...props}
 		>
-			<MoreHorizontalIcon className='size-3.5' />
+			<IconDots />
 			<span className='sr-only'>More pages</span>
 		</span>
 	)

@@ -1,43 +1,24 @@
-import { useMemo } from 'react'
 import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { cn } from '@/utils/cn'
 
-function Slider({
-	className,
-	defaultValue,
-	value,
-	min = 0,
-	max = 100,
-	...props
-}: Omit<SliderPrimitive.Root.Props, 'defaultValue' | 'value'> & {
-	defaultValue?: number | readonly number[]
-	value?: number | readonly number[]
-}) {
-	const _values = useMemo(
-		() => (Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min, max]),
-		[value, defaultValue, min, max],
-	)
+function Slider({ className, defaultValue, value, min = 0, max = 100, ...props }: SliderPrimitive.Root.Props) {
+	const _values = Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min, max]
 
 	return (
 		<SliderPrimitive.Root
-			className='data-horizontal:w-full data-vertical:h-full'
+			className={cn('data-horizontal:w-full data-vertical:h-full', className)}
 			data-slot='slider'
-			{...(defaultValue !== undefined && { defaultValue })}
-			{...(value !== undefined && { value })}
+			defaultValue={defaultValue}
+			value={value}
 			min={min}
 			max={max}
 			thumbAlignment='edge'
 			{...props}
 		>
-			<SliderPrimitive.Control
-				className={cn(
-					'relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col',
-					className,
-				)}
-			>
+			<SliderPrimitive.Control className='relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col'>
 				<SliderPrimitive.Track
 					data-slot='slider-track'
-					className='relative overflow-hidden rounded-md bg-muted select-none data-horizontal:h-3 data-horizontal:w-full data-vertical:h-full data-vertical:w-3'
+					className='relative grow overflow-hidden rounded-2xl bg-input/90 select-none data-horizontal:h-1 data-horizontal:w-full data-vertical:h-full data-vertical:w-1'
 				>
 					<SliderPrimitive.Indicator
 						data-slot='slider-range'
@@ -48,7 +29,7 @@ function Slider({
 					<SliderPrimitive.Thumb
 						data-slot='slider-thumb'
 						key={index}
-						className='block size-4 shrink-0 rounded-md border border-primary bg-white shadow-sm ring-ring/30 transition-colors select-none hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50'
+						className='block size-4 shrink-0 rounded-2xl bg-white shadow-md ring-1 ring-black/10 transition-[color,box-shadow] duration-200 select-none not-dark:bg-clip-padding hover:ring-4 hover:ring-ring/30 focus-visible:ring-4 focus-visible:ring-ring/30 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50'
 					/>
 				))}
 			</SliderPrimitive.Control>
