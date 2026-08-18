@@ -117,7 +117,9 @@ func (s *Service) Start(ctx context.Context, version string) error {
 	if !versionPattern.MatchString(version) {
 		return fmt.Errorf("invalid target version %q", version)
 	}
-	if _, err := s.backups.Create(ctx); err != nil {
+	// Platform state only: an update replaces images, it does not touch
+	// application volumes, and archiving them here would stall every update.
+	if _, err := s.backups.Create(ctx, false); err != nil {
 		return fmt.Errorf("pre-update backup failed: %w", err)
 	}
 	scriptPath, err := s.writeScript()

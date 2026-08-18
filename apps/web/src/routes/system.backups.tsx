@@ -11,19 +11,25 @@ function BackupsPage() {
 	const backups = useQuery({ queryKey: ['backups'], queryFn: api.backups })
 
 	const create = useMutation({
-		mutationFn: api.createBackup,
+		mutationFn: (includeVolumes: boolean) => api.createBackup(includeVolumes),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
 	})
 
 	return (
 		<Page title='Backups'>
 			<Section
-				title='Platform configuration'
-				description='database, proxy config and certificates. Application data is separate.'
+				title='Snapshots'
+				description='database, proxy config and certificates, optionally with application volumes'
 				actions={
-					<Button variant='primary' onClick={() => create.mutate()} disabled={create.isPending}>
-						{create.isPending ? 'Creating…' : 'Create backup'}
-					</Button>
+					<div className='flex items-center gap-2'>
+						<Button onClick={() => create.mutate(false)} disabled={create.isPending}>
+							Platform only
+						</Button>
+						<Button variant='primary' onClick={() => create.mutate(true)} disabled={create.isPending}>
+							{create.isPending ? 'Creating…' : 'Include volumes'}
+						</Button>
+						<Refresh onClick={() => backups.refetch()} busy={backups.isFetching} />
+					</div>
 				}
 			>
 				<ErrorText error={create.error} />

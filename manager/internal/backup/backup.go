@@ -1,6 +1,7 @@
 // Package backup snapshots the platform's own state: the database, the
-// generated proxy configuration and the certificates. Application data (user
-// volumes) is deliberately out of scope.
+// generated proxy configuration and the certificates. Application data in named
+// volumes is included on request, because archiving it is slow and can dwarf
+// everything else.
 package backup
 
 import (
@@ -15,14 +16,18 @@ import (
 
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
+	"github.com/vexdock/platform/manager/internal/docker"
 )
 
 type Service struct {
-	cfg *config.Config
-	db  *database.DB
+	cfg    *config.Config
+	db     *database.DB
+	docker *docker.Client
 }
 
-func New(cfg *config.Config, db *database.DB) *Service { return &Service{cfg: cfg, db: db} }
+func New(cfg *config.Config, db *database.DB, dockerClient *docker.Client) *Service {
+	return &Service{cfg: cfg, db: db, docker: dockerClient}
+}
 
 // Snapshot describes one backup directory.
 type Snapshot struct {
@@ -30,10 +35,14 @@ type Snapshot struct {
 	Path      string `json:"path"`
 	CreatedAt string `json:"created_at"`
 	SizeBytes int64  `json:"size_bytes"`
+	// HasVolumes distinguishes a full backup from a platform-state-only one.
+	HasVolumes bool `json:"has_volumes"`
 }
 
-// Create writes a new snapshot and returns it.
-func (s *Service) Create(ctx context.Context) (*Snapshot, error) {
+// Create writes a new snapshot and returns it. With includeVolumes the archive
+// also holds a tarball per managed named volume, which is what makes it a
+// restorable backup of application data rather than of platform state alone.
+func (s *Service) Create(ctx context.Context, includeVolumes bool) (*Snapshot, error) {
 	name := time.Now().UTC().Format("2006-01-02T150405")
 	dir := filepath.Join(s.cfg.BackupsDir, name)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -61,8 +70,20 @@ func (s *Service) Create(ctx context.Context) (*Snapshot, error) {
 		}
 	}
 
+	if includeVolumes {
+		if err := s.backupVolumes(ctx, dir); err != nil {
+			return nil, err
+		}
+	}
+
 	size, _ := dirSize(dir)
-	return &Snapshot{Name: name, Path: dir, CreatedAt: time.Now().UTC().Format(time.RFC3339), SizeBytes: size}, nil
+	return &Snapshot{
+		Name:       name,
+		Path:       dir,
+		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
+		SizeBytes:  size,
+		HasVolumes: includeVolumes,
+	}, nil
 }
 
 // List returns existing snapshots, newest first.
@@ -82,11 +103,16 @@ func (s *Service) List() ([]Snapshot, error) {
 		}
 		path := filepath.Join(s.cfg.BackupsDir, e.Name())
 		size, _ := dirSize(path)
+		hasVolumes := false
+		if _, err := os.Stat(filepath.Join(path, "volumes")); err == nil {
+			hasVolumes = true
+		}
 		out = append(out, Snapshot{
-			Name:      e.Name(),
-			Path:      path,
-			CreatedAt: info.ModTime().UTC().Format(time.RFC3339),
-			SizeBytes: size,
+			HasVolumes: hasVolumes,
+			Name:       e.Name(),
+			Path:       path,
+			CreatedAt:  info.ModTime().UTC().Format(time.RFC3339),
+			SizeBytes:  size,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name > out[j].Name })

@@ -111,7 +111,7 @@ func run() error {
 	domainService := domains.New(db, cfg, dockerClient, nginxManager, certIssuer, log.With("component", "domains"))
 	deploymentEngine := deployments.NewEngine(db, cfg, projectService, domainService, dockerClient, bus,
 		log.With("component", "deployment"))
-	backupService := backup.New(cfg, db)
+	backupService := backup.New(cfg, db, dockerClient)
 	updaterService := updater.New(cfg, backupService, releaseAPI)
 
 	if err := deploymentEngine.RecoverInterrupted(ctx); err != nil {

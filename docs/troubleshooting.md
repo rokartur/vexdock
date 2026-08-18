@@ -64,12 +64,28 @@ The updater runs as a separate container and rolls back automatically when the
 new version does not become healthy:
 
 ```sh
-docker logs platform-updater
-docker ps --filter name=platform
+docker logs vexdock-updater
+docker ps --filter name=vexdock
 ```
 
 Backups live in `/opt/platform/backups/<timestamp>/`, containing `app.db`, the
-generated proxy configuration and the certificates.
+generated proxy configuration and the certificates. A backup created with
+**Include volumes** also has a `volumes/<name>.tar.gz` per application volume.
+
+## Restoring an application volume
+
+Restoring overwrites live data, so stop the project first (**Project → Stop**),
+then unpack the archive back into the volume:
+
+```sh
+docker run --rm \
+  -v p_myproject_data:/dst \
+  -v /opt/platform/backups/2026-01-31T120000/volumes:/src:ro \
+  alpine tar xzf /src/p_myproject_data.tar.gz -C /dst
+```
+
+The volume names in the archive are the real Docker volume names, so
+`docker volume ls` tells you where each one belongs.
 
 ## Starting over without losing applications
 

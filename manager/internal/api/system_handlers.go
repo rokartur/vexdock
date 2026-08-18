@@ -196,7 +196,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
-	snapshot, err := s.backups.Create(r.Context())
+	// Volume archives can take minutes and grow to many gigabytes, so the caller
+	// asks for them explicitly.
+	snapshot, err := s.backups.Create(r.Context(), r.URL.Query().Get("volumes") == "true")
 	if err != nil {
 		serverError(w, err)
 		return

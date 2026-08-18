@@ -257,6 +257,7 @@ export type Backup = {
 	path: string
 	created_at: string
 	size_bytes: number
+	has_volumes: boolean
 }
 
 export type HealthReport = {
@@ -439,7 +440,8 @@ export const api = {
 	certificates: () => request<Certificate[]>('/api/system/certificates'),
 	audit: () => request<AuditEntry[]>('/api/system/audit'),
 	backups: () => request<Backup[]>('/api/system/backups'),
-	createBackup: () => request<Backup>('/api/system/backup', { method: 'POST' }),
+	createBackup: (includeVolumes = false) =>
+		request<Backup>(`/api/system/backup?volumes=${includeVolumes}`, { method: 'POST' }),
 	version: () => request<VersionStatus>('/api/system/version'),
 	update: (version?: string) =>
 		request<{ status: string; message: string }>('/api/system/update', {
