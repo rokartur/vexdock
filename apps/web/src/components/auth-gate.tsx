@@ -1,7 +1,8 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { fetchSetupStatus, useSession } from '../lib/auth-client'
+import { Button } from './primitives'
 
 /**
  * Routes the visitor to setup, login or the app. Every authenticated page can
@@ -13,6 +14,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 	const setup = useQuery({ queryKey: ['auth', 'setup'], queryFn: fetchSetupStatus, retry: false })
 	const session = useSession()
+	const phase = useBootScreenPhase()
 
 	const needsSetup = setup.data?.needs_setup === true
 	const authenticated = Boolean(session.data?.user)
@@ -34,14 +36,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	}, [resolved, needsSetup, authenticated, pathname, navigate])
 
 	if (!resolved) {
-		return <div className='p-6 text-xs text-muted-foreground'>Connecting to the manager…</div>
-	}
-	if (setup.isError) {
-		return (
-			<div className='p-6 text-xs text-destructive'>
-				The manager is unreachable. It may be restarting after an update.
-			</div>
-		)
+		// A failed status query never fills `setup.data`, so both the error and the
+		// silent-for-too-long case have to be answered from inside the unresolved
+		// branch or the gate would sit on "connecting" forever.
+		if (setup.isError || phase === 'stalled') return <BootScreen stalled />
+		return phase === 'hidden' ? null : <BootScreen />
 	}
 
 	// Hold the route back while the redirect above is in flight. Rendering the
@@ -51,4 +50,41 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	if (target && target !== pathname) return null
 
 	return children
+}
+
+/**
+ * A healthy manager answers in well under a second, so the boot screen stays
+ * hidden at first and only appears once the wait is long enough to notice.
+ * Silence past eight seconds is reported as a fault instead of waited out.
+ */
+function useBootScreenPhase() {
+	const [phase, setPhase] = useState<'hidden' | 'waiting' | 'stalled'>('hidden')
+
+	useEffect(() => {
+		const show = setTimeout(() => setPhase('waiting'), 600)
+		const stall = setTimeout(() => setPhase('stalled'), 8000)
+		return () => {
+			clearTimeout(show)
+			clearTimeout(stall)
+		}
+	}, [])
+
+	return phase
+}
+
+function BootScreen({ stalled = false }: { stalled?: boolean }) {
+	return (
+		<div className='flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center'>
+			<p className='text-sm'>{stalled ? 'The manager is not responding' : 'Connecting to the manager'}</p>
+			{stalled ? (
+				<Button
+					onClick={() => {
+						window.location.reload()
+					}}
+				>
+					Retry
+				</Button>
+			) : null}
+		</div>
+	)
 }
