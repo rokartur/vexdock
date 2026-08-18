@@ -10,7 +10,7 @@ VERSION="${1:?target version required}"
 ROOT="${PLATFORM_ROOT:-/opt/platform}"
 COMPOSE_FILE="$ROOT/compose.yml"
 ENV_FILE="$ROOT/.env"
-MANAGER="platform-manager"
+MANAGER="vexdock-manager"
 
 log() { echo "[updater] $*"; }
 

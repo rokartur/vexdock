@@ -11,7 +11,7 @@ set -eu
 REPO="${PLATFORM_REPO:-vexdock/platform}"
 RAW_BASE="${PLATFORM_RAW_BASE:-https://raw.githubusercontent.com/$REPO}"
 ROOT="${PLATFORM_ROOT:-/opt/platform}"
-PROXY_NETWORK="platform-proxy"
+PROXY_NETWORK="vexdock-proxy"
 DASHBOARD_PORT="${DASHBOARD_PORT:-3000}"
 VERSION="${PLATFORM_VERSION:-latest}"
 ACTION="${1:-install}"
@@ -93,7 +93,7 @@ check_ports() {
             # Our own nginx re-binding during an update is expected.
             case "$owner" in
                 *docker*|*nginx*)
-                    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx platform-nginx; then
+                    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx vexdock-nginx; then
                         continue
                     fi
                     ;;
@@ -189,7 +189,7 @@ start_stack() {
 # authoritative signal. Probing the published port is only a fallback, since it
 # is not reachable when the installer itself runs inside a container.
 container_healthy() {
-    status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' platform-manager 2>/dev/null || echo missing)"
+    status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' vexdock-manager 2>/dev/null || echo missing)"
     [ "$status" = "healthy" ] || [ "$status" = "running" ]
 }
 
@@ -209,7 +209,7 @@ wait_healthy() {
         sleep 2
     done
     printf '\n%sThe platform did not become healthy in time.%s\n' "$RED" "$RESET" >&2
-    docker logs --tail 40 platform-manager 2>&1 || true
+    docker logs --tail 40 vexdock-manager 2>&1 || true
     exit 1
 }
 

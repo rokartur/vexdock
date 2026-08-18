@@ -12,13 +12,13 @@ services:
       dockerfile: docker/manager.Dockerfile
       args:
         VERSION: dev
-    image: platform-manager:dev
+    image: vexdock-manager:dev
 
   auth:
     build:
       context: .
       dockerfile: docker/auth.Dockerfile
-    image: platform-auth:dev
+    image: vexdock-auth:dev
 
   nginx:
     build:

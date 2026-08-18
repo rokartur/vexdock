@@ -107,7 +107,7 @@ func (r Repo) environment() ([]string, func(), error) {
 		return env, func() {}, nil
 	}
 
-	dir, err := os.MkdirTemp("", "platform-git-")
+	dir, err := os.MkdirTemp("", "vexdock-git-")
 	if err != nil {
 		return nil, nil, err
 	}

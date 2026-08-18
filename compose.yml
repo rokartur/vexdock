@@ -7,16 +7,16 @@
 
 services:
   manager:
-    image: ghcr.io/vexdock/platform-manager:${VERSION:-latest}
-    container_name: platform-manager
+    image: ghcr.io/vexdock/manager:${VERSION:-latest}
+    container_name: vexdock-manager
     restart: unless-stopped
 
     environment:
       PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/platform}
       PLATFORM_LISTEN: ":8080"
       PLATFORM_VERSION: ${VERSION:-latest}
-      PLATFORM_PROXY_NETWORK: platform-proxy
-      PLATFORM_NGINX_CONTAINER: platform-nginx
+      PLATFORM_PROXY_NETWORK: vexdock-proxy
+      PLATFORM_NGINX_CONTAINER: vexdock-nginx
       PLATFORM_PUBLIC_URL: ${PUBLIC_URL:-}
       PLATFORM_ACME_EMAIL: ${ACME_EMAIL:-}
       PLATFORM_ACME_STAGING: ${ACME_STAGING:-false}
@@ -32,8 +32,8 @@ services:
   # better-auth owns login, sign-up and sessions. The manager reads its SQLite
   # file to authenticate requests, so there is one implementation of auth.
   auth:
-    image: ghcr.io/vexdock/platform-auth:${VERSION:-latest}
-    container_name: platform-auth
+    image: ghcr.io/vexdock/auth:${VERSION:-latest}
+    container_name: vexdock-auth
     restart: unless-stopped
 
     environment:
@@ -48,8 +48,8 @@ services:
       - internal
 
   nginx:
-    image: ghcr.io/vexdock/platform-nginx:${VERSION:-latest}
-    container_name: platform-nginx
+    image: ghcr.io/vexdock/nginx:${VERSION:-latest}
+    container_name: vexdock-nginx
     restart: unless-stopped
 
     depends_on:
@@ -73,9 +73,9 @@ services:
 
 networks:
   internal:
-    name: platform-internal
+    name: vexdock-internal
 
   # Shared with every deployed service that has a domain.
   proxy:
     external: true
-    name: platform-proxy
+    name: vexdock-proxy

@@ -4,13 +4,13 @@
 
 ```
                       ┌────────────────────────────┐
-   80 / 443 / 3000 →  │  platform-nginx            │
+   80 / 443 / 3000 →  │  vexdock-nginx             │
                       │  proxy + static dashboard  │
                       └────┬──────────────────┬────┘
                            │ /api             │ proxy_pass by Host
                            ▼                  ▼
                       ┌──────────────┐   ┌──────────────────────┐
-                      │ platform-    │   │ your services        │
+                      │ vexdock-     │   │ your services        │
                       │ manager (Go) │   │ (compose projects)   │
                       └──────┬───────┘   └──────────────────────┘
                              │ docker.sock
@@ -44,7 +44,7 @@ removed, `docker compose up` in the project directory still works.
 
 ## Networking
 
-Services that have a domain are attached to the shared `platform-proxy` network
+Services that have a domain are attached to the shared `vexdock-proxy` network
 under a stable alias, `p_<project-id>_<service>`. Container IDs and IPs change on
 every recreate; the alias does not.
 

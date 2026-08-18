@@ -130,7 +130,7 @@ func (s *Service) Start(ctx context.Context, version string) error {
 	// command line.
 	args := []string{
 		"run", "--detach", "--rm",
-		"--name", "platform-updater",
+		"--name", "vexdock-updater",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-v", s.cfg.Root + ":" + s.cfg.Root,
 		"-w", s.cfg.Root,

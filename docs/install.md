@@ -20,7 +20,7 @@ The installer:
 
 1. Checks the operating system, architecture, memory, disk and ports.
 2. Installs Docker and the Compose plugin if they are missing.
-3. Creates `/opt/platform` and the shared `platform-proxy` network.
+3. Creates `/opt/platform` and the shared `vexdock-proxy` network.
 4. Downloads `compose.yml`, writes `.env` and starts the stack.
 5. Waits for the health check and prints the dashboard URL.
 

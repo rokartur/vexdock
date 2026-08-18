@@ -18,6 +18,12 @@ project at a Git repository, press Deploy.
 - **Domains with HTTPS.** Add `app.example.com`, choose the service and port.
   Nginx is generated, validated and reloaded. Let's Encrypt issues and renews
   the certificate, or you upload your own and the platform leaves it alone.
+  Add a Cloudflare API token to switch to the DNS-01 challenge and issue
+  `*.example.com`.
+- **Deploy notifications.** One webhook URL, posted to when a deployment
+  succeeds or fails. Discord and Slack are detected automatically.
+- **Backups.** Snapshots of the database, proxy config and certificates, with
+  application volumes included on request.
 - **Instant rollback.** Every deployment records its commit. Redeploy any
   previous one from the history.
 - **Full Docker visibility.** Containers, images, volumes and networks on the
@@ -42,11 +48,11 @@ Three containers.
 
 | Component | Role |
 |---|---|
-| `platform-manager` | Go binary. Owns the Docker socket, SQLite state, the deploy pipeline, Nginx generation and ACME. |
-| `platform-auth` | better-auth on Bun. Owns accounts and sessions; the manager only validates them. |
-| `platform-nginx` | Reverse proxy for every application plus the static dashboard. |
+| `vexdock-manager` | Go binary. Owns the Docker socket, SQLite state, the deploy pipeline, Nginx generation and ACME. |
+| `vexdock-auth` | better-auth on Bun. Owns accounts and sessions; the manager only validates them. |
+| `vexdock-nginx` | Reverse proxy for every application plus the static dashboard. |
 
-Applications are ordinary compose projects joined to a shared `platform-proxy`
+Applications are ordinary compose projects joined to a shared `vexdock-proxy`
 network under a stable alias, so a recreated container keeps serving without
 touching the proxy configuration.
 
@@ -62,7 +68,7 @@ State lives in `/opt/platform`:
 ├── nginx/generated/     one .conf per domain, written by the manager
 ├── certificates/        Let's Encrypt certificates and the account key
 ├── secrets/master.key   AES key protecting secrets in the database (0600)
-└── backups/             configuration snapshots
+└── backups/<stamp>/     database, proxy config, certificates, volumes/
 ```
 
 More detail in [docs/architecture.md](docs/architecture.md).
@@ -80,7 +86,8 @@ More detail in [docs/architecture.md](docs/architecture.md).
 make check      # go vet, go test, typecheck
 make dev-up     # build both images and run the whole stack locally
 make run        # manager only, against ./.platform
-make web-dev    # dashboard on :5173, proxying /api to :8080
+make web        # rebuild the dashboard; the running stack serves it at once
+make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 ./scripts/smoke-test.sh
 ```
 

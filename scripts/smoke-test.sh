@@ -102,8 +102,8 @@ auth_post -d "{\"project_id\":\"$PROJECT_ID\",\"service\":\"web\",\"hostname\":\
     "$API/domains" >/dev/null
 pass 'domain added'
 
-proxy_code=$(docker run --rm --network platform-internal curlimages/curl:latest \
-    -s -o /dev/null -w '%{http_code}' -H 'Host: smoke.test' http://platform-nginx/)
+proxy_code=$(docker run --rm --network vexdock-internal curlimages/curl:latest \
+    -s -o /dev/null -w '%{http_code}' -H 'Host: smoke.test' http://vexdock-nginx/)
 [ "$proxy_code" = "200" ] || fail "the proxy returned $proxy_code for the new domain"
 pass 'the application answers through the proxy'
 

@@ -85,4 +85,4 @@ jobs:
 
       - name: Manager logs on failure
         if: failure()
-        run: docker logs --tail 200 platform-manager
+        run: docker logs --tail 200 vexdock-manager

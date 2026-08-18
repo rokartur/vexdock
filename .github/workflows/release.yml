@@ -2,16 +2,16 @@ name: Release
 
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ['*.*.*']
 
 permissions:
   contents: write
   packages: write
 
 env:
-  MANAGER: ghcr.io/${{ github.repository_owner }}/platform-manager
-  AUTH: ghcr.io/${{ github.repository_owner }}/platform-auth
-  PROXY: ghcr.io/${{ github.repository_owner }}/platform-nginx
+  MANAGER: ghcr.io/${{ github.repository_owner }}/manager
+  AUTH: ghcr.io/${{ github.repository_owner }}/auth
+  PROXY: ghcr.io/${{ github.repository_owner }}/nginx
 
 jobs:
   images:

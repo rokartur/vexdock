@@ -47,8 +47,8 @@ web-check: ## Typecheck and test the dashboard, typecheck the auth service
 
 .PHONY: images
 images: ## Build both container images locally
-	docker build -f docker/manager.Dockerfile --build-arg VERSION=$(VERSION) -t platform-manager:$(VERSION) .
-	docker build -f docker/nginx.Dockerfile -t platform-nginx:$(VERSION) .
+	docker build -f docker/manager.Dockerfile --build-arg VERSION=$(VERSION) -t vexdock-manager:$(VERSION) .
+	docker build -f docker/nginx.Dockerfile -t vexdock-nginx:$(VERSION) .
 
 ## ---- local stack ----
 
@@ -68,7 +68,7 @@ dev-down: ## Stop the local stack
 
 .PHONY: dev-logs
 dev-logs: ## Follow the manager logs
-	docker logs -f platform-manager
+	docker logs -f vexdock-manager
 
 .PHONY: check
 check: lint test web-check ## Everything CI runs

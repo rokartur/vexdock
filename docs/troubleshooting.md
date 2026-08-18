@@ -3,8 +3,8 @@
 ## The dashboard does not load
 
 ```sh
-docker ps --filter name=platform
-docker logs --tail 100 platform-manager
+docker ps --filter name=vexdock
+docker logs --tail 100 vexdock-manager
 curl -s http://127.0.0.1:3000/api/health
 ```
 
