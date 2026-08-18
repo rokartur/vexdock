@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
 import { Button, ErrorText, Page, Refresh, Section, Status } from '../components/primitives'
+import { Drawer, DrawerHeader, DrawerPanel, DrawerPopup, DrawerTitle } from '../components/ui/drawer'
 import { api, type ContainerSummary } from '../lib/api'
 import { since } from '../lib/format'
 
@@ -119,18 +120,16 @@ function ContainersPage() {
 				/>
 			</Section>
 
-			{logsFor ? (
-				<Section
-					title='Logs'
-					actions={
-						<Button variant='ghost' onClick={() => setLogsFor(null)}>
-							close
-						</Button>
-					}
-				>
-					<LogViewer key={logsFor} url={`/api/docker/containers/${logsFor}/logs`} />
-				</Section>
-			) : null}
+			<Drawer open={logsFor !== null} onOpenChange={open => open || setLogsFor(null)}>
+				<DrawerPopup showBar>
+					<DrawerHeader className='pb-2'>
+						<DrawerTitle className='text-sm'>Logs</DrawerTitle>
+					</DrawerHeader>
+					<DrawerPanel scrollable={false} className='pt-0'>
+						{logsFor ? <LogViewer key={logsFor} url={`/api/docker/containers/${logsFor}/logs`} /> : null}
+					</DrawerPanel>
+				</DrawerPopup>
+			</Drawer>
 		</Page>
 	)
 }
