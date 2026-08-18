@@ -5,7 +5,7 @@ import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
 import { Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
-import { bytes, percent, since } from '../lib/format'
+import { bytes, duration, percent, shortSha, since } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
 type RecentDeployment = SystemInfo['recent_deployments'][number]
@@ -16,11 +16,6 @@ const toMillis = (point: HostPoint): HostPoint => ({ ...point, at: point.at * 10
 const deploymentColumns: Columns<RecentDeployment> = (() => {
 	const cell = columnsFor<RecentDeployment>()
 	return [
-		cell.accessor(({ deployment }) => deployment.status, {
-			id: 'status',
-			header: '',
-			cell: ({ row }) => <Status value={row.original.deployment.status} />,
-		}),
 		cell.accessor(({ deployment, project_name }) => project_name || deployment.project_id, {
 			id: 'project',
 			header: 'Project',
@@ -34,6 +29,7 @@ const deploymentColumns: Columns<RecentDeployment> = (() => {
 				</Link>
 			),
 		}),
+		cell.accessor(({ deployment }) => deployment.branch, { id: 'branch', header: 'Branch', meta: { mono: true } }),
 		cell.accessor(({ deployment }) => deployment.number, {
 			id: 'commit',
 			header: 'Commit',
@@ -44,14 +40,25 @@ const deploymentColumns: Columns<RecentDeployment> = (() => {
 					params={{ deploymentId: original.deployment.id }}
 					className='hover:underline'
 				>
-					#{original.deployment.number} {original.deployment.commit_sha.slice(0, 7)}
+					#{original.deployment.number} {shortSha(original.deployment.commit_sha)}
 				</Link>
 			),
 		}),
 		cell.accessor(({ deployment }) => deployment.trigger, { id: 'trigger', header: 'Trigger' }),
+		cell.accessor(({ deployment }) => deployment.status, {
+			id: 'status',
+			header: 'Status',
+			cell: ({ row }) => <Status value={row.original.deployment.status} />,
+		}),
+		cell.accessor(({ deployment }) => deployment.started_at ?? '', {
+			id: 'duration',
+			header: 'Duration',
+			meta: { mono: true },
+			cell: ({ row: { original } }) => duration(original.deployment.started_at, original.deployment.finished_at),
+		}),
 		cell.accessor(({ deployment }) => deployment.created_at, {
-			id: 'when',
-			header: 'When',
+			id: 'created',
+			header: 'Created',
 			cell: ({ row }) => since(row.original.deployment.created_at),
 		}),
 	]
