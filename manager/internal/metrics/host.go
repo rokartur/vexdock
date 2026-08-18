@@ -1,5 +1,6 @@
 // Package metrics reports host-level CPU, memory and disk usage for the
-// dashboard. No time series is stored: the panel reads live values.
+// dashboard, and samples it into the database on a tick so the panel can draw
+// history instead of only what arrived while the page was open.
 package metrics
 
 // Host is the snapshot rendered on the dashboard.

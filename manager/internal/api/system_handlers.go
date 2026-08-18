@@ -118,7 +118,53 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleSystemStats streams host CPU/RAM/disk over SSE.
+// metricsPoints is how many buckets a metrics window is reduced to. A chart is
+// a few hundred pixels wide, so anything denser is transferred for nothing.
+const metricsPoints = 240
+
+// statsInterval is how often a live stats stream pushes. Usage numbers are read
+// at a glance, and a faster stream only spends CPU on both ends.
+const statsInterval = time.Minute
+
+// metricsWindows are the ranges the panel may ask for, capped at the retention
+// period so a request cannot ask for data that was pruned.
+var metricsWindows = map[string]time.Duration{
+	"30m": 30 * time.Minute,
+	"1h":  time.Hour,
+	"6h":  6 * time.Hour,
+	"24h": 24 * time.Hour,
+	"7d":  7 * 24 * time.Hour,
+}
+
+// metricsWindow reads ?window= and returns the start of the range plus the
+// bucket size in seconds that reduces it to metricsPoints.
+func metricsWindow(r *http.Request) (time.Time, int64) {
+	window, ok := metricsWindows[r.URL.Query().Get("window")]
+	if !ok {
+		window = 30 * time.Minute
+	}
+	bucket := int64(window.Seconds()) / metricsPoints
+	if bucket < int64(metrics.Interval.Seconds()) {
+		bucket = int64(metrics.Interval.Seconds())
+	}
+	return time.Now().Add(-window), bucket
+}
+
+// handleSystemMetrics returns recorded host usage for the requested window,
+// which seeds the dashboard charts before live samples start arriving.
+func (s *Server) handleSystemMetrics(w http.ResponseWriter, r *http.Request) {
+	since, bucket := metricsWindow(r)
+	points, err := s.db.HostMetrics(r.Context(), since, bucket)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, points)
+}
+
+// handleSystemStats streams host CPU/RAM/disk over SSE. The sampler records a
+// point every metrics.Interval, so this only has to keep the panel's current
+// reading fresh, not draw the chart.
 func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
 	sse, err := newSSE(w)
 	if err != nil {

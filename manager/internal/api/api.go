@@ -105,6 +105,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/services/{id}/restart", s.protected(s.handleServiceAction))
 	mux.Handle("GET /api/services/{id}/logs", s.protected(s.handleServiceLogs))
 	mux.Handle("GET /api/services/{id}/stats", s.protected(s.handleServiceStats))
+	mux.Handle("GET /api/services/{id}/metrics", s.protected(s.handleServiceMetrics))
 	mux.Handle("GET /api/services/{id}/terminal", s.protected(s.handleTerminal))
 
 	mux.Handle("GET /api/domains", s.protected(s.handleListDomains))
@@ -142,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /api/system/info", s.protected(s.handleSystemInfo))
 	mux.Handle("GET /api/system/stats", s.protected(s.handleSystemStats))
+	mux.Handle("GET /api/system/metrics", s.protected(s.handleSystemMetrics))
 	mux.Handle("GET /api/system/events", s.protected(s.handleSystemEvents))
 	mux.Handle("GET /api/system/settings", s.protected(s.handleGetSettings))
 	mux.Handle("PUT /api/system/settings", s.protected(s.handlePutSettings))

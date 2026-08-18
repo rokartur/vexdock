@@ -212,6 +212,18 @@ func scanLines(r io.Reader, stream string, out chan<- logPayload) {
 	}
 }
 
+// handleServiceMetrics returns recorded usage for one service. It reads by
+// service id, so history survives the redeploys that replace the container.
+func (s *Server) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
+	since, bucket := metricsWindow(r)
+	points, err := s.db.ServiceMetrics(r.Context(), r.PathValue("id"), since, bucket)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, points)
+}
+
 // handleServiceStats streams CPU/RAM/network/block-IO for one service.
 func (s *Server) handleServiceStats(w http.ResponseWriter, r *http.Request) {
 	containerID, err := s.resolveServiceContainer(r.Context(), r.PathValue("id"))

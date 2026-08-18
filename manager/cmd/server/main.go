@@ -30,6 +30,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/docker"
 	"github.com/vexdock/platform/manager/internal/domains"
 	"github.com/vexdock/platform/manager/internal/events"
+	"github.com/vexdock/platform/manager/internal/metrics"
 	"github.com/vexdock/platform/manager/internal/nginx"
 	"github.com/vexdock/platform/manager/internal/notify"
 	"github.com/vexdock/platform/manager/internal/projects"
@@ -132,6 +133,7 @@ func run() error {
 	go reconciler.Run(ctx)
 	go scheduler(ctx, db, domainService, backupService, log.With("component", "scheduler"))
 	go notify.New(db, bus, log.With("component", "notify")).Run(ctx)
+	go metrics.NewSampler(db, dockerClient, cfg.Root, log.With("component", "metrics")).Run(ctx)
 
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -193,6 +195,9 @@ func scheduler(ctx context.Context, db *database.DB, domainService *domains.Serv
 		domainService.RenewExpiring(ctx)
 		if err := db.PruneAudit(ctx, 5000); err != nil {
 			log.Warn("audit retention", "error", err)
+		}
+		if err := db.PruneMetrics(ctx, time.Now().Add(-metrics.Retention)); err != nil {
+			log.Warn("metrics retention", "error", err)
 		}
 		if err := backupService.Prune(10); err != nil {
 			log.Warn("backup retention", "error", err)

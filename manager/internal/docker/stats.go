@@ -1,6 +1,11 @@
 package docker
 
-import "github.com/docker/docker/api/types/container"
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/docker/docker/api/types/container"
+)
 
 // Sample is the flattened per-container metric the UI renders.
 type Sample struct {
@@ -44,6 +49,23 @@ func SampleFrom(s *container.StatsResponse) Sample {
 		}
 	}
 	return sample
+}
+
+// Sample reads one container once. The Engine waits for a second CPU cycle
+// before answering, which is what makes the CPU percentage meaningful; the
+// one-shot endpoint returns no previous cycle and would always report zero.
+func (c *Client) Sample(ctx context.Context, id string) (Sample, error) {
+	stats, err := c.Stats(ctx, id, false)
+	if err != nil {
+		return Sample{}, err
+	}
+	defer stats.Body.Close()
+
+	var frame container.StatsResponse
+	if err := json.NewDecoder(stats.Body).Decode(&frame); err != nil {
+		return Sample{}, err
+	}
+	return SampleFrom(&frame), nil
 }
 
 // memoryUsage subtracts the page cache the way `docker stats` does, so the

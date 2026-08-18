@@ -67,6 +67,7 @@ var apiRoutes = []route{
 	{"post", "/api/services/{id}/restart", "Restart a service", "services", false},
 	{"get", "/api/services/{id}/logs", "Stream logs (SSE)", "services", false},
 	{"get", "/api/services/{id}/stats", "Stream CPU/RAM stats (SSE)", "services", false},
+	{"get", "/api/services/{id}/metrics", "Recorded usage history (?window=30m|1h|6h|24h|7d)", "services", false},
 	{"get", "/api/services/{id}/terminal", "Interactive terminal (WebSocket)", "services", false},
 
 	{"get", "/api/domains", "List all domains", "domains", false},
@@ -104,6 +105,7 @@ var apiRoutes = []route{
 
 	{"get", "/api/system/info", "Dashboard summary", "system", false},
 	{"get", "/api/system/stats", "Stream host CPU/RAM/disk (SSE)", "system", false},
+	{"get", "/api/system/metrics", "Recorded host history (?window=30m|1h|6h|24h|7d)", "system", false},
 	{"get", "/api/system/events", "Stream platform events (SSE)", "system", false},
 	{"get", "/api/system/settings", "Read platform settings", "system", false},
 	{"put", "/api/system/settings", "Update platform settings", "system", false},
