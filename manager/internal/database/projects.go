@@ -4,17 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 )
 
 const projectColumns = `id, name, slug, source_type, repository_url, branch, compose_path, compose_project_name,
-	auto_deploy, webhook_token, git_credential_kind, git_credential_enc, created_at, updated_at`
+	auto_deploy, webhook_token, git_credential_kind, git_credential_enc, created_at, updated_at, tags`
 
 func (db *DB) CreateProject(ctx context.Context, p *Project) error {
 	p.CreatedAt, p.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.ID, p.Name, p.Slug, p.SourceType, p.RepositoryURL, p.Branch, p.ComposePath, p.ComposeProjectName,
-		boolToInt(p.AutoDeploy), p.WebhookToken, p.GitCredentialKind, p.GitCredentialEnc, p.CreatedAt, p.UpdatedAt)
+		boolToInt(p.AutoDeploy), p.WebhookToken, p.GitCredentialKind, p.GitCredentialEnc, p.CreatedAt, p.UpdatedAt,
+		strings.Join(p.Tags, ","))
 	return err
 }
 
@@ -22,9 +24,9 @@ func (db *DB) UpdateProject(ctx context.Context, p *Project) error {
 	p.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
 		`UPDATE projects SET name=?, slug=?, source_type=?, repository_url=?, branch=?, compose_path=?,
-		 auto_deploy=?, git_credential_kind=?, git_credential_enc=?, updated_at=? WHERE id=?`,
+		 auto_deploy=?, git_credential_kind=?, git_credential_enc=?, updated_at=?, tags=? WHERE id=?`,
 		p.Name, p.Slug, p.SourceType, p.RepositoryURL, p.Branch, p.ComposePath,
-		boolToInt(p.AutoDeploy), p.GitCredentialKind, p.GitCredentialEnc, p.UpdatedAt, p.ID)
+		boolToInt(p.AutoDeploy), p.GitCredentialKind, p.GitCredentialEnc, p.UpdatedAt, strings.Join(p.Tags, ","), p.ID)
 	return err
 }
 
@@ -66,9 +68,10 @@ type scanner interface{ Scan(dest ...any) error }
 func scanProject(row scanner) (*Project, error) {
 	var p Project
 	var autoDeploy int
+	var tags string
 	err := row.Scan(&p.ID, &p.Name, &p.Slug, &p.SourceType, &p.RepositoryURL, &p.Branch, &p.ComposePath,
 		&p.ComposeProjectName, &autoDeploy, &p.WebhookToken, &p.GitCredentialKind, &p.GitCredentialEnc,
-		&p.CreatedAt, &p.UpdatedAt)
+		&p.CreatedAt, &p.UpdatedAt, &tags)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -76,6 +79,10 @@ func scanProject(row scanner) (*Project, error) {
 		return nil, err
 	}
 	p.AutoDeploy = autoDeploy != 0
+	p.Tags = []string{}
+	if tags != "" {
+		p.Tags = strings.Split(tags, ",")
+	}
 	return &p, nil
 }
 

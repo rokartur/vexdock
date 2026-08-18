@@ -81,10 +81,11 @@ type createProjectRequest struct {
 	ComposePath    string `json:"compose_path"`
 	ComposeContent string `json:"compose_content"`
 	// Template seeds the compose content from the built-in catalog.
-	Template         string `json:"template"`
-	AutoDeploy       bool   `json:"auto_deploy"`
-	CredentialKind   string `json:"credential_kind"`
-	CredentialSecret string `json:"credential_secret"`
+	Template         string   `json:"template"`
+	AutoDeploy       bool     `json:"auto_deploy"`
+	Tags             []string `json:"tags"`
+	CredentialKind   string   `json:"credential_kind"`
+	CredentialSecret string   `json:"credential_secret"`
 }
 
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +111,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		ComposePath:      req.ComposePath,
 		ComposeContent:   req.ComposeContent,
 		AutoDeploy:       req.AutoDeploy,
+		Tags:             req.Tags,
 		CredentialKind:   req.CredentialKind,
 		CredentialSecret: req.CredentialSecret,
 	})
@@ -144,13 +146,15 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name             *string `json:"name"`
-		Branch           *string `json:"branch"`
-		ComposePath      *string `json:"compose_path"`
-		RepositoryURL    *string `json:"repository_url"`
-		AutoDeploy       *bool   `json:"auto_deploy"`
-		CredentialKind   *string `json:"credential_kind"`
-		CredentialSecret *string `json:"credential_secret"`
+		Name             *string   `json:"name"`
+		SourceType       *string   `json:"source_type"`
+		Branch           *string   `json:"branch"`
+		ComposePath      *string   `json:"compose_path"`
+		RepositoryURL    *string   `json:"repository_url"`
+		AutoDeploy       *bool     `json:"auto_deploy"`
+		Tags             *[]string `json:"tags"`
+		CredentialKind   *string   `json:"credential_kind"`
+		CredentialSecret *string   `json:"credential_secret"`
 		// WebhookSecret enables HMAC verification of incoming webhooks.
 		// An empty string turns verification off again.
 		WebhookSecret *string `json:"webhook_secret"`
@@ -159,9 +163,13 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
+	previousSource := project.SourceType
 	if req.Name != nil {
 		project.Name = *req.Name
 		project.Slug = projects.Slugify(*req.Name)
+	}
+	if req.SourceType != nil {
+		project.SourceType = *req.SourceType
 	}
 	if req.Branch != nil {
 		project.Branch = *req.Branch
@@ -172,12 +180,23 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	if req.RepositoryURL != nil {
 		project.RepositoryURL = *req.RepositoryURL
 	}
+	if req.Tags != nil {
+		project.Tags = *req.Tags
+	}
 	if req.AutoDeploy != nil {
 		project.AutoDeploy = *req.AutoDeploy
 	}
 	if err := s.projects.Validate(project); err != nil {
 		badRequest(w, err)
 		return
+	}
+	// Only once the new source validates, so a rejected switch leaves the
+	// current checkout untouched.
+	if project.SourceType != previousSource {
+		if err := s.projects.ResetCheckout(project); err != nil {
+			serverError(w, err)
+			return
+		}
 	}
 	if req.WebhookSecret != nil {
 		// Trimming makes a whitespace-only value mean "turn verification off",

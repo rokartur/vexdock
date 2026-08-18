@@ -39,8 +39,39 @@ type CreateInput struct {
 	// user pasted, written into the project's repository directory.
 	ComposeContent   string
 	AutoDeploy       bool
+	Tags             []string
 	CredentialKind   string
 	CredentialSecret string
+}
+
+// MaxTags caps how many labels one project can carry; the list is stored in a
+// single column and displayed inline, so a long tail helps nobody.
+const MaxTags = 20
+
+// StarterCompose is what a project created from nothing but a name contains
+// until its source is configured. It is deliberately not deployable.
+const StarterCompose = "# Add your services here, or switch this project to a\n# git repository in Settings.\nservices: {}\n"
+
+// NormalizeTags slugifies free-form labels, which keeps them comma-free for
+// storage, makes them compare case-insensitively and drops duplicates.
+func NormalizeTags(tags []string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, raw := range tags {
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		tag := Slugify(raw)
+		if seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		out = append(out, tag)
+		if len(out) == MaxTags {
+			break
+		}
+	}
+	return out
 }
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
@@ -69,6 +100,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 		return nil, err
 	}
 
+	if in.SourceType == "" {
+		in.SourceType = database.SourceCompose
+	}
+
 	p := &database.Project{
 		ID:                database.NewID(),
 		Name:              name,
@@ -77,6 +112,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 		Branch:            "main",
 		ComposePath:       "compose.yml",
 		AutoDeploy:        in.AutoDeploy,
+		Tags:              in.Tags,
 		WebhookToken:      security.RandomToken(24),
 		GitCredentialKind: database.GitCredentialNone,
 	}
@@ -96,7 +132,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 		}
 	case database.SourceCompose:
 		if strings.TrimSpace(in.ComposeContent) == "" {
-			return nil, fmt.Errorf("compose content is required")
+			in.ComposeContent = StarterCompose
 		}
 	default:
 		return nil, fmt.Errorf("unknown source type %q", in.SourceType)
@@ -132,6 +168,7 @@ func ComposeProjectName(id string) string { return "p_" + strings.ToLower(id) }
 // update run through it, so a compose path can never escape the project
 // directory and a repository URL can never use a dangerous git transport.
 func (s *Service) Validate(p *database.Project) error {
+	p.Tags = NormalizeTags(p.Tags)
 	p.Name = strings.TrimSpace(p.Name)
 	if p.Name == "" {
 		return fmt.Errorf("project name is required")
@@ -166,6 +203,25 @@ func (s *Service) Validate(p *database.Project) error {
 	case database.SourceCompose:
 	default:
 		return fmt.Errorf("unknown source type %q", p.SourceType)
+	}
+	return nil
+}
+
+// ResetCheckout empties a project's checkout and seeds the starter file when
+// the project is compose. It runs when the source type changes: git clone
+// refuses a directory that already holds files, and a leftover checkout would
+// shadow a hand-written compose file. Everything under that directory is
+// reproducible from the source, so nothing unrecoverable is thrown away.
+func (s *Service) ResetCheckout(p *database.Project) error {
+	dir := s.repositoryDir(p.ID)
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	if p.SourceType == database.SourceCompose {
+		return s.WriteComposeFile(p, StarterCompose)
 	}
 	return nil
 }

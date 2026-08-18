@@ -67,6 +67,8 @@ export type Project = {
 	compose_path: string
 	compose_project_name: string
 	auto_deploy: boolean
+	/** Free-form labels, slugified by the manager. */
+	tags: string[]
 	git_credential_kind: CredentialKind
 	created_at: string
 	updated_at: string
@@ -371,6 +373,7 @@ export const api = {
 		compose_content?: string
 		template?: string
 		auto_deploy?: boolean
+		tags?: string[]
 		credential_kind?: CredentialKind
 		credential_secret?: string
 	}) => request<Project>('/api/projects', { method: 'POST', body }),
@@ -378,10 +381,13 @@ export const api = {
 		id: string,
 		body: Partial<{
 			name: string
+			/** Switching this empties the project's checkout. */
+			source_type: SourceType
 			branch: string
 			compose_path: string
 			repository_url: string
 			auto_deploy: boolean
+			tags: string[]
 			credential_kind: CredentialKind
 			credential_secret: string
 			webhook_secret: string

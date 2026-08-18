@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, Check, ErrorText, Field, Page, Refresh, Section, Status } from '../components/primitives'
-import { api, type Project, type SourceType } from '../lib/api'
+import { Button, ErrorText, Field, Page, Refresh, Section, Status } from '../components/primitives'
+import { api, type Project } from '../lib/api'
 import { since } from '../lib/format'
 
 const projectTableColumns: Columns<Project> = (() => {
@@ -17,6 +18,11 @@ const projectTableColumns: Columns<Project> = (() => {
 					{row.original.name}
 				</Link>
 			),
+		}),
+		cell.accessor(project => tagsOf(project).join(' '), {
+			id: 'tags',
+			header: 'Tags',
+			cell: ({ row }) => <span className='text-muted-foreground'>{tagsOf(row.original).join(' ') || '-'}</span>,
 		}),
 		cell.accessor(project => (project.source_type === 'git' ? shortRepo(project.repository_url) : 'compose'), {
 			id: 'source',
@@ -80,17 +86,24 @@ function ProjectsPage() {
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects, refetchInterval: 10_000 })
 
 	const data = projects.data ?? []
+	const knownTags = [...new Set(data.flatMap(tagsOf))]
 
 	return (
 		<Page
-			title='Projects'
 			actions={
-				<Button variant='primary' onClick={() => setCreating(open => !open)}>
-					{creating ? 'Cancel' : 'New project'}
+				<Button variant='primary' onClick={() => setCreating(true)}>
+					New project
 				</Button>
 			}
 		>
-			{creating ? <NewProjectWizard onDone={() => setCreating(false)} /> : null}
+			<Dialog open={creating} onOpenChange={setCreating}>
+				<DialogContent className='sm:max-w-lg'>
+					<DialogHeader>
+						<DialogTitle>New project</DialogTitle>
+					</DialogHeader>
+					<NewProjectForm knownTags={knownTags} onDone={() => setCreating(false)} />
+				</DialogContent>
+			</Dialog>
 
 			<Section
 				title='All projects'
@@ -102,7 +115,7 @@ function ProjectsPage() {
 					columns={projectTableColumns}
 					loading={projects.isLoading}
 					getRowId={project => project.id}
-					empty='No projects yet. Create one from a Git repository, a compose file or a template.'
+					empty='No projects yet. Create one, then point it at a repository or a compose file in its settings.'
 				/>
 			</Section>
 		</Page>
@@ -113,41 +126,24 @@ function shortRepo(url: string): string {
 	return url.replace(/^https?:\/\//u, '').replace(/\.git$/u, '')
 }
 
-/** The New Project wizard from the plan: source, repository, compose, deploy. */
-function NewProjectWizard({ onDone }: { onDone: () => void }) {
+/** Managers older than the tags column answer without the field. */
+function tagsOf(project: Project): string[] {
+	return project.tags ?? []
+}
+
+/**
+ * A project starts as nothing but a name and its labels. The source, git or a
+ * compose file, is configured on the project's settings page afterwards.
+ */
+function NewProjectForm({ knownTags, onDone }: { knownTags: string[]; onDone: () => void }) {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates, staleTime: Infinity })
 
-	const [source, setSource] = useState<SourceType | 'template'>('git')
 	const [name, setName] = useState('')
-	const [repositoryUrl, setRepositoryUrl] = useState('')
-	const [branch, setBranch] = useState('main')
-	const [composePath, setComposePath] = useState('compose.yml')
-	const [composeContent, setComposeContent] = useState('services:\n  web:\n    image: nginx\n')
-	const [template, setTemplate] = useState('')
-	const [autoDeploy, setAutoDeploy] = useState(true)
-	const [credentialKind, setCredentialKind] = useState<'none' | 'token' | 'ssh_key'>('none')
-	const [credentialSecret, setCredentialSecret] = useState('')
-	const [deployNow, setDeployNow] = useState(true)
+	const [tags, setTags] = useState<string[]>([])
 
 	const create = useMutation({
-		mutationFn: async () => {
-			const project = await api.createProject({
-				name,
-				source_type: source === 'template' ? 'compose' : source,
-				repository_url: source === 'git' ? repositoryUrl : undefined,
-				branch: source === 'git' ? branch : undefined,
-				compose_path: source === 'git' ? composePath : undefined,
-				compose_content: source === 'compose' ? composeContent : undefined,
-				template: source === 'template' ? template : undefined,
-				auto_deploy: source === 'git' ? autoDeploy : false,
-				credential_kind: source === 'git' ? credentialKind : 'none',
-				credential_secret: source === 'git' ? credentialSecret : undefined,
-			})
-			if (deployNow) await api.deploy(project.id)
-			return project
-		},
+		mutationFn: () => api.createProject({ name, source_type: 'compose', tags }),
 		onSuccess: async project => {
 			await queryClient.invalidateQueries({ queryKey: ['projects'] })
 			onDone()
@@ -157,105 +153,19 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
 
 	return (
 		<form
-			className='mb-8 border border-border p-4'
 			onSubmit={event => {
 				event.preventDefault()
 				create.mutate()
 			}}
 		>
-			<div className='mb-4 flex gap-4'>
-				{(['git', 'compose', 'template'] as const).map(option => (
-					<label key={option} className='flex items-center gap-1.5 text-body'>
-						<input
-							type='radio'
-							name='source'
-							className='!w-auto'
-							checked={source === option}
-							onChange={() => setSource(option)}
-						/>
-						{option === 'git' ? 'Git repository' : option === 'compose' ? 'Docker Compose' : 'Template'}
-					</label>
-				))}
-			</div>
-
 			<div className='grid gap-x-6 md:grid-cols-2'>
 				<Field label='Project name'>
 					<input required value={name} onChange={event => setName(event.target.value)} placeholder='my-app' />
 				</Field>
 
-				{source === 'git' ? (
-					<>
-						<Field label='Repository URL'>
-							<input
-								required
-								value={repositoryUrl}
-								onChange={event => setRepositoryUrl(event.target.value)}
-								placeholder='https://github.com/user/app'
-							/>
-						</Field>
-						<Field label='Branch'>
-							<input required value={branch} onChange={event => setBranch(event.target.value)} />
-						</Field>
-						<Field label='Compose file' hint='Path inside the repository.'>
-							<input
-								required
-								value={composePath}
-								onChange={event => setComposePath(event.target.value)}
-							/>
-						</Field>
-						<Field label='Private repository'>
-							<select
-								value={credentialKind}
-								onChange={event => setCredentialKind(event.target.value as typeof credentialKind)}
-							>
-								<option value='none'>Public</option>
-								<option value='token'>Access token</option>
-								<option value='ssh_key'>SSH private key</option>
-							</select>
-						</Field>
-						{credentialKind === 'none' ? null : (
-							<Field label={credentialKind === 'token' ? 'Token' : 'Private key'}>
-								<textarea
-									rows={credentialKind === 'token' ? 1 : 5}
-									value={credentialSecret}
-									onChange={event => setCredentialSecret(event.target.value)}
-									className='font-mono text-body'
-								/>
-							</Field>
-						)}
-					</>
-				) : null}
-
-				{source === 'template' ? (
-					<Field label='Template'>
-						<select value={template} onChange={event => setTemplate(event.target.value)} required>
-							<option value=''>Select a service…</option>
-							{templates.data?.map(item => (
-								<option key={item.slug} value={item.slug}>
-									{item.name}
-								</option>
-							))}
-						</select>
-					</Field>
-				) : null}
-			</div>
-
-			{source === 'compose' ? (
-				<Field label='compose.yml'>
-					<textarea
-						rows={10}
-						value={composeContent}
-						onChange={event => setComposeContent(event.target.value)}
-						className='font-mono text-body'
-					/>
+				<Field label='Tags (optional)' hint='Enter adds one, click a tag to drop it.'>
+					<TagInput value={tags} onChange={setTags} suggestions={knownTags} />
 				</Field>
-			) : null}
-
-			<div className='mb-3 flex flex-wrap gap-4'>
-				{source === 'git' ? (
-					<Check label='Auto deploy on push' checked={autoDeploy} onChange={setAutoDeploy} />
-				) : null}
-				<Check label='Deploy immediately' checked={deployNow} onChange={setDeployNow} />
 			</div>
 
 			<ErrorText error={create.error} />
@@ -268,5 +178,72 @@ function NewProjectWizard({ onDone }: { onDone: () => void }) {
 				</Button>
 			</div>
 		</form>
+	)
+}
+
+/**
+ * Tags are plain labels: typing one and pressing Enter creates it, and tags
+ * already used by other projects are offered as native autocomplete.
+ */
+function TagInput({
+	value,
+	onChange,
+	suggestions,
+}: {
+	value: string[]
+	onChange: (tags: string[]) => void
+	suggestions: string[]
+}) {
+	const [draft, setDraft] = useState('')
+
+	const add = (raw: string) => {
+		const tag = raw
+			.trim()
+			.toLowerCase()
+			.replaceAll(/[^a-z0-9]+/gu, '-')
+			.replaceAll(/^-|-$/gu, '')
+		if (tag && !value.includes(tag)) onChange([...value, tag])
+		setDraft('')
+	}
+
+	return (
+		<>
+			<input
+				list='known-project-tags'
+				value={draft}
+				placeholder='staging'
+				onChange={event => setDraft(event.target.value)}
+				// A blur commits the draft so a typed tag is never lost on submit.
+				onBlur={() => add(draft)}
+				onKeyDown={event => {
+					if (event.key === 'Enter' || event.key === ',') {
+						event.preventDefault()
+						add(draft)
+					}
+					if (event.key === 'Backspace' && draft === '') onChange(value.slice(0, -1))
+				}}
+			/>
+			<datalist id='known-project-tags'>
+				{suggestions.map(tag => (
+					<option key={tag} value={tag}>
+						{tag}
+					</option>
+				))}
+			</datalist>
+			{value.length > 0 ? (
+				<div className='mt-2 flex flex-wrap gap-3 text-body'>
+					{value.map(tag => (
+						<button
+							key={tag}
+							type='button'
+							className='text-muted-foreground hover:text-foreground'
+							onClick={() => onChange(value.filter(other => other !== tag))}
+						>
+							{tag} ×
+						</button>
+					))}
+				</div>
+			) : null}
+		</>
 	)
 }

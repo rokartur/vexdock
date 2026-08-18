@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Button, Check, ErrorText, Field, Section } from '../components/primitives'
-import { api, type CredentialKind } from '../lib/api'
+import { api, type CredentialKind, type SourceType } from '../lib/api'
 
 export const Route = createFileRoute('/projects/$projectId/settings')({ component: ProjectSettings })
 
@@ -13,6 +13,7 @@ function ProjectSettings() {
 	const compose = useQuery({ queryKey: ['compose', projectId], queryFn: () => api.compose(projectId) })
 
 	const [name, setName] = useState('')
+	const [sourceType, setSourceType] = useState<SourceType>('compose')
 	const [branch, setBranch] = useState('')
 	const [composePath, setComposePath] = useState('')
 	const [repositoryUrl, setRepositoryUrl] = useState('')
@@ -25,6 +26,7 @@ function ProjectSettings() {
 	useEffect(() => {
 		if (!project.data) return
 		setName(project.data.name)
+		setSourceType(project.data.source_type)
 		setBranch(project.data.branch)
 		setComposePath(project.data.compose_path)
 		setRepositoryUrl(project.data.repository_url)
@@ -40,6 +42,7 @@ function ProjectSettings() {
 		mutationFn: () =>
 			api.updateProject(projectId, {
 				name,
+				source_type: sourceType,
 				branch,
 				compose_path: composePath,
 				repository_url: repositoryUrl,
@@ -54,6 +57,9 @@ function ProjectSettings() {
 			setCredentialSecret('')
 			setWebhookSecret('')
 			void queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+			// A changed source starts from an empty checkout, so the editor below
+			// must not keep showing the previous file.
+			void queryClient.invalidateQueries({ queryKey: ['compose', projectId] })
 		},
 	})
 
@@ -62,14 +68,27 @@ function ProjectSettings() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['compose', projectId] }),
 	})
 
-	const isGit = project.data?.source_type === 'git'
+	const isGit = sourceType === 'git'
 
 	return (
 		<>
-			<Section title='Project'>
+			<Section title='Project' onSave={() => save.mutate()}>
 				<div className='grid gap-x-6 border-t border-border pt-3 md:grid-cols-2'>
 					<Field label='Name'>
 						<input value={name} onChange={event => setName(event.target.value)} />
+					</Field>
+					<Field
+						label='Source'
+						hint={
+							sourceType === project.data?.source_type
+								? undefined
+								: 'Saving this empties the current checkout.'
+						}
+					>
+						<select value={sourceType} onChange={event => setSourceType(event.target.value as SourceType)}>
+							<option value='compose'>Compose file</option>
+							<option value='git'>Git repository</option>
+						</select>
 					</Field>
 					{isGit ? (
 						<>
@@ -123,7 +142,11 @@ function ProjectSettings() {
 			</Section>
 
 			{isGit ? (
-				<Section title='Webhook' description='point your git provider here to auto deploy'>
+				<Section
+					title='Webhook'
+					description='point your git provider here to auto deploy'
+					onSave={() => save.mutate()}
+				>
 					<code className='block border-t border-border pt-2 font-mono text-body break-all text-foreground'>
 						{project.data?.webhook_url}
 					</code>
@@ -150,6 +173,7 @@ function ProjectSettings() {
 			) : (
 				<Section
 					title='Compose file'
+					onSave={() => saveCompose.mutate()}
 					actions={
 						<Button variant='primary' onClick={() => saveCompose.mutate()} disabled={saveCompose.isPending}>
 							{saveCompose.isPending ? 'Saving…' : 'Save compose'}

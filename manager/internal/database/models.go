@@ -38,20 +38,21 @@ const (
 )
 
 type Project struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	Slug               string `json:"slug"`
-	SourceType         string `json:"source_type"`
-	RepositoryURL      string `json:"repository_url"`
-	Branch             string `json:"branch"`
-	ComposePath        string `json:"compose_path"`
-	ComposeProjectName string `json:"compose_project_name"`
-	AutoDeploy         bool   `json:"auto_deploy"`
-	WebhookToken       string `json:"-"`
-	GitCredentialKind  string `json:"git_credential_kind"`
-	GitCredentialEnc   string `json:"-"`
-	CreatedAt          string `json:"created_at"`
-	UpdatedAt          string `json:"updated_at"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Slug               string   `json:"slug"`
+	SourceType         string   `json:"source_type"`
+	RepositoryURL      string   `json:"repository_url"`
+	Branch             string   `json:"branch"`
+	ComposePath        string   `json:"compose_path"`
+	ComposeProjectName string   `json:"compose_project_name"`
+	AutoDeploy         bool     `json:"auto_deploy"`
+	Tags               []string `json:"tags"`
+	WebhookToken       string   `json:"-"`
+	GitCredentialKind  string   `json:"git_credential_kind"`
+	GitCredentialEnc   string   `json:"-"`
+	CreatedAt          string   `json:"created_at"`
+	UpdatedAt          string   `json:"updated_at"`
 }
 
 // Git credential kinds accepted for private repositories.

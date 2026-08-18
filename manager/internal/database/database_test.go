@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -174,5 +175,33 @@ func TestDeletingAProjectCascades(t *testing.T) {
 	}
 	if len(secrets) != 0 {
 		t.Fatal("secrets survived the project")
+	}
+}
+
+// Tags live in one comma-separated column, so the join on write and the split
+// on read have to agree - and the column has to stay in step with the scan.
+func TestProjectTagsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db := open(t)
+	p := newProject(t, db, "tagged")
+	p.Tags = []string{"prod", "client-x"}
+	if err := db.UpdateProject(ctx, p); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	stored, err := db.ProjectByID(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if strings.Join(stored.Tags, "|") != "prod|client-x" {
+		t.Fatalf("got %v, want [prod client-x]", stored.Tags)
+	}
+
+	untagged, err := db.ProjectByID(ctx, newProject(t, db, "plain").ID)
+	if err != nil {
+		t.Fatalf("read untagged: %v", err)
+	}
+	if len(untagged.Tags) != 0 {
+		t.Fatalf("got %v, want no tags", untagged.Tags)
 	}
 }
