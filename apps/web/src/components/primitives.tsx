@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
+import { IconRefresh } from '@tabler/icons-react'
 import { Button as ShadcnButton } from '@/components/ui/button'
-import { Empty as ShadcnEmpty, EmptyDescription, EmptyHeader } from '@/components/ui/empty'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Field as ShadcnField, FieldDescription, FieldLabel } from '@/components/ui/field'
-import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/utils/cn'
 
 /**
@@ -82,6 +82,22 @@ export function Status({ value }: { value: string }) {
 	)
 }
 
+/** Re-fetches a section's data. Lives in the section header, next to its title. */
+export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean }) {
+	return (
+		<button
+			type='button'
+			aria-label='Refresh'
+			title='Refresh'
+			onClick={onClick}
+			disabled={busy}
+			className='flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
+		>
+			<IconRefresh className='size-4' />
+		</button>
+	)
+}
+
 /**
  * Fills the shell's content panel: a fixed title bar with optional actions,
  * then the scrolling body. Every page is a Page; nothing else scrolls.
@@ -106,10 +122,10 @@ export function Page({
 					{breadcrumb ? (
 						<>
 							{breadcrumb}
-							<span className='text-zinc-700'>/</span>
+							<span className='text-muted-foreground'>/</span>
 						</>
 					) : null}
-					<h1 className='truncate text-[14px] font-medium text-zinc-100'>{title}</h1>
+					<h1 className='truncate text-title font-medium text-foreground'>{title}</h1>
 				</div>
 				{actions ? <div className='flex shrink-0 items-center gap-2'>{actions}</div> : null}
 			</header>
@@ -135,70 +151,13 @@ export function Section({
 		<section className='mb-8'>
 			<header className='mb-2 flex h-7 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-3'>
-					<h2 className='text-[14px] font-medium'>{title}</h2>
+					<h2 className='text-title font-medium'>{title}</h2>
 					{description ? <span className='text-xs text-muted-foreground'>{description}</span> : null}
 				</div>
 				{actions ? <div className='flex items-center gap-2'>{actions}</div> : null}
 			</header>
 			{children}
 		</section>
-	)
-}
-
-export function Table({ head, children }: { head: string[]; children: ReactNode }) {
-	return (
-		<div className='overflow-x-auto'>
-			<ShadcnTable>
-				<TableHeader>
-					<TableRow>
-						{head.map(label => (
-							<TableHead key={label} className='h-8 text-[12px] tracking-wide uppercase'>
-								{label}
-							</TableHead>
-						))}
-					</TableRow>
-				</TableHeader>
-				<TableBody>{children}</TableBody>
-			</ShadcnTable>
-		</div>
-	)
-}
-
-export function Row({ children }: { children: ReactNode }) {
-	return <TableRow>{children}</TableRow>
-}
-
-export function Cell({ children, mono, right }: { children: ReactNode; mono?: boolean; right?: boolean }) {
-	return (
-		<TableCell className={cn('py-1.5', mono && 'font-mono text-xs', right && 'text-right')}>{children}</TableCell>
-	)
-}
-
-export function Empty({ children }: { children: ReactNode }) {
-	return (
-		<ShadcnEmpty className='border-t py-8'>
-			<EmptyHeader>
-				<EmptyDescription>{children}</EmptyDescription>
-			</EmptyHeader>
-		</ShadcnEmpty>
-	)
-}
-
-/**
- * Static placeholder rows. shadcn's Skeleton pulses by default; the panel is
- * often left open on a second monitor, so the animation is switched off.
- */
-export function Skeleton({ rows = 3 }: { rows?: number }) {
-	return (
-		<div className='border-t'>
-			{Array.from({ length: rows }, (_, i) => (
-				<div key={i} className='flex h-8 items-center gap-3 border-b'>
-					<span className='h-2 w-32 bg-muted' />
-					<span className='h-2 w-20 bg-muted/60' />
-					<span className='h-2 w-16 bg-muted/60' />
-				</div>
-			))}
-		</div>
 	)
 }
 
@@ -212,12 +171,40 @@ export function ErrorText({ error }: { error: unknown }) {
 	)
 }
 
+/**
+ * The only checkbox shape in the app. Wrapping in a <label> is safe: base-ui's
+ * Checkbox renders a visually hidden native input, so clicking the text toggles it.
+ */
+export function Check({
+	label,
+	checked,
+	onChange,
+	disabled,
+	muted,
+	className,
+}: {
+	label: string
+	checked: boolean
+	onChange: (checked: boolean) => void
+	disabled?: boolean
+	muted?: boolean
+	/** Layout only (sizing, shrink). Colour and spacing stay with the primitive. */
+	className?: string
+}) {
+	return (
+		<label className={cn('flex items-center gap-1.5 text-body', muted && 'text-muted-foreground', className)}>
+			<Checkbox checked={checked} disabled={disabled} onCheckedChange={onChange} />
+			{label}
+		</label>
+	)
+}
+
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
 	return (
 		<ShadcnField className='mb-3 gap-1'>
-			<FieldLabel className='text-[12px] tracking-wide text-muted-foreground uppercase'>{label}</FieldLabel>
+			<FieldLabel className='text-label tracking-wide text-muted-foreground uppercase'>{label}</FieldLabel>
 			{children}
-			{hint ? <FieldDescription className='text-[12px]'>{hint}</FieldDescription> : null}
+			{hint ? <FieldDescription className='text-label'>{hint}</FieldDescription> : null}
 		</ShadcnField>
 	)
 }

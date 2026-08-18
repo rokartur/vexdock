@@ -112,7 +112,7 @@ export function NavigationSidebar({
 				<nav
 					className={cn(
 						'relative flex h-full w-full flex-col gap-4 bg-sidebar p-3 transition-all',
-						isHidden && 'mr-2 mb-2 h-[calc(100%-1rem)] rounded-xl border border-zinc-800 px-3.5',
+						isHidden && 'mr-2 mb-2 h-[calc(100%-1rem)] rounded-xl border border-border px-3.5',
 					)}
 				>
 					{children}
@@ -126,7 +126,7 @@ export function NavigationSidebar({
 							}}
 							className={cn(
 								'absolute top-0 -right-2 bottom-0 z-10 hidden w-4 cursor-col-resize border-0 bg-transparent p-0 after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:transition-colors md:block',
-								isResizing ? 'after:bg-zinc-500/50' : 'hover:after:bg-zinc-500/50',
+								isResizing ? 'after:bg-ring' : 'hover:after:bg-ring',
 							)}
 						/>
 					)}

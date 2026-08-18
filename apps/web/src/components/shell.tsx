@@ -72,14 +72,14 @@ const HIDDEN_KEY = 'navigation-leftBarIsHidden'
 const storedHidden = () => typeof localStorage !== 'undefined' && localStorage.getItem(HIDDEN_KEY) === 'true'
 
 const linkClass =
-	'group flex h-7.5 items-center gap-2.5 rounded-lg border border-transparent px-2 text-[14px] text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 data-[status=active]:border-zinc-800 data-[status=active]:bg-zinc-900 data-[status=active]:text-zinc-100'
+	'group flex h-7.5 items-center gap-2.5 rounded-lg border border-transparent px-2 text-title text-muted-foreground hover:bg-accent hover:text-foreground data-[status=active]:border-border data-[status=active]:bg-sidebar-accent data-[status=active]:text-foreground'
 
 function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?: boolean }) {
 	return (
 		<Link draggable={false} to={to} activeOptions={{ exact: exact ?? false }} className={linkClass}>
 			<Icon
 				stroke={1.5}
-				className='size-4 shrink-0 text-zinc-500 group-hover:text-zinc-300 group-data-[status=active]:text-zinc-100'
+				className='size-4 shrink-0 text-muted-foreground group-hover:text-foreground group-data-[status=active]:text-foreground'
 			/>
 			<span className='truncate'>{label}</span>
 			{dot ? <span className='ml-auto size-1.5 shrink-0 rounded-full bg-emerald-400' aria-hidden /> : null}
@@ -146,14 +146,16 @@ export function Shell({ children }: { children: ReactNode }) {
 				<div className='flex min-w-0 items-center gap-2'>
 					<div className='min-w-0 flex-1'>
 						<DropdownMenu>
-							<DropdownMenuTrigger className='flex h-7 max-w-full min-w-0 items-center gap-2 rounded-lg pr-2 pl-1 text-left hover:bg-zinc-800/50'>
+							<DropdownMenuTrigger className='flex h-7 max-w-full min-w-0 items-center gap-2 rounded-lg pr-2 pl-1 text-left hover:bg-accent'>
 								<Avatar className='size-5 rounded-md'>
-									<AvatarFallback className='rounded-md bg-zinc-600 text-[9px] font-normal text-white'>
+									<AvatarFallback className='rounded-md bg-secondary text-[10px] font-normal text-foreground'>
 										PL
 									</AvatarFallback>
 								</Avatar>
-								<span className='min-w-0 flex-1 truncate text-sm font-normal text-white'>platform</span>
-								<IconChevronDown className='size-3 shrink-0 text-zinc-400' />
+								<span className='min-w-0 flex-1 truncate text-sm font-normal text-foreground'>
+									platform
+								</span>
+								<IconChevronDown className='size-3 shrink-0 text-muted-foreground' />
 							</DropdownMenuTrigger>
 							<DropdownMenuContent side='bottom' align='start' sideOffset={8} className='w-64'>
 								<DropdownMenuItem render={<Link to='/system/settings' />}>Settings</DropdownMenuItem>
@@ -174,7 +176,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<button
 							type='button'
 							onClick={() => setPaletteOpen(true)}
-							className='flex size-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+							className='flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground'
 							aria-label='Search'
 						>
 							<IconSearch className='size-4' />
@@ -182,7 +184,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<button
 							type='button'
 							onClick={toggleHidden}
-							className='flex size-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+							className='flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground'
 							aria-label={isHidden ? 'Show sidebar' : 'Hide sidebar'}
 						>
 							<IconLayoutSidebar className='size-4' />
@@ -193,7 +195,7 @@ export function Shell({ children }: { children: ReactNode }) {
 				<div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
 					{groups.map(group => (
 						<div key={group.label} className='flex flex-col gap-1'>
-							<span className='px-2 text-[12px] text-zinc-500'>{group.label}</span>
+							<span className='px-2 text-label text-muted-foreground'>{group.label}</span>
 							<div className='flex flex-col gap-0.5'>
 								{group.items.map(item => (
 									<NavigationLink
@@ -207,30 +209,30 @@ export function Shell({ children }: { children: ReactNode }) {
 					))}
 				</div>
 
-				<div className='flex flex-col gap-1 border-t border-zinc-800/60 pt-2'>
+				<div className='flex flex-col gap-1 border-t border-sidebar-border pt-2'>
 					<Link
 						draggable={false}
 						to='/system/settings'
-						className='group flex h-10 items-center gap-2.5 rounded-lg px-2 text-left hover:bg-zinc-800/50'
+						className='group flex h-10 items-center gap-2.5 rounded-lg px-2 text-left hover:bg-accent'
 					>
 						<Avatar className='size-6'>
-							<AvatarFallback className='bg-zinc-600 text-[10px] font-normal text-white'>
+							<AvatarFallback className='bg-secondary text-[10px] font-normal text-foreground'>
 								{(email || '?').slice(0, 2).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>
 						<div className='min-w-0 flex-1'>
-							<div className='truncate text-[13px] font-medium text-zinc-200'>{name}</div>
-							<div className='truncate text-[12px] text-zinc-500'>{email}</div>
+							<div className='truncate text-body font-medium text-foreground'>{name}</div>
+							<div className='truncate text-label text-muted-foreground'>{email}</div>
 						</div>
-						<IconSettings className='size-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400' />
+						<IconSettings className='size-3.5 shrink-0 text-muted-foreground group-hover:text-muted-foreground' />
 					</Link>
 					<Link
 						to='/system/update'
 						className={cn(
-							'text-center font-mono text-[11px]',
+							'text-center font-mono text-meta',
 							updateAvailable
 								? 'text-emerald-400 hover:text-emerald-300'
-								: 'text-zinc-600 hover:text-zinc-400',
+								: 'text-muted-foreground hover:text-muted-foreground',
 						)}
 					>
 						{version.data?.current ?? 'dev'}
@@ -239,7 +241,7 @@ export function Shell({ children }: { children: ReactNode }) {
 				</div>
 			</NavigationSidebar>
 
-			<main className='m-2 ml-0 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-900 bg-background'>
+			<main className='m-2 ml-0 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background'>
 				{children}
 			</main>
 

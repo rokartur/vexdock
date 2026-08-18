@@ -14,11 +14,18 @@ export function Terminal({ url }: { url: string }) {
 		const host = hostRef.current
 		if (!host) return
 
+		// xterm paints on a canvas, so it needs literal colours: read them off the
+		// console tokens in styles.css instead of duplicating the palette here.
+		const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 		const term = new XTerm({
 			convertEol: true,
-			fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+			fontFamily: token('--font-mono'),
 			fontSize: 12,
-			theme: { background: '#050505', foreground: '#d4d4d4', cursor: '#ffffff' },
+			theme: {
+				background: token('--console'),
+				foreground: token('--console-foreground'),
+				cursor: token('--foreground'),
+			},
 		})
 		const fit = new FitAddon()
 		term.loadAddon(fit)
@@ -68,8 +75,8 @@ export function Terminal({ url }: { url: string }) {
 
 	return (
 		<div>
-			<div className='mb-2 text-[12px] text-[#8a8a8a]'>{status}</div>
-			<div ref={hostRef} className='terminal-host h-[60vh] border border-[#1f1f1f] bg-[#050505]' />
+			<div className='mb-2 text-label text-muted-foreground'>{status}</div>
+			<div ref={hostRef} className='terminal-host h-[60vh] border border-console-border bg-console' />
 		</div>
 	)
 }

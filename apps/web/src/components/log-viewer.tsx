@@ -45,22 +45,22 @@ export function LogViewer({ url }: { url: string }) {
 					value={filter}
 					placeholder='Search'
 					onChange={event => setFilter(event.target.value)}
-					className='!w-56 text-[13px]'
+					className='!w-56 text-body'
 				/>
 				<Button onClick={() => setPaused(value => !value)}>{paused ? 'Resume' : 'Pause'}</Button>
 				<Button onClick={() => setFollow(value => !value)}>{follow ? 'Unfollow' : 'Follow'}</Button>
 				<Button onClick={() => setLines([])}>Clear</Button>
 				<Button onClick={() => download(visible)}>Download</Button>
-				<span className='text-[12px] text-[#8a8a8a]'>
+				<span className='text-label text-muted-foreground'>
 					{connected ? 'streaming' : 'disconnected'} · {visible.length} lines
 				</span>
 			</div>
-			<div className='h-[60vh] overflow-auto border border-[#1f1f1f] bg-[#050505] p-2 font-mono text-[13px] leading-[1.4]'>
+			<div className='h-[60vh] overflow-auto border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground'>
 				{visible.length === 0 ? (
-					<p className='text-[#5a5a5a]'>Waiting for output…</p>
+					<p className='text-console-muted'>Waiting for output…</p>
 				) : (
 					visible.map((line, index) => (
-						<div key={index} className={line.stream === 'stderr' ? 'text-[#ff8a80]' : 'text-[#d4d4d4]'}>
+						<div key={index} className={line.stream === 'stderr' ? 'text-console-stderr' : undefined}>
 							{line.text}
 						</div>
 					))
