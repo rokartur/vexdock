@@ -34,7 +34,10 @@ export function useHistory<TSample extends Stamped>(sample: TSample | null, seed
 		const cutoff = Date.now() - WINDOW_MS
 		const liveStart = live.at(0)?.at ?? Number.POSITIVE_INFINITY
 		// A recorded bucket that the live stream already covers would draw twice.
-		return [...seed.filter(point => point.at >= cutoff && point.at < liveStart), ...live]
+		return [
+			...seed.filter(point => point.at >= cutoff && point.at < liveStart),
+			...live.filter(point => point.at >= cutoff),
+		]
 	}, [seed, live])
 }
 

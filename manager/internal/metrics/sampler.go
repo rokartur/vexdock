@@ -11,9 +11,10 @@ import (
 	"github.com/vexdock/platform/manager/internal/docker"
 )
 
-// Interval between readings. Ten seconds keeps a week of history at roughly
-// sixty thousand host rows, which SQLite does not notice.
-const Interval = 10 * time.Second
+// Interval between readings, and the resolution every chart is drawn at: the
+// API refuses to bucket finer than this. A minute keeps a week of history at
+// ten thousand host rows and matches how fast these numbers are read.
+const Interval = time.Minute
 
 // Retention is how far back readings are kept; the scheduler prunes the rest.
 const Retention = 7 * 24 * time.Hour
