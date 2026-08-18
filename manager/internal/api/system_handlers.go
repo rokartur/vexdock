@@ -15,6 +15,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/domains"
 	"github.com/vexdock/platform/manager/internal/events"
 	"github.com/vexdock/platform/manager/internal/metrics"
+	"github.com/vexdock/platform/manager/internal/notify"
 )
 
 // handleHealth is the unauthenticated liveness/readiness probe used by the
@@ -150,16 +151,18 @@ func (s *Server) handleSystemEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 type settingsPayload struct {
-	DashboardDomain string `json:"dashboard_domain"`
-	DashboardHTTPS  bool   `json:"dashboard_https"`
-	ACMEEmail       string `json:"acme_email"`
+	DashboardDomain  string `json:"dashboard_domain"`
+	DashboardHTTPS   bool   `json:"dashboard_https"`
+	ACMEEmail        string `json:"acme_email"`
+	NotifyWebhookURL string `json:"notify_webhook_url"`
 }
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, settingsPayload{
-		DashboardDomain: s.setting(r.Context(), domains.SettingDashboardDomain),
-		DashboardHTTPS:  s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
-		ACMEEmail:       s.cfg.ACMEEmail,
+		DashboardDomain:  s.setting(r.Context(), domains.SettingDashboardDomain),
+		DashboardHTTPS:   s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
+		ACMEEmail:        s.cfg.ACMEEmail,
+		NotifyWebhookURL: s.setting(r.Context(), notify.SettingWebhookURL),
 	})
 }
 
@@ -177,8 +180,16 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
+	if err := notify.ValidateURL(req.NotifyWebhookURL); err != nil {
+		badRequest(w, err)
+		return
+	}
 	if err := s.domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
 		badRequest(w, err)
+		return
+	}
+	if err := s.db.SetSetting(r.Context(), notify.SettingWebhookURL, req.NotifyWebhookURL); err != nil {
+		serverError(w, err)
 		return
 	}
 	s.handleGetSettings(w, r)

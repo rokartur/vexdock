@@ -238,6 +238,7 @@ export type Settings = {
 	dashboard_domain: string
 	dashboard_https: boolean
 	acme_email: string
+	notify_webhook_url: string
 }
 
 export type AuditEntry = {

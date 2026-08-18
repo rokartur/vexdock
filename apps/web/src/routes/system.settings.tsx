@@ -11,11 +11,25 @@ function SettingsPage() {
 	return (
 		<Page title='Settings'>
 			<DashboardDomain />
+			<Notifications />
 			<Registries />
 			<ApiTokens />
 		</Page>
 	)
 }
+
+// Settings are written as one object, so each section replays the values it
+// does not own. cloudflare_token_set is read-only and never sent back.
+function toUpdate(settings: Settings): SettingsUpdate {
+	return {
+		dashboard_domain: settings.dashboard_domain,
+		dashboard_https: settings.dashboard_https,
+		acme_email: settings.acme_email,
+		notify_webhook_url: settings.notify_webhook_url,
+	}
+}
+
+const notLoaded = () => Promise.reject(new Error('settings not loaded yet'))
 
 /** Publishes the panel itself on a hostname through the same Nginx. */
 function DashboardDomain() {
@@ -32,11 +46,13 @@ function DashboardDomain() {
 
 	const save = useMutation({
 		mutationFn: () =>
-			api.saveSettings({
-				dashboard_domain: domain,
-				dashboard_https: https,
-				acme_email: settings.data?.acme_email ?? '',
-			}),
+			settings.data
+				? api.saveSettings({
+						...toUpdate(settings.data),
+						dashboard_domain: domain,
+						dashboard_https: https,
+					})
+				: notLoaded(),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
 	})
 
@@ -65,6 +81,45 @@ function DashboardDomain() {
 			<ErrorText error={save.error} />
 			<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
 				{save.isPending ? 'Applying…' : 'Save'}
+			</Button>
+		</Section>
+	)
+}
+
+/** One outgoing webhook for finished deployments. */
+function Notifications() {
+	const queryClient = useQueryClient()
+	const settings = useQuery({ queryKey: ['settings'], queryFn: api.settings })
+	const [url, setUrl] = useState('')
+
+	useEffect(() => {
+		if (settings.data) setUrl(settings.data.notify_webhook_url)
+	}, [settings.data])
+
+	const save = useMutation({
+		mutationFn: () =>
+			settings.data ? api.saveSettings({ ...toUpdate(settings.data), notify_webhook_url: url }) : notLoaded(),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+	})
+
+	return (
+		<Section title='Deploy notifications' description='posted when a deployment succeeds or fails'>
+			<div className='border-t border-border pt-3'>
+				<Field
+					label='Webhook URL'
+					hint='Discord and Slack webhook URLs are detected automatically. Anything else receives the raw event as JSON. Leave empty to disable.'
+				>
+					<input
+						type='url'
+						value={url}
+						placeholder='https://discord.com/api/webhooks/…'
+						onChange={event => setUrl(event.target.value)}
+					/>
+				</Field>
+			</div>
+			<ErrorText error={save.error} />
+			<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
+				{save.isPending ? 'Saving…' : 'Save'}
 			</Button>
 		</Section>
 	)
