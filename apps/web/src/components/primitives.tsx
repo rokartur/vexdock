@@ -167,6 +167,38 @@ export function Page({
 }
 
 /**
+ * Sub-navigation for a Page's `toolbar`. A tab links to `base + suffix`; the
+ * empty suffix is the layout's index route and only matches the base itself.
+ */
+export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; label: string }[] }) {
+	const pathname = useRouterState({ select: state => state.location.pathname })
+
+	return (
+		<>
+			{tabs.map(tab => {
+				const to = base + tab.suffix
+				const active =
+					tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(to)
+				return (
+					<Link
+						key={tab.label}
+						to={to}
+						className={cn(
+							'-mb-px border-b px-0.5 pb-1.5 text-body',
+							active
+								? 'border-foreground text-foreground'
+								: 'border-transparent text-muted-foreground hover:text-foreground',
+						)}
+					>
+						{tab.label}
+					</Link>
+				)
+			})}
+		</>
+	)
+}
+
+/**
  * `onSave` binds Cmd+S (macOS) / Ctrl+S to this section while the caret is
  * inside it, so a page with several sections saves the one being edited.
  */

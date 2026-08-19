@@ -236,7 +236,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<IconSettings className='size-3.5 shrink-0 text-muted-foreground group-hover:text-muted-foreground' />
 					</Link>
 					<Link
-						to='/system/settings'
+						to='/system/settings/about'
 						className={cn(
 							'text-center font-mono text-meta',
 							updateAvailable

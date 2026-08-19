@@ -31,6 +31,10 @@ import { Route as ProjectsProjectIdDeploymentsRouteImport } from './routes/proje
 import { Route as ProjectsProjectIdDomainsRouteImport } from './routes/projects.$projectId.domains'
 import { Route as ProjectsProjectIdEnvironmentRouteImport } from './routes/projects.$projectId.environment'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects.$projectId.settings'
+import { Route as SystemSettingsIndexRouteImport } from './routes/system.settings.index'
+import { Route as SystemSettingsAboutRouteImport } from './routes/system.settings.about'
+import { Route as SystemSettingsRegistriesRouteImport } from './routes/system.settings.registries'
+import { Route as SystemSettingsTokensRouteImport } from './routes/system.settings.tokens'
 import { Route as ProjectsProjectIdServicesServiceIdRouteImport } from './routes/projects.$projectId.services.$serviceId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -147,6 +151,27 @@ const ProjectsProjectIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
+const SystemSettingsIndexRoute = SystemSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SystemSettingsRoute,
+} as any)
+const SystemSettingsAboutRoute = SystemSettingsAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => SystemSettingsRoute,
+} as any)
+const SystemSettingsRegistriesRoute =
+  SystemSettingsRegistriesRouteImport.update({
+    id: '/registries',
+    path: '/registries',
+    getParentRoute: () => SystemSettingsRoute,
+  } as any)
+const SystemSettingsTokensRoute = SystemSettingsTokensRouteImport.update({
+  id: '/tokens',
+  path: '/tokens',
+  getParentRoute: () => SystemSettingsRoute,
+} as any)
 const ProjectsProjectIdServicesServiceIdRoute =
   ProjectsProjectIdServicesServiceIdRouteImport.update({
     id: '/services/$serviceId',
@@ -169,14 +194,18 @@ export interface FileRoutesByFullPath {
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
-  '/system/settings': typeof SystemSettingsRoute
+  '/system/settings': typeof SystemSettingsRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
   '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
   '/projects/$projectId/domains': typeof ProjectsProjectIdDomainsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
+  '/system/settings/about': typeof SystemSettingsAboutRoute
+  '/system/settings/registries': typeof SystemSettingsRegistriesRoute
+  '/system/settings/tokens': typeof SystemSettingsTokensRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
+  '/system/settings/': typeof SystemSettingsIndexRoute
   '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRoute
 }
 export interface FileRoutesByTo {
@@ -193,14 +222,17 @@ export interface FileRoutesByTo {
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
-  '/system/settings': typeof SystemSettingsRoute
   '/projects': typeof ProjectsIndexRoute
   '/system': typeof SystemIndexRoute
   '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
   '/projects/$projectId/domains': typeof ProjectsProjectIdDomainsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
+  '/system/settings/about': typeof SystemSettingsAboutRoute
+  '/system/settings/registries': typeof SystemSettingsRegistriesRoute
+  '/system/settings/tokens': typeof SystemSettingsTokensRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
+  '/system/settings': typeof SystemSettingsIndexRoute
   '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRoute
 }
 export interface FileRoutesById {
@@ -219,14 +251,18 @@ export interface FileRoutesById {
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
-  '/system/settings': typeof SystemSettingsRoute
+  '/system/settings': typeof SystemSettingsRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
   '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
   '/projects/$projectId/domains': typeof ProjectsProjectIdDomainsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
+  '/system/settings/about': typeof SystemSettingsAboutRoute
+  '/system/settings/registries': typeof SystemSettingsRegistriesRoute
+  '/system/settings/tokens': typeof SystemSettingsTokensRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
+  '/system/settings/': typeof SystemSettingsIndexRoute
   '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRoute
 }
 export interface FileRouteTypes {
@@ -253,7 +289,11 @@ export interface FileRouteTypes {
     | '/projects/$projectId/domains'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
+    | '/system/settings/about'
+    | '/system/settings/registries'
+    | '/system/settings/tokens'
     | '/projects/$projectId/'
+    | '/system/settings/'
     | '/projects/$projectId/services/$serviceId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -270,14 +310,17 @@ export interface FileRouteTypes {
     | '/system/backups'
     | '/system/certificates'
     | '/system/docker'
-    | '/system/settings'
     | '/projects'
     | '/system'
     | '/projects/$projectId/deployments'
     | '/projects/$projectId/domains'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
+    | '/system/settings/about'
+    | '/system/settings/registries'
+    | '/system/settings/tokens'
     | '/projects/$projectId'
+    | '/system/settings'
     | '/projects/$projectId/services/$serviceId'
   id:
     | '__root__'
@@ -302,7 +345,11 @@ export interface FileRouteTypes {
     | '/projects/$projectId/domains'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
+    | '/system/settings/about'
+    | '/system/settings/registries'
+    | '/system/settings/tokens'
     | '/projects/$projectId/'
+    | '/system/settings/'
     | '/projects/$projectId/services/$serviceId'
   fileRoutesById: FileRoutesById
 }
@@ -321,7 +368,7 @@ export interface RootRouteChildren {
   SystemBackupsRoute: typeof SystemBackupsRoute
   SystemCertificatesRoute: typeof SystemCertificatesRoute
   SystemDockerRoute: typeof SystemDockerRoute
-  SystemSettingsRoute: typeof SystemSettingsRoute
+  SystemSettingsRoute: typeof SystemSettingsRouteWithChildren
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   SystemIndexRoute: typeof SystemIndexRoute
 }
@@ -482,6 +529,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdSettingsRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/system/settings/': {
+      id: '/system/settings/'
+      path: '/'
+      fullPath: '/system/settings/'
+      preLoaderRoute: typeof SystemSettingsIndexRouteImport
+      parentRoute: typeof SystemSettingsRoute
+    }
+    '/system/settings/about': {
+      id: '/system/settings/about'
+      path: '/about'
+      fullPath: '/system/settings/about'
+      preLoaderRoute: typeof SystemSettingsAboutRouteImport
+      parentRoute: typeof SystemSettingsRoute
+    }
+    '/system/settings/registries': {
+      id: '/system/settings/registries'
+      path: '/registries'
+      fullPath: '/system/settings/registries'
+      preLoaderRoute: typeof SystemSettingsRegistriesRouteImport
+      parentRoute: typeof SystemSettingsRoute
+    }
+    '/system/settings/tokens': {
+      id: '/system/settings/tokens'
+      path: '/tokens'
+      fullPath: '/system/settings/tokens'
+      preLoaderRoute: typeof SystemSettingsTokensRouteImport
+      parentRoute: typeof SystemSettingsRoute
+    }
     '/projects/$projectId/services/$serviceId': {
       id: '/projects/$projectId/services/$serviceId'
       path: '/services/$serviceId'
@@ -514,6 +589,24 @@ const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
 const ProjectsProjectIdRouteWithChildren =
   ProjectsProjectIdRoute._addFileChildren(ProjectsProjectIdRouteChildren)
 
+interface SystemSettingsRouteChildren {
+  SystemSettingsAboutRoute: typeof SystemSettingsAboutRoute
+  SystemSettingsRegistriesRoute: typeof SystemSettingsRegistriesRoute
+  SystemSettingsTokensRoute: typeof SystemSettingsTokensRoute
+  SystemSettingsIndexRoute: typeof SystemSettingsIndexRoute
+}
+
+const SystemSettingsRouteChildren: SystemSettingsRouteChildren = {
+  SystemSettingsAboutRoute: SystemSettingsAboutRoute,
+  SystemSettingsRegistriesRoute: SystemSettingsRegistriesRoute,
+  SystemSettingsTokensRoute: SystemSettingsTokensRoute,
+  SystemSettingsIndexRoute: SystemSettingsIndexRoute,
+}
+
+const SystemSettingsRouteWithChildren = SystemSettingsRoute._addFileChildren(
+  SystemSettingsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DomainsRoute: DomainsRoute,
@@ -529,7 +622,7 @@ const rootRouteChildren: RootRouteChildren = {
   SystemBackupsRoute: SystemBackupsRoute,
   SystemCertificatesRoute: SystemCertificatesRoute,
   SystemDockerRoute: SystemDockerRoute,
-  SystemSettingsRoute: SystemSettingsRoute,
+  SystemSettingsRoute: SystemSettingsRouteWithChildren,
   ProjectsIndexRoute: ProjectsIndexRoute,
   SystemIndexRoute: SystemIndexRoute,
 }

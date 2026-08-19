@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { Button, ErrorText, Page, Status } from '../components/primitives'
+import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
+import { Button, ErrorText, Page, Status, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 
 export const Route = createFileRoute('/projects/$projectId')({ component: ProjectLayout })
@@ -18,7 +18,6 @@ function ProjectLayout() {
 	const { projectId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const pathname = useRouterState({ select: state => state.location.pathname })
 	const [confirmDelete, setConfirmDelete] = useState(false)
 
 	const project = useQuery({
@@ -86,24 +85,7 @@ function ProjectLayout() {
 					)}
 				</>
 			}
-			toolbar={tabs.map(tab => {
-				const to = base + tab.suffix
-				const active =
-					tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(to)
-				return (
-					<Link
-						key={tab.label}
-						to={to}
-						className={`-mb-px border-b px-0.5 pb-1.5 text-body ${
-							active
-								? 'border-foreground text-foreground'
-								: 'border-transparent text-muted-foreground hover:text-foreground'
-						}`}
-					>
-						{tab.label}
-					</Link>
-				)
-			})}
+			toolbar={<Tabs base={base} tabs={tabs} />}
 		>
 			<ErrorText error={deploy.error ?? stop.error ?? remove.error} />
 			<Outlet />
