@@ -115,7 +115,8 @@ export function MetricCard({ label, value, series, max, format }: MetricCardProp
 					</>
 				)}
 			</div>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: hover only dates values that are already shown live. */}
+			{/* Hover only dates values that are already shown live, so there is
+			    nothing here a keyboard user cannot already read. */}
 			<div className='mt-1.5' onPointerMove={track} onPointerLeave={() => setHovered(null)}>
 				<svg
 					viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
@@ -128,7 +129,7 @@ export function MetricCard({ label, value, series, max, format }: MetricCardProp
 				>
 					{series.map((points, position) => (
 						<Sparkline
-							// biome-ignore lint/suspicious/noArrayIndexKey: series order is the identity here.
+							// Series order is the identity here: the array is rebuilt whole.
 							key={position}
 							points={points}
 							ceiling={ceiling}

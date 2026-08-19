@@ -33,20 +33,19 @@ quotes, no semicolons, 120 columns — the config decides, so let it.
 
 ## Parallel lists
 
-The API is described in three places and none of them derives from the others.
-Change one, change all three:
+The API is described in two places and neither derives from the other. Change
+one, change both:
 
 1. `manager/internal/api/api.go` — the mux. The only one that actually routes.
-2. `manager/internal/api/openapi.go` — the `apiRoutes` slice, served at `/api/openapi.json`.
-3. `docs/api.md` — errors, streams, examples.
+2. `docs/api.md` — errors, streams, examples.
 
-`apps/web/src/lib/api.ts` is the fourth whenever a request or response shape moved.
+`apps/web/src/lib/api.ts` is the third whenever a request or response shape moved.
 
 ## Recipes
 
 **New endpoint.** Handler in the matching `internal/api/*_handlers.go`, register
-it in `api.go` behind `s.protected(...)` unless it is genuinely public, add the
-row to `apiRoutes`, then update `api.ts` and `docs/api.md`.
+it in `api.go` behind `s.protected(...)` unless it is genuinely public, then
+update `api.ts` and `docs/api.md`.
 
 **Schema change.** A new `manager/migrations/000N_name.sql`. They are embedded
 in the binary and applied in filename order on boot, so a shipped migration is
@@ -70,7 +69,7 @@ The doc edit ships in the same change as the behaviour, not after it.
 
 | Changed | Update |
 |---|---|
-| Route, error code, SSE stream | `docs/api.md` and `apiRoutes` |
+| Route, error code, SSE stream | `docs/api.md` and `apps/web/src/lib/api.ts` |
 | Component boundary, deploy pipeline, reconciliation, networking | `docs/architecture.md` |
 | Auth, CSRF, secret handling, validation, a destructive action | `docs/security.md` |
 | Installer flags, ports, the `/opt/platform` layout | `docs/install.md` and the state tree in `README.md` |

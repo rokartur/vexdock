@@ -26,6 +26,12 @@ const SettingDashboardDomain = "dashboard_domain"
 // SettingDashboardHTTPS records whether the panel vhost should use TLS.
 const SettingDashboardHTTPS = "dashboard_https"
 
+// issueTimeout bounds a single ACME exchange. The renewal sweep issues one
+// hostname at a time on the scheduler's context, which has no deadline, so
+// without this a single unanswered authorization stalls every other domain's
+// renewal until the process restarts. Generous enough for DNS-01 propagation.
+const issueTimeout = 10 * time.Minute
+
 type Service struct {
 	db     *database.DB
 	cfg    *config.Config
@@ -356,7 +362,9 @@ func (s *Service) EnsureCertificate(ctx context.Context, d *database.Domain) err
 		}
 	}
 	s.log.Info("requesting certificate", "domain", d.Hostname)
-	result, err := s.certs.Issue(ctx, d.Hostname)
+	issueCtx, cancel := context.WithTimeout(ctx, issueTimeout)
+	result, err := s.certs.Issue(issueCtx, d.Hostname)
+	cancel()
 	if err != nil {
 		_ = s.db.UpsertCertificate(ctx, &database.Certificate{
 			DomainID:  d.ID,
@@ -408,6 +416,39 @@ func (s *Service) RenewExpiring(ctx context.Context) {
 		if err := s.EnsureCertificate(ctx, &d); err != nil {
 			s.log.Error("certificate renewal failed", "domain", d.Hostname, "error", err)
 		}
+	}
+	s.renewDashboardCertificate(ctx)
+}
+
+// The panel's own hostname is a setting, not a row in `domains`, so the sweep
+// above cannot see it and its certificate would simply expire.
+func (s *Service) renewDashboardCertificate(ctx context.Context) {
+	host, err := s.db.Setting(ctx, SettingDashboardDomain)
+	if err != nil {
+		s.log.Error("dashboard certificate renewal: read setting", "error", err)
+		return
+	}
+	if host == "" {
+		return
+	}
+	if https, err := s.db.Setting(ctx, SettingDashboardHTTPS); err != nil || https != "true" {
+		return
+	}
+	if s.certs.Exists(host) {
+		if expiry, err := s.certs.Expiry(host); err == nil && time.Until(expiry) > s.cfg.ACMERenewBefore {
+			return
+		}
+	}
+	s.log.Info("renewing dashboard certificate", "domain", host)
+	issueCtx, cancel := context.WithTimeout(ctx, issueTimeout)
+	_, err = s.certs.Issue(issueCtx, host)
+	cancel()
+	if err != nil {
+		s.log.Error("dashboard certificate renewal failed", "domain", host, "error", err)
+		return
+	}
+	if err := s.Reconcile(ctx); err != nil {
+		s.log.Error("dashboard certificate renewal: reconcile", "error", err)
 	}
 }
 

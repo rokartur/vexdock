@@ -34,7 +34,7 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 		OriginPatterns: sameOriginPatterns(r.Host),
 	})
 	if err != nil {
-		s.log.Warn("terminal upgrade failed", "error", err)
+		s.Log.Warn("terminal upgrade failed", "error", err)
 		return
 	}
 	defer conn.CloseNow()
@@ -42,7 +42,7 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	session, err := s.docker.Exec(ctx, containerID, nil, 120, 30)
+	session, err := s.Docker.Exec(ctx, containerID, nil, 120, 30)
 	if err != nil {
 		_ = conn.Write(ctx, websocket.MessageText, []byte(err.Error()))
 		_ = conn.Close(websocket.StatusInternalError, "exec failed")
@@ -63,7 +63,7 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 			}
 			if err != nil {
 				if err != io.EOF {
-					s.log.Debug("terminal read ended", "error", err)
+					s.Log.Debug("terminal read ended", "error", err)
 				}
 				return
 			}
@@ -93,8 +93,8 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 			}
 		case "resize":
 			resizeCtx, resizeCancel := context.WithTimeout(ctx, 5*time.Second)
-			if err := s.docker.ResizeExec(resizeCtx, session.ID, msg.Cols, msg.Rows); err != nil {
-				s.log.Debug("terminal resize failed", "error", err)
+			if err := s.Docker.ResizeExec(resizeCtx, session.ID, msg.Cols, msg.Rows); err != nil {
+				s.Log.Debug("terminal resize failed", "error", err)
 			}
 			resizeCancel()
 		}

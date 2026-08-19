@@ -13,23 +13,8 @@ func NewID() string {
 	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
 }
 
-type User struct {
-	ID           string `json:"id"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"-"`
-	Role         string `json:"role"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
-}
-
-type Session struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	TokenHash string `json:"-"`
-	CSRFToken string `json:"-"`
-	ExpiresAt string `json:"expires_at"`
-	CreatedAt string `json:"created_at"`
-}
+// Accounts and sessions belong to the better-auth service and its own database;
+// this package does not model them.
 
 // SourceType enumerates where a project's compose file comes from.
 const (
@@ -74,13 +59,58 @@ type ProjectSecret struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// ServiceType splits the two things the dashboard treats differently: an
+// application is built or pulled and answers on a domain, a database is a
+// curated image with a volume and a connection string.
+const (
+	ServiceApplication = "application"
+	ServiceDatabase    = "database"
+)
+
+// ServiceSource enumerates where a service's compose definition comes from.
+// Derived is the read-only case: the service exists because the project's own
+// compose file declares it, so the dashboard describes it but never writes it.
+// Unconfigured is the opposite end: an application that is so far only a name,
+// created before anyone decided whether it builds from a repository or runs a
+// published image. It renders into nothing until that is settled.
+const (
+	ServiceDerived      = "derived"
+	ServiceUnconfigured = "unconfigured"
+	ServiceGit          = "git"
+	ServiceImage        = "image"
+	ServiceCompose      = "compose"
+)
+
 type Service struct {
 	ID                 string `json:"id"`
 	ProjectID          string `json:"project_id"`
 	ComposeServiceName string `json:"compose_service_name"`
 	DisplayName        string `json:"display_name"`
-	CreatedAt          string `json:"created_at"`
+	Type               string `json:"type"`
+	SourceType         string `json:"source_type"`
+	RepositoryURL      string `json:"repository_url"`
+	Branch             string `json:"branch"`
+	BuildPath          string `json:"build_path"`
+	// Image is the reference an image-sourced service runs and the one a
+	// database service was created with. Changing the version is an edit of
+	// this field followed by a redeploy, which is why it is stored rather than
+	// interpolated out of the environment.
+	Image string `json:"image"`
+	// Engine is the catalog slug backing a database service, empty otherwise.
+	Engine string `json:"engine"`
+	// DataPath is where a custom database engine's volume mounts. Curated
+	// engines carry it in their catalog fragment, so it stays empty for them.
+	DataPath string `json:"data_path"`
+	// ComposeFragment is the YAML body a compose-sourced service contributes,
+	// indented to sit under its own key in the overlay.
+	ComposeFragment string `json:"compose_fragment"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
+
+// Managed reports whether the manager owns this service's compose definition.
+// A derived service is the project's own YAML and is never rewritten.
+func (s Service) Managed() bool { return s.SourceType != ServiceDerived && s.SourceType != "" }
 
 type Domain struct {
 	ID            string `json:"id"`

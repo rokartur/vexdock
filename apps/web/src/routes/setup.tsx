@@ -12,13 +12,19 @@ function SetupPage() {
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
 	const [confirm, setConfirm] = useState('')
+	const [token, setToken] = useState('')
 
 	const mismatch = confirm.length > 0 && confirm !== password
 
 	const setup = useMutation({
 		mutationFn: async () => {
 			// The auth service refuses a second sign-up, so this form closes itself.
-			const { error } = await signUp.email({ email, password, name: email.split('@')[0] ?? 'admin' })
+			// Until the first one succeeds the setup token is what stops a stranger
+			// who found the panel from claiming it.
+			const { error } = await signUp.email(
+				{ email, password, name: email.split('@')[0] ?? 'admin' },
+				{ headers: { 'x-setup-token': token } },
+			)
 			if (error) throw new Error(error.message ?? 'Could not create the account')
 		},
 		onSuccess: async () => {
@@ -39,6 +45,15 @@ function SetupPage() {
 					if (!mismatch) setup.mutate()
 				}}
 			>
+				<Field label='Setup token' hint='Printed by the installer. Also in /opt/platform/.env.'>
+					<input
+						type='password'
+						autoComplete='off'
+						required
+						value={token}
+						onChange={event => setToken(event.target.value)}
+					/>
+				</Field>
 				<Field label='Email'>
 					<input
 						type='email'

@@ -3,6 +3,7 @@ package security
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -125,4 +126,20 @@ func ValidateGitRef(ref string) (string, error) {
 		return "", fmt.Errorf("invalid git ref %q", ref)
 	}
 	return r, nil
+}
+
+// ValidateSubPath accepts a path that must stay inside the directory it will be
+// joined to, and returns it without its leading slash. Empty means the root of
+// that directory. ".." is rejected rather than cleaned away: a build path lands
+// in a docker build context, so escaping the checkout would hand the daemon an
+// arbitrary host directory.
+func ValidateSubPath(raw string) (string, error) {
+	p := strings.Trim(strings.TrimSpace(raw), "/")
+	if p == "" {
+		return "", nil
+	}
+	if strings.ContainsAny(p, "\\\n\r\t") || p == ".." || strings.HasPrefix(p, "../") || path.Clean(p) != p {
+		return "", fmt.Errorf("invalid path %q", raw)
+	}
+	return p, nil
 }

@@ -13,12 +13,14 @@ import (
 	"strings"
 )
 
-// Project identifies one compose invocation: which directory, which file and
+// Project identifies one compose invocation: which directory, which files and
 // under which compose project name its resources live.
 type Project struct {
-	Name    string // --project-name, e.g. p_01JABCXYZ
-	Dir     string // --project-directory, the repository root on disk
-	File    string // absolute path to the compose file
+	Name string // --project-name, e.g. p_01JABCXYZ
+	Dir  string // --project-directory, the repository root on disk
+	// Files are the compose files in merge order: the project's own first, then
+	// the overlay the manager generates for the services it owns.
+	Files   []string
 	EnvFile string // absolute path to the project .env, when present
 }
 
@@ -37,9 +39,6 @@ type ConfigService struct {
 	Ports       []ConfigPort      `json:"ports"`
 	Environment map[string]any    `json:"environment"`
 	Labels      map[string]string `json:"labels"`
-	Healthcheck *struct {
-		Test any `json:"test"`
-	} `json:"healthcheck"`
 }
 
 type ConfigPort struct {
@@ -58,21 +57,6 @@ func (c *Config) ServiceNames() []string {
 	return names
 }
 
-// GuessPort picks a sensible default container port for a service, used to
-// prefill the domain form. It prefers the first declared port target.
-func (c *Config) GuessPort(service string) int {
-	svc, ok := c.Services[service]
-	if !ok {
-		return 0
-	}
-	for _, p := range svc.Ports {
-		if p.Target > 0 && (p.Protocol == "" || p.Protocol == "tcp") {
-			return p.Target
-		}
-	}
-	return 0
-}
-
 // ParseConfig decodes `docker compose config --format json` output.
 func ParseConfig(raw []byte) (*Config, error) {
 	var cfg Config
@@ -86,7 +70,10 @@ func ParseConfig(raw []byte) (*Config, error) {
 }
 
 func (p Project) args(extra ...string) []string {
-	args := []string{"compose", "--project-name", p.Name, "--project-directory", p.Dir, "--file", p.File}
+	args := []string{"compose", "--project-name", p.Name, "--project-directory", p.Dir}
+	for _, file := range p.Files {
+		args = append(args, "--file", file)
+	}
 	if p.EnvFile != "" {
 		args = append(args, "--env-file", p.EnvFile)
 	}
@@ -134,10 +121,6 @@ func (p Project) Down(ctx context.Context, w io.Writer, removeVolumes bool) erro
 		args = append(args, "--volumes")
 	}
 	return p.Run(ctx, w, args...)
-}
-
-func (p Project) Restart(ctx context.Context, w io.Writer) error {
-	return p.Run(ctx, w, "restart")
 }
 
 // firstLines keeps compose stderr readable in a deployment log line.

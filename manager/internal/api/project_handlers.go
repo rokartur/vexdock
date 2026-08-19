@@ -27,7 +27,7 @@ type projectView struct {
 }
 
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
-	list, err := s.db.ListProjects(r.Context())
+	list, err := s.DB.ListProjects(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
@@ -45,11 +45,11 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) projectView(ctx context.Context, p *database.Project) (*projectView, error) {
-	services, err := s.db.ListServices(ctx, p.ID)
+	services, err := s.DB.ListServices(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
-	domainList, err := s.db.ListProjectDomains(ctx, p.ID)
+	domainList, err := s.DB.ListProjectDomains(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,31 +57,29 @@ func (s *Server) projectView(ctx context.Context, p *database.Project) (*project
 		Project:          *p,
 		ServiceCount:     len(services),
 		Domains:          domainList,
-		WebhookURL:       s.projects.WebhookURL(p),
+		WebhookURL:       s.Projects.WebhookURL(p),
 		WebhookSecretSet: s.setting(ctx, webhookSecretKey(p.ID)) != "",
 	}
-	if containers, err := s.docker.ListContainers(ctx, p.ComposeProjectName); err == nil {
+	if containers, err := s.Docker.ListContainers(ctx, p.ComposeProjectName); err == nil {
 		for _, c := range containers {
 			if c.State == "running" {
 				view.RunningCount++
 			}
 		}
 	}
-	if recent, err := s.db.ListDeployments(ctx, p.ID, 1); err == nil && len(recent) > 0 {
+	if recent, err := s.DB.ListDeployments(ctx, p.ID, 1); err == nil && len(recent) > 0 {
 		view.LatestDeployment = &recent[0]
 	}
 	return view, nil
 }
 
 type createProjectRequest struct {
-	Name           string `json:"name"`
-	SourceType     string `json:"source_type"`
-	RepositoryURL  string `json:"repository_url"`
-	Branch         string `json:"branch"`
-	ComposePath    string `json:"compose_path"`
-	ComposeContent string `json:"compose_content"`
-	// Template seeds the compose content from the built-in catalog.
-	Template         string   `json:"template"`
+	Name             string   `json:"name"`
+	SourceType       string   `json:"source_type"`
+	RepositoryURL    string   `json:"repository_url"`
+	Branch           string   `json:"branch"`
+	ComposePath      string   `json:"compose_path"`
+	ComposeContent   string   `json:"compose_content"`
 	AutoDeploy       bool     `json:"auto_deploy"`
 	Tags             []string `json:"tags"`
 	CredentialKind   string   `json:"credential_kind"`
@@ -94,16 +92,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if req.Template != "" {
-		template, ok := templateBySlug(req.Template)
-		if !ok {
-			badRequest(w, errors.New("unknown template "+req.Template))
-			return
-		}
-		req.SourceType = database.SourceCompose
-		req.ComposeContent = template.Compose
-	}
-	project, err := s.projects.Create(r.Context(), projects.CreateInput{
+	project, err := s.Projects.Create(r.Context(), projects.CreateInput{
 		Name:             req.Name,
 		SourceType:       req.SourceType,
 		RepositoryURL:    req.RepositoryURL,
@@ -128,7 +117,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -141,7 +130,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -168,7 +157,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		project.Name = *req.Name
 		project.Slug = projects.Slugify(*req.Name)
 	}
-	if req.SourceType != nil {
+	if req.SourceType != nil && *req.SourceType != project.SourceType {
 		project.SourceType = *req.SourceType
 	}
 	if req.Branch != nil {
@@ -186,14 +175,14 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	if req.AutoDeploy != nil {
 		project.AutoDeploy = *req.AutoDeploy
 	}
-	if err := s.projects.Validate(project); err != nil {
+	if err := s.Projects.Validate(project); err != nil {
 		badRequest(w, err)
 		return
 	}
 	// Only once the new source validates, so a rejected switch leaves the
 	// current checkout untouched.
 	if project.SourceType != previousSource {
-		if err := s.projects.ResetCheckout(project); err != nil {
+		if err := s.Projects.ResetCheckout(project); err != nil {
 			serverError(w, err)
 			return
 		}
@@ -202,7 +191,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		// Trimming makes a whitespace-only value mean "turn verification off",
 		// which is the only way to clear it from a password field.
 		secret := strings.TrimSpace(*req.WebhookSecret)
-		if err := s.db.SetSetting(r.Context(), webhookSecretKey(project.ID), secret); err != nil {
+		if err := s.DB.SetSetting(r.Context(), webhookSecretKey(project.ID), secret); err != nil {
 			serverError(w, err)
 			return
 		}
@@ -212,11 +201,11 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		if req.CredentialSecret != nil {
 			secret = *req.CredentialSecret
 		}
-		if err := s.projects.SetCredential(r.Context(), project, *req.CredentialKind, secret); err != nil {
+		if err := s.Projects.SetCredential(r.Context(), project, *req.CredentialKind, secret); err != nil {
 			badRequest(w, err)
 			return
 		}
-	} else if err := s.db.UpdateProject(r.Context(), project); err != nil {
+	} else if err := s.DB.UpdateProject(r.Context(), project); err != nil {
 		serverError(w, err)
 		return
 	}
@@ -230,31 +219,31 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 
 // handleDeleteProject tears the stack down before removing any record of it.
 func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
 	removeVolumes := r.URL.Query().Get("volumes") == "true"
-	if composeProject, err := s.projects.ComposeProject(r.Context(), project); err == nil {
-		if err := composeProject.Down(r.Context(), logWriter{s.log}, removeVolumes); err != nil {
-			s.log.Warn("compose down during delete", "project", project.ID, "error", err)
+	if composeProject, err := s.Projects.ComposeProject(r.Context(), project); err == nil {
+		if err := composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes); err != nil {
+			s.Log.Warn("compose down during delete", "project", project.ID, "error", err)
 		}
 	}
-	if err := s.db.DeleteProject(r.Context(), project.ID); err != nil {
+	if err := s.DB.DeleteProject(r.Context(), project.ID); err != nil {
 		serverError(w, err)
 		return
 	}
-	if err := s.projects.RemoveDirectory(project.ID); err != nil {
-		s.log.Warn("remove project directory", "project", project.ID, "error", err)
+	if err := s.Projects.RemoveDirectory(project.ID); err != nil {
+		s.Log.Warn("remove project directory", "project", project.ID, "error", err)
 	}
-	if err := s.domains.Reconcile(r.Context()); err != nil {
-		s.log.Warn("reconcile after project delete", "error", err)
+	if err := s.Domains.Reconcile(r.Context()); err != nil {
+		s.Log.Warn("reconcile after project delete", "error", err)
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -263,7 +252,7 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	if user != nil {
 		actor = user.Email
 	}
-	deployment, err := s.deployments.Trigger(r.Context(), project, deployments.Options{
+	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
 		Trigger: deployments.TriggerManual,
 		Actor:   actor,
 	})
@@ -276,28 +265,54 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 
 // handleStopProject stops the stack without deleting anything.
 func (s *Server) handleStopProject(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
-	composeProject, err := s.projects.ComposeProject(r.Context(), project)
+	composeProject, err := s.Projects.ComposeProject(r.Context(), project)
 	if err != nil {
 		badRequest(w, err)
 		return
 	}
-	if err := composeProject.Down(r.Context(), logWriter{s.log}, false); err != nil {
+	if err := composeProject.Down(r.Context(), logWriter{s.Log}, false); err != nil {
 		serverError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func (s *Server) handleGetCompose(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+// handleExportServices hands back the project's managed services as a base64
+// blob for another project's import. Secret values are withheld unless
+// ?secrets=true is asked for explicitly, because the blob is only encoded, not
+// encrypted, and it leaves here to end up on a clipboard.
+func (s *Server) handleExportServices(w http.ResponseWriter, r *http.Request) {
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
-	content, err := s.projects.ReadComposeFile(project)
+	secrets := r.URL.Query().Get("secrets") == "true"
+	payload, err := s.Projects.ExportServices(r.Context(), project, secrets)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if secrets {
+		// The one read that hands over plaintext secrets, so it is recorded like
+		// a mutation. protected() audits writes only, and a stolen token draining
+		// a project this way would otherwise leave no trace in the panel.
+		user, _ := auth.UserFrom(r.Context())
+		s.audit(r, user, http.StatusOK, auth.ViaCookie(r))
+		s.Log.Warn("exported services with secret values", "project", project.Name)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"payload": payload, "secrets": secrets})
+}
+
+func (s *Server) handleGetCompose(w http.ResponseWriter, r *http.Request) {
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
+	if handleLookupError(w, err) {
+		return
+	}
+	content, err := s.Projects.ReadComposeFile(project)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -308,7 +323,7 @@ func (s *Server) handleGetCompose(w http.ResponseWriter, r *http.Request) {
 // handlePutCompose only applies to projects whose source is a pasted compose
 // file; a git-backed file would be overwritten by the next deployment.
 func (s *Server) handlePutCompose(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -323,7 +338,7 @@ func (s *Server) handlePutCompose(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.projects.WriteComposeFile(project, req.Content); err != nil {
+	if err := s.Projects.WriteComposeFile(project, req.Content); err != nil {
 		badRequest(w, err)
 		return
 	}
@@ -331,7 +346,7 @@ func (s *Server) handlePutCompose(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
-	vars, err := s.projects.Environment(r.Context(), r.PathValue("id"), true)
+	vars, err := s.Projects.Environment(r.Context(), r.PathValue("id"), true)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -340,7 +355,7 @@ func (s *Server) handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePutEnvironment(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -351,15 +366,15 @@ func (s *Server) handlePutEnvironment(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.projects.SetEnvironment(r.Context(), project.ID, req.Variables); err != nil {
+	if err := s.Projects.SetEnvironment(r.Context(), project.ID, req.Variables); err != nil {
 		badRequest(w, err)
 		return
 	}
-	if _, err := s.projects.WriteEnvFile(r.Context(), project); err != nil {
+	if _, err := s.Projects.WriteEnvFile(r.Context(), project); err != nil {
 		serverError(w, err)
 		return
 	}
-	vars, err := s.projects.Environment(r.Context(), project.ID, true)
+	vars, err := s.Projects.Environment(r.Context(), project.ID, true)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -373,14 +388,16 @@ type serviceView struct {
 	ContainerID string `json:"container_id"`
 	State       string `json:"state"`
 	Status      string `json:"status"`
-	Image       string `json:"image"`
-	Health      string `json:"health"`
-	Restarts    int    `json:"restart_count"`
-	CreatedUnix int64  `json:"created_unix"`
+	// RunningImage is what the container was actually started from, which drifts
+	// from the service's configured image between an edit and the next deploy.
+	RunningImage string `json:"running_image"`
+	Health       string `json:"health"`
+	Restarts     int    `json:"restart_count"`
+	CreatedUnix  int64  `json:"created_unix"`
 }
 
 func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
-	project, err := s.db.ProjectByID(r.Context(), r.PathValue("id"))
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -393,11 +410,11 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serviceViews(ctx context.Context, project *database.Project) ([]serviceView, error) {
-	services, err := s.db.ListServices(ctx, project.ID)
+	services, err := s.DB.ListServices(ctx, project.ID)
 	if err != nil {
 		return nil, err
 	}
-	containers, err := s.docker.ListContainers(ctx, project.ComposeProjectName)
+	containers, err := s.Docker.ListContainers(ctx, project.ComposeProjectName)
 	if err != nil {
 		containers = nil
 	}
@@ -416,9 +433,9 @@ func (s *Server) serviceViews(ctx context.Context, project *database.Project) ([
 			view.ContainerID = c.ID
 			view.State = c.State
 			view.Status = c.Status
-			view.Image = c.Image
+			view.RunningImage = c.Image
 			view.CreatedUnix = c.Created
-			if info, err := s.docker.Inspect(ctx, c.ID); err == nil {
+			if info, err := s.Docker.Inspect(ctx, c.ID); err == nil {
 				view.Restarts = info.RestartCount
 				if info.State != nil && info.State.Health != nil {
 					view.Health = info.State.Health.Status
@@ -431,7 +448,7 @@ func (s *Server) serviceViews(ctx context.Context, project *database.Project) ([
 }
 
 func (s *Server) handleListDeployments(w http.ResponseWriter, r *http.Request) {
-	list, err := s.db.ListDeployments(r.Context(), r.PathValue("id"), 50)
+	list, err := s.DB.ListDeployments(r.Context(), r.PathValue("id"), 50)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -440,7 +457,7 @@ func (s *Server) handleListDeployments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListProjectDomains(w http.ResponseWriter, r *http.Request) {
-	list, err := s.db.ListProjectDomains(r.Context(), r.PathValue("id"))
+	list, err := s.DB.ListProjectDomains(r.Context(), r.PathValue("id"))
 	if err != nil {
 		serverError(w, err)
 		return

@@ -27,13 +27,13 @@ type containerView struct {
 }
 
 func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
-	containers, err := s.docker.ListContainers(r.Context(), "")
+	containers, err := s.Docker.ListContainers(r.Context(), "")
 	if err != nil {
 		serverError(w, err)
 		return
 	}
 	managed := map[string]bool{}
-	if projects, err := s.db.ListProjects(r.Context()); err == nil {
+	if projects, err := s.DB.ListProjects(r.Context()); err == nil {
 		for _, p := range projects {
 			managed[p.ComposeProjectName] = true
 		}
@@ -68,13 +68,13 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch r.PathValue("action") {
 	case "start":
-		err = s.docker.Start(r.Context(), id)
+		err = s.Docker.Start(r.Context(), id)
 	case "stop":
-		err = s.docker.Stop(r.Context(), id)
+		err = s.Docker.Stop(r.Context(), id)
 	case "restart":
-		err = s.docker.Restart(r.Context(), id)
+		err = s.Docker.Restart(r.Context(), id)
 	case "remove":
-		err = s.docker.Remove(r.Context(), id, r.URL.Query().Get("force") == "true")
+		err = s.Docker.Remove(r.Context(), id, r.URL.Query().Get("force") == "true")
 	default:
 		badRequest(w, errors.New("unsupported container action"))
 		return
@@ -86,13 +86,34 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// imageView, volumeView and networkView keep the four Docker Resources screens
+// on one convention. Marshalling the SDK's own PascalCase structs instead would
+// hand the dashboard two different shapes from sibling endpoints.
+type imageView struct {
+	ID         string   `json:"id"`
+	RepoTags   []string `json:"repo_tags"`
+	Created    int64    `json:"created"`
+	Size       int64    `json:"size"`
+	Containers int64    `json:"containers"`
+}
+
 func (s *Server) handleListImages(w http.ResponseWriter, r *http.Request) {
-	images, err := s.docker.ListImages(r.Context())
+	images, err := s.Docker.ListImages(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, images)
+	out := make([]imageView, 0, len(images))
+	for _, img := range images {
+		out = append(out, imageView{
+			ID:         img.ID,
+			RepoTags:   img.RepoTags,
+			Created:    img.Created,
+			Size:       img.Size,
+			Containers: img.Containers,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handlePullImage streams pull progress as SSE so large layers show movement.
@@ -109,7 +130,7 @@ func (s *Server) handlePullImage(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, errors.New("a valid image reference is required"))
 		return
 	}
-	reader, err := s.docker.PullImage(r.Context(), ref)
+	reader, err := s.Docker.PullImage(r.Context(), ref)
 	if err != nil {
 		badRequest(w, err)
 		return
@@ -126,20 +147,37 @@ func (s *Server) handlePullImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRemoveImage(w http.ResponseWriter, r *http.Request) {
-	if err := s.docker.RemoveImage(r.Context(), r.PathValue("id"), r.URL.Query().Get("force") == "true"); err != nil {
+	if err := s.Docker.RemoveImage(r.Context(), r.PathValue("id"), r.URL.Query().Get("force") == "true"); err != nil {
 		badRequest(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+type volumeView struct {
+	Name      string `json:"name"`
+	Driver    string `json:"driver"`
+	CreatedAt string `json:"created_at"`
+	// Size and RefCount are -1 when Docker did not report usage data.
+	Size     int64 `json:"size"`
+	RefCount int64 `json:"ref_count"`
+}
+
 func (s *Server) handleListVolumes(w http.ResponseWriter, r *http.Request) {
-	volumes, err := s.docker.ListVolumes(r.Context())
+	volumes, err := s.Docker.ListVolumes(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, volumes.Volumes)
+	out := make([]volumeView, 0, len(volumes.Volumes))
+	for _, v := range volumes.Volumes {
+		view := volumeView{Name: v.Name, Driver: v.Driver, CreatedAt: v.CreatedAt, Size: -1, RefCount: -1}
+		if v.UsageData != nil {
+			view.Size, view.RefCount = v.UsageData.Size, v.UsageData.RefCount
+		}
+		out = append(out, view)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleRemoveVolume(w http.ResponseWriter, r *http.Request) {
@@ -149,42 +187,56 @@ func (s *Server) handleRemoveVolume(w http.ResponseWriter, r *http.Request) {
 			"Deleting a volume is irreversible. Repeat the request with confirm=true.", nil)
 		return
 	}
-	if err := s.docker.RemoveVolume(r.Context(), r.PathValue("name"), false); err != nil {
+	if err := s.Docker.RemoveVolume(r.Context(), r.PathValue("name"), false); err != nil {
 		badRequest(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+type networkView struct {
+	ID         string             `json:"id"`
+	Name       string             `json:"name"`
+	Driver     string             `json:"driver"`
+	Scope      string             `json:"scope"`
+	Labels     map[string]string  `json:"labels"`
+	Containers []networkContainer `json:"containers"`
+}
+
+type networkContainer struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	IPv4 string `json:"ipv4"`
+}
+
 func (s *Server) handleListNetworks(w http.ResponseWriter, r *http.Request) {
-	networks, err := s.docker.ListNetworks(r.Context())
+	networks, err := s.Docker.ListNetworks(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	detailed := make([]any, 0, len(networks))
+	out := make([]networkView, 0, len(networks))
 	for _, n := range networks {
-		inspect, err := s.docker.InspectNetwork(r.Context(), n.ID)
-		if err != nil {
-			detailed = append(detailed, n)
-			continue
+		view := networkView{
+			ID: n.ID, Name: n.Name, Driver: n.Driver, Scope: n.Scope, Labels: n.Labels,
+			Containers: []networkContainer{},
 		}
-		containers := make([]map[string]string, 0, len(inspect.Containers))
-		for id, c := range inspect.Containers {
-			containers = append(containers, map[string]string{"id": id, "name": c.Name, "ipv4": c.IPv4Address})
+		// A network that cannot be inspected still belongs in the list; it just
+		// has no membership to show.
+		if inspect, err := s.Docker.InspectNetwork(r.Context(), n.ID); err == nil {
+			for id, c := range inspect.Containers {
+				view.Containers = append(view.Containers, networkContainer{ID: id, Name: c.Name, IPv4: c.IPv4Address})
+			}
 		}
-		detailed = append(detailed, map[string]any{
-			"id": n.ID, "name": n.Name, "driver": n.Driver, "scope": n.Scope,
-			"created": n.Created, "labels": n.Labels, "containers": containers,
-		})
+		out = append(out, view)
 	}
-	writeJSON(w, http.StatusOK, detailed)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleCleanupPreview reports what a cleanup would reclaim, without touching
 // anything. Nothing is ever pruned automatically.
 func (s *Server) handleCleanupPreview(w http.ResponseWriter, r *http.Request) {
-	usage, err := s.docker.DiskUsage(r.Context())
+	usage, err := s.Docker.DiskUsage(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
@@ -222,7 +274,7 @@ func (s *Server) handleCleanupPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCleanup(w http.ResponseWriter, r *http.Request) {
-	report, err := s.docker.Prune(r.Context(), r.PathValue("kind"))
+	report, err := s.Docker.Prune(r.Context(), r.PathValue("kind"))
 	if err != nil {
 		badRequest(w, err)
 		return

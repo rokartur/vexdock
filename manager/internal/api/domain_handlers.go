@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Server) handleListDomains(w http.ResponseWriter, r *http.Request) {
-	list, err := s.db.ListDomains(r.Context())
+	list, err := s.DB.ListDomains(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
@@ -31,7 +31,7 @@ func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	domain, err := s.domains.Create(r.Context(), domains.CreateInput{
+	domain, err := s.Domains.Create(r.Context(), domains.CreateInput{
 		ProjectID:         req.ProjectID,
 		ServiceName:       req.Service,
 		Hostname:          req.Hostname,
@@ -56,7 +56,7 @@ func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
-	domain, err := s.db.DomainByID(r.Context(), r.PathValue("id"))
+	domain, err := s.DB.DomainByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -95,7 +95,7 @@ func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 	if req.PrivateKeyPEM != nil {
 		update.PrivateKeyPEM = *req.PrivateKeyPEM
 	}
-	if err := s.domains.Update(r.Context(), domain, update); err != nil {
+	if err := s.Domains.Update(r.Context(), domain, update); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"domain": domain, "warning": err.Error()})
 		return
 	}
@@ -103,7 +103,7 @@ func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteDomain(w http.ResponseWriter, r *http.Request) {
-	if err := s.domains.Delete(r.Context(), r.PathValue("id")); err != nil {
+	if err := s.Domains.Delete(r.Context(), r.PathValue("id")); err != nil {
 		serverError(w, err)
 		return
 	}
@@ -112,15 +112,15 @@ func (s *Server) handleDeleteDomain(w http.ResponseWriter, r *http.Request) {
 
 // handleIssueCertificate retries or forces certificate issuance for a domain.
 func (s *Server) handleIssueCertificate(w http.ResponseWriter, r *http.Request) {
-	domain, err := s.db.DomainByID(r.Context(), r.PathValue("id"))
+	domain, err := s.DB.DomainByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
-	if err := s.domains.EnsureCertificate(r.Context(), domain); err != nil {
+	if err := s.Domains.EnsureCertificate(r.Context(), domain); err != nil {
 		writeError(w, http.StatusBadGateway, "CERTIFICATE_FAILED", err.Error(), nil)
 		return
 	}
-	cert, err := s.db.CertificateByDomain(r.Context(), domain.ID)
+	cert, err := s.DB.CertificateByDomain(r.Context(), domain.ID)
 	if handleLookupError(w, err) {
 		return
 	}
@@ -128,7 +128,7 @@ func (s *Server) handleIssueCertificate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleListCertificates(w http.ResponseWriter, r *http.Request) {
-	list, err := s.db.ListCertificates(r.Context())
+	list, err := s.DB.ListCertificates(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return

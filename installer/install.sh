@@ -1,15 +1,18 @@
 #!/bin/sh
 # Platform installer.
 #
-#   curl -fsSL https://get.vexdock.dev | sudo sh
-#   curl -fsSL https://get.vexdock.dev | sudo sh -s update
-#   curl -fsSL https://get.vexdock.dev | sudo sh -s uninstall
+#   curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh
+#   curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh -s update
+#   curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh -s uninstall
 #
 # POSIX sh only: Debian's /bin/sh is dash.
 set -eu
 
-REPO="${PLATFORM_REPO:-vexdock/platform}"
+# REPO is the single source of truth for where this install pulls from: a fork
+# only has to set PLATFORM_REPO and both the compose file and the images follow.
+REPO="${PLATFORM_REPO:-rokartur/vexdock}"
 RAW_BASE="${PLATFORM_RAW_BASE:-https://raw.githubusercontent.com/$REPO}"
+REGISTRY="${PLATFORM_REGISTRY:-ghcr.io/${REPO%%/*}}"
 ROOT="${PLATFORM_ROOT:-/opt/platform}"
 PROXY_NETWORK="vexdock-proxy"
 DASHBOARD_PORT="${DASHBOARD_PORT:-3000}"
@@ -35,6 +38,16 @@ require_root() {
     [ "$(id -u)" -eq 0 ] || die "This installer must run as root. Try: curl -fsSL … | sudo sh"
 }
 
+# random_hex prints 32 random bytes as hex, for the session signing key and the
+# setup token. openssl is not guaranteed on a minimal Debian, /dev/urandom is.
+random_hex() {
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex 32
+    else
+        od -An -tx1 -N32 /dev/urandom | tr -d ' \n'
+    fi
+}
+
 # os_release reads one field without sourcing the file into this shell:
 # /etc/os-release defines VERSION, which would otherwise silently overwrite the
 # platform version being installed.
@@ -55,12 +68,13 @@ detect_os() {
     esac
 }
 
+# The published images are linux/amd64 only, so an arm server has to fail here
+# with a sentence rather than on a manifest error three steps later.
 detect_arch() {
     ARCH="$(uname -m)"
     case "$ARCH" in
-        x86_64|amd64)  ARCH=amd64 ;;
-        aarch64|arm64) ARCH=arm64 ;;
-        *) die "Unsupported architecture: $ARCH. amd64 and arm64 are supported." ;;
+        x86_64|amd64) ARCH=amd64 ;;
+        *) die "Unsupported architecture: $ARCH. Only amd64 images are published." ;;
     esac
     ok "Architecture: $ARCH"
 }
@@ -146,32 +160,64 @@ create_network() {
     fi
 }
 
+# `latest` is a floating image tag, but the dashboard decides whether an update
+# exists by comparing the recorded version against the newest release by name.
+# Recording "latest" would offer an update forever, so resolve it to a tag once.
+resolve_version() {
+    if [ "$VERSION" != latest ]; then
+        return 0
+    fi
+    tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null |
+        sed -n 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/p') || tag=""
+    if [ -n "$tag" ]; then
+        VERSION="$tag"
+    fi
+}
+
+# The compose file must come from the same ref as the images it references, or a
+# pinned install runs new images against main's topology.
 fetch_compose() {
     if [ -n "${PLATFORM_LOCAL_COMPOSE:-}" ]; then
         cp "$PLATFORM_LOCAL_COMPOSE" "$ROOT/compose.yml"
     else
-        curl -fsSL "$RAW_BASE/main/compose.yml" -o "$ROOT/compose.yml" \
-            || die "Could not download compose.yml from $RAW_BASE"
+        ref=main
+        [ "$VERSION" = latest ] || ref="$VERSION"
+        curl -fsSL "$RAW_BASE/$ref/compose.yml" -o "$ROOT/compose.yml" \
+            || die "Could not download compose.yml from $RAW_BASE/$ref"
     fi
     ok "System compose downloaded"
+}
+
+# env_set adds a key only when it is absent, so an update can introduce a new
+# option without overwriting a generated secret or a hand-edited value.
+env_set() {
+    grep -q "^$1=" "$ROOT/.env" 2>/dev/null && return 0
+    printf '%s=%s\n' "$1" "$2" >> "$ROOT/.env"
 }
 
 write_env() {
     env_file="$ROOT/.env"
     if [ ! -f "$env_file" ]; then
-        {
-            echo "VERSION=$VERSION"
-            echo "PLATFORM_ROOT=$ROOT"
-            echo "DASHBOARD_PORT=$DASHBOARD_PORT"
-            echo "ACME_EMAIL=${ACME_EMAIL:-}"
-            echo "ACME_STAGING=${ACME_STAGING:-false}"
-            echo "PUBLIC_URL=${PUBLIC_URL:-}"
-        } > "$env_file"
-        chmod 600 "$env_file"
-        ok "Configuration written"
-    else
-        ok "Existing configuration kept"
+        : > "$env_file"
     fi
+    chmod 600 "$env_file"
+    env_set VERSION "$VERSION"
+    env_set REGISTRY "$REGISTRY"
+    env_set PLATFORM_ROOT "$ROOT"
+    env_set DASHBOARD_PORT "$DASHBOARD_PORT"
+    env_set ACME_EMAIL "${ACME_EMAIL:-}"
+    env_set ACME_STAGING "${ACME_STAGING:-false}"
+    env_set PUBLIC_URL "${PUBLIC_URL:-}"
+    # Signs every session cookie. Generated per install: a shared default would
+    # let anyone mint a valid session for every Vexdock on the internet.
+    env_set BETTER_AUTH_SECRET "$(random_hex)"
+    # Guards the one-time administrator sign-up until an account exists.
+    env_set SETUP_TOKEN "$(random_hex)"
+    ok "Configuration written"
+}
+
+setup_token() {
+    sed -n 's/^SETUP_TOKEN=//p' "$ROOT/.env"
 }
 
 compose_cmd() {
@@ -180,9 +226,11 @@ compose_cmd() {
 
 start_stack() {
     info "Pulling images…"
-    compose_cmd pull >/dev/null 2>&1 || warn "Some images could not be pulled; using local copies."
+    # A fresh server has no local copies, so a failed pull is fatal and the
+    # registry's own message is the only useful diagnostic.
+    compose_cmd pull || die "Could not pull the platform images from $REGISTRY."
     compose_cmd up -d --remove-orphans >/dev/null || die "The platform stack failed to start."
-    ok "Manager and Nginx started"
+    ok "Manager, auth and Nginx started"
 }
 
 # The manager implements its own health check, so the container status is the
@@ -230,6 +278,7 @@ do_install() {
     check_resources
     check_ports
     install_docker
+    resolve_version
     create_directories
     create_network
     fetch_compose
@@ -240,19 +289,36 @@ do_install() {
     ip="$(detect_ip)"
     printf '\n%sInstallation complete%s\n\n' "$GREEN" "$RESET"
     printf 'Dashboard:\nhttp://%s:%s\n\n' "$ip" "$DASHBOARD_PORT"
-    printf 'Create the administrator account on first visit.\n\n'
+    printf 'Setup token (needed once, to create the administrator):\n%s\n\n' "$(setup_token)"
+    printf 'Kept in %s/.env if you lose it.\n\n' "$ROOT"
 }
 
 do_update() {
     require_root
     [ -f "$ROOT/compose.yml" ] || die "The platform is not installed at $ROOT."
+    resolve_version
+    # First: an install made by an older version has none of the keys added
+    # since, and every compose command below needs them to interpolate.
+    write_env
+
     info "Backing up configuration…"
     stamp="$(date -u +%Y-%m-%dT%H%M%S)"
     mkdir -p "$ROOT/backups/$stamp"
+    # Both SQLite databases are copied cold: a file copy of a live WAL database
+    # is not guaranteed to restore, and this backup is the only way back.
+    compose_cmd stop >/dev/null 2>&1 || true
     cp -a "$ROOT/data" "$ROOT/backups/$stamp/data" 2>/dev/null || true
     cp -a "$ROOT/nginx" "$ROOT/backups/$stamp/nginx" 2>/dev/null || true
     cp -a "$ROOT/certificates" "$ROOT/backups/$stamp/certificates" 2>/dev/null || true
+    cp -a "$ROOT/secrets" "$ROOT/backups/$stamp/secrets" 2>/dev/null || true
     ok "Backup written to $ROOT/backups/$stamp"
+    # Keep the five most recent; unbounded update backups fill a small VPS disk.
+    # The stamps are ISO, so the glob is already in chronological order.
+    set -- "$ROOT"/backups/*/
+    while [ "$#" -gt 5 ]; do
+        rm -rf "$1"
+        shift
+    done
 
     fetch_compose
     if [ "$VERSION" != "latest" ]; then

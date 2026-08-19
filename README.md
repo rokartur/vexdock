@@ -3,6 +3,20 @@
 Self-hosted deployment platform for a single Linux server. One command installs
 it, one screen deploys your app, and your own domain gets HTTPS automatically.
 
+## Install
+
+On a fresh Ubuntu 22.04+ or Debian 12+ server, as root:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh
+```
+
+It installs Docker if missing, starts the stack and prints the dashboard
+address together with a one-time setup token. Open the address, enter the
+token and create the administrator account.
+
+[docs/install.md](docs/install.md) covers options, updating and uninstalling.
+
 ## What it does
 
 - **Deploy from Git or Docker Compose.** Push to your branch, the platform
@@ -15,16 +29,17 @@ it, one screen deploys your app, and your own domain gets HTTPS automatically.
   `*.example.com`.
 - **Deploy notifications.** One webhook URL, posted to when a deployment
   succeeds or fails. Discord and Slack are detected automatically.
-- **Backups.** Snapshots of the database, proxy config and certificates, with
-  application volumes included on request.
+- **Backups.** Snapshots of both databases, the proxy config, the certificates
+  and the master key, with application volumes included on request.
 - **Instant rollback.** Every deployment records its commit. Redeploy any
   previous one from the history.
 - **Full Docker visibility.** Containers, images, volumes and networks on the
   host, including stacks the platform did not create.
 - **Logs, metrics and a terminal.** Live container logs, CPU/RAM/network stats
   and an interactive shell, all in the browser.
-- **Templates.** PostgreSQL, MySQL, MariaDB, Valkey, MongoDB and MinIO as
-  ordinary compose projects you can edit.
+- **Managed databases.** PostgreSQL, MySQL, MariaDB, MongoDB and Valkey added
+  to a project with their image, volume and credentials generated, or any other
+  image you name.
 - **API tokens.** The same REST API the dashboard uses, for CI.
 - **Audit log.** Who changed what, when, and from where.
 
@@ -54,21 +69,23 @@ State lives in `/opt/platform`:
 ```
 /opt/platform
 ├── compose.yml          system stack
-├── .env                 installed version and options
+├── .env                 version, options, session secret, setup token (0600)
 ├── data/app.db          SQLite: projects, domains, deployments
 ├── data/auth.db         SQLite: accounts and sessions (better-auth)
-├── projects/<id>/       one directory per project (repository + .env)
+├── projects/<id>/       one directory per project (repository, .env,
+│                     managed.yml and services/ for managed services)
 ├── nginx/generated/     one .conf per domain, written by the manager
 ├── certificates/        Let's Encrypt certificates and the account key
 ├── secrets/master.key   AES key protecting secrets in the database (0600)
-└── backups/<stamp>/     database, proxy config, certificates, volumes/
+└── backups/<stamp>/     both databases, master key, proxy config,
+                         certificates, volumes/
 ```
 
 More detail in [docs/architecture.md](docs/architecture.md).
 
 ## Requirements
 
-- Ubuntu 22.04+ or Debian 12+, amd64 or arm64
+- Ubuntu 22.04+ or Debian 12+, amd64 (the published images are amd64 only)
 - 1 GB RAM (2 GB if you build images on the server)
 - Ports 80, 443 and 3000 free
 - Docker is installed by the installer if missing
@@ -77,7 +94,7 @@ More detail in [docs/architecture.md](docs/architecture.md).
 
 ```sh
 make check      # go vet, go test, typecheck
-make dev-up     # build both images and run the whole stack locally
+make dev-up     # build the three images and run the whole stack locally
 make run        # manager only, against ./.vexdock
 make web        # rebuild the dashboard; the running stack serves it at once
 make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
@@ -88,7 +105,7 @@ make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 - `apps/auth/` authentication. better-auth on Bun, its own SQLite database.
 - `apps/web/` dashboard. TanStack Start in SPA mode with shadcn/ui, built to static files.
 - `docker/` image definitions and the Nginx base configuration.
-- `installer/` the install, update and uninstall script.
+- `installer/install.sh` install, update and uninstall in one script.
 
 ## Documentation
 

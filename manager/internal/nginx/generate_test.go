@@ -79,6 +79,18 @@ func TestAliasIsStableAndSafe(t *testing.T) {
 	}
 }
 
+// The panel on its own domain must keep the throttling that the built-in
+// :3000 vhost applies, or moving it there silently opens sign-in to brute force.
+func TestRenderDashboardThrottlesCredentials(t *testing.T) {
+	conf := RenderDashboard("panel.example.com", "manager:8080", "/usr/share/nginx/html", false, "")
+	if !strings.Contains(conf, "limit_req zone=login_limit") {
+		t.Error("the dashboard vhost does not rate limit credential endpoints")
+	}
+	if !strings.Contains(conf, "limit_req zone=api_limit") {
+		t.Error("the dashboard vhost does not rate limit the API")
+	}
+}
+
 func TestRenderDashboard(t *testing.T) {
 	conf := RenderDashboard("panel.example.com", "manager:8080", "/usr/share/nginx/html", false, "")
 	mustContain(t, conf, "proxy_pass http://manager:8080;")

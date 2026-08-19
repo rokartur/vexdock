@@ -9,6 +9,7 @@ set -eu
 VERSION="${1:?target version required}"
 ROOT="${PLATFORM_ROOT:-/opt/platform}"
 COMPOSE_FILE="$ROOT/compose.yml"
+COMPOSE_BACKUP="$ROOT/system/compose.previous.yml"
 ENV_FILE="$ROOT/.env"
 MANAGER="vexdock-manager"
 
@@ -38,7 +39,6 @@ wait_healthy() {
         status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$MANAGER" 2>/dev/null || echo missing)"
         case "$status" in
             healthy|running) return 0 ;;
-            unhealthy) sleep 2 ;;
             *) sleep 2 ;;
         esac
         i=$((i + 1))
@@ -46,7 +46,6 @@ wait_healthy() {
     return 1
 }
 
-set_version "$VERSION"
 compose() {
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
 }
@@ -57,6 +56,9 @@ compose() {
 rollback() {
     log "rolling back to $PREVIOUS"
     set_version "$PREVIOUS"
+    if [ -f "$COMPOSE_BACKUP" ]; then
+        cp "$COMPOSE_BACKUP" "$COMPOSE_FILE"
+    fi
     compose up -d --remove-orphans || log "rollback recreate reported an error"
     if wait_healthy; then
         log "rollback to $PREVIOUS completed"
@@ -65,6 +67,25 @@ rollback() {
     fi
     exit 1
 }
+
+# The new images may need a service or a variable the installed compose file has
+# never heard of, so the topology has to move with the version.
+cp "$COMPOSE_FILE" "$COMPOSE_BACKUP"
+set_version "$VERSION"
+if [ -n "${PLATFORM_RAW_BASE:-}" ]; then
+    log "fetching compose.yml for $VERSION"
+    if wget -qO "$COMPOSE_FILE.new" "$PLATFORM_RAW_BASE/$VERSION/compose.yml"; then
+        mv "$COMPOSE_FILE.new" "$COMPOSE_FILE"
+        if ! compose config -q; then
+            log "the downloaded compose.yml is not valid for this install"
+            rollback
+        fi
+    else
+        rm -f "$COMPOSE_FILE.new"
+        log "could not download compose.yml for $VERSION"
+        rollback
+    fi
+fi
 
 log "pulling images"
 if ! compose pull; then

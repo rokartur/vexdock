@@ -1,77 +1,29 @@
-import { useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { ImportServicesForm } from '../components/import-services-form'
+import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
 import { Button, Refresh, Section, Status } from '../components/primitives'
 import { api, type Service } from '../lib/api'
-import { since } from '../lib/format'
+
+/** The menu, in the order it reads: the two everyday kinds, then the escape
+ * hatch, then the one that brings a whole project's worth in at once. */
+const creatable: { kind: ServiceKind | 'import'; label: string }[] = [
+	{ kind: 'application', label: 'Application' },
+	{ kind: 'database', label: 'Database' },
+	{ kind: 'compose', label: 'Compose' },
+	{ kind: 'import', label: 'Import' },
+]
 
 export const Route = createFileRoute('/projects/$projectId/')({ component: ProjectServices })
 
-type ServiceAction = 'start' | 'stop' | 'restart'
-
-function serviceTableColumns(projectId: string, act: (id: string, action: ServiceAction) => void): Columns<Service> {
-	const cell = columnsFor<Service>()
-	return [
-		cell.accessor(service => service.compose_service_name, {
-			id: 'service',
-			header: 'Service',
-			cell: ({ row }) => (
-				<Link
-					to='/projects/$projectId/services/$serviceId'
-					params={{ projectId, serviceId: row.original.id }}
-					className='hover:underline'
-				>
-					{row.original.compose_service_name}
-				</Link>
-			),
-		}),
-		cell.accessor(service => service.state || 'stopped', {
-			id: 'state',
-			header: 'State',
-			cell: ({ row }) => <Status value={row.original.state || 'stopped'} />,
-		}),
-		cell.accessor(service => service.health ?? '', {
-			id: 'health',
-			header: 'Health',
-			cell: ({ row }) =>
-				row.original.health ? (
-					<Status value={row.original.health} />
-				) : (
-					<span className='text-muted-foreground'>-</span>
-				),
-		}),
-		cell.accessor(service => service.image || '-', { id: 'image', header: 'Image', meta: { mono: true } }),
-		cell.accessor(service => service.restart_count, { id: 'restarts', header: 'Restarts', meta: { mono: true } }),
-		cell.accessor(service => service.created_unix ?? 0, {
-			id: 'created',
-			header: 'Created',
-			cell: ({ row }) => (row.original.created_unix ? since(row.original.created_unix) : '-'),
-		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<span className='flex justify-end gap-1.5'>
-					<Button variant='ghost' onClick={() => act(row.original.id, 'start')}>
-						start
-					</Button>
-					<Button variant='ghost' onClick={() => act(row.original.id, 'restart')}>
-						restart
-					</Button>
-					<Button variant='ghost' onClick={() => act(row.original.id, 'stop')}>
-						stop
-					</Button>
-				</span>
-			),
-		}),
-	]
-}
-
 function ProjectServices() {
 	const { projectId } = Route.useParams()
+	const navigate = useNavigate()
 	const queryClient = useQueryClient()
+	const [creating, setCreating] = useState<ServiceKind | 'import' | null>(null)
 
 	const services = useQuery({
 		queryKey: ['services', projectId],
@@ -79,32 +31,115 @@ function ProjectServices() {
 		refetchInterval: 5000,
 	})
 
-	const act = useMutation({
-		mutationFn: ({ id, action }: { id: string; action: 'start' | 'stop' | 'restart' }) =>
-			api.serviceAction(id, action),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['services', projectId] }),
-	})
-
 	const data = services.data ?? []
-	const { mutate: runAction } = act
-	const columns = useMemo(
-		() => serviceTableColumns(projectId, (id, action) => runAction({ id, action })),
-		[projectId, runAction],
-	)
 
 	return (
 		<Section
 			title='Services'
-			description={`${data.length} defined in compose`}
+			description={`${data.length} in this project`}
 			actions={<Refresh onClick={() => services.refetch()} busy={services.isFetching} />}
 		>
-			<DataTable
-				data={data}
-				columns={columns}
-				loading={services.isLoading}
-				getRowId={service => service.id}
-				empty='No services yet. Deploy the project to create them from its compose file.'
-			/>
+			<Dialog open={creating !== null} onOpenChange={open => !open && setCreating(null)}>
+				<DialogContent className='sm:max-w-lg'>
+					<DialogHeader>
+						<DialogTitle>
+							{creating === null || creating === 'import' ? 'Import services' : newServiceTitle(creating)}
+						</DialogTitle>
+					</DialogHeader>
+					{creating === 'import' ? (
+						<ImportServicesForm
+							projectId={projectId}
+							existingNames={data.map(service => service.compose_service_name)}
+							onDone={async () => {
+								setCreating(null)
+								await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
+							}}
+							onCancel={() => setCreating(null)}
+						/>
+					) : creating === null ? null : (
+						<NewServiceForm
+							projectId={projectId}
+							kind={creating}
+							onDone={async service => {
+								setCreating(null)
+								await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
+								await navigate({
+									to: '/projects/$projectId/services/$serviceId',
+									params: { projectId, serviceId: service.id },
+								})
+							}}
+							onCancel={() => setCreating(null)}
+						/>
+					)}
+				</DialogContent>
+			</Dialog>
+
+			<ul className='mb-3 flex flex-col gap-2'>
+				{data.map(service => (
+					<ServiceRow key={service.id} projectId={projectId} service={service} />
+				))}
+			</ul>
+			{data.length === 0 && !services.isLoading ? (
+				<p className='mb-3 text-body text-muted-foreground'>
+					No services yet. Add one, or deploy the project to pick up what its compose file declares.
+				</p>
+			) : null}
+
+			<DropdownMenu>
+				<DropdownMenuTrigger render={<Button variant='primary' />}>+ New service</DropdownMenuTrigger>
+				<DropdownMenuContent align='start'>
+					{creatable.map(entry => (
+						<DropdownMenuItem key={entry.kind} onSelect={() => setCreating(entry.kind)}>
+							{entry.label}
+						</DropdownMenuItem>
+					))}
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</Section>
+	)
+}
+
+/**
+ * One row is the whole service at a glance: what kind of thing it is, what it
+ * runs and whether it is up. The image falls back to what the container was
+ * actually started from, so a derived service still shows something. A service
+ * whose source is still unanswered says so instead of reading as broken.
+ */
+function ServiceRow({ projectId, service }: { projectId: string; service: Service }) {
+	const unconfigured = service.source_type === 'unconfigured'
+	return (
+		<li>
+			<Link
+				to='/projects/$projectId/services/$serviceId'
+				params={{ projectId, serviceId: service.id }}
+				className='flex items-center gap-3 border border-border px-3 py-2.5 transition-colors hover:border-muted-foreground'
+			>
+				<TypeBadge type={service.type} />
+				<span className='text-body'>{service.compose_service_name}</span>
+				<span className='truncate font-mono text-label text-muted-foreground'>
+					{unconfigured ? '' : service.image || service.running_image || '-'}
+				</span>
+				<span className='ml-auto shrink-0'>
+					{unconfigured ? (
+						<span className='text-label text-muted-foreground'>needs a source</span>
+					) : (
+						<Status value={service.state || 'stopped'} />
+					)}
+				</span>
+			</Link>
+		</li>
+	)
+}
+
+function TypeBadge({ type }: { type: Service['type'] }) {
+	const database = type === 'database'
+	return (
+		<span
+			className={`shrink-0 border px-1.5 py-0.5 font-mono text-label uppercase ${
+				database ? 'border-emerald-900 text-emerald-500' : 'border-indigo-900 text-indigo-400'
+			}`}
+		>
+			{database ? 'DB' : 'App'}
+		</span>
 	)
 }

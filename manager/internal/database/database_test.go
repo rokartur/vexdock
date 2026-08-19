@@ -155,7 +155,7 @@ func TestDeletingAProjectCascades(t *testing.T) {
 	if err := db.CreateDomain(ctx, domain); err != nil {
 		t.Fatalf("create domain: %v", err)
 	}
-	if err := db.UpsertSecret(ctx, project.ID, "TOKEN", "sealed", true); err != nil {
+	if err := db.UpsertSecret(ctx, ProjectScope, project.ID, "TOKEN", "sealed", true); err != nil {
 		t.Fatalf("upsert secret: %v", err)
 	}
 
@@ -169,7 +169,7 @@ func TestDeletingAProjectCascades(t *testing.T) {
 	if len(domains) != 0 {
 		t.Fatalf("domains survived the project: %+v", domains)
 	}
-	secrets, err := db.ListSecrets(ctx, project.ID)
+	secrets, err := db.ListSecrets(ctx, ProjectScope, project.ID)
 	if err != nil {
 		t.Fatalf("list secrets: %v", err)
 	}

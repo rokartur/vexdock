@@ -15,6 +15,7 @@ RUN cd apps/web && bun run build
 FROM nginx:1.29-alpine
 
 COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY docker/nginx/proxy-headers.conf /etc/nginx/proxy-headers.conf
 COPY docker/nginx/dashboard.conf /etc/nginx/dashboard/dashboard.conf
 COPY --from=web /app/apps/web/dist/client /usr/share/nginx/html
 

@@ -18,7 +18,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTokens(w http.ResponseWriter, r *http.Request) {
-	tokens, err := s.db.ListAPITokens(r.Context())
+	tokens, err := s.DB.ListAPITokens(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
@@ -45,7 +45,7 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 		userID = user.ID
 	}
 	raw := security.RandomToken(32)
-	token, err := s.db.CreateAPIToken(r.Context(), userID, req.Name, security.HashToken(raw), raw[:6])
+	token, err := s.DB.CreateAPIToken(r.Context(), userID, req.Name, security.HashToken(raw), raw[:6])
 	if err != nil {
 		serverError(w, err)
 		return
@@ -54,7 +54,7 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteToken(w http.ResponseWriter, r *http.Request) {
-	if err := s.db.DeleteAPIToken(r.Context(), r.PathValue("id")); err != nil {
+	if err := s.DB.DeleteAPIToken(r.Context(), r.PathValue("id")); err != nil {
 		serverError(w, err)
 		return
 	}

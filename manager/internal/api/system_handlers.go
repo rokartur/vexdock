@@ -25,28 +25,28 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	checks := map[string]string{}
 	healthy := true
 
-	if err := s.db.PingContext(r.Context()); err != nil {
+	if err := s.DB.PingContext(r.Context()); err != nil {
 		checks["database"], healthy = err.Error(), false
 	} else {
 		checks["database"] = "ok"
 	}
-	if err := s.docker.Ping(r.Context()); err != nil {
+	if err := s.Docker.Ping(r.Context()); err != nil {
 		checks["docker"], healthy = err.Error(), false
 	} else {
 		checks["docker"] = "ok"
 	}
-	if err := writable(s.cfg.DataDir); err != nil {
+	if err := writable(s.Config.DataDir); err != nil {
 		checks["storage"], healthy = err.Error(), false
 	} else {
 		checks["storage"] = "ok"
 	}
-	host := metrics.Read(s.cfg.Root)
+	host := metrics.Read(s.Config.Root)
 	if host.DiskTotal > 0 && host.DiskTotal-host.DiskUsed < 512<<20 {
 		checks["disk"], healthy = "less than 512 MB free", false
 	} else {
 		checks["disk"] = "ok"
 	}
-	if _, err := s.nginx.Test(r.Context()); err != nil {
+	if _, err := s.Nginx.Test(r.Context()); err != nil {
 		// A failing proxy is reported but does not make the manager unhealthy:
 		// the panel must stay reachable precisely so it can be fixed.
 		checks["nginx"] = err.Error()
@@ -71,22 +71,22 @@ func writable(dir string) error {
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.updater.Status(r.Context()))
+	writeJSON(w, http.StatusOK, s.Updater.Status(r.Context()))
 }
 
 // handleSystemInfo powers the dashboard summary.
 func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
-	info, err := s.docker.Info(r.Context())
+	info, err := s.Docker.Info(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	projects, err := s.db.ListProjects(r.Context())
+	projects, err := s.DB.ListProjects(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	recent, err := s.db.RecentDeployments(r.Context(), 10)
+	recent, err := s.DB.RecentDeployments(r.Context(), 10)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -114,7 +114,7 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 		"containers_stopped": info.ContainersStopped,
 		"images":             info.Images,
 		"recent_deployments": activity,
-		"version":            s.cfg.Version,
+		"version":            s.Config.Version,
 	})
 }
 
@@ -154,7 +154,7 @@ func metricsWindow(r *http.Request) (time.Time, int64) {
 // which seeds the dashboard charts before live samples start arriving.
 func (s *Server) handleSystemMetrics(w http.ResponseWriter, r *http.Request) {
 	since, bucket := metricsWindow(r)
-	points, err := s.db.HostMetrics(r.Context(), since, bucket)
+	points, err := s.DB.HostMetrics(r.Context(), since, bucket)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -174,7 +174,7 @@ func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(statsInterval)
 	defer ticker.Stop()
 	for {
-		if err := sse.send("stats", metrics.Read(s.cfg.Root)); err != nil {
+		if err := sse.send("stats", metrics.Read(s.Config.Root)); err != nil {
 			return
 		}
 		select {
@@ -187,7 +187,7 @@ func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
 
 // handleSystemEvents streams docker/platform events so the panel updates itself.
 func (s *Server) handleSystemEvents(w http.ResponseWriter, r *http.Request) {
-	ch, unsubscribe := s.bus.Subscribe(events.TopicSystem)
+	ch, unsubscribe := s.Bus.Subscribe(events.TopicSystem)
 	defer unsubscribe()
 	sse, err := newSSE(w)
 	if err != nil {
@@ -213,14 +213,14 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, settingsPayload{
 		DashboardDomain:    s.setting(r.Context(), domains.SettingDashboardDomain),
 		DashboardHTTPS:     s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
-		ACMEEmail:          s.cfg.ACMEEmail,
+		ACMEEmail:          s.Config.ACMEEmail,
 		NotifyWebhookURL:   s.setting(r.Context(), notify.SettingWebhookURL),
-		CloudflareTokenSet: s.certs.DNS01Enabled(),
+		CloudflareTokenSet: s.Certs.DNS01Enabled(),
 	})
 }
 
 func (s *Server) setting(ctx context.Context, key string) string {
-	v, err := s.db.Setting(ctx, key)
+	v, err := s.DB.Setting(ctx, key)
 	if err != nil {
 		return ""
 	}
@@ -237,11 +237,11 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
+	if err := s.Domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
 		badRequest(w, err)
 		return
 	}
-	if err := s.db.SetSetting(r.Context(), notify.SettingWebhookURL, req.NotifyWebhookURL); err != nil {
+	if err := s.DB.SetSetting(r.Context(), notify.SettingWebhookURL, req.NotifyWebhookURL); err != nil {
 		serverError(w, err)
 		return
 	}
@@ -259,23 +259,23 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 func (s *Server) setCloudflareToken(ctx context.Context, token string) error {
 	stored := ""
 	if token != "" {
-		encrypted, err := s.cipher.Encrypt(token)
+		encrypted, err := s.Cipher.Encrypt(token)
 		if err != nil {
 			return err
 		}
 		stored = encrypted
 	}
-	if err := s.db.SetSetting(ctx, certificates.SettingCloudflareToken, stored); err != nil {
+	if err := s.DB.SetSetting(ctx, certificates.SettingCloudflareToken, stored); err != nil {
 		return err
 	}
-	s.certs.SetCloudflareToken(token)
+	s.Certs.SetCloudflareToken(token)
 	return nil
 }
 
 func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
 	// Volume archives can take minutes and grow to many gigabytes, so the caller
 	// asks for them explicitly.
-	snapshot, err := s.backups.Create(r.Context(), r.URL.Query().Get("volumes") == "true")
+	snapshot, err := s.Backups.Create(r.Context(), r.URL.Query().Get("volumes") == "true")
 	if err != nil {
 		serverError(w, err)
 		return
@@ -284,7 +284,7 @@ func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
-	list, err := s.backups.List()
+	list, err := s.Backups.List()
 	if err != nil {
 		serverError(w, err)
 		return
@@ -301,7 +301,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		// An empty body means "update to latest".
 		req.Version = ""
 	}
-	if err := s.updater.Start(r.Context(), req.Version); err != nil {
+	if err := s.Updater.Start(r.Context(), req.Version); err != nil {
 		badRequest(w, err)
 		return
 	}
@@ -313,7 +313,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 // handleAudit lists recent state-changing calls.
 func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.db.ListAudit(r.Context(), 100)
+	entries, err := s.DB.ListAudit(r.Context(), 100)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -322,7 +322,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListRegistries(w http.ResponseWriter, r *http.Request) {
-	list, err := s.db.ListRegistries(r.Context())
+	list, err := s.DB.ListRegistries(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
@@ -347,18 +347,18 @@ func (s *Server) handleCreateRegistry(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, errors.New("name, url, username and token are all required"))
 		return
 	}
-	encrypted, err := s.cipher.Encrypt(req.Password)
+	encrypted, err := s.Cipher.Encrypt(req.Password)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
 	registry := &database.Registry{Name: req.Name, URL: req.URL, Username: req.Username, EncryptedPassword: encrypted}
-	if err := s.db.CreateRegistry(r.Context(), registry); err != nil {
+	if err := s.DB.CreateRegistry(r.Context(), registry); err != nil {
 		badRequest(w, err)
 		return
 	}
 	if err := s.dockerLogin(r.Context(), req.URL, req.Username, req.Password); err != nil {
-		_ = s.db.DeleteRegistry(r.Context(), registry.ID)
+		_ = s.DB.DeleteRegistry(r.Context(), registry.ID)
 		badRequest(w, err)
 		return
 	}
@@ -366,7 +366,7 @@ func (s *Server) handleCreateRegistry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteRegistry(w http.ResponseWriter, r *http.Request) {
-	if err := s.db.DeleteRegistry(r.Context(), r.PathValue("id")); err != nil {
+	if err := s.DB.DeleteRegistry(r.Context(), r.PathValue("id")); err != nil {
 		serverError(w, err)
 		return
 	}

@@ -4,12 +4,24 @@
 # PLATFORM_ROOT is mounted at the *same* path inside the manager so that bind
 # mounts declared in user compose files resolve identically on host and in
 # container.
+#
+# REGISTRY is written by the installer from the repository it pulled from, so a
+# fork publishes and consumes its own images without editing this file.
+
+# Without a cap the platform's own logs grow until the host disk is full, which
+# takes the panel down with them.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   manager:
-    image: ghcr.io/vexdock/manager:${VERSION:-latest}
+    image: ${REGISTRY:-ghcr.io/rokartur}/manager:${VERSION:-latest}
     container_name: vexdock-manager
     restart: unless-stopped
+    logging: *logging
 
     environment:
       PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/platform}
@@ -32,14 +44,20 @@ services:
   # better-auth owns login, sign-up and sessions. The manager reads its SQLite
   # file to authenticate requests, so there is one implementation of auth.
   auth:
-    image: ghcr.io/vexdock/auth:${VERSION:-latest}
+    image: ${REGISTRY:-ghcr.io/rokartur}/auth:${VERSION:-latest}
     container_name: vexdock-auth
     restart: unless-stopped
+    logging: *logging
 
     environment:
       PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/platform}
       PLATFORM_PUBLIC_URL: ${PUBLIC_URL:-}
       PORT: "8081"
+      # Signs every session cookie. Required: booting without it would sign
+      # sessions with a value shared by every install.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?written to .env by the installer}
+      # Guards the one-time administrator sign-up on a publicly reachable panel.
+      PLATFORM_SETUP_TOKEN: ${SETUP_TOKEN:-}
 
     volumes:
       - ${PLATFORM_ROOT:-/opt/platform}/data:${PLATFORM_ROOT:-/opt/platform}/data
@@ -48,9 +66,10 @@ services:
       - internal
 
   nginx:
-    image: ghcr.io/vexdock/nginx:${VERSION:-latest}
+    image: ${REGISTRY:-ghcr.io/rokartur}/nginx:${VERSION:-latest}
     container_name: vexdock-nginx
     restart: unless-stopped
+    logging: *logging
 
     depends_on:
       - manager

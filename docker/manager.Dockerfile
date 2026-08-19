@@ -7,15 +7,14 @@ COPY manager/go.mod manager/go.sum ./
 RUN go mod download
 
 COPY manager/ ./
-ARG VERSION=dev
 # CGO stays off: modernc.org/sqlite is pure Go, so the binary is static.
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/manager ./cmd/server
 
 FROM alpine:3.22
 
 # docker-cli-compose provides `docker compose`; git clones project repositories.
-RUN apk add --no-cache ca-certificates git openssh-client docker-cli docker-cli-compose tzdata \
-    && adduser -D -u 10001 platform
+# The manager runs as root on purpose: it drives the host's Docker socket.
+RUN apk add --no-cache ca-certificates git openssh-client docker-cli docker-cli-compose tzdata
 
 COPY --from=build /out/manager /usr/local/bin/manager
 

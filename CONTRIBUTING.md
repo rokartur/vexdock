@@ -3,19 +3,21 @@
 ## Getting set up
 
 ```sh
-git clone https://github.com/vexdock/platform
-cd platform
+git clone https://github.com/rokartur/vexdock
+cd vexdock
 bun install
 make check
 ```
 
-`make check` runs `go vet`, the Go tests and the dashboard typecheck. It is
-exactly what CI runs.
+`make check` runs gofmt, `go vet`, the Go tests, the dashboard typecheck and
+tests, and the auth typecheck. CI runs that plus `shellcheck` over the shell
+scripts and an integration job that deploys against real Docker, so a green
+`make check` is necessary but not sufficient when you touch either.
 
 ## Running the whole thing locally
 
 ```sh
-make dev-up             # builds both images, starts manager + nginx
+make dev-up             # builds the three images, starts the stack
 ./scripts/smoke-test.sh # end-to-end: setup, deploy, domain, proxy
 make dev-logs
 make dev-down
@@ -43,6 +45,8 @@ make web-dev   # dashboard on :5173 with HMR
 | `manager/internal/database` | SQLite connection, models and every query |
 | `manager/internal/deployments` | The deploy pipeline |
 | `manager/internal/domains` | Domain to service mapping and proxy reconciliation |
+| `manager/internal/engines` | The database engine catalogue and its compose fragments |
+| `manager/internal/projects` | Projects, managed services and the compose overlay |
 | `manager/internal/nginx` | Configuration generation and safe reload |
 | `manager/internal/security` | Validation, encryption, path confinement |
 | `apps/web/src/routes` | One file per page |
@@ -83,3 +87,29 @@ implementation.
 - One concern per pull request.
 - `make check` passes.
 - If behaviour changed, the docs changed with it.
+
+## Releasing
+
+Tags are `vX.Y.Z`. The release workflow refuses to run unless `package.json`,
+`apps/web/package.json` and `apps/auth/package.json` all say `X.Y.Z`, so bump
+those three first, then tag:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+That publishes `manager`, `auth` and `nginx` to `ghcr.io/<owner>` and attaches
+`install.sh` and `compose.yml` to the GitHub release.
+
+**The first release needs one manual step.** Packages pushed by a workflow are
+private, and an installer on someone else's VPS pulls anonymously. After the
+first successful run, open each package under
+`github.com/<owner>?tab=packages` and set its visibility to Public. Verify from
+a logged-out machine before announcing anything:
+
+```sh
+docker logout ghcr.io
+docker pull ghcr.io/<owner>/manager:latest
+```
+
+Images are `linux/amd64` only, and the installer refuses to run anywhere else.

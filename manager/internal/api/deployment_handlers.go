@@ -11,11 +11,11 @@ import (
 )
 
 func (s *Server) handleGetDeployment(w http.ResponseWriter, r *http.Request) {
-	deployment, err := s.db.DeploymentByID(r.Context(), r.PathValue("id"))
+	deployment, err := s.DB.DeploymentByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
-	steps, err := s.db.ListSteps(r.Context(), deployment.ID)
+	steps, err := s.DB.ListSteps(r.Context(), deployment.ID)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -26,12 +26,12 @@ func (s *Server) handleGetDeployment(w http.ResponseWriter, r *http.Request) {
 // handleDeploymentEvents streams the live pipeline log. It replays the steps
 // already recorded so a late subscriber still sees the whole deployment.
 func (s *Server) handleDeploymentEvents(w http.ResponseWriter, r *http.Request) {
-	deployment, err := s.db.DeploymentByID(r.Context(), r.PathValue("id"))
+	deployment, err := s.DB.DeploymentByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
 	// Subscribe before replaying so nothing is lost in between.
-	ch, unsubscribe := s.bus.Subscribe(events.DeploymentTopic(deployment.ID))
+	ch, unsubscribe := s.Bus.Subscribe(events.DeploymentTopic(deployment.ID))
 	defer unsubscribe()
 
 	sse, err := newSSE(w)
@@ -39,7 +39,7 @@ func (s *Server) handleDeploymentEvents(w http.ResponseWriter, r *http.Request) 
 		serverError(w, err)
 		return
 	}
-	steps, err := s.db.ListSteps(r.Context(), deployment.ID)
+	steps, err := s.DB.ListSteps(r.Context(), deployment.ID)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -55,7 +55,7 @@ func (s *Server) handleDeploymentEvents(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleCancelDeployment(w http.ResponseWriter, r *http.Request) {
-	if err := s.deployments.Cancel(r.PathValue("id")); err != nil {
+	if err := s.Deployments.Cancel(r.PathValue("id")); err != nil {
 		badRequest(w, err)
 		return
 	}
@@ -64,7 +64,7 @@ func (s *Server) handleCancelDeployment(w http.ResponseWriter, r *http.Request) 
 
 // handleRollback redeploys the exact commit of a previous successful deployment.
 func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
-	target, err := s.db.DeploymentByID(r.Context(), r.PathValue("id"))
+	target, err := s.DB.DeploymentByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
@@ -72,7 +72,7 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, errors.New("this deployment has no commit to roll back to"))
 		return
 	}
-	project, err := s.db.ProjectByID(r.Context(), target.ProjectID)
+	project, err := s.DB.ProjectByID(r.Context(), target.ProjectID)
 	if handleLookupError(w, err) {
 		return
 	}
@@ -81,7 +81,7 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 	if user != nil {
 		actor = user.Email
 	}
-	deployment, err := s.deployments.Trigger(r.Context(), project, deployments.Options{
+	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
 		Trigger:   deployments.TriggerRollback,
 		Actor:     actor,
 		CommitSHA: target.CommitSHA,

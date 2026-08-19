@@ -68,9 +68,15 @@ docker logs vexdock-updater
 docker ps --filter name=vexdock
 ```
 
-Backups live in `/opt/platform/backups/<timestamp>/`, containing `app.db`, the
-generated proxy configuration and the certificates. A backup created with
-**Include volumes** also has a `volumes/<name>.tar.gz` per application volume.
+The updater container is kept after it exits so those logs survive; the next
+update replaces it.
+
+Backups live in `/opt/platform/backups/<timestamp>/`, containing `app.db`,
+`auth.db`, `master.key`, the generated proxy configuration and the certificates.
+A backup created with **Include volumes** also has a `volumes/<name>.tar.gz` per
+application volume. Restoring one is in
+[install.md](install.md#restoring-a-backup); note that `master.key` is required
+to read anything encrypted in `app.db`.
 
 ## Restoring an application volume
 
@@ -91,7 +97,7 @@ The volume names in the archive are the real Docker volume names, so
 
 ```sh
 cd /opt/platform && docker compose down
-curl -fsSL https://get.vexdock.dev | sudo sh
+curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh
 ```
 
 Applications keep running throughout: they are independent compose projects and
