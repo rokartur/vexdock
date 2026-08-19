@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -23,15 +24,17 @@ import (
 
 // Step names, in pipeline order.
 const (
-	StepClone       = "clone"
-	StepCheckout    = "checkout"
-	StepValidate    = "validate"
-	StepPull        = "pull"
-	StepBuild       = "build"
-	StepStart       = "start"
-	StepHealthcheck = "healthcheck"
-	StepProxy       = "proxy"
-	StepFinish      = "finish"
+	StepClone    = "clone"
+	StepCheckout = "checkout"
+	// Only emitted when the project has git-sourced managed services.
+	StepServiceCheckout = "service-checkout"
+	StepValidate        = "validate"
+	StepPull            = "pull"
+	StepBuild           = "build"
+	StepStart           = "start"
+	StepHealthcheck     = "healthcheck"
+	StepProxy           = "proxy"
+	StepFinish          = "finish"
 )
 
 // Triggers recorded on a deployment.
@@ -43,6 +46,10 @@ const (
 
 // healthTimeout bounds how long the pipeline waits for containers to settle.
 const healthTimeout = 3 * time.Minute
+
+// deployTimeout bounds a whole deployment. A large image build is slow but not
+// this slow, so anything that reaches it is stuck rather than working.
+const deployTimeout = 45 * time.Minute
 
 type Engine struct {
 	db       *database.DB
@@ -150,7 +157,9 @@ func (e *Engine) run(projectID, deploymentID, ref string) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// A wedged git clone or registry pull would otherwise hold the project lock
+	// forever and leave the deployment reading "running" with nothing running.
+	ctx, cancel := context.WithTimeout(context.Background(), deployTimeout)
 	e.mu.Lock()
 	e.cancels[deploymentID] = cancel
 	e.mu.Unlock()
@@ -208,6 +217,12 @@ func (p *pipeline) execute(ctx context.Context) error {
 		p.begin(StepClone)
 		p.printf("Using the compose file stored in the project")
 		p.complete()
+	}
+	// Services the dashboard owns can each build from their own repository, so
+	// their checkouts have to exist before compose resolves the build contexts
+	// the overlay points at.
+	if err := p.serviceCheckouts(ctx); err != nil {
+		return err
 	}
 
 	composeProject, err := p.e.projects.ComposeProject(ctx, p.project)
@@ -297,6 +312,50 @@ func (p *pipeline) gitSteps(ctx context.Context) error {
 	p.deployment.CommitSHA = sha
 	if err := p.e.db.UpdateDeployment(ctx, p.deployment); err != nil {
 		return p.fail(err)
+	}
+	p.complete()
+	return nil
+}
+
+// serviceCheckouts syncs the repository of every git-sourced managed service.
+// They share the project's credential: one project is one trust boundary, and
+// a second private repository is a per-service credential away.
+//
+// It opens its own step: the project's checkout step is already closed by the
+// time this runs, and p.fail on a closed step records nothing, which would turn
+// a failed service clone into a deployment that fails with an empty log.
+func (p *pipeline) serviceCheckouts(ctx context.Context) error {
+	services, err := p.e.db.ListServices(ctx, p.project.ID)
+	if err != nil {
+		p.begin(StepServiceCheckout)
+		return p.fail(err)
+	}
+	sourced := make([]database.Service, 0, len(services))
+	for _, svc := range services {
+		if svc.Managed() && svc.SourceType == database.ServiceGit {
+			sourced = append(sourced, svc)
+		}
+	}
+	if len(sourced) == 0 {
+		return nil
+	}
+
+	p.begin(StepServiceCheckout)
+	cred, err := p.e.projects.Credential(p.project)
+	if err != nil {
+		return p.fail(err)
+	}
+	for _, svc := range sourced {
+		repo := git.Repo{
+			URL:  svc.RepositoryURL,
+			Ref:  svc.Branch,
+			Dir:  filepath.Join(p.e.projects.ServiceDir(p.project, svc.ComposeServiceName), "repository"),
+			Cred: cred,
+		}
+		p.printf("Fetching %s @ %s for service %s", svc.RepositoryURL, svc.Branch, svc.ComposeServiceName)
+		if _, err := repo.Sync(ctx, p); err != nil {
+			return p.fail(err)
+		}
 	}
 	p.complete()
 	return nil

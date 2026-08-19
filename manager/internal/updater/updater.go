@@ -45,12 +45,19 @@ type Service struct {
 	latest     string
 	latestAt   time.Time
 	releaseAPI string
+	rawBase    string
 }
 
-// New wires the updater. releaseAPI is the endpoint polled for the newest
-// published version; an empty value disables update checks.
-func New(cfg *config.Config, backups *backup.Service, releaseAPI string) *Service {
-	return &Service{cfg: cfg, backups: backups, releaseAPI: releaseAPI}
+// New wires the updater. repo is the "owner/name" GitHub slug that publishes
+// this platform: releases are read from it and the compose file for the target
+// version is downloaded from it. An empty slug disables update checks.
+func New(cfg *config.Config, backups *backup.Service, repo string) *Service {
+	s := &Service{cfg: cfg, backups: backups}
+	if repo != "" {
+		s.releaseAPI = "https://api.github.com/repos/" + repo + "/releases/latest"
+		s.rawBase = "https://raw.githubusercontent.com/" + repo
+	}
+	return s
 }
 
 // Status is what the System → Update screen renders.
@@ -128,13 +135,17 @@ func (s *Service) Start(ctx context.Context, version string) error {
 	}
 	// Each argument is passed separately; nothing is concatenated into a shell
 	// command line.
+	// The container is kept after it exits so `docker logs vexdock-updater`
+	// can explain a failed update; the previous one is cleared here instead.
+	_ = exec.CommandContext(ctx, "docker", "rm", "-f", "vexdock-updater").Run()
 	args := []string{
-		"run", "--detach", "--rm",
+		"run", "--detach",
 		"--name", "vexdock-updater",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-v", s.cfg.Root + ":" + s.cfg.Root,
 		"-w", s.cfg.Root,
 		"-e", "PLATFORM_ROOT=" + s.cfg.Root,
+		"-e", "PLATFORM_RAW_BASE=" + s.rawBase,
 		UpdaterImage,
 		"sh", scriptPath, version,
 	}

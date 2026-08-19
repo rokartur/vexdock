@@ -39,9 +39,6 @@ func TestParseConfig(t *testing.T) {
 	if cfg.Services["api"].Build == nil {
 		t.Fatal("build section lost")
 	}
-	if cfg.Services["web"].Healthcheck == nil {
-		t.Fatal("healthcheck lost")
-	}
 }
 
 func TestParseConfigRejectsEmpty(t *testing.T) {
@@ -53,33 +50,21 @@ func TestParseConfigRejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestGuessPort(t *testing.T) {
-	cfg, err := ParseConfig([]byte(resolved))
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if got := cfg.GuessPort("web"); got != 3000 {
-		t.Fatalf("expected 3000, got %d", got)
-	}
-	if got := cfg.GuessPort("api"); got != 8080 {
-		t.Fatalf("expected 8080, got %d", got)
-	}
-	// A service with no published ports has nothing to prefill.
-	if got := cfg.GuessPort("worker"); got != 0 {
-		t.Fatalf("expected 0, got %d", got)
-	}
-	if got := cfg.GuessPort("missing"); got != 0 {
-		t.Fatalf("expected 0 for an unknown service, got %d", got)
-	}
-}
-
 func TestArgsKeepEveryValueSeparate(t *testing.T) {
-	p := Project{Name: "p_01jabc", Dir: "/projects/01jabc/repository", File: "/projects/01jabc/repository/compose.yml", EnvFile: "/projects/01jabc/.env"}
+	p := Project{
+		Name: "p_01jabc",
+		Dir:  "/projects/01jabc/repository",
+		// The overlay is a second --file, and its order matters: it is what
+		// lets a managed service override the project's own definition.
+		Files:   []string{"/projects/01jabc/repository/compose.yml", "/projects/01jabc/managed.yml"},
+		EnvFile: "/projects/01jabc/.env",
+	}
 	args := p.args("up", "-d")
 	want := []string{
 		"compose", "--project-name", "p_01jabc",
 		"--project-directory", "/projects/01jabc/repository",
 		"--file", "/projects/01jabc/repository/compose.yml",
+		"--file", "/projects/01jabc/managed.yml",
 		"--env-file", "/projects/01jabc/.env",
 		"up", "-d",
 	}

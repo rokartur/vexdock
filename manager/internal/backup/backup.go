@@ -1,11 +1,15 @@
-// Package backup snapshots the platform's own state: the database, the
-// generated proxy configuration and the certificates. Application data in named
-// volumes is included on request, because archiving it is slow and can dwarf
-// everything else.
+// Package backup snapshots the platform's own state: both databases, the
+// generated proxy configuration, the certificates and the master key.
+// Application data in named volumes is included on request, because archiving
+// it is slow and can dwarf everything else.
+//
+// A snapshot contains the key that decrypts every stored secret, so it is as
+// sensitive as the platform itself.
 package backup
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -53,6 +57,16 @@ func (s *Service) Create(ctx context.Context, includeVolumes bool) (*Snapshot, e
 	dbCopy := filepath.Join(dir, "app.db")
 	if _, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, dbCopy); err != nil {
 		return nil, fmt.Errorf("snapshot database: %w", err)
+	}
+	// Accounts and sessions live in a second database owned by the auth service.
+	// Without it a restore comes back with nobody able to log in.
+	if err := snapshotAuthDatabase(ctx, s.cfg.AuthDatabasePath(), filepath.Join(dir, "auth.db")); err != nil {
+		return nil, err
+	}
+	// Every encrypted environment variable and git credential in app.db is
+	// unreadable without this key, so a snapshot without it does not restore.
+	if err := copyFile(s.cfg.MasterKeyPath(), filepath.Join(dir, "master.key")); err != nil {
+		return nil, fmt.Errorf("snapshot master key: %w", err)
 	}
 	if err := copyTree(s.cfg.NginxDir, filepath.Join(dir, "nginx")); err != nil {
 		return nil, err
@@ -132,6 +146,24 @@ func (s *Service) Prune(keep int) error {
 		if err := os.RemoveAll(snap.Path); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// snapshotAuthDatabase copies the better-auth database through its own
+// connection: it is written by another process, so a file copy of its WAL is
+// not guaranteed to be restorable.
+func snapshotAuthDatabase(ctx context.Context, src, dst string) error {
+	if _, err := os.Stat(src); err != nil {
+		return fmt.Errorf("snapshot auth database: %w", err)
+	}
+	conn, err := sql.Open("sqlite", "file:"+src+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		return fmt.Errorf("snapshot auth database: %w", err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `VACUUM INTO ?`, dst); err != nil {
+		return fmt.Errorf("snapshot auth database: %w", err)
 	}
 	return nil
 }

@@ -4,7 +4,8 @@
 
 - Ubuntu 22.04 LTS or newer, or Debian 12 or newer. Other distributions may work
   but are untested; the installer warns and continues.
-- amd64 or arm64.
+- amd64. The published images are amd64 only and the installer stops on anything
+  else rather than failing later on a missing manifest.
 - 1 GB RAM minimum. Building images on the server needs 2 GB.
 - 2 GB free disk space.
 - Ports 80, 443 and 3000 free. The installer refuses to continue otherwise and
@@ -13,7 +14,7 @@
 ## Install
 
 ```sh
-curl -fsSL https://get.vexdock.dev | sudo sh
+curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh
 ```
 
 The installer:
@@ -21,11 +22,17 @@ The installer:
 1. Checks the operating system, architecture, memory, disk and ports.
 2. Installs Docker and the Compose plugin if they are missing.
 3. Creates `/opt/platform` and the shared `vexdock-proxy` network.
-4. Downloads `compose.yml`, writes `.env` and starts the stack.
-5. Waits for the health check and prints the dashboard URL.
+4. Downloads `compose.yml`, writes `.env` with a generated session secret and
+   setup token, and starts the stack.
+5. Waits for the health check, then prints the dashboard URL and the setup
+   token.
 
-Open `http://YOUR_SERVER_IP:3000` and create the administrator account. That
-form closes permanently once an account exists.
+Open `http://YOUR_SERVER_IP:3000`, enter the setup token and create the
+administrator account. The form closes permanently once an account exists.
+
+The token is what stops a stranger who finds the panel before you do from
+claiming it, so the dashboard is not usable until you paste it. If you lose the
+printed copy it is in `/opt/platform/.env` as `SETUP_TOKEN`.
 
 ### Options
 
@@ -38,10 +45,13 @@ Environment variables understood by the installer:
 | `PLATFORM_VERSION` | `latest` | Version to install |
 | `ACME_EMAIL` | empty | Contact address for Let's Encrypt |
 | `ACME_STAGING` | `false` | Use the Let's Encrypt staging directory |
-| `PUBLIC_URL` | empty | Public dashboard origin, used to build webhook URLs |
+| `PUBLIC_URL` | empty | Public dashboard origin. Also sets `Secure` on session cookies once it is an `https://` URL |
+| `PLATFORM_REPO` | `rokartur/vexdock` | Repository the compose file and images come from |
+| `PLATFORM_REGISTRY` | `ghcr.io/<repo owner>` | Image namespace, derived from `PLATFORM_REPO` |
 
 ```sh
-curl -fsSL https://get.vexdock.dev | sudo ACME_EMAIL=me@example.com sh
+curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh \
+  | sudo ACME_EMAIL=me@example.com sh
 ```
 
 ## Putting the dashboard on a domain
@@ -50,26 +60,69 @@ curl -fsSL https://get.vexdock.dev | sudo ACME_EMAIL=me@example.com sh
 2. In the dashboard open **System → Settings**.
 3. Enter the hostname, keep "Request a certificate" checked, save.
 
-The platform generates the vhost, obtains a certificate and reloads Nginx. Port
-3000 keeps working as a fallback.
+The platform generates the vhost, obtains a certificate and reloads Nginx, and
+renews that certificate on the same schedule as any other domain. Port 3000
+keeps working as a fallback.
+
+Session cookies are only marked `Secure` when the panel has an HTTPS origin it
+knows about, so once the domain works set `PUBLIC_URL` and restart:
+
+```sh
+sudo sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://panel.example.com|' /opt/platform/.env
+cd /opt/platform && sudo docker compose up -d
+```
+
+Close port 3000 in the firewall afterwards, or the plaintext fallback stays
+reachable.
 
 ## Updating
 
-From the dashboard: **System → Update**. A configuration backup is taken first,
-then a short-lived updater container pulls the new images and recreates the
-stack. If the manager does not become healthy, the previous version is restored
-automatically.
+From the dashboard: **System → Settings → About**. A backup is taken first, then
+a short-lived updater container fetches the new `compose.yml`, pulls the new
+images and recreates the stack. If the manager does not become healthy, the
+previous version and compose file are restored automatically.
 
 From the shell:
 
 ```sh
-curl -fsSL https://get.vexdock.dev | sudo sh -s update
+curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh -s update
 ```
+
+A shell update keeps the five most recent backups under
+`/opt/platform/backups/` and deletes older ones.
+
+## Restoring a backup
+
+A snapshot from **System → Backups** is a directory under
+`/opt/platform/backups/`, named for the UTC time it was taken. It contains
+`app.db`, `auth.db`, `master.key`, the generated Nginx configuration, the
+certificates and a copy of the system compose file. Restoring is a file copy
+onto a stopped stack:
+
+```sh
+cd /opt/platform
+sudo docker compose down
+SNAPSHOT=/opt/platform/backups/2025-01-31T120000
+sudo cp "$SNAPSHOT"/app.db "$SNAPSHOT"/auth.db data/
+sudo cp "$SNAPSHOT"/master.key secrets/master.key
+sudo cp -a "$SNAPSHOT"/nginx/. nginx/
+sudo cp -a "$SNAPSHOT"/certificates/. certificates/
+sudo docker compose up -d
+```
+
+A backup taken with volumes also has a `volumes/` directory holding one
+`.tar.gz` per managed named volume. Those are application data, not platform
+state, and restoring them is per volume: extract one into a fresh volume of
+the same name before bringing the stack up.
+
+`master.key` decrypts every stored environment variable and git credential, so a
+snapshot is as sensitive as the server itself. Keep it somewhere private, and
+keep it: without that file the restored database is unreadable.
 
 ## Uninstalling
 
 ```sh
-curl -fsSL https://get.vexdock.dev | sudo sh -s uninstall
+curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh -s uninstall
 ```
 
 You are asked whether to keep the data:

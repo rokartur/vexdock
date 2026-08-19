@@ -4,6 +4,9 @@ SHELL := /bin/sh
 # Local development writes to ./.vexdock so nothing touches /opt.
 PLATFORM_ROOT ?= $(CURDIR)/.vexdock
 VERSION ?= dev
+# Fixed on purpose: a local stack keeps its sessions across restarts. The
+# installer generates a real one per install.
+DEV_AUTH_SECRET ?= dev-only-not-a-secret
 
 .PHONY: help
 help: ## Show this help
@@ -11,9 +14,11 @@ help: ## Show this help
 
 ## ---- backend ----
 
+# The running version comes from PLATFORM_VERSION in the environment, not from
+# the binary, so there is nothing to stamp in here.
 .PHONY: manager
 manager: ## Build the manager binary into ./bin
-	cd manager && go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o ../bin/manager ./cmd/server
+	cd manager && go build -trimpath -ldflags "-s -w" -o ../bin/manager ./cmd/server
 
 .PHONY: run
 run: ## Run the manager against ./.vexdock on :8080
@@ -46,8 +51,9 @@ web-check: ## Typecheck and test the dashboard, typecheck the auth service
 ## ---- images ----
 
 .PHONY: images
-images: ## Build both container images locally
-	docker build -f docker/manager.Dockerfile --build-arg VERSION=$(VERSION) -t vexdock-manager:$(VERSION) .
+images: ## Build the three container images locally
+	docker build -f docker/manager.Dockerfile -t vexdock-manager:$(VERSION) .
+	docker build -f docker/auth.Dockerfile -t vexdock-auth:$(VERSION) .
 	docker build -f docker/nginx.Dockerfile -t vexdock-nginx:$(VERSION) .
 
 ## ---- local stack ----
@@ -60,11 +66,13 @@ dev-up: web ## Build and start the full stack locally
 	         $(PLATFORM_ROOT)/certificates $(PLATFORM_ROOT)/data $(PLATFORM_ROOT)/projects $(PLATFORM_ROOT)/backups \
 	         $(PLATFORM_ROOT)/secrets $(PLATFORM_ROOT)/system
 	PLATFORM_ROOT=$(PLATFORM_ROOT) VERSION=dev \
+	  BETTER_AUTH_SECRET=$(DEV_AUTH_SECRET) SETUP_TOKEN=dev \
 	  docker compose -f compose.yml -f compose.dev.yml up -d --build
 
 .PHONY: dev-down
 dev-down: ## Stop the local stack
-	PLATFORM_ROOT=$(PLATFORM_ROOT) docker compose -f compose.yml -f compose.dev.yml down --remove-orphans
+	PLATFORM_ROOT=$(PLATFORM_ROOT) BETTER_AUTH_SECRET=$(DEV_AUTH_SECRET) \
+	  docker compose -f compose.yml -f compose.dev.yml down --remove-orphans
 
 .PHONY: dev-logs
 dev-logs: ## Follow the manager logs

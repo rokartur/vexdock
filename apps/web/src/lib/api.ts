@@ -1,8 +1,9 @@
 /**
  * Typed client for the Go manager API.
  *
- * The CSRF token is captured on login/session bootstrap and replayed on every
- * mutation, matching what the manager enforces for cookie sessions.
+ * Requests carry the session cookie and nothing else. Cross-site forgery is
+ * blocked by the manager comparing Origin against the request host, so the
+ * dashboard has no token to hold: same-origin requests pass, others do not.
  */
 
 export type User = {
@@ -80,16 +81,41 @@ export type Project = {
 	webhook_secret_set: boolean
 }
 
+/** An application is built or pulled; a database is a catalog image with a volume. */
+export type ServiceType = 'application' | 'database'
+
+/**
+ * Where a service's compose definition comes from. 'derived' is read-only: the
+ * service exists because the project's own compose file declares it, so the
+ * dashboard describes it but never rewrites it. 'unconfigured' is an
+ * application that is still only a name, and deploys to nothing until its
+ * settings answer where it comes from.
+ */
+export type ServiceSource = 'derived' | 'unconfigured' | 'git' | 'image' | 'compose'
+
 export type Service = {
 	id: string
 	project_id: string
 	compose_service_name: string
 	display_name: string
+	type: ServiceType
+	source_type: ServiceSource
+	repository_url: string
+	branch: string
+	build_path: string
+	/** What the service is configured to run, which is set before it ever deploys. */
+	image: string
+	engine: string
+	/** Where a custom engine's volume mounts. Empty for every curated engine. */
+	data_path: string
+	compose_fragment: string
 	created_at: string
+	updated_at: string
 	container_id: string
 	state: string
 	status: string
-	image: string
+	/** What the container was actually started from; drifts from image until the next deploy. */
+	running_image: string
 	health: string
 	restart_count: number
 	created_unix: number
@@ -130,21 +156,20 @@ export type ContainerSummary = {
 }
 
 export type ImageSummary = {
-	Id: string
-	RepoTags: string[] | null
-	RepoDigests: string[] | null
-	Created: number
-	Size: number
-	Containers: number
+	id: string
+	repo_tags: string[] | null
+	created: number
+	size: number
+	containers: number
 }
 
 export type VolumeSummary = {
-	Name: string
-	Driver: string
-	Mountpoint: string
-	CreatedAt: string
-	Labels: Record<string, string> | null
-	UsageData?: { Size: number; RefCount: number } | null
+	name: string
+	driver: string
+	created_at: string
+	/** -1 when Docker reported no usage data for this volume. */
+	size: number
+	ref_count: number
 }
 
 export type NetworkSummary = {
@@ -254,11 +279,35 @@ export type ApiToken = {
 	created_at: string
 }
 
-export type Template = {
+/** One entry of the built-in database catalog. */
+export type Engine = {
 	slug: string
 	name: string
-	description: string
-	compose: string
+	/** Empty for the 'custom' engine, which has no curated image. */
+	repository: string
+	default_tag: string
+	/** The offline list, shown before the live tag lookup answers. */
+	versions: string[]
+	port: number
+	scheme: string
+	database_var: string
+	user_var: string
+	password_var: string
+}
+
+/** The connection panel of a database service. */
+export type DatabaseConnection = {
+	engine: string
+	image: string
+	host: string
+	port: number
+	database: string
+	user: string
+	password: string
+	url: string
+	name: string
+	versions: string[]
+	data_volume: string
 }
 
 export type Settings = {
@@ -371,7 +420,6 @@ export const api = {
 		branch?: string
 		compose_path?: string
 		compose_content?: string
-		template?: string
 		auto_deploy?: boolean
 		tags?: string[]
 		credential_kind?: CredentialKind
@@ -404,10 +452,62 @@ export const api = {
 	saveEnvironment: (id: string, variables: EnvVar[]) =>
 		request<EnvVar[]>(`/api/projects/${id}/environment`, { method: 'PUT', body: { variables } }),
 	services: (id: string) => request<Service[]>(`/api/projects/${id}/services`),
+	/**
+	 * Adds a service the manager owns to a project. Passing `database` picks the
+	 * catalog branch, which renders the image and seeds the credentials itself.
+	 */
+	createService: (
+		projectId: string,
+		body: {
+			name: string
+			source_type: Exclude<ServiceSource, 'derived'>
+			repository_url?: string
+			branch?: string
+			build_path?: string
+			image?: string
+			compose_fragment?: string
+			database?: {
+				engine: string
+				version?: string
+				name?: string
+				user?: string
+				password?: string
+				image?: string
+				data_path?: string
+			}
+		},
+	) => request<Service>(`/api/projects/${projectId}/services`, { method: 'POST', body }),
+	/**
+	 * Renders the project's managed services as base64 for another project's
+	 * import. Secret values stay behind unless asked for: the blob is encoded,
+	 * not encrypted, and it is headed for a clipboard.
+	 */
+	exportServices: (projectId: string, secrets: boolean) =>
+		request<{ payload: string; secrets: boolean }>(`/api/projects/${projectId}/services/export?secrets=${secrets}`),
 	deployments: (id: string) => request<Deployment[]>(`/api/projects/${id}/deployments`),
 	projectDomains: (id: string) => request<Domain[]>(`/api/projects/${id}/domains`),
 
 	service: (id: string) => request<Service>(`/api/services/${id}`),
+	updateService: (
+		id: string,
+		body: Partial<{
+			display_name: string
+			/** Only ever unconfigured -> git | image; a settled source is settled. */
+			source_type: 'git' | 'image'
+			repository_url: string
+			branch: string
+			build_path: string
+			/** For a database this is the version switch: set it, then redeploy. */
+			image: string
+			compose_fragment: string
+		}>,
+	) => request<Service>(`/api/services/${id}`, { method: 'PATCH', body }),
+	/** The named volume survives; dropping a database's data stays explicit. */
+	deleteService: (id: string) => request<undefined>(`/api/services/${id}`, { method: 'DELETE' }),
+	serviceDatabase: (id: string) => request<DatabaseConnection>(`/api/services/${id}/database`),
+	serviceEnvironment: (id: string) => request<EnvVar[]>(`/api/services/${id}/environment`),
+	saveServiceEnvironment: (id: string, variables: EnvVar[]) =>
+		request<undefined>(`/api/services/${id}/environment`, { method: 'PUT', body: { variables } }),
 	serviceMetrics: (id: string, window: MetricWindow = '30m') =>
 		request<ServicePoint[]>(`/api/services/${id}/metrics?window=${window}`),
 	serviceAction: (id: string, action: 'start' | 'stop' | 'restart') =>
@@ -472,7 +572,8 @@ export const api = {
 		request<{ token: ApiToken; value: string }>('/api/tokens', { method: 'POST', body: { name } }),
 	deleteToken: (id: string) => request<{ ok: boolean }>(`/api/tokens/${id}`, { method: 'DELETE' }),
 
-	templates: () => request<Template[]>('/api/templates'),
+	engines: () => request<Engine[]>('/api/engines'),
+	engineVersions: (slug: string) => request<{ versions: string[]; live: boolean }>(`/api/engines/${slug}/versions`),
 
 	systemInfo: () => request<SystemInfo>('/api/system/info'),
 	systemMetrics: (window: MetricWindow = '30m') => request<HostPoint[]>(`/api/system/metrics?window=${window}`),

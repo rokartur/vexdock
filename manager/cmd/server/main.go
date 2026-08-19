@@ -38,8 +38,10 @@ import (
 	"github.com/vexdock/platform/manager/internal/updater"
 )
 
-// releaseAPI is polled for the newest published version.
-const releaseAPI = "https://api.github.com/repos/vexdock/platform/releases/latest"
+// repoSlug is where releases, the compose file and the images come from. One
+// constant so an update can never look for a release in a different place than
+// the compose file it is about to apply.
+const repoSlug = "rokartur/vexdock"
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "probe the local manager and exit 0 when healthy")
@@ -116,7 +118,7 @@ func run() error {
 	deploymentEngine := deployments.NewEngine(db, cfg, projectService, domainService, dockerClient, bus,
 		log.With("component", "deployment"))
 	backupService := backup.New(cfg, db, dockerClient)
-	updaterService := updater.New(cfg, backupService, releaseAPI)
+	updaterService := updater.New(cfg, backupService, repoSlug)
 
 	if err := deploymentEngine.RecoverInterrupted(ctx); err != nil {
 		log.Warn("recover interrupted deployments", "error", err)

@@ -7,29 +7,29 @@ import { api, type ImageSummary } from '../lib/api'
 import { bytes, since } from '../lib/format'
 
 function imageName(image: ImageSummary) {
-	return image.RepoTags?.join(', ') || image.Id.replace('sha256:', '').slice(0, 12)
+	return image.repo_tags?.join(', ') || image.id.replace('sha256:', '').slice(0, 12)
 }
 
 function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> {
 	const cell = columnsFor<ImageSummary>()
 	return [
 		cell.accessor(imageName, { id: 'repository', header: 'Repository', meta: { mono: true } }),
-		cell.accessor(image => image.Size, {
+		cell.accessor(image => image.size, {
 			id: 'size',
 			header: 'Size',
-			cell: ({ row }) => bytes(row.original.Size),
+			cell: ({ row }) => bytes(row.original.size),
 			meta: { mono: true },
 		}),
-		cell.accessor(image => image.Containers, {
+		cell.accessor(image => image.containers, {
 			id: 'containers',
 			header: 'Containers',
-			cell: ({ row }) => (row.original.Containers < 0 ? '-' : row.original.Containers),
+			cell: ({ row }) => (row.original.containers < 0 ? '-' : row.original.containers),
 			meta: { mono: true },
 		}),
-		cell.accessor(image => image.Created, {
+		cell.accessor(image => image.created, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => since(row.original.Created),
+			cell: ({ row }) => since(row.original.created),
 		}),
 		cell.display({
 			id: 'actions',
@@ -37,7 +37,7 @@ function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> 
 			enableSorting: false,
 			meta: { align: 'right' },
 			cell: ({ row }) => (
-				<Button variant='ghost' onClick={() => remove(row.original.Id)}>
+				<Button variant='ghost' onClick={() => remove(row.original.id)}>
 					remove
 				</Button>
 			),
@@ -104,7 +104,7 @@ function ImagesPage() {
 					data={data}
 					columns={columns}
 					loading={images.isLoading}
-					getRowId={image => image.Id}
+					getRowId={image => image.id}
 					empty='No images.'
 				/>
 			</Section>

@@ -1,4 +1,4 @@
-import { Fragment, type KeyboardEvent, type ReactNode } from 'react'
+import { type ComponentProps, Fragment, type KeyboardEvent, type ReactNode } from 'react'
 import { IconRefresh } from '@tabler/icons-react'
 import { Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { Button as ShadcnButton } from '@/components/ui/button'
@@ -24,33 +24,21 @@ const buttonVariants = {
 	ghost: 'ghost',
 } as const satisfies Record<ButtonVariant, string>
 
+// Only the intent is ours; everything else passes through, so a Button can be
+// what a menu trigger renders as and still receive the handlers that needs.
 export function Button({
-	children,
-	onClick,
 	variant = 'default',
-	disabled,
 	type = 'button',
-	title,
-}: {
-	children: ReactNode
-	onClick?: () => void
-	variant?: ButtonVariant
-	disabled?: boolean
-	type?: 'button' | 'submit'
-	title?: string
-}) {
+	...props
+}: Omit<ComponentProps<typeof ShadcnButton>, 'variant' | 'size' | 'className'> & { variant?: ButtonVariant }) {
 	return (
 		<ShadcnButton
 			type={type}
-			title={title}
-			onClick={onClick}
-			disabled={disabled}
 			size='sm'
 			variant={buttonVariants[variant]}
 			className={cn('h-7 px-2.5 text-xs', variant === 'ghost' && 'text-muted-foreground hover:text-foreground')}
-		>
-			{children}
-		</ShadcnButton>
+			{...props}
+		/>
 	)
 }
 

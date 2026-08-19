@@ -26,24 +26,8 @@ import (
 	"github.com/vexdock/platform/manager/internal/updater"
 )
 
-// Server wires every subsystem into one HTTP handler.
-type Server struct {
-	cfg         *config.Config
-	db          *database.DB
-	auth        *auth.Service
-	projects    *projects.Service
-	domains     *domains.Service
-	deployments *deployments.Engine
-	docker      *docker.Client
-	nginx       *nginx.Manager
-	certs       *certificates.Issuer
-	bus         *events.Bus
-	updater     *updater.Service
-	backups     *backup.Service
-	cipher      *security.Cipher
-	log         *slog.Logger
-}
-
+// Deps is everything the API needs. Embedding it in Server means a new
+// subsystem is one field, not a field plus a copy that is easy to forget.
 type Deps struct {
 	Config      *config.Config
 	DB          *database.DB
@@ -61,12 +45,13 @@ type Deps struct {
 	Log         *slog.Logger
 }
 
+// Server wires every subsystem into one HTTP handler.
+type Server struct {
+	Deps
+}
+
 func New(d Deps) *Server {
-	return &Server{
-		cfg: d.Config, db: d.DB, auth: d.Auth, projects: d.Projects, domains: d.Domains,
-		deployments: d.Deployments, docker: d.Docker, nginx: d.Nginx, certs: d.Certs,
-		bus: d.Bus, updater: d.Updater, backups: d.Backups, cipher: d.Cipher, log: d.Log,
-	}
+	return &Server{Deps: d}
 }
 
 // Handler builds the router. Public routes are listed explicitly; everything
@@ -78,7 +63,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/system/version", s.handleVersion)
 	mux.HandleFunc("POST /api/webhooks/projects/{token}", s.handleWebhook)
-	mux.HandleFunc("GET /api/openapi.json", s.handleOpenAPI)
 
 	// Authenticated.
 	mux.Handle("GET /api/me", s.protected(s.handleMe))
@@ -96,10 +80,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/projects/{id}/environment", s.protected(s.handleGetEnvironment))
 	mux.Handle("PUT /api/projects/{id}/environment", s.protected(s.handlePutEnvironment))
 	mux.Handle("GET /api/projects/{id}/services", s.protected(s.handleListServices))
+	mux.Handle("POST /api/projects/{id}/services", s.protected(s.handleCreateService))
+	mux.Handle("GET /api/projects/{id}/services/export", s.protected(s.handleExportServices))
 	mux.Handle("GET /api/projects/{id}/deployments", s.protected(s.handleListDeployments))
 	mux.Handle("GET /api/projects/{id}/domains", s.protected(s.handleListProjectDomains))
 
 	mux.Handle("GET /api/services/{id}", s.protected(s.handleGetService))
+	mux.Handle("PATCH /api/services/{id}", s.protected(s.handleUpdateService))
+	mux.Handle("DELETE /api/services/{id}", s.protected(s.handleDeleteService))
+	mux.Handle("GET /api/services/{id}/database", s.protected(s.handleServiceDatabase))
+	mux.Handle("GET /api/services/{id}/environment", s.protected(s.handleGetServiceEnvironment))
+	mux.Handle("PUT /api/services/{id}/environment", s.protected(s.handlePutServiceEnvironment))
 	mux.Handle("POST /api/services/{id}/start", s.protected(s.handleServiceAction))
 	mux.Handle("POST /api/services/{id}/stop", s.protected(s.handleServiceAction))
 	mux.Handle("POST /api/services/{id}/restart", s.protected(s.handleServiceAction))
@@ -139,7 +130,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/tokens", s.protected(s.handleCreateToken))
 	mux.Handle("DELETE /api/tokens/{id}", s.protected(s.handleDeleteToken))
 
-	mux.Handle("GET /api/templates", s.protected(s.handleListTemplates))
+	mux.Handle("GET /api/engines", s.protected(s.handleListEngines))
+	mux.Handle("GET /api/engines/{slug}/versions", s.protected(s.handleEngineVersions))
 
 	mux.Handle("GET /api/system/info", s.protected(s.handleSystemInfo))
 	mux.Handle("GET /api/system/stats", s.protected(s.handleSystemStats))
@@ -160,7 +152,7 @@ func (s *Server) Handler() http.Handler {
 // came from the dashboard itself.
 func (s *Server) protected(h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, viaCookie, err := s.auth.Authenticate(r)
+		user, viaCookie, err := s.Auth.Authenticate(r)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required", nil)
 			return
@@ -214,7 +206,7 @@ func (s *Server) audit(r *http.Request, user *auth.User, status int, viaCookie b
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 	defer cancel()
-	if err := s.db.RecordAudit(ctx, database.AuditEntry{
+	if err := s.DB.RecordAudit(ctx, database.AuditEntry{
 		Actor:      actor,
 		Method:     r.Method,
 		Path:       r.URL.Path,
@@ -222,7 +214,7 @@ func (s *Server) audit(r *http.Request, user *auth.User, status int, viaCookie b
 		ClientIP:   clientIP(r),
 		Credential: credential,
 	}); err != nil {
-		s.log.Warn("audit write failed", "path", r.URL.Path, "error", err)
+		s.Log.Warn("audit write failed", "path", r.URL.Path, "error", err)
 	}
 }
 
@@ -243,7 +235,7 @@ func (s *Server) requestLogger(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-Id", requestID)
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		s.log.Info("request",
+		s.Log.Info("request",
 			"request_id", requestID,
 			"method", r.Method,
 			"path", r.URL.Path,
@@ -258,7 +250,7 @@ func (s *Server) recoverPanics(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				s.log.Error("panic recovered", "path", r.URL.Path, "panic", rec)
+				s.Log.Error("panic recovered", "path", r.URL.Path, "panic", rec)
 				writeError(w, http.StatusInternalServerError, "INTERNAL", "Internal server error", nil)
 			}
 		}()

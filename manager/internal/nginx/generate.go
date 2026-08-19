@@ -138,8 +138,21 @@ func dashboardBody(managerAddr, webRoot string) string {
 	fmt.Fprintf(&b, "    root %s;\n", webRoot)
 	b.WriteString("    index index.html;\n\n")
 
+	// Credential endpoints are throttled here too. Moving the panel to its own
+	// domain must not quietly drop the login limit that :3000 has.
+	b.WriteString("    location ~ ^/api/auth/(sign-in|sign-up|forget-password|reset-password) {\n")
+	b.WriteString("        limit_req zone=login_limit burst=5 nodelay;\n")
+	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", AuthUpstream)
+	b.WriteString("        proxy_http_version 1.1;\n")
+	b.WriteString("        proxy_set_header Host $http_host;\n")
+	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
+	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
+	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
+	b.WriteString("    }\n\n")
+
 	// Authentication is a separate service; everything else is the manager.
 	b.WriteString("    location /api/auth/ {\n")
+	b.WriteString("        limit_req zone=api_limit burst=60 nodelay;\n")
 	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", AuthUpstream)
 	b.WriteString("        proxy_http_version 1.1;\n")
 	b.WriteString("        proxy_set_header Host $http_host;\n")
@@ -149,6 +162,7 @@ func dashboardBody(managerAddr, webRoot string) string {
 	b.WriteString("    }\n\n")
 
 	b.WriteString("    location /api/ {\n")
+	b.WriteString("        limit_req zone=api_limit burst=60 nodelay;\n")
 	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", managerAddr)
 	b.WriteString("        proxy_http_version 1.1;\n")
 	b.WriteString("        proxy_set_header Host $http_host;\n")

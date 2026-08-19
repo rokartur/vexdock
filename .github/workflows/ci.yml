@@ -86,3 +86,47 @@ jobs:
       - name: Manager logs on failure
         if: failure()
         run: docker logs --tail 200 vexdock-manager
+
+  install:
+    name: Installer (real run)
+    runs-on: ubuntu-latest
+    needs: [manager, web]
+    # The one path every user takes and the only one the other jobs skip: the
+    # installer script itself, against /opt/platform, with a real registry.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish the images to a local registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
+          make images VERSION=ci
+          for image in manager auth nginx; do
+            docker tag "vexdock-$image:ci" "localhost:5000/$image:ci"
+            docker push "localhost:5000/$image:ci"
+          done
+
+      - name: Install
+        run: |
+          export PLATFORM_REGISTRY=localhost:5000
+          export PLATFORM_LOCAL_COMPOSE=compose.yml
+          export PLATFORM_VERSION=ci
+          sudo -E sh installer/install.sh
+
+      - name: The installer generated its secrets
+        run: |
+          for key in BETTER_AUTH_SECRET SETUP_TOKEN; do
+            value=$(sudo sed -n "s/^$key=//p" /opt/platform/.env)
+            [ ${#value} -eq 64 ] || { echo "$key is '$value'"; exit 1; }
+          done
+
+      - name: Run the end-to-end smoke test
+        run: |
+          SETUP_TOKEN=$(sudo sed -n 's/^SETUP_TOKEN=//p' /opt/platform/.env) \
+            ./scripts/smoke-test.sh
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          docker logs --tail 200 vexdock-manager || true
+          docker logs --tail 200 vexdock-auth || true

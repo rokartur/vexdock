@@ -42,6 +42,43 @@ name (`p_<ULID>`). The platform never reimplements Compose semantics: it shells
 out to the official CLI with one argument per slice element. If the platform is
 removed, `docker compose up` in the project directory still works.
 
+## Services the platform owns
+
+A project holds services. Most of them are *derived*: the project's own compose
+file declares them and the platform only reads them back. The rest are
+*managed* — a database from the engine catalogue, an image, a repository of its
+own, or a fragment of YAML you wrote in the dashboard.
+
+Managed services are not merged into your compose file. They are rendered into
+a second one, `managed.yml`, and compose is invoked with both:
+
+```
+docker compose --file <yours> --file managed.yml ...
+```
+
+Compose merges the two itself, so an imported project keeps its file byte for
+byte and can still gain a database. Nothing has to know which "kind" a project
+is, because there is no kind.
+
+Each managed service gets its own env file, `services/<name>.env` (0600),
+referenced from the fragment with `env_file:`. Compose interpolates `${VAR}`
+from the single project `--env-file`, which two Postgres services in one project
+would collide over; an `env_file` is per service, so they do not. Rendered
+fragments therefore never contain `${...}` — a variable meant for the container
+is escaped `$$VAR`.
+
+A database's volume is named after its service (`<service>-data`), so a second
+database cannot mount the first one's data. Deleting a service leaves the volume
+behind: recreating it under the same name picks the data back up, and dropping a
+database stays an explicit act.
+
+A rendered fragment declares no `networks:`, so a managed service joins the
+project's default network and is reachable from its siblings at its own service
+name. If your compose file puts its services on an explicit named network
+instead, they are not on that default network and cannot resolve the database.
+Put the managed service's name on the same network from your own file, or leave
+your services on the default one.
+
 ## Networking
 
 Services that have a domain are attached to the shared `vexdock-proxy` network
@@ -63,13 +100,20 @@ serving a dead IP after a redeploy.
 ## Deployment pipeline
 
 ```
-clone → checkout → validate → pull → build → start → healthcheck → proxy → finish
+clone → checkout → service-checkout → validate → pull → build → start → healthcheck → proxy → finish
 ```
 
 Each step is persisted and streamed to the browser over SSE. One project deploys
 at a time, enforced by a per-project lock; a second request queues behind it. A
 deployment interrupted by a manager restart is marked failed on the next boot,
 so the UI never shows a pipeline that nothing is running.
+
+`service-checkout` syncs any managed service that builds from a repository of
+its own, into `services/<name>/repository`, reusing the project's credential. It
+only appears when the project has one, and it is its own step so that a failed
+service clone reads as a failed clone rather than as an unexplained deploy
+failure. There is no per-service deploy: a service that skipped the health wait
+and the proxy reconcile would only look deployed.
 
 `healthcheck` waits for containers to be running and, where a healthcheck is
 declared, for Docker to report them healthy. A container that exits non-zero
@@ -88,8 +132,13 @@ SQLite in WAL mode with a single writer connection, which removes lock
 contention entirely for a single-node management plane. Schema migrations are
 embedded in the binary and applied on start.
 
-Container logs and metrics are never copied into the database: they are streamed
-straight from the Docker Engine on demand.
+Container logs are never copied into the database: they are streamed straight
+from the Docker Engine on demand.
+
+CPU, memory, network and disk readings are recorded, because a chart has to show
+what happened while nobody was watching. A sampler writes one host row and one
+row per running container a minute, and the scheduler prunes anything older than
+seven days, so both tables stay bounded without operator attention.
 
 ## Certificates
 
@@ -104,12 +153,17 @@ belongs in the form. A rejected upload leaves the previous certificate in place.
 The renewal sweep never touches an uploaded certificate; it logs a warning when
 one is inside the renewal window, because only you can replace it.
 
-Let's Encrypt issuance is HTTP-01 through the same Nginx that serves the
-application. The challenge token
+Let's Encrypt issuance is HTTP-01 by default, through the same Nginx that serves
+the application. The challenge token
 is written to a shared directory that every generated vhost exposes at
 `/.well-known/acme-challenge/`, including the HTTPS block, so renewals keep
-working after the redirect is enabled. A renewal sweep runs six-hourly and
-renews anything inside 30 days of expiry.
+working after the redirect is enabled. Configuring a Cloudflare API token
+switches issuance to DNS-01, which is the only way to obtain a wildcard.
+
+A renewal sweep runs six-hourly and renews anything inside 30 days of expiry.
+The dashboard's own hostname is a setting rather than a domain row, so the sweep
+renews it as a separate step; without that the panel would be the one host on
+the server whose certificate expires.
 
 ## Self-update
 

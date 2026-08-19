@@ -190,6 +190,60 @@ function ProjectSettings() {
 					/>
 				</Section>
 			)}
+
+			<ExportServices projectId={projectId} />
 		</>
+	)
+}
+
+/**
+ * The other half of a service import. Secret values stay behind unless asked
+ * for, because the result is base64 and base64 is not encryption: it goes on a
+ * clipboard, and from there wherever clipboards go.
+ */
+function ExportServices({ projectId }: { projectId: string }) {
+	const [secrets, setSecrets] = useState(false)
+	const [copied, setCopied] = useState(false)
+
+	const exported = useQuery({
+		queryKey: ['export', projectId, secrets],
+		queryFn: () => api.exportServices(projectId, secrets),
+	})
+
+	return (
+		<Section
+			title='Export services'
+			description='paste into another project’s import'
+			actions={
+				<Button
+					variant='primary'
+					disabled={!exported.data?.payload}
+					onClick={async () => {
+						await navigator.clipboard.writeText(exported.data?.payload ?? '')
+						setCopied(true)
+					}}
+				>
+					{copied ? 'Copied' : 'Copy'}
+				</Button>
+			}
+		>
+			<ErrorText error={exported.error} />
+			<code className='block max-h-24 overflow-y-auto border-t border-border pt-2 font-mono text-label break-all text-muted-foreground'>
+				{exported.data?.payload || 'No managed services to export.'}
+			</code>
+			<div className='mt-3'>
+				<Check
+					label='Include secret values'
+					checked={secrets}
+					onChange={next => {
+						setSecrets(next)
+						setCopied(false)
+					}}
+				/>
+				<p className='mt-1 text-label text-muted-foreground'>
+					Off, secrets export as keys with empty values and the import leaves the generated ones alone.
+				</p>
+			</div>
+		</Section>
 	)
 }

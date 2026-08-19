@@ -39,7 +39,7 @@ export function columnsFor<TData extends RowData>() {
  * display columns only type-checks with `any` in that slot. This is the one
  * place it is allowed; every column body stays fully typed through the helper.
  */
-// biome-ignore lint/suspicious/noExplicitAny: TanStack ColumnDef is invariant in TValue.
+// oxlint-disable-next-line typescript/no-explicit-any
 export type Columns<TData extends RowData> = ColumnDef<Features, TData, any>[]
 
 type DataTableProps<TData extends RowData> = {

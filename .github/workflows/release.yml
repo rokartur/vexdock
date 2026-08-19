@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ['*.*.*']
+    tags: ['v*.*.*']
 
 permissions:
   contents: write
@@ -12,6 +12,8 @@ env:
   MANAGER: ghcr.io/${{ github.repository_owner }}/manager
   AUTH: ghcr.io/${{ github.repository_owner }}/auth
   PROXY: ghcr.io/${{ github.repository_owner }}/nginx
+  # Links each GHCR package back to this repository.
+  SOURCE: ${{ github.server_url }}/${{ github.repository }}
 
 jobs:
   images:
@@ -20,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The tag is the release version; package.json files must say the same.
+      # Tags are vX.Y.Z; the package.json files carry the same X.Y.Z.
       - name: Versions match the tag
         env:
           TAG: ${{ github.ref_name }}
@@ -30,8 +32,6 @@ jobs:
             [ "v$v" = "$TAG" ] || { echo "$f is $v, tag is $TAG"; exit 1; }
           done
 
-      - uses: docker/setup-qemu-action@v3
-
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -40,14 +40,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # linux/amd64 only. Two of these images run `bun install` while
+      # building, and Bun under QEMU is slow enough to time out and prone
+      # to crashing, so a cross-built release fails halfway with images
+      # already pushed. Add arm64 on a native arm runner when asked for.
       - name: Manager image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/manager.Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
-          build-args: VERSION=${{ github.ref_name }}
+          labels: org.opencontainers.image.source=${{ env.SOURCE }}
           tags: |
             ${{ env.MANAGER }}:${{ github.ref_name }}
             ${{ env.MANAGER }}:latest
@@ -57,8 +61,9 @@ jobs:
         with:
           context: .
           file: docker/auth.Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          labels: org.opencontainers.image.source=${{ env.SOURCE }}
           tags: |
             ${{ env.AUTH }}:${{ github.ref_name }}
             ${{ env.AUTH }}:latest
@@ -68,8 +73,9 @@ jobs:
         with:
           context: .
           file: docker/nginx.Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          labels: org.opencontainers.image.source=${{ env.SOURCE }}
           tags: |
             ${{ env.PROXY }}:${{ github.ref_name }}
             ${{ env.PROXY }}:latest

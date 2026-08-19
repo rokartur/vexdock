@@ -24,18 +24,28 @@ database.exec('PRAGMA busy_timeout = 5000')
 /** The dashboard origin, used for trusted origins and cookie settings. */
 const publicUrl = process.env.PLATFORM_PUBLIC_URL?.replace(/\/$/u, '') ?? ''
 
+// Signs every session cookie. There is no fallback on purpose: a shared default
+// would let anyone mint a valid session for every install of the platform.
+const secret = process.env.BETTER_AUTH_SECRET
+if (!secret) throw new Error('BETTER_AUTH_SECRET is required')
+
 // The options are exported as well so the boot-time migration and the auth
 // instance can never drift apart.
 export const authOptions = {
 	database,
+	secret,
 	basePath: '/api/auth',
 	baseURL: publicUrl || undefined,
 	// The panel is reached by IP before a domain is attached, so the exact origin
-	// is not known ahead of time. Same-origin requests are what matter here and
-	// Nginx is the only thing in front.
+	// is not known ahead of time. The host the browser asked for is, and matching
+	// the origin against it is the same-origin check: a request forged from
+	// another site fails it. Echoing the caller's own Origin back would trust
+	// every origin, which is the same as no check at all.
 	trustedOrigins: request => {
-		const origin = request?.headers.get('origin')
-		return origin ? [origin] : []
+		const host = request?.headers.get('host')
+		const origins = publicUrl ? [publicUrl] : []
+		if (host) origins.push(`http://${host}`, `https://${host}`)
+		return origins
 	},
 	emailAndPassword: {
 		enabled: true,
@@ -61,9 +71,10 @@ export const authOptions = {
 		},
 	},
 	advanced: {
-		// Set Secure only when the request actually arrived over TLS: a browser
-		// discards a Secure cookie on the plain-HTTP address a fresh install uses.
-		useSecureCookies: false,
+		// Secure follows PLATFORM_PUBLIC_URL: a browser discards a Secure cookie on
+		// the plain-HTTP address a fresh install uses, so it can only be set once
+		// the operator has declared an HTTPS origin for the panel.
+		useSecureCookies: publicUrl.startsWith('https://'),
 		defaultCookieAttributes: {
 			sameSite: 'lax',
 			httpOnly: true,

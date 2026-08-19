@@ -15,33 +15,33 @@ type VolumeActions = {
 function volumeTableColumns({ pendingDelete, setPendingDelete, remove }: VolumeActions): Columns<VolumeSummary> {
 	const cell = columnsFor<VolumeSummary>()
 	return [
-		cell.accessor(volume => volume.Name, { id: 'name', header: 'Name', meta: { mono: true } }),
-		cell.accessor(volume => volume.Driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
-		cell.accessor(volume => volume.UsageData?.Size ?? -1, {
+		cell.accessor(volume => volume.name, { id: 'name', header: 'Name', meta: { mono: true } }),
+		cell.accessor(volume => volume.driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
+		cell.accessor(volume => volume.size, {
 			id: 'size',
 			header: 'Size',
-			cell: ({ row }) => (row.original.UsageData ? bytes(row.original.UsageData.Size) : '-'),
+			cell: ({ row }) => (row.original.size < 0 ? '-' : bytes(row.original.size)),
 			meta: { mono: true },
 		}),
-		cell.accessor(volume => volume.UsageData?.RefCount ?? -1, {
+		cell.accessor(volume => volume.ref_count, {
 			id: 'in-use',
 			header: 'In use',
-			cell: ({ row }) => (row.original.UsageData ? row.original.UsageData.RefCount : '-'),
+			cell: ({ row }) => (row.original.ref_count < 0 ? '-' : row.original.ref_count),
 			meta: { mono: true },
 		}),
-		cell.accessor(volume => volume.CreatedAt, {
+		cell.accessor(volume => volume.created_at, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => since(row.original.CreatedAt),
+			cell: ({ row }) => since(row.original.created_at),
 		}),
 		cell.display({
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
 			cell: ({ row }) =>
-				pendingDelete === row.original.Name ? (
+				pendingDelete === row.original.name ? (
 					<span className='flex justify-end gap-1.5'>
-						<Button variant='danger' onClick={() => remove(row.original.Name)}>
+						<Button variant='danger' onClick={() => remove(row.original.name)}>
 							confirm delete
 						</Button>
 						<Button variant='ghost' onClick={() => setPendingDelete(null)}>
@@ -49,7 +49,7 @@ function volumeTableColumns({ pendingDelete, setPendingDelete, remove }: VolumeA
 						</Button>
 					</span>
 				) : (
-					<Button variant='ghost' onClick={() => setPendingDelete(row.original.Name)}>
+					<Button variant='ghost' onClick={() => setPendingDelete(row.original.name)}>
 						delete
 					</Button>
 				),
@@ -92,7 +92,7 @@ function VolumesPage() {
 					data={data}
 					columns={columns}
 					loading={volumes.isLoading}
-					getRowId={volume => volume.Name}
+					getRowId={volume => volume.name}
 					empty='No volumes.'
 				/>
 			</Section>

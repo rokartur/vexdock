@@ -55,11 +55,19 @@ func New(db *database.DB, cfg *config.Config) (*Service, error) {
 
 func (s *Service) Close() error { return s.auth.Close() }
 
+// ViaCookie reports which credential a request carries: a Bearer header is an
+// API token, anything else can only be the session cookie. Authenticate decides
+// the same way, and a handler that has to name the credential after the fact
+// asks here rather than restating the rule.
+func ViaCookie(r *http.Request) bool {
+	return !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
+}
+
 // Authenticate resolves a request to a user, accepting either a better-auth
 // session cookie or a platform API token.
 func (s *Service) Authenticate(r *http.Request) (*User, bool, error) {
-	if header := r.Header.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
-		token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+	if !ViaCookie(r) {
+		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 		user, err := s.userByAPIToken(r.Context(), token)
 		if err != nil {
 			return nil, false, err

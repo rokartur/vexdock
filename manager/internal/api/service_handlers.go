@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -11,20 +12,38 @@ import (
 
 	"github.com/docker/docker/pkg/stdcopy"
 
+	"github.com/vexdock/platform/manager/internal/database"
 	dockersdk "github.com/vexdock/platform/manager/internal/docker"
+	"github.com/vexdock/platform/manager/internal/engines"
+	"github.com/vexdock/platform/manager/internal/projects"
+	"github.com/vexdock/platform/manager/internal/security"
 )
+
+// lookupService resolves the {id} path value to a service and the project it
+// belongs to, which nearly every service route needs together.
+func (s *Server) lookupService(r *http.Request) (*database.Service, *database.Project, error) {
+	service, err := s.DB.ServiceByID(r.Context(), r.PathValue("id"))
+	if err != nil {
+		return nil, nil, err
+	}
+	project, err := s.DB.ProjectByID(r.Context(), service.ProjectID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return service, project, nil
+}
 
 // resolveServiceContainer maps a stored service to its current container id.
 func (s *Server) resolveServiceContainer(ctx context.Context, serviceID string) (string, error) {
-	service, err := s.db.ServiceByID(ctx, serviceID)
+	service, err := s.DB.ServiceByID(ctx, serviceID)
 	if err != nil {
 		return "", err
 	}
-	project, err := s.db.ProjectByID(ctx, service.ProjectID)
+	project, err := s.DB.ProjectByID(ctx, service.ProjectID)
 	if err != nil {
 		return "", err
 	}
-	containers, err := s.docker.ListContainers(ctx, project.ComposeProjectName)
+	containers, err := s.Docker.ListContainers(ctx, project.ComposeProjectName)
 	if err != nil {
 		return "", err
 	}
@@ -45,11 +64,11 @@ func (s *Server) resolveServiceContainer(ctx context.Context, serviceID string) 
 }
 
 func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
-	service, err := s.db.ServiceByID(r.Context(), r.PathValue("id"))
+	service, err := s.DB.ServiceByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
-	project, err := s.db.ProjectByID(r.Context(), service.ProjectID)
+	project, err := s.DB.ProjectByID(r.Context(), service.ProjectID)
 	if handleLookupError(w, err) {
 		return
 	}
@@ -67,6 +86,228 @@ func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "NOT_FOUND", "Service not found", nil)
 }
 
+// handleCreateService adds a service the manager owns to a project. It is the
+// only way a database reaches a project: the catalog renders it into the
+// project's overlay compose file rather than into a project of its own.
+func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
+	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
+	if handleLookupError(w, err) {
+		return
+	}
+	var req struct {
+		Name            string `json:"name"`
+		SourceType      string `json:"source_type"`
+		RepositoryURL   string `json:"repository_url"`
+		Branch          string `json:"branch"`
+		BuildPath       string `json:"build_path"`
+		Image           string `json:"image"`
+		ComposeFragment string `json:"compose_fragment"`
+		Database        *struct {
+			Engine   string `json:"engine"`
+			Version  string `json:"version"`
+			Name     string `json:"name"`
+			User     string `json:"user"`
+			Password string `json:"password"`
+			Image    string `json:"image"`
+			DataPath string `json:"data_path"`
+		} `json:"database"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	in := projects.ServiceInput{
+		Name:            req.Name,
+		SourceType:      req.SourceType,
+		RepositoryURL:   req.RepositoryURL,
+		Branch:          req.Branch,
+		BuildPath:       req.BuildPath,
+		Image:           req.Image,
+		ComposeFragment: req.ComposeFragment,
+	}
+	if req.Database != nil {
+		in.SourceType = database.ServiceImage
+		in.Database = &projects.DatabaseInput{
+			Engine:   req.Database.Engine,
+			Version:  req.Database.Version,
+			Name:     req.Database.Name,
+			User:     req.Database.User,
+			Password: req.Database.Password,
+			Image:    req.Database.Image,
+			DataPath: req.Database.DataPath,
+		}
+	}
+	service, err := s.Projects.CreateService(r.Context(), project, in)
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, service)
+}
+
+// adoptSource settles the source of an application created as a bare name.
+// Answering the question once is an edit; changing the answer afterwards is
+// not, because the checkout, the volume and the env file already hang off it.
+func adoptSource(service *database.Service, want *string) error {
+	if want == nil || *want == service.SourceType {
+		return nil
+	}
+	if service.SourceType != database.ServiceUnconfigured {
+		return errors.New("this service already has a source; delete it and create it again to change where it comes from")
+	}
+	if *want != database.ServiceGit && *want != database.ServiceImage {
+		return fmt.Errorf("an application is built from %q or run from %q, not %q", database.ServiceGit, database.ServiceImage, *want)
+	}
+	service.SourceType = *want
+	if *want == database.ServiceGit && service.Branch == "" {
+		service.Branch = "main"
+	}
+	return nil
+}
+
+// requireCompleteSource rejects an edit that would leave a service claiming a
+// source it has no address for, which reaches docker as an empty build.
+func requireCompleteSource(service *database.Service) error {
+	switch {
+	case service.SourceType == database.ServiceGit && service.RepositoryURL == "":
+		return errors.New("a repository URL is required")
+	case service.SourceType == database.ServiceImage && service.Image == "":
+		return errors.New("an image is required")
+	}
+	return nil
+}
+
+// handleUpdateService edits a managed service. A derived service is the
+// project's own YAML, so it is described but never rewritten here.
+func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
+	service, project, err := s.lookupService(r)
+	if handleLookupError(w, err) {
+		return
+	}
+	if !service.Managed() {
+		badRequest(w, errors.New("this service is declared by the project's own compose file; edit it there"))
+		return
+	}
+	var req struct {
+		DisplayName     *string `json:"display_name"`
+		SourceType      *string `json:"source_type"`
+		RepositoryURL   *string `json:"repository_url"`
+		Branch          *string `json:"branch"`
+		BuildPath       *string `json:"build_path"`
+		Image           *string `json:"image"`
+		ComposeFragment *string `json:"compose_fragment"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if err := adoptSource(service, req.SourceType); err != nil {
+		badRequest(w, err)
+		return
+	}
+	assign(&service.DisplayName, req.DisplayName)
+	assign(&service.ComposeFragment, req.ComposeFragment)
+	for _, err := range []error{
+		assignValid(&service.RepositoryURL, req.RepositoryURL, security.ValidateGitURL),
+		assignValid(&service.Branch, req.Branch, security.ValidateGitRef),
+		assignValid(&service.BuildPath, req.BuildPath, security.ValidateSubPath),
+		assignValid(&service.Image, req.Image, engines.ValidateImage),
+	} {
+		if err != nil {
+			badRequest(w, err)
+			return
+		}
+	}
+	if err := requireCompleteSource(service); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if err := s.DB.UpdateService(r.Context(), service); err != nil {
+		serverError(w, err)
+		return
+	}
+	// The overlay is what docker actually reads, so an edit that never reaches
+	// it would silently do nothing on the next deploy.
+	if _, err := s.Projects.WriteOverlay(r.Context(), project); err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, service)
+}
+
+// handleDeleteService removes a managed service. Its named volume survives on
+// purpose: dropping a database's data is a separate, explicit act.
+func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
+	service, project, err := s.lookupService(r)
+	if handleLookupError(w, err) {
+		return
+	}
+	if err := s.Projects.DeleteService(r.Context(), service, project); err != nil {
+		badRequest(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleGetServiceEnvironment(w http.ResponseWriter, r *http.Request) {
+	service, _, err := s.lookupService(r)
+	if handleLookupError(w, err) {
+		return
+	}
+	vars, err := s.Projects.ServiceEnvironment(r.Context(), service.ID, true)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, vars)
+}
+
+func (s *Server) handlePutServiceEnvironment(w http.ResponseWriter, r *http.Request) {
+	service, project, err := s.lookupService(r)
+	if handleLookupError(w, err) {
+		return
+	}
+	var req struct {
+		Variables []projects.EnvVar `json:"variables"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if err := s.Projects.SetServiceEnvironment(r.Context(), service.ID, req.Variables); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if _, err := s.Projects.WriteOverlay(r.Context(), project); err != nil {
+		serverError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// assign applies an optional request field, leaving the value untouched when
+// the caller omitted it.
+func assign(dst *string, src *string) {
+	if src != nil {
+		*dst = *src
+	}
+}
+
+// assignValid is assign for a field that create validates. An edit reaches the
+// same git command and the same compose file as a create, so it has to clear
+// the same bar; skipping it here would make PATCH the way around the checks.
+func assignValid(dst *string, src *string, validate func(string) (string, error)) error {
+	if src == nil {
+		return nil
+	}
+	value, err := validate(*src)
+	if err != nil {
+		return err
+	}
+	*dst = value
+	return nil
+}
+
 // handleServiceAction implements start/stop/restart; the verb comes from the
 // route pattern, never from user input.
 func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request) {
@@ -78,11 +319,11 @@ func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request) {
 	action := lastPathSegment(r.URL.Path)
 	switch action {
 	case "start":
-		err = s.docker.Start(r.Context(), containerID)
+		err = s.Docker.Start(r.Context(), containerID)
 	case "stop":
-		err = s.docker.Stop(r.Context(), containerID)
+		err = s.Docker.Stop(r.Context(), containerID)
 	case "restart":
-		err = s.docker.Restart(r.Context(), containerID)
+		err = s.Docker.Restart(r.Context(), containerID)
 	default:
 		badRequest(w, errors.New("unsupported action"))
 		return
@@ -120,7 +361,7 @@ func (s *Server) streamContainerLogs(w http.ResponseWriter, r *http.Request, con
 	}
 	follow := r.URL.Query().Get("follow") != "false"
 
-	reader, tty, err := s.docker.Logs(r.Context(), containerID, tail, follow, true)
+	reader, tty, err := s.Docker.Logs(r.Context(), containerID, tail, follow, true)
 	if err != nil {
 		badRequest(w, err)
 		return
@@ -214,7 +455,7 @@ func scanLines(r io.Reader, stream string, out chan<- logPayload) {
 // service id, so history survives the redeploys that replace the container.
 func (s *Server) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
 	since, bucket := metricsWindow(r)
-	points, err := s.db.ServiceMetrics(r.Context(), r.PathValue("id"), since, bucket)
+	points, err := s.DB.ServiceMetrics(r.Context(), r.PathValue("id"), since, bucket)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -239,7 +480,7 @@ func (s *Server) handleServiceStats(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(statsInterval)
 	defer ticker.Stop()
 	for {
-		sample, err := s.docker.Sample(r.Context(), containerID)
+		sample, err := s.Docker.Sample(r.Context(), containerID)
 		if err != nil {
 			return
 		}

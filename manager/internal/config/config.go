@@ -44,9 +44,6 @@ type Config struct {
 	ACMEEmail     string
 	// ACMERenewBefore triggers renewal when a cert expires within this window.
 	ACMERenewBefore time.Duration
-
-	// SessionTTL bounds how long a login stays valid.
-	SessionTTL time.Duration
 }
 
 const (
@@ -87,7 +84,6 @@ func Load() (*Config, error) {
 		ACMEDirectory:   env("PLATFORM_ACME_DIRECTORY", acmeDir),
 		ACMEEmail:       env("PLATFORM_ACME_EMAIL", ""),
 		ACMERenewBefore: 30 * 24 * time.Hour,
-		SessionTTL:      time.Duration(intEnv("PLATFORM_SESSION_TTL_HOURS", 24*14)) * time.Hour,
 	}
 
 	for _, dir := range []string{c.DataDir, c.ProjectsDir, c.NginxDir, c.CertificatesDir, c.BackupsDir, c.SystemDir} {
@@ -122,13 +118,6 @@ func (c *Config) ProjectDir(id string) string { return filepath.Join(c.ProjectsD
 
 func env(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func intEnv(key string, fallback int) int {
-	if v, err := strconv.Atoi(env(key, "")); err == nil {
 		return v
 	}
 	return fallback

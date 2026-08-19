@@ -12,6 +12,8 @@ API="$ORIGIN/api"
 COOKIES="$(mktemp)"
 EMAIL="smoke@example.com"
 PASSWORD="smoke-test-password"
+# Matches SETUP_TOKEN in the dev stack; a real install prints its own.
+SETUP_TOKEN="${SETUP_TOKEN:-dev}"
 trap 'rm -f "$COOKIES"' EXIT
 
 pass() { printf '  ✓ %s\n' "$1"; }
@@ -36,7 +38,15 @@ step 'authentication'
 # Login belongs to the better-auth service, which Nginx serves on the same origin.
 status=$(curl -fsS "$API/auth/platform-status")
 if echo "$status" | grep -q '"needs_setup":true'; then
+    code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -H "Origin: $ORIGIN" \
+        -H 'x-setup-token: wrong' \
+        -d "{\"email\":\"squatter@example.com\",\"password\":\"$PASSWORD\",\"name\":\"squatter\"}" \
+        "$API/auth/sign-up/email")
+    [ "$code" = "403" ] || fail "sign-up with a wrong setup token returned $code, expected 403"
+    pass 'the setup token gates the first account'
+
     curl -fsS -c "$COOKIES" -H 'Content-Type: application/json' -H "Origin: $ORIGIN" \
+        -H "x-setup-token: $SETUP_TOKEN" \
         -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"name\":\"smoke\"}" \
         "$API/auth/sign-up/email" >/dev/null
     pass 'administrator created'
@@ -58,8 +68,17 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIES" -X POST -H 'Origin: 
 [ "$code" = "403" ] || fail "a cross-origin mutation returned $code, expected 403"
 pass 'cross-origin mutations are rejected'
 
+# The auth service has its own origin check; echoing the caller's Origin back
+# would make it accept this.
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+    -H 'Origin: https://evil.example.com' \
+    -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" "$API/auth/sign-in/email")
+[ "$code" != "200" ] || fail 'the auth service accepted a cross-origin sign-in'
+pass 'cross-origin sign-in is rejected'
+
 step 'sign-up is closed'
 code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -H "Origin: $ORIGIN" \
+    -H "x-setup-token: $SETUP_TOKEN" \
     -d '{"email":"second@example.com","password":"another-password","name":"second"}' "$API/auth/sign-up/email")
 [ "$code" = "409" ] || fail "a second sign-up returned $code, expected 409"
 pass 'only one administrator can be created'

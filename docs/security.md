@@ -10,9 +10,18 @@ Everything in front of it is therefore treated as untrusted input.
 - Accounts, password hashing and sessions belong to better-auth, running as its
   own service with its own SQLite database. The manager never issues a
   credential; it validates the session cookie by reading that database.
-- Sessions are HttpOnly cookies with `SameSite=Lax`.
-- Every cookie-authenticated mutation must carry an `Origin` matching the
-  dashboard. Browsers cannot forge it, so this is the CSRF defence.
+- Sessions are HttpOnly cookies with `SameSite=Lax`, signed with a
+  `BETTER_AUTH_SECRET` the installer generates per install. There is no default:
+  the auth service refuses to start without it.
+- The `Secure` attribute follows `PUBLIC_URL`. It is off until you declare an
+  `https://` origin for the panel, because a fresh install is reached over plain
+  HTTP on port 3000 and a browser would discard the cookie.
+- Every cookie-authenticated mutation must carry an `Origin` matching the host
+  the request was addressed to. Browsers cannot forge either, so this is the
+  CSRF defence, on both the manager and the auth service.
+- Creating the first administrator additionally requires the setup token the
+  installer generated and printed. Without it a panel that is publicly reachable
+  before its owner reaches it would be claimed by whoever found it first.
 - Sign-up closes permanently once the first administrator exists.
 - Credential endpoints are rate limited twice: better-auth allows five attempts
   a minute per client, and Nginx throttles the same paths independently.
@@ -35,8 +44,15 @@ Values that reach a command line are validated first:
 - **Git refs** reject anything starting with `-` and any shell metacharacter.
 - **Compose paths** are resolved against the project directory and rejected if
   the result escapes it.
-- **Hostnames** are validated per DNS label. Wildcards are rejected because
-  HTTP-01 cannot validate them.
+- **Build paths** must stay inside the checkout: `..`, backslashes and anything
+  a path clean would rewrite are rejected, on create and on edit alike, so a
+  build context cannot be aimed at an arbitrary host directory.
+- **Image references and volume mount points** are matched against a narrow
+  pattern before being written into the generated compose file. Both are user
+  values that end up in YAML, where a space or a `#` is enough to change which
+  image runs or where the volume lands.
+- **Hostnames** are validated per DNS label. A wildcard is accepted only with a
+  Cloudflare token configured, since HTTP-01 cannot validate one and DNS-01 can.
 
 ## Secrets
 
@@ -47,8 +63,28 @@ Values that reach a command line are validated first:
 - Git credentials never reach the command line. Tokens go through `GIT_ASKPASS`
   and SSH keys through a 0600 temporary file removed when the clone finishes.
 - API responses mask secret values. Saving a masked value back is a no-op, so
-  editing one variable cannot silently overwrite another.
-- The generated project `.env` is written with 0600 permissions.
+  editing one variable cannot silently overwrite another. Two routes are
+  deliberately exempt, because handing the value over is the whole point of
+  them: a database service's connection panel
+  (`GET /api/services/{id}/database`) returns the password and the connection
+  URL, and a service export asked for with `?secrets=true` returns every
+  value. Both sit behind the same session or token guard as the environment
+  editor, which can read the same secrets anyway.
+- The generated project `.env` is written with 0600 permissions, and so is each
+  managed service's own `services/<name>.env`. A generated database password is
+  stored there and nowhere else, scoped to that one service.
+- A service name becomes a file name, so it is validated against
+  `[a-zA-Z0-9][a-zA-Z0-9._-]*` first and cannot escape the project directory.
+- `/opt/platform/.env` holds the session secret and the setup token and is 0600.
+- A service export withholds secret values by default, sending their keys with
+  empty values. `?secrets=true` includes them, and that request is written to
+  the audit log even though it is a read, because it is the one route that hands
+  over plaintext in bulk. The payload is base64, which is encoding and not
+  encryption, so one taken with secrets is as sensitive as the database it came
+  from.
+- A backup snapshot contains `master.key`, because without it the encrypted
+  values in the snapshot cannot be read back. Treat a snapshot as being as
+  sensitive as the server.
 
 ## Destructive actions
 

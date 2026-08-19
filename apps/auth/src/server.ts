@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { getMigrations } from 'better-auth/db/migration'
 import { auth, authOptions, database } from './auth'
 
@@ -8,6 +9,18 @@ import { auth, authOptions, database } from './auth'
  */
 
 const port = Number(process.env.PORT ?? 8081)
+
+// A fresh panel is reachable on a public IP before anyone has signed up, so the
+// first request wins an account that owns the host's Docker socket. The
+// installer prints this token; without it that race is the whole authentication
+// story. Empty means unset, which is how the dev stack runs.
+const setupToken = process.env.PLATFORM_SETUP_TOKEN ?? ''
+
+function setupTokenAccepted(given: string): boolean {
+	if (setupToken === '') return true
+	if (given.length !== setupToken.length) return false
+	return timingSafeEqual(Buffer.from(given), Buffer.from(setupToken))
+}
 
 // The schema is applied on boot, the same way the Go manager migrates its own
 // database, so a fresh install needs no separate migration step.
@@ -39,11 +52,19 @@ const server = Bun.serve({
 			return Response.json({ needs_setup: userCount() === 0 })
 		}
 
-		if (url.pathname === '/api/auth/sign-up/email' && userCount() > 0) {
-			return Response.json(
-				{ error: { code: 'SETUP_CLOSED', message: 'An administrator already exists' } },
-				{ status: 409 },
-			)
+		if (url.pathname === '/api/auth/sign-up/email') {
+			if (userCount() > 0) {
+				return Response.json(
+					{ error: { code: 'SETUP_CLOSED', message: 'An administrator already exists' } },
+					{ status: 409 },
+				)
+			}
+			if (!setupTokenAccepted(request.headers.get('x-setup-token') ?? '')) {
+				return Response.json(
+					{ error: { code: 'SETUP_TOKEN_INVALID', message: 'Setup token does not match' } },
+					{ status: 403 },
+				)
+			}
 		}
 
 		return auth.handler(request)
