@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/mod/semver"
+
 	"github.com/vexdock/platform/manager/internal/backup"
 	"github.com/vexdock/platform/manager/internal/config"
 )
@@ -40,6 +42,15 @@ const SettingBeta = "updater.beta"
 // SettingCleanupOldImages is the system_settings key for pruning the previous
 // platform images after a successful update. "true" / "false"; empty is off.
 const SettingCleanupOldImages = "updater.cleanup_old_images"
+
+// semverTag normalises a release tag for semver.Compare, which requires the
+// leading "v" that versionPattern treats as optional.
+func semverTag(v string) string {
+	if strings.HasPrefix(v, "v") {
+		return v
+	}
+	return "v" + v
+}
 
 // versionPattern is the only shape accepted for a target version, so nothing
 // user-supplied can be reinterpreted by the shell inside the updater container.
@@ -63,10 +74,10 @@ type Service struct {
 func New(cfg *config.Config, backups *backup.Service, repo string) *Service {
 	s := &Service{cfg: cfg, backups: backups}
 	if repo != "" {
-		// /releases/latest ignores prereleases. The list endpoint returns newest
-		// first and includes them; Status filters drafts and, unless beta is on,
-		// prereleases.
-		s.releaseAPI = "https://api.github.com/repos/" + repo + "/releases"
+		// /releases/latest ignores prereleases, so read the list endpoint, which
+		// includes them. It is not ordered by version, hence per_page=100 and the
+		// explicit semver pick in latestVersion.
+		s.releaseAPI = "https://api.github.com/repos/" + repo + "/releases?per_page=100"
 		s.rawBase = "https://raw.githubusercontent.com/" + repo
 	}
 	return s
@@ -102,9 +113,11 @@ type Status struct {
 func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
 	latest := s.latestVersion(ctx, includePrerelease)
 	return Status{
-		Current:         s.cfg.Version,
-		Latest:          latest,
-		UpdateAvailable: latest != "" && latest != s.cfg.Version,
+		Current: s.cfg.Version,
+		Latest:  latest,
+		// Strictly newer, never merely different: the release list is not ordered
+		// by version, so a plain inequality would happily offer a downgrade.
+		UpdateAvailable: latest != "" && semver.Compare(semverTag(latest), semverTag(s.cfg.Version)) > 0,
 		Beta:            includePrerelease,
 		CheckedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
@@ -144,6 +157,11 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) str
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return s.latest
 	}
+	// GitHub orders this list by tag name, which sorts beta.10 below beta.2, so
+	// take the highest version on the track rather than the first entry. When
+	// nothing matches, latest stays empty (the UI shows "unknown") and the
+	// timestamp still moves so we do not hammer GitHub.
+	latest := ""
 	for _, rel := range payload {
 		if rel.Draft || !versionPattern.MatchString(rel.TagName) {
 			continue
@@ -151,13 +169,12 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) str
 		if rel.Prerelease && !includePrerelease {
 			continue
 		}
-		s.latest, s.latestAt, s.cachedPrerelease = rel.TagName, time.Now(), includePrerelease
-		return s.latest
+		if latest == "" || semver.Compare(semverTag(rel.TagName), semverTag(latest)) > 0 {
+			latest = rel.TagName
+		}
 	}
-	// No matching release on this track: remember the miss so we do not hammer
-	// GitHub, but leave latest empty so the UI shows "unknown".
-	s.latest, s.latestAt, s.cachedPrerelease = "", time.Now(), includePrerelease
-	return ""
+	s.latest, s.latestAt, s.cachedPrerelease = latest, time.Now(), includePrerelease
+	return latest
 }
 
 // Start backs up the platform and launches the detached updater container.
