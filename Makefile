@@ -44,9 +44,9 @@ web-dev: ## Run the dashboard dev server on :5173 with HMR (proxies /api to the 
 	cd apps/web && bun run dev
 
 .PHONY: web-check
-web-check: ## Typecheck and test the dashboard, typecheck the auth service
+web-check: ## Typecheck and test the dashboard and the auth service
 	cd apps/web && bun run typecheck && bun run test
-	cd apps/auth && bun run typecheck
+	cd apps/auth && bun run typecheck && bun run test
 
 ## ---- images ----
 

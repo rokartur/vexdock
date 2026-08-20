@@ -1,6 +1,6 @@
 {
 	"name": "@vexdock/auth",
-	"version": "0.1.0-beta.11",
+	"version": "0.1.0-beta.12",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
 	"type": "module",
@@ -9,10 +9,11 @@
 		"dev": "bun --watch src/server.ts",
 		"migrate": "bunx @better-auth/cli@latest migrate --config src/auth.ts -y",
 		"start": "bun src/server.ts",
+		"test": "bun test",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"better-auth": "^1.6.29"
+		"better-auth": "^1.7.1"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
