@@ -161,7 +161,7 @@ create_network() {
 }
 
 # `latest` is a floating image tag, but the dashboard decides whether an update
-# exists by comparing the recorded version against the newest release by name.
+# exists by comparing the recorded version against the newest release by semver.
 # Recording "latest" would offer an update forever, so resolve it to a tag once.
 resolve_version() {
     if [ "$VERSION" != latest ]; then

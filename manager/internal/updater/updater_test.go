@@ -102,6 +102,32 @@ func TestLatestVersionSkipsPrereleaseOnStableTrack(t *testing.T) {
 	}
 }
 
+// GitHub returns the release list ordered by tag name, so beta.10 arrives
+// after beta.2 and an installed beta.10 must not be offered beta.9.
+func TestLatestVersionPicksHighestSemverNotFirstEntry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`[
+			{"tag_name":"v0.1.0-beta.9","draft":false,"prerelease":true},
+			{"tag_name":"v0.1.0-beta.2","draft":false,"prerelease":true},
+			{"tag_name":"v0.1.0-beta.10","draft":false,"prerelease":true},
+			{"tag_name":"v0.1.0-beta.1","draft":false,"prerelease":true}
+		]`))
+	}))
+	t.Cleanup(srv.Close)
+
+	s := &Service{
+		cfg:        &config.Config{Version: "v0.1.0-beta.10"},
+		releaseAPI: srv.URL + "/releases",
+	}
+	st := s.Status(context.Background(), true)
+	if st.Latest != "v0.1.0-beta.10" {
+		t.Fatalf("latest = %q, want v0.1.0-beta.10", st.Latest)
+	}
+	if st.UpdateAvailable {
+		t.Fatalf("offered a downgrade: %+v", st)
+	}
+}
+
 func TestLatestVersionSkipsDrafts(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`[

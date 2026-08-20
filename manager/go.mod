@@ -7,6 +7,7 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/oklog/ulid/v2 v2.1.2
 	golang.org/x/crypto v0.55.0
+	golang.org/x/mod v0.37.0
 	modernc.org/sqlite v1.56.0
 )
 
