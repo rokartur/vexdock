@@ -102,11 +102,11 @@ func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
 	}
 }
 
-// latestVersion queries the release API at most once every 15 minutes per track.
+// latestVersion queries the release API at most once every 2 minutes per track.
 func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.latestAt.IsZero() && time.Since(s.latestAt) < 15*time.Minute && s.cachedPrerelease == includePrerelease {
+	if !s.latestAt.IsZero() && time.Since(s.latestAt) < 2*time.Minute && s.cachedPrerelease == includePrerelease {
 		return s.latest
 	}
 	if s.releaseAPI == "" {

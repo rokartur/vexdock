@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vexdock/platform/manager/internal/config"
 )
@@ -53,6 +54,29 @@ func TestLatestVersionIncludesPrereleaseWhenAsked(t *testing.T) {
 	}
 	if !st.UpdateAvailable || !st.Beta {
 		t.Fatalf("status = %+v", st)
+	}
+}
+
+func TestLatestVersionRefreshesAfterTwoMinutes(t *testing.T) {
+	latest := "v0.1.0-beta.8"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`[{"tag_name":"` + latest + `","draft":false,"prerelease":true}]`))
+	}))
+	t.Cleanup(srv.Close)
+
+	s := &Service{
+		cfg:        &config.Config{Version: "v0.1.0-beta.8"},
+		releaseAPI: srv.URL,
+	}
+	if st := s.Status(context.Background(), true); st.UpdateAvailable {
+		t.Fatalf("initial status = %+v", st)
+	}
+
+	latest = "v0.1.0-beta.9"
+	s.latestAt = time.Now().Add(-2 * time.Minute)
+	st := s.Status(context.Background(), true)
+	if st.Latest != latest || !st.UpdateAvailable {
+		t.Fatalf("status after release = %+v, want latest %q", st, latest)
 	}
 }
 
