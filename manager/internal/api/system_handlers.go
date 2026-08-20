@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,31 +74,48 @@ func writable(dir string) error {
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.Updater.Status(r.Context(), s.updateIncludesPrerelease(r.Context())))
+	writeJSON(w, http.StatusOK, s.versionStatus(r.Context(), s.updateIncludesPrerelease(r.Context())))
 }
 
-// handlePutVersionChannel toggles the beta (prerelease) update track.
-func (s *Server) handlePutVersionChannel(w http.ResponseWriter, r *http.Request) {
+// handlePutVersionSettings stores the update preferences: the beta
+// (prerelease) track and whether a successful update prunes the images it
+// replaced. Both are sent on every call, like the other settings screens.
+func (s *Server) handlePutVersionSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Beta bool `json:"beta"`
+		Beta             bool `json:"beta"`
+		CleanupOldImages bool `json:"cleanup_old_images"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
 		return
 	}
-	value := "false"
-	if req.Beta {
-		value = "true"
+	settings := map[string]bool{
+		updater.SettingBeta:             req.Beta,
+		updater.SettingCleanupOldImages: req.CleanupOldImages,
 	}
-	if err := s.DB.SetSetting(r.Context(), updater.SettingBeta, value); err != nil {
-		serverError(w, err)
-		return
+	for key, value := range settings {
+		if err := s.DB.SetSetting(r.Context(), key, strconv.FormatBool(value)); err != nil {
+			serverError(w, err)
+			return
+		}
 	}
-	writeJSON(w, http.StatusOK, s.Updater.Status(r.Context(), req.Beta))
+	writeJSON(w, http.StatusOK, s.versionStatus(r.Context(), req.Beta))
+}
+
+// versionStatus is the updater's own status plus the preferences the updater
+// does not read itself.
+func (s *Server) versionStatus(ctx context.Context, includePrerelease bool) updater.Status {
+	status := s.Updater.Status(ctx, includePrerelease)
+	status.CleanupOldImages = s.cleanupOldImages(ctx)
+	return status
 }
 
 func (s *Server) updateIncludesPrerelease(ctx context.Context) bool {
 	return updater.IncludePrerelease(s.setting(ctx, updater.SettingBeta), s.Config.Version)
+}
+
+func (s *Server) cleanupOldImages(ctx context.Context) bool {
+	return s.setting(ctx, updater.SettingCleanupOldImages) == "true"
 }
 
 // handleSystemInfo powers the dashboard summary.
@@ -321,14 +339,14 @@ func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
 // handleUpdate hands the swap to a detached updater container.
 func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Version          string `json:"version"`
-		CleanupOldImages bool   `json:"cleanup_old_images"`
+		Version string `json:"version"`
 	}
 	if err := decode(r, &req); err != nil && !errors.Is(err, io.EOF) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.Updater.Start(r.Context(), req.Version, s.updateIncludesPrerelease(r.Context()), req.CleanupOldImages); err != nil {
+	ctx := r.Context()
+	if err := s.Updater.Start(ctx, req.Version, s.updateIncludesPrerelease(ctx), s.cleanupOldImages(ctx)); err != nil {
 		badRequest(w, err)
 		return
 	}

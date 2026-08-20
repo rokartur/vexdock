@@ -286,8 +286,13 @@ export type VersionStatus = {
 	current: string
 	latest: string
 	update_available: boolean
-	beta: boolean
 	checked_at: string
+} & VersionSettings
+
+/** Update preferences, stored server-side so they survive a reload. */
+export type VersionSettings = {
+	beta: boolean
+	cleanup_old_images: boolean
 }
 
 export type Registry = {
@@ -653,12 +658,12 @@ export const api = {
 	createBackup: (includeVolumes = false) =>
 		request<Backup>(`/api/system/backup?volumes=${includeVolumes}`, { method: 'POST' }),
 	version: () => request<VersionStatus>('/api/system/version'),
-	setVersionChannel: (beta: boolean) =>
-		request<VersionStatus>('/api/system/version', { method: 'PUT', body: { beta } }),
-	update: (version: string | undefined, cleanupOldImages: boolean) =>
+	setVersionSettings: (settings: VersionSettings) =>
+		request<VersionStatus>('/api/system/version', { method: 'PUT', body: settings }),
+	update: (version: string | undefined) =>
 		request<{ status: string; message: string }>('/api/system/update', {
 			method: 'POST',
-			body: { version: version ?? '', cleanup_old_images: cleanupOldImages },
+			body: { version: version ?? '' },
 		}),
 	health: () => request<HealthReport>('/api/health'),
 }
