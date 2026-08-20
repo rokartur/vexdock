@@ -39,6 +39,7 @@ function latest(rates: Point[]) {
 
 function ServiceDetail() {
 	const { projectId, serviceId } = Route.useParams()
+	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const [tab, setTab] = useState<Tab>('overview')
 	const [stats, setStats] = useState<Sample | null>(null)
@@ -73,8 +74,16 @@ function ServiceDetail() {
 		mutationFn: (action: 'start' | 'stop' | 'restart') => api.serviceAction(serviceId, action),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', serviceId] }),
 	})
+	const deploy = useMutation({
+		mutationFn: () => api.deployService(serviceId),
+		onSuccess: async deployment => {
+			await queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
+			await navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } })
+		},
+	})
 
 	const tabs = tabsFor(service.data)
+	const canDeploy = Boolean(service.data && service.data.source_type !== 'unconfigured')
 
 	return (
 		<>
@@ -92,11 +101,18 @@ function ServiceDetail() {
 					<Status value={service.data?.state || 'stopped'} />
 				</div>
 				<div className='flex gap-2'>
-					<Button onClick={() => act.mutate('start')}>Start</Button>
-					<Button onClick={() => act.mutate('restart')}>Restart</Button>
-					<Button onClick={() => act.mutate('stop')}>Stop</Button>
+					<Button variant='primary' onClick={() => deploy.mutate()} disabled={!canDeploy || deploy.isPending}>
+						{deploy.isPending ? 'Starting…' : 'Deploy'}
+					</Button>
+					<Button onClick={() => act.mutate('restart')} disabled={!running}>
+						Restart
+					</Button>
+					<Button onClick={() => act.mutate('stop')} disabled={!running || act.isPending}>
+						Stop
+					</Button>
 				</div>
 			</div>
+			<ErrorText error={deploy.error ?? act.error} />
 
 			<nav className='mb-4 flex gap-4 border-b border-border'>
 				{tabs.map(item => (
@@ -231,7 +247,7 @@ function DatabasePanels({ serviceId }: { serviceId: string }) {
 					<Item label='Other tags' value={upgrades.slice(0, 4).join(', ') || '-'} />
 				</dl>
 				<p className='mt-2 text-label text-muted-foreground'>
-					Change the image in Settings, then redeploy the project to move versions.
+					Change the image in Settings, then Deploy this service to move versions.
 				</p>
 			</Section>
 		</div>

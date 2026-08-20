@@ -100,6 +100,8 @@ type Options struct {
 	Actor   string
 	// CommitSHA pins the checkout, used by rollback. Empty means the branch head.
 	CommitSHA string
+	// ServiceName scopes pull/build/up/health to one compose service. Empty means the whole project.
+	ServiceName string
 }
 
 // Trigger enqueues a deployment and returns immediately; the pipeline runs in
@@ -110,11 +112,12 @@ func (e *Engine) Trigger(ctx context.Context, project *database.Project, opts Op
 		ref = opts.CommitSHA
 	}
 	d := &database.Deployment{
-		ProjectID: project.ID,
-		Branch:    ref,
-		Status:    database.DeploymentQueued,
-		Trigger:   opts.Trigger,
-		CreatedBy: opts.Actor,
+		ProjectID:   project.ID,
+		ServiceName: opts.ServiceName,
+		Branch:      ref,
+		Status:      database.DeploymentQueued,
+		Trigger:     opts.Trigger,
+		CreatedBy:   opts.Actor,
 	}
 	if opts.CommitSHA != "" {
 		d.CommitSHA = opts.CommitSHA
@@ -182,9 +185,11 @@ type pipeline struct {
 	ref          string
 	deployment   *database.Deployment
 	project      *database.Project
-	position     int
-	current      *database.DeploymentStep
-	buf          strings.Builder
+	// target is the compose service this deploy is limited to, or empty for all.
+	target   string
+	position int
+	current  *database.DeploymentStep
+	buf      strings.Builder
 }
 
 func newPipeline(e *Engine, deploymentID, ref string) *pipeline {
@@ -201,6 +206,7 @@ func (p *pipeline) execute(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	p.target = p.deployment.ServiceName
 
 	p.deployment.Status = database.DeploymentRunning
 	p.deployment.StartedAt = database.Now()
@@ -237,19 +243,32 @@ func (p *pipeline) execute(ctx context.Context) error {
 		return p.fail(err)
 	}
 	names := cfg.ServiceNames()
-	p.printf("Compose is valid: %d service(s) - %s", len(names), strings.Join(names, ", "))
-	for _, name := range names {
-		if _, err := p.e.db.UpsertService(ctx, p.project.ID, name); err != nil {
+	if p.target != "" {
+		if _, ok := cfg.Services[p.target]; !ok {
+			return p.fail(fmt.Errorf("compose has no service %q", p.target))
+		}
+		p.printf("Compose is valid; deploying service %s", p.target)
+		if _, err := p.e.db.UpsertService(ctx, p.project.ID, p.target); err != nil {
+			return p.fail(err)
+		}
+		// Never prune siblings on a scoped deploy — they are simply not in scope.
+	} else {
+		p.printf("Compose is valid: %d service(s) - %s", len(names), strings.Join(names, ", "))
+		for _, name := range names {
+			if _, err := p.e.db.UpsertService(ctx, p.project.ID, name); err != nil {
+				return p.fail(err)
+			}
+		}
+		if err := p.e.db.PruneServices(ctx, p.project.ID, names); err != nil {
 			return p.fail(err)
 		}
 	}
-	if err := p.e.db.PruneServices(ctx, p.project.ID, names); err != nil {
-		return p.fail(err)
-	}
 	p.complete()
 
+	scope := p.serviceArgs()
+
 	p.begin(StepPull)
-	if err := composeProject.Pull(ctx, p); err != nil {
+	if err := composeProject.Pull(ctx, p, scope...); err != nil {
 		// A pull failure for a locally built image is not fatal; compose is told
 		// to ignore pull failures and the build step decides.
 		p.printf("pull reported: %v", err)
@@ -257,8 +276,8 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	p.begin(StepBuild)
-	if hasBuild(cfg) {
-		if err := composeProject.Build(ctx, p); err != nil {
+	if hasBuild(cfg, scope...) {
+		if err := composeProject.Build(ctx, p, scope...); err != nil {
 			return p.fail(err)
 		}
 	} else {
@@ -267,13 +286,13 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	p.begin(StepStart)
-	if err := composeProject.Up(ctx, p); err != nil {
+	if err := composeProject.Up(ctx, p, scope...); err != nil {
 		return p.fail(err)
 	}
 	p.complete()
 
 	p.begin(StepHealthcheck)
-	if err := p.waitHealthy(ctx, composeProject); err != nil {
+	if err := p.waitHealthy(ctx); err != nil {
 		return p.fail(err)
 	}
 	p.complete()
@@ -286,6 +305,14 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	return nil
+}
+
+// serviceArgs is the compose service list for scoped steps, or nil for all.
+func (p *pipeline) serviceArgs() []string {
+	if p.target == "" {
+		return nil
+	}
+	return []string{p.target}
 }
 
 func (p *pipeline) gitSteps(ctx context.Context) error {
@@ -332,9 +359,13 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 	}
 	sourced := make([]database.Service, 0, len(services))
 	for _, svc := range services {
-		if svc.Managed() && svc.SourceType == database.ServiceGit {
-			sourced = append(sourced, svc)
+		if !svc.Managed() || svc.SourceType != database.ServiceGit {
+			continue
 		}
+		if p.target != "" && svc.ComposeServiceName != p.target {
+			continue
+		}
+		sourced = append(sourced, svc)
 	}
 	if len(sourced) == 0 {
 		return nil
@@ -362,15 +393,28 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 }
 
 // waitHealthy polls compose containers until they are running and, when a
-// healthcheck is declared, until Docker reports them healthy.
-func (p *pipeline) waitHealthy(ctx context.Context, _ compose.Project) error {
+// healthcheck is declared, until Docker reports them healthy. A scoped deploy
+// only waits on its target service.
+func (p *pipeline) waitHealthy(ctx context.Context) error {
 	deadline := time.Now().Add(healthTimeout)
 	for {
 		containers, err := p.e.docker.ListContainers(ctx, p.project.ComposeProjectName)
 		if err != nil {
 			return err
 		}
+		if p.target != "" {
+			filtered := containers[:0]
+			for _, c := range containers {
+				if c.Labels[docker.ComposeServiceLabel] == p.target {
+					filtered = append(filtered, c)
+				}
+			}
+			containers = filtered
+		}
 		if len(containers) == 0 {
+			if p.target != "" {
+				return fmt.Errorf("compose started no container for service %s", p.target)
+			}
 			return errors.New("compose started no containers")
 		}
 		pending := []string{}
@@ -402,7 +446,11 @@ func (p *pipeline) waitHealthy(ctx context.Context, _ compose.Project) error {
 			}
 		}
 		if len(pending) == 0 {
-			p.printf("All services are healthy")
+			if p.target != "" {
+				p.printf("Service %s is healthy", p.target)
+			} else {
+				p.printf("All services are healthy")
+			}
 			return nil
 		}
 		if time.Now().After(deadline) {
@@ -528,9 +576,19 @@ type logLine struct {
 	At   string `json:"at"`
 }
 
-func hasBuild(cfg *compose.Config) bool {
-	for _, svc := range cfg.Services {
-		if svc.Build != nil {
+// hasBuild reports whether any of the named services (or all, when none named)
+// declare a build context.
+func hasBuild(cfg *compose.Config, services ...string) bool {
+	if len(services) == 0 {
+		for _, svc := range cfg.Services {
+			if svc.Build != nil {
+				return true
+			}
+		}
+		return false
+	}
+	for _, name := range services {
+		if svc, ok := cfg.Services[name]; ok && svc.Build != nil {
 			return true
 		}
 	}

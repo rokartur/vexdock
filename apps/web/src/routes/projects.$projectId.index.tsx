@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
-import { Button, Refresh, Section, Status } from '../components/primitives'
+import { Button, ErrorText, Refresh, Section, Status } from '../components/primitives'
 import { api, type Service } from '../lib/api'
 
 /** The menu, in the order it reads: the two everyday kinds, then the escape
@@ -31,14 +31,32 @@ function ProjectServices() {
 		refetchInterval: 5000,
 	})
 
+	// Whole-project deploy stays for first discovery and rare full-stack runs.
+	// Day-to-day deploy/stop live on each service.
+	const deployAll = useMutation({
+		mutationFn: () => api.deploy(projectId),
+		onSuccess: async deployment => {
+			await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
+			await navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } })
+		},
+	})
+
 	const data = services.data ?? []
 
 	return (
 		<Section
 			title='Services'
 			description={`${data.length} in this project`}
-			actions={<Refresh onClick={() => services.refetch()} busy={services.isFetching} />}
+			actions={
+				<>
+					<Button onClick={() => deployAll.mutate()} disabled={deployAll.isPending}>
+						{deployAll.isPending ? 'Starting…' : 'Deploy all'}
+					</Button>
+					<Refresh onClick={() => services.refetch()} busy={services.isFetching} />
+				</>
+			}
 		>
+			<ErrorText error={deployAll.error} />
 			<Dialog open={creating !== null} onOpenChange={open => !open && setCreating(null)}>
 				<DialogContent className='sm:max-w-lg'>
 					<DialogHeader>
@@ -81,7 +99,7 @@ function ProjectServices() {
 			</ul>
 			{data.length === 0 && !services.isLoading ? (
 				<p className='mb-3 text-body text-muted-foreground'>
-					No services yet. Add one, or deploy the project to pick up what its compose file declares.
+					No services yet. Add one, or Deploy all to pick up what the compose file declares.
 				</p>
 			) : null}
 

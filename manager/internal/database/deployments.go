@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-const deploymentColumns = `id, project_id, number, commit_sha, branch, status, trigger, created_by, error, started_at, finished_at, created_at`
+const deploymentColumns = `id, project_id, number, service_name, commit_sha, branch, status, trigger, created_by, error, started_at, finished_at, created_at`
 
 // CreateDeployment allocates the next per-project deployment number.
 func (db *DB) CreateDeployment(ctx context.Context, d *Deployment) error {
@@ -20,8 +20,8 @@ func (db *DB) CreateDeployment(ctx context.Context, d *Deployment) error {
 		d.Status = DeploymentQueued
 	}
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO deployments (`+deploymentColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.ID, d.ProjectID, d.Number, d.CommitSHA, d.Branch, d.Status, d.Trigger, d.CreatedBy, d.Error,
+		`INSERT INTO deployments (`+deploymentColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		d.ID, d.ProjectID, d.Number, d.ServiceName, d.CommitSHA, d.Branch, d.Status, d.Trigger, d.CreatedBy, d.Error,
 		d.StartedAt, d.FinishedAt, d.CreatedAt)
 	return err
 }
@@ -79,7 +79,7 @@ func (db *DB) queryDeployments(ctx context.Context, query string, args ...any) (
 
 func scanDeployment(row scanner) (*Deployment, error) {
 	var d Deployment
-	err := row.Scan(&d.ID, &d.ProjectID, &d.Number, &d.CommitSHA, &d.Branch, &d.Status, &d.Trigger,
+	err := row.Scan(&d.ID, &d.ProjectID, &d.Number, &d.ServiceName, &d.CommitSHA, &d.Branch, &d.Status, &d.Trigger,
 		&d.CreatedBy, &d.Error, &d.StartedAt, &d.FinishedAt, &d.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound

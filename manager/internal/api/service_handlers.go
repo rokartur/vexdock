@@ -12,7 +12,9 @@ import (
 
 	"github.com/docker/docker/pkg/stdcopy"
 
+	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
+	"github.com/vexdock/platform/manager/internal/deployments"
 	dockersdk "github.com/vexdock/platform/manager/internal/docker"
 	"github.com/vexdock/platform/manager/internal/engines"
 	"github.com/vexdock/platform/manager/internal/projects"
@@ -58,7 +60,7 @@ func (s *Server) resolveServiceContainer(ctx context.Context, serviceID string) 
 		fallback = c.ID
 	}
 	if fallback == "" {
-		return "", errors.New("this service has no container yet - deploy the project first")
+		return "", errors.New("this service has no container yet - deploy it first")
 	}
 	return fallback, nil
 }
@@ -307,6 +309,33 @@ func assignValid(dst *string, src *string, validate func(string) (string, error)
 	}
 	*dst = value
 	return nil
+}
+
+// handleDeployService runs the deploy pipeline for one compose service only.
+func (s *Server) handleDeployService(w http.ResponseWriter, r *http.Request) {
+	service, project, err := s.lookupService(r)
+	if handleLookupError(w, err) {
+		return
+	}
+	if service.SourceType == database.ServiceUnconfigured {
+		badRequest(w, errors.New("this service has no source yet"))
+		return
+	}
+	user, _ := auth.UserFrom(r.Context())
+	actor := ""
+	if user != nil {
+		actor = user.Email
+	}
+	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
+		Trigger:     deployments.TriggerManual,
+		Actor:       actor,
+		ServiceName: service.ComposeServiceName,
+	})
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, deployment)
 }
 
 // handleServiceAction implements start/stop/restart; the verb comes from the

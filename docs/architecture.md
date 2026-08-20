@@ -115,8 +115,13 @@ so the UI never shows a pipeline that nothing is running.
 its own, into `services/<name>/repository`, reusing the project's credential. It
 only appears when the project has one, and it is its own step so that a failed
 service clone reads as a failed clone rather than as an unexplained deploy
-failure. There is no per-service deploy: a service that skipped the health wait
-and the proxy reconcile would only look deployed.
+failure.
+
+A deployment may target one compose service (`service_name` on the row). Pull,
+build, up and the health wait then name that service only; proxy reconcile still
+runs in full so domains stay attached. A full-project deploy leaves
+`service_name` empty and still prunes services that disappeared from compose. A
+scoped deploy never prunes siblings.
 
 `healthcheck` waits for containers to be running and, where a healthcheck is
 declared, for Docker to report them healthy. A container that exits non-zero

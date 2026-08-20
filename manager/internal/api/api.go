@@ -91,6 +91,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/services/{id}/database", s.protected(s.handleServiceDatabase))
 	mux.Handle("GET /api/services/{id}/environment", s.protected(s.handleGetServiceEnvironment))
 	mux.Handle("PUT /api/services/{id}/environment", s.protected(s.handlePutServiceEnvironment))
+	mux.Handle("POST /api/services/{id}/deploy", s.protected(s.handleDeployService))
 	mux.Handle("POST /api/services/{id}/start", s.protected(s.handleServiceAction))
 	mux.Handle("POST /api/services/{id}/stop", s.protected(s.handleServiceAction))
 	mux.Handle("POST /api/services/{id}/restart", s.protected(s.handleServiceAction))

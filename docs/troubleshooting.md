@@ -80,7 +80,7 @@ to read anything encrypted in `app.db`.
 
 ## Restoring an application volume
 
-Restoring overwrites live data, so stop the project first (**Project → Stop**),
+Restoring overwrites live data, so stop the affected services first,
 then unpack the archive back into the volume:
 
 ```sh

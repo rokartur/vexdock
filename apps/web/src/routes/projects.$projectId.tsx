@@ -26,19 +26,6 @@ function ProjectLayout() {
 		refetchInterval: 10_000,
 	})
 
-	const deploy = useMutation({
-		mutationFn: () => api.deploy(projectId),
-		onSuccess: async deployment => {
-			await queryClient.invalidateQueries({ queryKey: ['project', projectId] })
-			await navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } })
-		},
-	})
-
-	const stop = useMutation({
-		mutationFn: () => api.stopProject(projectId),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
-	})
-
 	const remove = useMutation({
 		mutationFn: () => api.deleteProject(projectId, false),
 		onSuccess: async () => {
@@ -62,32 +49,24 @@ function ProjectLayout() {
 				),
 			}}
 			actions={
-				<>
-					<Button variant='primary' onClick={() => deploy.mutate()} disabled={deploy.isPending}>
-						{deploy.isPending ? 'Starting…' : 'Deploy'}
-					</Button>
-					<Button onClick={() => stop.mutate()} disabled={stop.isPending}>
-						Stop
-					</Button>
-					{confirmDelete ? (
-						<>
-							<Button variant='danger' onClick={() => remove.mutate()} disabled={remove.isPending}>
-								Confirm delete
-							</Button>
-							<Button variant='ghost' onClick={() => setConfirmDelete(false)}>
-								Cancel
-							</Button>
-						</>
-					) : (
-						<Button variant='danger' onClick={() => setConfirmDelete(true)}>
-							Delete
+				confirmDelete ? (
+					<>
+						<Button variant='danger' onClick={() => remove.mutate()} disabled={remove.isPending}>
+							Confirm delete
 						</Button>
-					)}
-				</>
+						<Button variant='ghost' onClick={() => setConfirmDelete(false)}>
+							Cancel
+						</Button>
+					</>
+				) : (
+					<Button variant='danger' onClick={() => setConfirmDelete(true)}>
+						Delete
+					</Button>
+				)
 			}
 			toolbar={<Tabs base={base} tabs={tabs} />}
 		>
-			<ErrorText error={deploy.error ?? stop.error ?? remove.error} />
+			<ErrorText error={remove.error} />
 			<Outlet />
 		</Page>
 	)

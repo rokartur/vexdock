@@ -158,11 +158,11 @@ export function Shell({ children }: { children: ReactNode }) {
 							<DropdownMenuTrigger className='flex h-7 max-w-full min-w-0 items-center gap-2 rounded-lg pr-2 pl-1 text-left hover:bg-accent'>
 								<Avatar className='size-5 rounded-md'>
 									<AvatarFallback className='rounded-md bg-secondary text-[10px] font-normal text-foreground'>
-										PL
+										VX
 									</AvatarFallback>
 								</Avatar>
 								<span className='min-w-0 flex-1 truncate text-sm font-normal text-foreground'>
-									platform
+									vexdock
 								</span>
 								<IconChevronDown className='size-3 shrink-0 text-muted-foreground' />
 							</DropdownMenuTrigger>
