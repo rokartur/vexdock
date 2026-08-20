@@ -81,7 +81,7 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 			title='Refresh'
 			onClick={onClick}
 			disabled={busy}
-			className='flex size-7 shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
+			className='flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
 		>
 			<IconRefresh className='size-4' />
 		</button>
@@ -239,7 +239,7 @@ export function Cells({ children, className }: { children: ReactNode; className?
 	return (
 		<div
 			className={cn(
-				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px border bg-border [&>*]:bg-background',
+				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-lg border bg-border [&>*]:bg-background',
 				className,
 			)}
 		>
@@ -251,9 +251,21 @@ export function Cells({ children, className }: { children: ReactNode; className?
 /**
  * A list of facts: label on the left, value on the right, one hairline per row.
  * The shape the panel uses wherever a set of attributes is read, not edited.
+ *
+ * The box owns the outer edge, so the first row drops the hairline every `Fact`
+ * draws above itself.
  */
 export function Facts({ children, className }: { children: ReactNode; className?: string }) {
-	return <dl className={cn('grid grid-cols-[max-content_1fr] gap-x-6 text-body', className)}>{children}</dl>
+	return (
+		<dl
+			className={cn(
+				'grid grid-cols-[max-content_1fr] gap-x-6 rounded-lg border px-3 py-0.5 text-body [&>*:nth-child(-n+2)]:border-t-0',
+				className,
+			)}
+		>
+			{children}
+		</dl>
+	)
 }
 
 /** One row of a `Facts` list. The dt/dd pair are the grid's cells, so no wrapper. */

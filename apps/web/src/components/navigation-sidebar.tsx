@@ -111,8 +111,11 @@ export function NavigationSidebar({
 			>
 				<nav
 					className={cn(
-						'relative flex h-full w-full flex-col gap-4 bg-sidebar p-3 transition-all',
-						isHidden && 'mr-2 mb-2 h-[calc(100%-1rem)] px-3.5 shadow-lg ring-1 ring-foreground/10',
+						// p-2 is the same gutter the content panel's margin uses, so the rail's
+						// rows and the panel's top edge line up on one 8px frame.
+						'relative flex h-full w-full flex-col gap-4 bg-sidebar p-2 transition-all',
+						isHidden &&
+							'mr-2 mb-2 h-[calc(100%-1rem)] rounded-xl px-3.5 shadow-lg ring-1 ring-foreground/10',
 					)}
 				>
 					{children}

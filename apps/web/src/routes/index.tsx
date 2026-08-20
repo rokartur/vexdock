@@ -130,13 +130,17 @@ function DashboardPage() {
 						<div className='mt-0.5 text-meta text-muted-foreground'>
 							of {bytes(current?.disk_total)} · {percent(diskUsed * 100)}
 						</div>
-						<div className='mt-2.5 h-0.5 bg-muted'>
-							<div className='h-full bg-foreground' style={{ width: percent(diskUsed * 100) }} />
+						<div className='mt-2.5 h-0.5 rounded-full bg-muted'>
+							<div
+								className='h-full rounded-full bg-foreground'
+								style={{ width: percent(diskUsed * 100) }}
+							/>
 						</div>
 					</div>
 					<div className='px-3 py-2.5'>
 						<div className='text-meta tracking-wide text-muted-foreground uppercase'>Platform</div>
-						<Facts className='mt-1.5 gap-x-3'>
+						{/* Inside a cell, so the cell is the box: no second border. */}
+						<Facts className='mt-1.5 gap-x-3 border-0 px-0'>
 							<Fact label='Projects' value={info.data?.projects ?? 0} />
 							<Fact
 								label='Containers'

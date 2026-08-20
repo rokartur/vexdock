@@ -72,8 +72,8 @@ export function DataTable<TData extends RowData>({
 	const columnCount = table.getAllLeafColumns().length
 
 	return (
-		/* No box: rows are separated by their own hairlines, like every list in the panel. */
-		<div className='overflow-x-auto'>
+		/* The box owns the outer edge; rows inside it are separated by their own hairlines. */
+		<div className='overflow-x-auto rounded-lg border px-3'>
 			<ShadcnTable className='text-body'>
 				<TableHeader>
 					{table.getHeaderGroups().map(headerGroup => (
@@ -150,7 +150,7 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
 				<TableRow key={index} className='hover:bg-transparent'>
 					{Array.from({ length: columns }, (_cell, cell) => (
 						<TableCell key={cell} className='py-1.5 pr-3 pl-0'>
-							<div className='h-3 w-24 bg-muted' />
+							<div className='h-3 w-24 rounded-sm bg-muted' />
 						</TableCell>
 					))}
 				</TableRow>

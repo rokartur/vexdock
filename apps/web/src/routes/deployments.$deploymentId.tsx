@@ -95,12 +95,15 @@ function DeploymentPage() {
 			{deployment?.error ? <p className='mb-3 text-body text-destructive'>{deployment.error}</p> : null}
 
 			<Section title='Pipeline'>
-				<ol className='border-t border-border'>
+				<ol className='rounded-lg border border-border px-3'>
 					{steps.length === 0 ? (
 						<li className='py-3 text-body text-muted-foreground'>Waiting for the runner…</li>
 					) : (
 						steps.map(step => (
-							<li key={step.id} className='flex items-center gap-4 border-b border-border/50 py-1.5'>
+							<li
+								key={step.id}
+								className='flex items-center gap-4 border-b border-border/50 py-1.5 last:border-b-0'
+							>
 								<span className='w-28 font-mono text-body'>{step.name}</span>
 								<Status value={step.status} />
 								<span className='font-mono text-label text-muted-foreground'>
@@ -113,7 +116,7 @@ function DeploymentPage() {
 			</Section>
 
 			<Section title='Log' description={live ? 'streaming' : 'finished'}>
-				<div className='h-[50vh] overflow-auto border border-console-border bg-console p-2 font-mono text-body leading-[1.45] text-console-foreground'>
+				<div className='h-[50vh] overflow-auto rounded-lg border border-console-border bg-console p-2 font-mono text-body leading-[1.45] text-console-foreground'>
 					{lines.length === 0 ? (
 						<p className='text-console-muted'>
 							{steps.some(step => step.output)
