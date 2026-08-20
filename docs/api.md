@@ -91,7 +91,8 @@ means it follows the project. A push to a branch triggers every environment
 that is on it, so one webhook can deploy staging and production separately.
 
 These take `?environment={id}`: `deploy`, `stop`, `compose`, `services`,
-`services/export` and `deployments`.
+`services/export` and `deployments`. `POST /api/domains` takes an
+`environment_id` in its body for the same reason.
 
 ## Services
 

@@ -131,6 +131,7 @@ function ProjectDomains() {
 		mutationFn: () =>
 			api.createDomain({
 				project_id: projectId,
+				environment_id: environmentId,
 				service,
 				hostname,
 				container_port: port,

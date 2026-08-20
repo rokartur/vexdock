@@ -579,6 +579,8 @@ export const api = {
 	domains: () => request<Domain[]>('/api/domains'),
 	createDomain: (body: {
 		project_id: string
+		/** Which copy of the project serves it. Omitted means the default one. */
+		environment_id?: string
 		service: string
 		hostname: string
 		container_port: number
