@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { getMigrations } from 'better-auth/db/migration'
+import { backfillAccountIssuer } from './account-issuer'
 import { auth, authOptions, database } from './auth'
 
 /**
@@ -23,7 +24,10 @@ function setupTokenAccepted(given: string): boolean {
 }
 
 // The schema is applied on boot, the same way the Go manager migrates its own
-// database, so a fresh install needs no separate migration step.
+// database, so a fresh install needs no separate migration step. The backfill
+// runs first: better-auth refuses to migrate a table whose existing rows it
+// cannot fill in.
+backfillAccountIssuer(database)
 const { runMigrations } = await getMigrations(authOptions)
 await runMigrations()
 
