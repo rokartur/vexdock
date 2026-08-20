@@ -303,6 +303,17 @@ func TestUpgradingToEnvironmentsKeepsData(t *testing.T) {
 		t.Fatalf("upgrade: %v", err)
 	}
 
+	// A rebuild migration runs with foreign keys off, which is exactly the state
+	// in which a wrong statement can leave the file itself damaged rather than
+	// merely wrong.
+	var integrity string
+	if err := db.QueryRowContext(ctx, `PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		t.Fatalf("integrity check: %v", err)
+	}
+	if integrity != "ok" {
+		t.Fatalf("the upgrade damaged the database: %s", integrity)
+	}
+
 	secrets, err := db.ListSecrets(ctx, ServiceScope, serviceID)
 	if err != nil {
 		t.Fatalf("list service secrets: %v", err)
