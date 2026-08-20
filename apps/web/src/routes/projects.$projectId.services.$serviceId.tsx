@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { LogViewer } from '../components/log-viewer'
 import { MetricCard, type Point, ratesOf, seriesOf, useHistory } from '../components/metric-chart'
-import { Button, ErrorText, Field, Section, Status } from '../components/primitives'
+import { Button, ErrorText, Field, Section } from '../components/primitives'
 import { Terminal } from '../components/terminal'
 import { api, type ContainerStats, type Service, type ServicePoint } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
@@ -87,30 +87,17 @@ function ServiceDetail() {
 
 	return (
 		<>
-			<div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
-				<div className='flex items-baseline gap-3'>
-					<Link
-						to='/projects/$projectId'
-						params={{ projectId }}
-						className='text-body text-muted-foreground hover:text-foreground'
-					>
-						services
-					</Link>
-					<span className='text-muted-foreground'>/</span>
-					<h2 className='text-title font-medium'>{service.data?.compose_service_name ?? serviceId}</h2>
-					<Status value={service.data?.state || 'stopped'} />
-				</div>
-				<div className='flex gap-2'>
-					<Button variant='primary' onClick={() => deploy.mutate()} disabled={!canDeploy || deploy.isPending}>
-						{deploy.isPending ? 'Starting…' : 'Deploy'}
-					</Button>
-					<Button onClick={() => act.mutate('restart')} disabled={!running}>
-						Restart
-					</Button>
-					<Button onClick={() => act.mutate('stop')} disabled={!running || act.isPending}>
-						Stop
-					</Button>
-				</div>
+			{/* The name and its state live in the header trail's service picker. */}
+			<div className='mb-4 flex flex-wrap justify-end gap-2'>
+				<Button variant='primary' onClick={() => deploy.mutate()} disabled={!canDeploy || deploy.isPending}>
+					{deploy.isPending ? 'Starting…' : 'Deploy'}
+				</Button>
+				<Button onClick={() => act.mutate('restart')} disabled={!running}>
+					Restart
+				</Button>
+				<Button onClick={() => act.mutate('stop')} disabled={!running || act.isPending}>
+					Stop
+				</Button>
 			</div>
 			<ErrorText error={deploy.error ?? act.error} />
 
@@ -296,9 +283,7 @@ function ServiceEnvironment({ serviceId }: { serviceId: string }) {
 				className='font-mono text-body'
 				spellCheck={false}
 			/>
-			<p className='mt-1 text-label text-muted-foreground'>
-				One KEY=value per line. Redeploy to apply.
-			</p>
+			<p className='mt-1 text-label text-muted-foreground'>One KEY=value per line. Redeploy to apply.</p>
 		</Section>
 	)
 }

@@ -96,7 +96,9 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
  * ancestors: /projects/api/settings renders Projects / api / Settings. Pass
  * `labels` to name segments the URL cannot, keyed by segment: an id becomes
  * the project's name, and that same label is reused once the page is an
- * ancestor of a deeper one.
+ * ancestor of a deeper one. A labelled segment is never wrapped in a link,
+ * so the label can carry its own interaction. A label of `null` drops its
+ * segment from the trail, for path parts that exist only to nest routes.
  */
 export function Page({
 	labels,
@@ -111,23 +113,28 @@ export function Page({
 }) {
 	const router = useRouter()
 	const pathname = useRouterState({ select: state => state.location.pathname })
-	const trail = trailOf(pathname, Object.keys(router.routesByPath))
+	const trail = trailOf(pathname, Object.keys(router.routesByPath)).filter(
+		({ segment }) => labels?.[segment] !== null,
+	)
 
 	return (
 		<>
 			<header className='flex h-11 shrink-0 items-center justify-between gap-3 border-b px-5'>
 				<div className='flex min-w-0 items-center gap-2'>
 					{trail.map(({ segment, to, linkable }, index) => {
-						const label = labels?.[segment] ?? labelOf(segment)
+						const label = labels?.[segment]
+						// A supplied label owns its own interaction: the pickers render a
+						// button, and wrapping that in a link would navigate on the click
+						// that opens the popover.
 						return (
 							<Fragment key={to}>
 								{index > 0 ? <span className='text-muted-foreground'>/</span> : null}
-								{linkable ? (
+								{linkable && label === undefined ? (
 									<Link
 										to={to}
 										className='truncate text-body text-muted-foreground hover:text-foreground'
 									>
-										{label}
+										{labelOf(segment)}
 									</Link>
 								) : (
 									<span
@@ -138,7 +145,7 @@ export function Page({
 												: 'text-muted-foreground',
 										)}
 									>
-										{label}
+										{label ?? labelOf(segment)}
 									</span>
 								)}
 							</Fragment>

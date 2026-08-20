@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
-import { Button, ErrorText, Page, Status, Tabs } from '../components/primitives'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, Outlet, useNavigate, useParams } from '@tanstack/react-router'
+import { ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
+import { Button, ErrorText, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 
 export const Route = createFileRoute('/projects/$projectId')({ component: ProjectLayout })
@@ -16,15 +17,12 @@ const tabs = [
 
 function ProjectLayout() {
 	const { projectId } = Route.useParams()
+	// Only the service route has one, and it owns the deepest crumb, which this
+	// layout's Page is the one that renders.
+	const { serviceId } = useParams({ strict: false })
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const [confirmDelete, setConfirmDelete] = useState(false)
-
-	const project = useQuery({
-		queryKey: ['project', projectId],
-		queryFn: () => api.project(projectId),
-		refetchInterval: 10_000,
-	})
 
 	const remove = useMutation({
 		mutationFn: () => api.deleteProject(projectId, false),
@@ -39,14 +37,9 @@ function ProjectLayout() {
 	return (
 		<Page
 			labels={{
-				[projectId]: (
-					<>
-						{project.data?.name ?? projectId}
-						{project.data?.latest_deployment ? (
-							<Status value={project.data.latest_deployment.status} />
-						) : null}
-					</>
-				),
+				[projectId]: <ProjectCrumb projectId={projectId} />,
+				services: null,
+				...(serviceId ? { [serviceId]: <ServiceCrumb projectId={projectId} serviceId={serviceId} /> } : {}),
 			}}
 			actions={
 				confirmDelete ? (
