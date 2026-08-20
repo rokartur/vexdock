@@ -1,13 +1,13 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/dm-sans';
+@import '@fontsource-variable/inter';
 @import '@xterm/xterm/css/xterm.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-	/* DM Sans Variable is the self-hosted build of the preset's family. Mono is
+	/* Inter Variable is the self-hosted build of the preset's family. Mono is
 	 * kept for the surfaces that are literally machine output: console, code, ids. */
 	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
@@ -154,7 +154,7 @@
 	--color-console-stderr: var(--console-stderr);
 	--color-console-border: var(--console-border);
 	--font-heading: var(--font-sans);
-	--font-sans: 'DM Sans Variable', sans-serif;
+	--font-sans: 'Inter Variable', sans-serif;
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
@@ -280,7 +280,7 @@ html[data-popover-open] main [data-scroll-lock] {
 	input:not([type='checkbox'], [type='radio'], [data-slot], [cmdk-input]),
 	select:not([data-slot]),
 	textarea:not([data-slot]) {
-		@apply h-8 w-full min-w-0 rounded-none border border-input bg-input/30 px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20;
+		@apply h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
 		color: inherit;
 	}
 
