@@ -7,6 +7,11 @@
 set -eu
 
 VERSION="${1:?target version required}"
+CLEANUP_OLD_IMAGES="${2:-false}"
+case "$CLEANUP_OLD_IMAGES" in
+    true|false) ;;
+    *) echo "[updater] cleanup_old_images must be true or false" >&2; exit 1 ;;
+esac
 ROOT="${PLATFORM_ROOT:-/opt/platform}"
 COMPOSE_FILE="$ROOT/compose.yml"
 COMPOSE_BACKUP="$ROOT/system/compose.previous.yml"
@@ -50,6 +55,25 @@ compose() {
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
 }
 
+cleanup_old_images() {
+    [ "$CLEANUP_OLD_IMAGES" = true ] || return 0
+    if ! current_images="$(compose config --images)"; then
+        log "could not identify current images; keeping previous images"
+        return 0
+    fi
+    printf '%s\n' "$PREVIOUS_IMAGES" | while IFS= read -r image; do
+        [ -n "$image" ] || continue
+        if printf '%s\n' "$current_images" | grep -Fxq "$image"; then
+            continue
+        fi
+        if docker image rm "$image"; then
+            log "removed previous image $image"
+        else
+            log "could not remove previous image $image"
+        fi
+    done
+}
+
 # Every failure after the version is written must come back through here,
 # otherwise `set -e` would abort with the new version recorded and the old
 # containers still running.
@@ -67,6 +91,12 @@ rollback() {
     fi
     exit 1
 }
+
+PREVIOUS_IMAGES=""
+if [ "$CLEANUP_OLD_IMAGES" = true ] && ! PREVIOUS_IMAGES="$(compose config --images)"; then
+    log "could not identify previous images; image cleanup will be skipped"
+    CLEANUP_OLD_IMAGES=false
+fi
 
 # The new images may need a service or a variable the installed compose file has
 # never heard of, so the topology has to move with the version.
@@ -100,6 +130,7 @@ if ! compose up -d --remove-orphans; then
 fi
 
 if wait_healthy; then
+    cleanup_old_images
     log "update to $VERSION completed"
     exit 0
 fi

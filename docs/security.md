@@ -88,9 +88,11 @@ Values that reach a command line are validated first:
 
 ## Destructive actions
 
-Nothing is pruned or deleted on a schedule. Removing a volume requires an
-explicit `confirm=true`, and every cleanup screen shows what will be reclaimed
-before anything is removed. Uninstalling keeps application data by default.
+Nothing is pruned or deleted on a schedule. The updater removes previous system
+image tags only when the operator selects that option, and only after the new
+manager is healthy. Removing a volume requires an explicit `confirm=true`, and
+every cleanup screen shows what will be reclaimed before anything is removed.
+Uninstalling keeps application data by default.
 
 ## Proxy configuration
 

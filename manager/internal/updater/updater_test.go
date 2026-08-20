@@ -4,6 +4,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/vexdock/platform/manager/internal/config"
@@ -93,5 +97,82 @@ func TestLatestVersionSkipsDrafts(t *testing.T) {
 	}
 	if st.UpdateAvailable {
 		t.Fatal("did not expect update_available when current equals latest")
+	}
+}
+
+func TestUpdateScriptCleansPreviousImagesOnlyWhenRequested(t *testing.T) {
+	cases := []struct {
+		cleanup string
+		want    string
+	}{
+		{"false", ""},
+		{"true", "ghcr.io/test/manager:v1.0.0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.cleanup, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(filepath.Join(root, "system"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "compose.yml"), []byte("services: {}\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, ".env"), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "update.sh"), Script, 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			removedPath := filepath.Join(root, "removed-images")
+			docker := `#!/bin/sh
+set -eu
+case "$1" in
+    compose)
+        case "$*" in
+            *" config --images")
+                if grep -q '^VERSION=v1.1.0$' "$PLATFORM_ROOT/.env"; then
+                    printf '%s\n' ghcr.io/test/manager:v1.1.0 ghcr.io/test/auth:shared
+                else
+                    printf '%s\n' ghcr.io/test/manager:v1.0.0 ghcr.io/test/auth:shared
+                fi
+                ;;
+            *" pull"|*" up -d --remove-orphans") ;;
+            *) echo "unexpected compose command: $*" >&2; exit 1 ;;
+        esac
+        ;;
+    inspect) echo healthy ;;
+    image)
+        [ "$2" = rm ]
+        printf '%s\n' "$3" >> "$REMOVED_IMAGES"
+        ;;
+    *) echo "unexpected docker command: $*" >&2; exit 1 ;;
+esac
+`
+			if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(docker), 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("PLATFORM_ROOT", root)
+			t.Setenv("REMOVED_IMAGES", removedPath)
+			cmd := exec.Command("sh", "update.sh", "v1.1.0", tc.cleanup)
+			cmd.Dir = root
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("update script: %v\n%s", err, out)
+			}
+
+			removed, err := os.ReadFile(removedPath)
+			if err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			if got := strings.TrimSpace(string(removed)); got != tc.want {
+				t.Fatalf("removed images = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

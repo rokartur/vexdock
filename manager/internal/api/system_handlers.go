@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -320,13 +321,14 @@ func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
 // handleUpdate hands the swap to a detached updater container.
 func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Version string `json:"version"`
+		Version          string `json:"version"`
+		CleanupOldImages bool   `json:"cleanup_old_images"`
 	}
-	if err := decode(r, &req); err != nil && !errors.Is(err, http.ErrBodyNotAllowed) {
-		// An empty body means "update to latest".
-		req.Version = ""
+	if err := decode(r, &req); err != nil && !errors.Is(err, io.EOF) {
+		badRequest(w, err)
+		return
 	}
-	if err := s.Updater.Start(r.Context(), req.Version, s.updateIncludesPrerelease(r.Context())); err != nil {
+	if err := s.Updater.Start(r.Context(), req.Version, s.updateIncludesPrerelease(r.Context()), req.CleanupOldImages); err != nil {
 		badRequest(w, err)
 		return
 	}

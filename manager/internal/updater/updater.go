@@ -153,7 +153,7 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) str
 }
 
 // Start backs up the platform and launches the detached updater container.
-func (s *Service) Start(ctx context.Context, version string, includePrerelease bool) error {
+func (s *Service) Start(ctx context.Context, version string, includePrerelease, cleanupOldImages bool) error {
 	if version == "" {
 		version = s.latestVersion(ctx, includePrerelease)
 	}
@@ -183,7 +183,7 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease b
 		"-e", "PLATFORM_ROOT=" + s.cfg.Root,
 		"-e", "PLATFORM_RAW_BASE=" + s.rawBase,
 		UpdaterImage,
-		"sh", scriptPath, version,
+		"sh", scriptPath, version, fmt.Sprintf("%t", cleanupOldImages),
 	}
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	out, err := cmd.CombinedOutput()
