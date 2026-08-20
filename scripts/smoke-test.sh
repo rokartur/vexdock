@@ -129,9 +129,18 @@ pass 'the application answers through the proxy'
 step 'environment'
 auth_post -X PUT -d '{"variables":[{"key":"SECRET_TOKEN","value":"top-secret","is_secret":true,"updated_at":""}]}' \
     "$API/projects/$PROJECT_ID/environment" >/dev/null
-masked=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/environment" | json "d[0]['value']")
-[ "$masked" != "top-secret" ] || fail 'a secret value was returned in plaintext'
-pass 'secrets are masked in API responses'
+stored=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/environment" | json "d[0]['value']")
+# The editor is exempt from masking on purpose (docs/security.md): showing the
+# value is the point of the page. What protects a secret is the write side,
+# where a masked value means 'unchanged' and must not overwrite the real one.
+[ "$stored" = "top-secret" ] || fail "the environment editor returned $stored, not the stored value"
+pass 'the editor returns the stored value'
+
+auth_post -X PUT -d '{"variables":[{"key":"SECRET_TOKEN","value":"••••••••••••","is_secret":true,"updated_at":""}]}' \
+    "$API/projects/$PROJECT_ID/environment" >/dev/null
+kept=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/environment" | json "d[0]['value']")
+[ "$kept" = "top-secret" ] || fail 'saving a masked value overwrote the secret'
+pass 'saving a masked value back is a no-op'
 
 step 'cleanup'
 curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/projects/$PROJECT_ID?volumes=true" >/dev/null
