@@ -72,8 +72,9 @@ State lives in `/opt/platform`:
 ├── .env                 version, options, session secret, setup token (0600)
 ├── data/app.db          SQLite: projects, domains, deployments
 ├── data/auth.db         SQLite: accounts and sessions (better-auth)
-├── projects/<id>/       one directory per project (repository, .env,
-│                     managed.yml and services/ for managed services)
+├── projects/<id>/       one directory per environment (repository, .env,
+│                     managed.yml and services/ for managed services);
+│                     a project's default environment uses the project's id
 ├── nginx/generated/     one .conf per domain, written by the manager
 ├── certificates/        Let's Encrypt certificates and the account key
 ├── secrets/master.key   AES key protecting secrets in the database (0600)

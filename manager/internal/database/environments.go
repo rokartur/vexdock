@@ -80,6 +80,26 @@ func (db *DB) ListEnvironments(ctx context.Context, projectID string) ([]Environ
 	return out, rows.Err()
 }
 
+// ComposeProjectNames is the set of docker namespaces the platform owns, which
+// is how a container or a volume is told apart from one somebody started by
+// hand on the same daemon.
+func (db *DB) ComposeProjectNames(ctx context.Context) (map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT compose_project_name FROM environments`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out[name] = true
+	}
+	return out, rows.Err()
+}
+
 func scanEnvironment(row scanner) (*Environment, error) {
 	var e Environment
 	var isDefault int

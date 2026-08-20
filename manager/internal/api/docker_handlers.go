@@ -32,11 +32,10 @@ func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	managed := map[string]bool{}
-	if projects, err := s.DB.ListProjects(r.Context()); err == nil {
-		for _, p := range projects {
-			managed[p.ComposeProjectName] = true
-		}
+	managed, err := s.DB.ComposeProjectNames(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
 	}
 	out := make([]containerView, 0, len(containers))
 	for _, c := range containers {

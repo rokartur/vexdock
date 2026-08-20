@@ -62,13 +62,14 @@ Values that reach a command line are validated first:
   database it protects.
 - Git credentials never reach the command line. Tokens go through `GIT_ASKPASS`
   and SSH keys through a 0600 temporary file removed when the clone finishes.
-- API responses mask secret values. Saving a masked value back is a no-op, so
-  editing one variable cannot silently overwrite another. The environment
-  editor (`GET`/`PUT` project and service `/environment`) is exempt, because
-  showing the value is the point of the page. So are a database service's
-  connection panel (`GET /api/services/{id}/database`) and a service export
-  asked for with `?secrets=true`. All sit behind the same session or token
-  guard.
+- The variable editors (`/variables` on a project, an environment or a service)
+  return stored values, because showing them is the point of the page. What
+  protects a secret is the write side: a value that comes back as the mask means
+  "unchanged" and never overwrites the real one, so editing one variable cannot
+  silently blank another. A database service's connection panel
+  (`GET /api/services/{id}/database`) and a service export asked for with
+  `?secrets=true` return values too. All sit behind the same session or token
+  guard, and the export is recorded in the audit log.
 - The generated project `.env` is written with 0600 permissions, and so is each
   managed service's own `services/<name>.env`. A generated database password is
   stored there and nowhere else, scoped to that one service.
