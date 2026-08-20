@@ -20,7 +20,7 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	db, err := svc.CreateService(ctx, p, ServiceInput{
+	db, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 		Name:       "usagefleet-db",
 		SourceType: database.ServiceImage,
 		Database: &DatabaseInput{
@@ -34,7 +34,7 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 		t.Fatalf("service = %+v, want a postgres:17-alpine database", db)
 	}
 
-	path, err := svc.WriteOverlay(ctx, p)
+	path, err := svc.WriteOverlay(ctx, defaultEnv(t, svc, p))
 	if err != nil || path == "" {
 		t.Fatalf("write overlay: %q, %v", path, err)
 	}
@@ -57,7 +57,7 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 		t.Error("the password was inlined into the compose file instead of the env file")
 	}
 
-	env, err := os.ReadFile(svc.ServiceEnvFilePath(p, "usagefleet-db"))
+	env, err := os.ReadFile(svc.ServiceEnvFilePath(defaultEnv(t, svc, p), "usagefleet-db"))
 	if err != nil {
 		t.Fatalf("read service env: %v", err)
 	}
@@ -67,10 +67,10 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 
 	// A project whose managed services are all gone must not keep serving a
 	// stale overlay, or the next deploy resurrects the deleted container.
-	if err := svc.DeleteService(ctx, db, p); err != nil {
+	if err := svc.DeleteService(ctx, db, defaultEnv(t, svc, p)); err != nil {
 		t.Fatalf("delete service: %v", err)
 	}
-	if path, err := svc.WriteOverlay(ctx, p); err != nil || path != "" {
+	if path, err := svc.WriteOverlay(ctx, defaultEnv(t, svc, p)); err != nil || path != "" {
 		t.Fatalf("overlay after delete: %q, %v", path, err)
 	}
 }
@@ -87,7 +87,7 @@ func TestOverlayReRendersFromTheStoredRow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	if _, err := svc.CreateService(ctx, p, ServiceInput{
+	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 		Name:       "pinned",
 		SourceType: database.ServiceImage,
 		Database: &DatabaseInput{
@@ -96,7 +96,7 @@ func TestOverlayReRendersFromTheStoredRow(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create pinned service: %v", err)
 	}
-	if _, err := svc.CreateService(ctx, p, ServiceInput{
+	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 		Name:       "byo",
 		SourceType: database.ServiceImage,
 		Database: &DatabaseInput{
@@ -106,7 +106,7 @@ func TestOverlayReRendersFromTheStoredRow(t *testing.T) {
 		t.Fatalf("create custom service: %v", err)
 	}
 
-	path, err := svc.WriteOverlay(ctx, p)
+	path, err := svc.WriteOverlay(ctx, defaultEnv(t, svc, p))
 	if err != nil {
 		t.Fatalf("write overlay: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestOverlayScopesCredentialsPerService(t *testing.T) {
 		t.Fatalf("create project: %v", err)
 	}
 	for _, name := range []string{"primary", "secondary"} {
-		if _, err := svc.CreateService(ctx, p, ServiceInput{
+		if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 			Name:       name,
 			SourceType: database.ServiceImage,
 			Database: &DatabaseInput{
@@ -155,11 +155,11 @@ func TestOverlayScopesCredentialsPerService(t *testing.T) {
 			t.Fatalf("create %s: %v", name, err)
 		}
 	}
-	if _, err := svc.WriteOverlay(ctx, p); err != nil {
+	if _, err := svc.WriteOverlay(ctx, defaultEnv(t, svc, p)); err != nil {
 		t.Fatalf("write overlay: %v", err)
 	}
 	for _, name := range []string{"primary", "secondary"} {
-		env, err := os.ReadFile(svc.ServiceEnvFilePath(p, name))
+		env, err := os.ReadFile(svc.ServiceEnvFilePath(defaultEnv(t, svc, p), name))
 		if err != nil {
 			t.Fatalf("read %s env: %v", name, err)
 		}
@@ -189,7 +189,7 @@ volumes:
   - vaultwarden:/data
 expose:
   - 80`
-	if _, err := svc.CreateService(ctx, p, ServiceInput{
+	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 		Name:            "vaultwarden",
 		SourceType:      database.ServiceCompose,
 		ComposeFragment: fragment,
@@ -197,7 +197,7 @@ expose:
 		t.Fatalf("create service: %v", err)
 	}
 
-	path, err := svc.WriteOverlay(ctx, p)
+	path, err := svc.WriteOverlay(ctx, defaultEnv(t, svc, p))
 	if err != nil || path == "" {
 		t.Fatalf("write overlay: %q, %v", path, err)
 	}
@@ -206,7 +206,7 @@ expose:
 		t.Fatalf("read overlay: %v", err)
 	}
 	overlay := string(raw)
-	envPath := svc.EnvFilePath(p)
+	envPath := svc.EnvFilePath(defaultEnv(t, svc, p))
 	for _, want := range []string{
 		"image: vaultwarden/server:1.37.1-alpine",
 		"vaultwarden:/data",

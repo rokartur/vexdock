@@ -18,13 +18,9 @@ import (
 // database that is mid-write can end up torn. Stop the project first if the
 // snapshot has to be transactional.
 func (s *Service) backupVolumes(ctx context.Context, dir string) error {
-	projects, err := s.db.ListProjects(ctx)
+	managed, err := s.db.ComposeProjectNames(ctx)
 	if err != nil {
 		return err
-	}
-	managed := make(map[string]bool, len(projects))
-	for _, p := range projects {
-		managed[p.ComposeProjectName] = true
 	}
 
 	list, err := s.docker.ListVolumes(ctx)

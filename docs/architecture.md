@@ -37,15 +37,31 @@ matters at 3am.
 
 ## Why compose projects instead of a custom scheduler
 
-Every application is a plain `docker compose` project with a generated project
+Every environment is a plain `docker compose` project with a generated project
 name (`p_<ULID>`). The platform never reimplements Compose semantics: it shells
 out to the official CLI with one argument per slice element. If the platform is
-removed, `docker compose up` in the project directory still works.
+removed, `docker compose up` in the environment's directory still works.
+
+## Environments
+
+A project deploys into one or more environments. The environment, not the
+project, owns the compose project name, the directory it builds from and the
+services inside it, so production and staging never share a container, a volume
+or a network alias. Each one can pin its own branch; empty means it follows the
+project's, and a push deploys every environment that is on the branch.
+
+Every project has a default environment that cannot be deleted. It carries the
+project's own id and namespace, which is what made adding environments a
+metadata change on existing installs: nothing on disk moved and nothing
+redeployed.
+
+Variables come from two places and land in one `.env`: the project's, which
+every environment gets, and the environment's own, which win on a collision.
 
 ## Services the platform owns
 
-A project holds services. Most of them are *derived*: the project's own compose
-file declares them and the platform only reads them back. The rest are
+An environment holds services. Most of them are *derived*: the project's own
+compose file declares them and the platform only reads them back. The rest are
 *managed* — a database from the engine catalogue, an image, a repository of its
 own, or a fragment of YAML you wrote in the dashboard.
 
@@ -85,8 +101,9 @@ your services on the default one.
 ## Networking
 
 Services that have a domain are attached to the shared `vexdock-proxy` network
-under a stable alias, `p_<project-id>_<service>`. Container IDs and IPs change on
-every recreate; the alias does not.
+under a stable alias, `p_<environment-id>_<service>`. Container IDs and IPs
+change on every recreate; the alias does not. The alias is keyed on the
+environment because two of them can both run a service called `web`.
 
 The generated vhost resolves that alias at request time through Docker's
 embedded DNS:

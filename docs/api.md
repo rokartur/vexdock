@@ -64,11 +64,42 @@ Realtime data is Server-Sent Events, except the terminal which is a WebSocket.
 | `GET /api/system/events` | `container.*`, `deployment.*` |
 | `GET /api/services/{id}/terminal` | WebSocket, `{type:"input"}` / `{type:"resize"}` |
 
+## Environments
+
+A project deploys into an environment. Every environment has its own compose
+project name, its own checkout on disk and its own services, so production and
+staging never share a container, a volume or a network alias.
+
+Project routes act on one environment, chosen with `?environment={id}`. Leaving
+it off means the project's default environment, which is what makes an older
+client keep working: on upgrade each project gained a default environment that
+carries the project's own id and namespace, so nothing on disk moved.
+
+| Endpoint | Does |
+|---|---|
+| `GET \| POST /api/projects/{id}/environments` | List, or add one |
+| `GET \| PATCH /api/environments/{id}` | Read it, or rename it and change its branch |
+| `DELETE /api/environments/{id}` | Stop its containers and drop it; `?volumes=true` takes its data too |
+| `GET \| PUT /api/environments/{id}/variables` | Variables only this environment gets |
+| `GET \| PUT /api/projects/{id}/variables` | Variables every environment of the project gets |
+
+Both sets land in the same `.env`, with the environment's own winning on a
+collision. The default environment cannot be deleted; `DELETE` answers `400`.
+
+An environment's `branch` overrides the project's for its own deploys. Empty
+means it follows the project. A push to a branch triggers every environment
+that is on it, so one webhook can deploy staging and production separately.
+
+These take `?environment={id}`: `deploy`, `stop`, `compose`, `services`,
+`services/export` and `deployments`. `POST /api/domains` takes an
+`environment_id` in its body for the same reason.
+
 ## Services
 
 A project's services are listed by `GET /api/projects/{id}/services`. The ones
 the project's own compose file declares are read-only; the ones the platform
-owns can be created, changed and removed.
+owns can be created, changed and removed. A service belongs to one environment,
+and a name is free again in each of them.
 
 | Endpoint | Does |
 |---|---|
@@ -77,7 +108,7 @@ owns can be created, changed and removed.
 | `PATCH /api/services/{id}` | Changes its source, image or fragment |
 | `DELETE /api/services/{id}` | Removes it; its named volume is kept, its generated password is not |
 | `GET /api/services/{id}/database` | Connection details, database services only |
-| `GET \| PUT /api/services/{id}/environment` | Its own variables |
+| `GET \| PUT /api/services/{id}/variables` | Its own variables |
 | `POST /api/services/{id}/deploy` | Deploy this service only |
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
 
@@ -151,7 +182,7 @@ and that request is recorded in the audit log even though it is a `GET`.
 
 There is no import endpoint. The dashboard decodes the payload, shows what it
 would add, and then creates each service through `POST .../services` and
-`PUT .../environment`, so an imported service is validated exactly as a typed
+`PUT .../variables`, so an imported service is validated exactly as a typed
 one is. Variables that arrive without a value are not replayed, which leaves a
 generated password in place rather than blanking it.
 
@@ -195,8 +226,12 @@ only.
 Each Git project exposes an auto-deploy URL containing a random token, shown in
 **Project → Settings**. Point your provider at it and enable auto deploy.
 
-- A push to another branch is answered `202 ignored` so the provider does not
-  disable the hook.
+- The pushed branch is matched against every environment of the project: one
+  that overrides the branch is deployed when the push is on its own branch, the
+  rest when it is on the project's. The response carries a `deployment_ids`
+  array, one entry per environment that matched.
+- A push no environment is on is answered `202 ignored` so the provider does
+  not disable the hook.
 - GitHub `ping` events are answered `202 pong`.
 - When a webhook secret is configured, `X-Hub-Signature-256` is verified before
   anything else happens.

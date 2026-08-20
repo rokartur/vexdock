@@ -7,6 +7,7 @@ import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
 import { Button, ErrorText, Refresh, Section, Status } from '../components/primitives'
 import { api, type Service } from '../lib/api'
+import { useEnvironmentId } from '../lib/environment'
 
 /** The menu, in the order it reads: the two everyday kinds, then the escape
  * hatch, then the one that brings a whole project's worth in at once. */
@@ -25,16 +26,17 @@ function ProjectServices() {
 	const queryClient = useQueryClient()
 	const [creating, setCreating] = useState<ServiceKind | 'import' | null>(null)
 
+	const environmentId = useEnvironmentId()
 	const services = useQuery({
-		queryKey: ['services', projectId],
-		queryFn: () => api.services(projectId),
+		queryKey: ['services', projectId, environmentId],
+		queryFn: () => api.services(projectId, environmentId),
 		refetchInterval: 5000,
 	})
 
 	// Whole-project deploy stays for first discovery and rare full-stack runs.
 	// Day-to-day deploy/stop live on each service.
 	const deployAll = useMutation({
-		mutationFn: () => api.deploy(projectId),
+		mutationFn: () => api.deploy(projectId, environmentId),
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
 			await navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } })

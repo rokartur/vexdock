@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-const deploymentColumns = `id, project_id, number, service_name, commit_sha, branch, status, trigger, created_by, error, started_at, finished_at, created_at`
+const deploymentColumns = `id, project_id, environment_id, number, service_name, commit_sha, branch, status, trigger, created_by, error, started_at, finished_at, created_at`
 
 // CreateDeployment allocates the next per-project deployment number.
 func (db *DB) CreateDeployment(ctx context.Context, d *Deployment) error {
@@ -20,8 +20,8 @@ func (db *DB) CreateDeployment(ctx context.Context, d *Deployment) error {
 		d.Status = DeploymentQueued
 	}
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO deployments (`+deploymentColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.ID, d.ProjectID, d.Number, d.ServiceName, d.CommitSHA, d.Branch, d.Status, d.Trigger, d.CreatedBy, d.Error,
+		`INSERT INTO deployments (`+deploymentColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		d.ID, d.ProjectID, d.EnvironmentID, d.Number, d.ServiceName, d.CommitSHA, d.Branch, d.Status, d.Trigger, d.CreatedBy, d.Error,
 		d.StartedAt, d.FinishedAt, d.CreatedAt)
 	return err
 }
@@ -37,7 +37,19 @@ func (db *DB) DeploymentByID(ctx context.Context, id string) (*Deployment, error
 	return scanDeployment(db.QueryRowContext(ctx, `SELECT `+deploymentColumns+` FROM deployments WHERE id = ?`, id))
 }
 
-func (db *DB) ListDeployments(ctx context.Context, projectID string, limit int) ([]Deployment, error) {
+// ListDeployments returns one environment's history: production and staging
+// each have their own, even though the numbers come from a per-project counter.
+func (db *DB) ListDeployments(ctx context.Context, environmentID string, limit int) ([]Deployment, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	return db.queryDeployments(ctx,
+		`SELECT `+deploymentColumns+` FROM deployments WHERE environment_id = ? ORDER BY number DESC LIMIT ?`, environmentID, limit)
+}
+
+// ListProjectDeployments spans every environment, which is what a project's
+// summary card wants: the last thing that happened anywhere in the project.
+func (db *DB) ListProjectDeployments(ctx context.Context, projectID string, limit int) ([]Deployment, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -79,7 +91,7 @@ func (db *DB) queryDeployments(ctx context.Context, query string, args ...any) (
 
 func scanDeployment(row scanner) (*Deployment, error) {
 	var d Deployment
-	err := row.Scan(&d.ID, &d.ProjectID, &d.Number, &d.ServiceName, &d.CommitSHA, &d.Branch, &d.Status, &d.Trigger,
+	err := row.Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.Number, &d.ServiceName, &d.CommitSHA, &d.Branch, &d.Status, &d.Trigger,
 		&d.CreatedBy, &d.Error, &d.StartedAt, &d.FinishedAt, &d.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound

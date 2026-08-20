@@ -178,12 +178,27 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 		}
 		return nil, err
 	}
-	if err := s.prepareDirs(p); err != nil {
+	// The default environment carries the project's own id and namespace. That
+	// is what migration 0010 backfilled for projects that predate environments,
+	// and keeping the rule here means new projects look identical to old ones.
+	env := &database.Environment{
+		ID:                 p.ID,
+		ProjectID:          p.ID,
+		Name:               "Production",
+		Slug:               "production",
+		ComposeProjectName: p.ComposeProjectName,
+		IsDefault:          true,
+	}
+	if err := s.db.CreateEnvironment(ctx, env); err != nil {
+		_ = s.db.DeleteProject(ctx, p.ID)
+		return nil, err
+	}
+	if err := s.prepareDirs(env); err != nil {
 		_ = s.db.DeleteProject(ctx, p.ID)
 		return nil, err
 	}
 	if in.SourceType == database.SourceCompose {
-		if err := s.WriteComposeFile(p, in.ComposeContent); err != nil {
+		if err := s.WriteComposeFile(p, env, in.ComposeContent); err != nil {
 			_ = s.db.DeleteProject(ctx, p.ID)
 			return nil, err
 		}
@@ -191,7 +206,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 	return p, nil
 }
 
-// ComposeProjectName namespaces every docker resource of a project.
+// ComposeProjectName namespaces every docker resource of one environment, which
+// is what keeps production and staging from sharing a container or a volume.
 func ComposeProjectName(id string) string { return "p_" + strings.ToLower(id) }
 
 // Validate normalises and checks a project's mutable fields. Creation and every
@@ -237,27 +253,39 @@ func (s *Service) Validate(p *database.Project) error {
 	return nil
 }
 
-// ResetCheckout empties a project's checkout and seeds the starter file when
-// the project is compose. It runs when the source type changes: git clone
-// refuses a directory that already holds files, and a leftover checkout would
-// shadow a hand-written compose file. Everything under that directory is
-// reproducible from the source, so nothing unrecoverable is thrown away.
-func (s *Service) ResetCheckout(p *database.Project) error {
-	dir := s.repositoryDir(p.ID)
-	if err := os.RemoveAll(dir); err != nil {
+// ResetCheckout empties the checkout of every environment and seeds the starter
+// file when the project is compose. It runs when the source type changes: git
+// clone refuses a directory that already holds files, and a leftover checkout
+// would shadow a hand-written compose file. Everything under those directories
+// is reproducible from the source, so nothing unrecoverable is thrown away.
+//
+// The source type belongs to the project, so changing it invalidates the
+// checkout of every environment, not only the one the request came from.
+func (s *Service) ResetCheckout(ctx context.Context, p *database.Project) error {
+	envs, err := s.db.ListEnvironments(ctx, p.ID)
+	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return err
-	}
-	if p.SourceType == database.SourceCompose {
-		return s.WriteComposeFile(p, StarterCompose)
+	for i := range envs {
+		env := &envs[i]
+		dir := s.repositoryDir(env.ID)
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return err
+		}
+		if p.SourceType == database.SourceCompose {
+			if err := s.WriteComposeFile(p, env, StarterCompose); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
-func (s *Service) prepareDirs(p *database.Project) error {
-	for _, dir := range []string{s.repositoryDir(p.ID), filepath.Join(s.cfg.ProjectDir(p.ID), "metadata")} {
+func (s *Service) prepareDirs(env *database.Environment) error {
+	for _, dir := range []string{s.repositoryDir(env.ID), filepath.Join(s.cfg.ProjectDir(env.ID), "metadata")} {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return err
 		}
@@ -269,17 +297,19 @@ func (s *Service) repositoryDir(id string) string {
 	return filepath.Join(s.cfg.ProjectDir(id), "repository")
 }
 
-// RepositoryDir is the checkout root of a project.
-func (s *Service) RepositoryDir(p *database.Project) string { return s.repositoryDir(p.ID) }
+// RepositoryDir is the checkout root of one environment. The default
+// environment carries its project's id, so an install that predates
+// environments finds its checkout exactly where it left it.
+func (s *Service) RepositoryDir(env *database.Environment) string { return s.repositoryDir(env.ID) }
 
 // EnvFilePath is the generated .env consumed by docker compose.
-func (s *Service) EnvFilePath(p *database.Project) string {
-	return filepath.Join(s.cfg.ProjectDir(p.ID), ".env")
+func (s *Service) EnvFilePath(env *database.Environment) string {
+	return filepath.Join(s.cfg.ProjectDir(env.ID), ".env")
 }
 
-// WriteComposeFile stores a pasted compose file inside the project repository.
-func (s *Service) WriteComposeFile(p *database.Project, content string) error {
-	target, err := security.ResolveInside(s.repositoryDir(p.ID), p.ComposePath)
+// WriteComposeFile stores a pasted compose file inside the environment's repository.
+func (s *Service) WriteComposeFile(p *database.Project, env *database.Environment, content string) error {
+	target, err := security.ResolveInside(s.repositoryDir(env.ID), p.ComposePath)
 	if err != nil {
 		return err
 	}
@@ -290,8 +320,8 @@ func (s *Service) WriteComposeFile(p *database.Project, content string) error {
 }
 
 // ReadComposeFile returns the compose file currently on disk, if any.
-func (s *Service) ReadComposeFile(p *database.Project) (string, error) {
-	target, err := security.ResolveInside(s.repositoryDir(p.ID), p.ComposePath)
+func (s *Service) ReadComposeFile(p *database.Project, env *database.Environment) (string, error) {
+	target, err := security.ResolveInside(s.repositoryDir(env.ID), p.ComposePath)
 	if err != nil {
 		return "", err
 	}
@@ -307,20 +337,20 @@ func (s *Service) ReadComposeFile(p *database.Project) (string, error) {
 
 // ComposeProject builds the compose invocation for a project, writing the .env
 // file first so compose and the containers see the same values.
-func (s *Service) ComposeProject(ctx context.Context, p *database.Project) (compose.Project, error) {
-	repoDir := s.repositoryDir(p.ID)
+func (s *Service) ComposeProject(ctx context.Context, p *database.Project, env *database.Environment) (compose.Project, error) {
+	repoDir := s.repositoryDir(env.ID)
 	file, err := security.ResolveInside(repoDir, p.ComposePath)
 	if err != nil {
 		return compose.Project{}, err
 	}
-	envFile, err := s.WriteEnvFile(ctx, p)
+	envFile, err := s.WriteEnvFile(ctx, p, env)
 	if err != nil {
 		return compose.Project{}, err
 	}
 	// Services the dashboard owns arrive as a second file layered over the
 	// project's own, which is why an imported compose keeps working untouched
 	// and can still gain a database next to it.
-	overlay, err := s.WriteOverlay(ctx, p)
+	overlay, err := s.WriteOverlay(ctx, env)
 	if err != nil {
 		return compose.Project{}, err
 	}
@@ -329,23 +359,31 @@ func (s *Service) ComposeProject(ctx context.Context, p *database.Project) (comp
 		files = append(files, overlay)
 	}
 	return compose.Project{
-		Name:    p.ComposeProjectName,
+		Name:    env.ComposeProjectName,
 		Dir:     repoDir,
 		Files:   files,
 		EnvFile: envFile,
 	}, nil
 }
 
-// WriteEnvFile materialises the project environment at 0600 and returns its
-// path, or "" when the project has no variables (so compose omits --env-file).
-// The file itself is always written, even empty: a compose env_file: .env has
-// to open something.
-func (s *Service) WriteEnvFile(ctx context.Context, p *database.Project) (string, error) {
-	vars, err := s.Environment(ctx, p.ID, false)
+// WriteEnvFile materialises what an environment's containers see at 0600 and
+// returns its path, or "" when there are no variables (so compose omits
+// --env-file). The file itself is always written, even empty: a compose
+// env_file: .env has to open something.
+//
+// The environment's own variables are layered over the project's shared set, so
+// staging can override a shared value without copying the rest.
+func (s *Service) WriteEnvFile(ctx context.Context, p *database.Project, env *database.Environment) (string, error) {
+	shared, err := s.ProjectVariables(ctx, p.ID)
 	if err != nil {
 		return "", err
 	}
-	path := s.EnvFilePath(p)
+	own, err := s.EnvironmentVariables(ctx, env.ID)
+	if err != nil {
+		return "", err
+	}
+	vars := mergeVariables(shared, own)
+	path := s.EnvFilePath(env)
 	if err := writeEnvFile(path, vars); err != nil {
 		return "", err
 	}
@@ -355,8 +393,25 @@ func (s *Service) WriteEnvFile(ctx context.Context, p *database.Project) (string
 	return path, nil
 }
 
-// writeEnvFile renders vars to an env file at 0600. Both the project file and
-// each managed service's file go through here so their escaping cannot drift.
+// mergeVariables layers narrower sets over wider ones, last wins, and keeps the
+// result sorted so a regenerated .env only changes when a value did.
+func mergeVariables(sets ...[]EnvVar) []EnvVar {
+	byKey := map[string]EnvVar{}
+	for _, set := range sets {
+		for _, v := range set {
+			byKey[v.Key] = v
+		}
+	}
+	out := make([]EnvVar, 0, len(byKey))
+	for _, v := range byKey {
+		out = append(out, v)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out
+}
+
+// writeEnvFile renders vars to an env file at 0600. Both the environment file
+// and each managed service's file go through here so their escaping cannot drift.
 func writeEnvFile(path string, vars []EnvVar) error {
 	var b strings.Builder
 	b.WriteString("# generated by the platform - edit through the dashboard\n")
@@ -389,19 +444,31 @@ type EnvVar struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-// Environment returns the project variables, the set every service in the
-// project sees. With mask=true secret values are replaced by dots, which is
-// what every API response uses.
-func (s *Service) Environment(ctx context.Context, projectID string, mask bool) ([]EnvVar, error) {
-	return s.environment(ctx, database.ProjectScope, projectID, mask)
+// Variables come in three layers. A project's are shared by every environment,
+// an environment's belong to that copy of the project alone, and a service's
+// reach only itself. They are read separately and merged at deploy time by
+// WriteEnvFile, narrowest last.
+//
+// None of these mask. The editor is the one place a secret is meant to be
+// legible (docs/security.md); what protects it is the write side, where a value
+// that arrives already masked means "unchanged".
+
+// ProjectVariables returns the set shared by every environment of a project.
+func (s *Service) ProjectVariables(ctx context.Context, projectID string) ([]EnvVar, error) {
+	return s.variables(ctx, database.ProjectScope, projectID)
 }
 
-// ServiceEnvironment returns the variables only one service sees.
-func (s *Service) ServiceEnvironment(ctx context.Context, serviceID string, mask bool) ([]EnvVar, error) {
-	return s.environment(ctx, database.ServiceScope, serviceID, mask)
+// EnvironmentVariables returns the set that makes production differ from staging.
+func (s *Service) EnvironmentVariables(ctx context.Context, environmentID string) ([]EnvVar, error) {
+	return s.variables(ctx, database.EnvironmentScope, environmentID)
 }
 
-func (s *Service) environment(ctx context.Context, scope database.SecretScope, ownerID string, mask bool) ([]EnvVar, error) {
+// ServiceVariables returns the variables only one service sees.
+func (s *Service) ServiceVariables(ctx context.Context, serviceID string) ([]EnvVar, error) {
+	return s.variables(ctx, database.ServiceScope, serviceID)
+}
+
+func (s *Service) variables(ctx context.Context, scope database.SecretScope, ownerID string) ([]EnvVar, error) {
 	rows, err := s.db.ListSecrets(ctx, scope, ownerID)
 	if err != nil {
 		return nil, err
@@ -412,26 +479,28 @@ func (s *Service) environment(ctx context.Context, scope database.SecretScope, o
 		if err != nil {
 			return nil, fmt.Errorf("decrypt %s: %w", row.Key, err)
 		}
-		if mask && row.IsSecret {
-			value = security.MaskSecret(value)
-		}
 		out = append(out, EnvVar{Key: row.Key, Value: value, IsSecret: row.IsSecret, UpdatedAt: row.UpdatedAt})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out, nil
 }
 
-// SetEnvironment replaces the whole variable set of a project.
-func (s *Service) SetEnvironment(ctx context.Context, projectID string, vars []EnvVar) error {
-	return s.setEnvironment(ctx, database.ProjectScope, projectID, vars)
+// SetProjectVariables replaces the whole set shared across environments.
+func (s *Service) SetProjectVariables(ctx context.Context, projectID string, vars []EnvVar) error {
+	return s.setVariables(ctx, database.ProjectScope, projectID, vars)
 }
 
-// SetServiceEnvironment replaces the whole variable set of a single service.
-func (s *Service) SetServiceEnvironment(ctx context.Context, serviceID string, vars []EnvVar) error {
-	return s.setEnvironment(ctx, database.ServiceScope, serviceID, vars)
+// SetEnvironmentVariables replaces the whole set of one environment.
+func (s *Service) SetEnvironmentVariables(ctx context.Context, environmentID string, vars []EnvVar) error {
+	return s.setVariables(ctx, database.EnvironmentScope, environmentID, vars)
 }
 
-func (s *Service) setEnvironment(ctx context.Context, scope database.SecretScope, ownerID string, vars []EnvVar) error {
+// SetServiceVariables replaces the whole variable set of a single service.
+func (s *Service) SetServiceVariables(ctx context.Context, serviceID string, vars []EnvVar) error {
+	return s.setVariables(ctx, database.ServiceScope, serviceID, vars)
+}
+
+func (s *Service) setVariables(ctx context.Context, scope database.SecretScope, ownerID string, vars []EnvVar) error {
 	existing, err := s.db.ListSecrets(ctx, scope, ownerID)
 	if err != nil {
 		return err

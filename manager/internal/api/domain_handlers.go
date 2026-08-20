@@ -18,6 +18,7 @@ func (s *Server) handleListDomains(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProjectID         string `json:"project_id"`
+		EnvironmentID     string `json:"environment_id"`
 		Service           string `json:"service"`
 		Hostname          string `json:"hostname"`
 		ContainerPort     int    `json:"container_port"`
@@ -33,6 +34,7 @@ func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 	}
 	domain, err := s.Domains.Create(r.Context(), domains.CreateInput{
 		ProjectID:         req.ProjectID,
+		EnvironmentID:     req.EnvironmentID,
 		ServiceName:       req.Service,
 		Hostname:          req.Hostname,
 		ContainerPort:     req.ContainerPort,

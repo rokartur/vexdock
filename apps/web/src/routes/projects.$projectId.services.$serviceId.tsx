@@ -251,7 +251,7 @@ function ServiceEnvironment({ serviceId }: { serviceId: string }) {
 
 	const environment = useQuery({
 		queryKey: ['service', serviceId, 'environment'],
-		queryFn: () => api.serviceEnvironment(serviceId),
+		queryFn: () => api.serviceVariables(serviceId),
 	})
 
 	useEffect(() => {
@@ -259,7 +259,7 @@ function ServiceEnvironment({ serviceId }: { serviceId: string }) {
 	}, [environment.data])
 
 	const save = useMutation({
-		mutationFn: () => api.saveServiceEnvironment(serviceId, fromDotenv(text, environment.data ?? [])),
+		mutationFn: () => api.saveServiceVariables(serviceId, fromDotenv(text, environment.data ?? [])),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', serviceId, 'environment'] }),
 	})
 

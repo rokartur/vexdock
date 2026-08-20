@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { api, type Service } from '../lib/api'
+import { useEnvironmentId } from '../lib/environment'
 import { Button, ErrorText, Field } from './primitives'
 
 /**
@@ -58,25 +59,30 @@ export function NewServiceForm({
 		enabled: kind === 'database' && selected !== undefined && !isCustom,
 	})
 
+	const environmentId = useEnvironmentId()
 	const create = useMutation({
 		mutationFn: () =>
-			api.createService(projectId, {
-				name,
-				source_type: kind === 'database' ? 'image' : kind === 'compose' ? 'compose' : 'unconfigured',
-				...(kind === 'compose' ? { compose_fragment: fragment } : {}),
-				...(kind === 'database'
-					? {
-							database: {
-								engine,
-								version: version || undefined,
-								name: databaseName || undefined,
-								user: user || undefined,
-								image: isCustom ? image : undefined,
-								data_path: isCustom ? dataPath : undefined,
-							},
-						}
-					: {}),
-			}),
+			api.createService(
+				projectId,
+				{
+					name,
+					source_type: kind === 'database' ? 'image' : kind === 'compose' ? 'compose' : 'unconfigured',
+					...(kind === 'compose' ? { compose_fragment: fragment } : {}),
+					...(kind === 'database'
+						? {
+								database: {
+									engine,
+									version: version || undefined,
+									name: databaseName || undefined,
+									user: user || undefined,
+									image: isCustom ? image : undefined,
+									data_path: isCustom ? dataPath : undefined,
+								},
+							}
+						: {}),
+				},
+				environmentId,
+			),
 		onSuccess: onDone,
 	})
 

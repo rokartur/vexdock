@@ -46,7 +46,7 @@ make web-dev   # dashboard on :5173 with HMR
 | `manager/internal/deployments` | The deploy pipeline |
 | `manager/internal/domains` | Domain to service mapping and proxy reconciliation |
 | `manager/internal/engines` | The database engine catalogue and its compose fragments |
-| `manager/internal/projects` | Projects, managed services and the compose overlay |
+| `manager/internal/projects` | Projects, environments, managed services and the compose overlay |
 | `manager/internal/nginx` | Configuration generation and safe reload |
 | `manager/internal/security` | Validation, encryption, path confinement |
 | `apps/web/src/routes` | One file per page |

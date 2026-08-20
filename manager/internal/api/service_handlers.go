@@ -21,18 +21,24 @@ import (
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
-// lookupService resolves the {id} path value to a service and the project it
-// belongs to, which nearly every service route needs together.
-func (s *Server) lookupService(r *http.Request) (*database.Service, *database.Project, error) {
+// lookupService resolves the {id} path value to a service, the environment that
+// owns it and the project above that, which nearly every service route needs
+// together. The environment is the one that matters at runtime: it names the
+// containers.
+func (s *Server) lookupService(r *http.Request) (*database.Service, *database.Project, *database.Environment, error) {
 	service, err := s.DB.ServiceByID(r.Context(), r.PathValue("id"))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	project, err := s.DB.ProjectByID(r.Context(), service.ProjectID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return service, project, nil
+	env, err := s.DB.EnvironmentByID(r.Context(), service.EnvironmentID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return service, project, env, nil
 }
 
 // resolveServiceContainer maps a stored service to its current container id.
@@ -41,11 +47,11 @@ func (s *Server) resolveServiceContainer(ctx context.Context, serviceID string) 
 	if err != nil {
 		return "", err
 	}
-	project, err := s.DB.ProjectByID(ctx, service.ProjectID)
+	env, err := s.DB.EnvironmentByID(ctx, service.EnvironmentID)
 	if err != nil {
 		return "", err
 	}
-	containers, err := s.Docker.ListContainers(ctx, project.ComposeProjectName)
+	containers, err := s.Docker.ListContainers(ctx, env.ComposeProjectName)
 	if err != nil {
 		return "", err
 	}
@@ -70,11 +76,11 @@ func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
 	if handleLookupError(w, err) {
 		return
 	}
-	project, err := s.DB.ProjectByID(r.Context(), service.ProjectID)
+	env, err := s.DB.EnvironmentByID(r.Context(), service.EnvironmentID)
 	if handleLookupError(w, err) {
 		return
 	}
-	views, err := s.serviceViews(r.Context(), project)
+	views, err := s.serviceViews(r.Context(), env)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -88,12 +94,12 @@ func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "NOT_FOUND", "Service not found", nil)
 }
 
-// handleCreateService adds a service the manager owns to a project. It is the
-// only way a database reaches a project: the catalog renders it into the
-// project's overlay compose file rather than into a project of its own.
+// handleCreateService adds a service the manager owns to one environment. It is
+// the only way a database reaches a project: the catalog renders it into the
+// environment's overlay compose file rather than into a project of its own.
 func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
-	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	_, env, ok := s.projectEnv(w, r)
+	if !ok {
 		return
 	}
 	var req struct {
@@ -139,7 +145,7 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			DataPath: req.Database.DataPath,
 		}
 	}
-	service, err := s.Projects.CreateService(r.Context(), project, in)
+	service, err := s.Projects.CreateService(r.Context(), env, in)
 	if err != nil {
 		badRequest(w, err)
 		return
@@ -182,7 +188,7 @@ func requireCompleteSource(service *database.Service) error {
 // handleUpdateService edits a managed service. A derived service is the
 // project's own YAML, so it is described but never rewritten here.
 func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
-	service, project, err := s.lookupService(r)
+	service, _, env, err := s.lookupService(r)
 	if handleLookupError(w, err) {
 		return
 	}
@@ -230,7 +236,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 	}
 	// The overlay is what docker actually reads, so an edit that never reaches
 	// it would silently do nothing on the next deploy.
-	if _, err := s.Projects.WriteOverlay(r.Context(), project); err != nil {
+	if _, err := s.Projects.WriteOverlay(r.Context(), env); err != nil {
 		serverError(w, err)
 		return
 	}
@@ -240,11 +246,11 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 // handleDeleteService removes a managed service. Its named volume survives on
 // purpose: dropping a database's data is a separate, explicit act.
 func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
-	service, project, err := s.lookupService(r)
+	service, _, env, err := s.lookupService(r)
 	if handleLookupError(w, err) {
 		return
 	}
-	if err := s.Projects.DeleteService(r.Context(), service, project); err != nil {
+	if err := s.Projects.DeleteService(r.Context(), service, env); err != nil {
 		badRequest(w, err)
 		return
 	}
@@ -252,12 +258,12 @@ func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetServiceEnvironment(w http.ResponseWriter, r *http.Request) {
-	service, _, err := s.lookupService(r)
+	service, _, _, err := s.lookupService(r)
 	if handleLookupError(w, err) {
 		return
 	}
 	// Unmasked: this is the editor, and handing the value over is the point.
-	vars, err := s.Projects.ServiceEnvironment(r.Context(), service.ID, false)
+	vars, err := s.Projects.ServiceVariables(r.Context(), service.ID)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -266,7 +272,7 @@ func (s *Server) handleGetServiceEnvironment(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handlePutServiceEnvironment(w http.ResponseWriter, r *http.Request) {
-	service, project, err := s.lookupService(r)
+	service, _, env, err := s.lookupService(r)
 	if handleLookupError(w, err) {
 		return
 	}
@@ -277,11 +283,11 @@ func (s *Server) handlePutServiceEnvironment(w http.ResponseWriter, r *http.Requ
 		badRequest(w, err)
 		return
 	}
-	if err := s.Projects.SetServiceEnvironment(r.Context(), service.ID, req.Variables); err != nil {
+	if err := s.Projects.SetServiceVariables(r.Context(), service.ID, req.Variables); err != nil {
 		badRequest(w, err)
 		return
 	}
-	if _, err := s.Projects.WriteOverlay(r.Context(), project); err != nil {
+	if _, err := s.Projects.WriteOverlay(r.Context(), env); err != nil {
 		serverError(w, err)
 		return
 	}
@@ -313,7 +319,7 @@ func assignValid(dst *string, src *string, validate func(string) (string, error)
 
 // handleDeployService runs the deploy pipeline for one compose service only.
 func (s *Server) handleDeployService(w http.ResponseWriter, r *http.Request) {
-	service, project, err := s.lookupService(r)
+	service, project, env, err := s.lookupService(r)
 	if handleLookupError(w, err) {
 		return
 	}
@@ -326,7 +332,7 @@ func (s *Server) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	if user != nil {
 		actor = user.Email
 	}
-	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
+	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
 		Trigger:     deployments.TriggerManual,
 		Actor:       actor,
 		ServiceName: service.ComposeServiceName,

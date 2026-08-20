@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Button, Check, ErrorText, Field, Refresh, Section, Status } from '../components/primitives'
 import { api, type Certificate, type CertificateSource, type Domain } from '../lib/api'
+import { useEnvironmentId } from '../lib/environment'
 
 type DomainTableDeps = {
 	certificateFor: (domainId: string) => Certificate | undefined
@@ -101,7 +102,11 @@ function ProjectDomains() {
 	const [warning, setWarning] = useState('')
 
 	const domains = useQuery({ queryKey: ['domains', projectId], queryFn: () => api.projectDomains(projectId) })
-	const services = useQuery({ queryKey: ['services', projectId], queryFn: () => api.services(projectId) })
+	const environmentId = useEnvironmentId()
+	const services = useQuery({
+		queryKey: ['services', projectId, environmentId],
+		queryFn: () => api.services(projectId, environmentId),
+	})
 	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
 
 	const [hostname, setHostname] = useState('')
@@ -126,6 +131,7 @@ function ProjectDomains() {
 		mutationFn: () =>
 			api.createDomain({
 				project_id: projectId,
+				environment_id: environmentId,
 				service,
 				hostname,
 				container_port: port,

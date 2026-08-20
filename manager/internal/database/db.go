@@ -79,23 +79,93 @@ func (db *DB) migrate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, string(body)); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("apply migration %s: %w", name, err)
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, name, Now()); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if err := tx.Commit(); err != nil {
+		if err := db.apply(ctx, name, string(body)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// rebuildMarker opts a migration out of foreign key enforcement while it runs.
+//
+// SQLite cannot drop a table level constraint, so a migration that changes one
+// has to rebuild the table: copy the rows into a new table, drop the old one,
+// rename. With foreign keys enforced that DROP performs an implicit DELETE, so
+// every ON DELETE CASCADE child row goes with it and the rebuild silently
+// deletes the data it exists to preserve. Turning the pragma off is the
+// documented remedy, and it only works outside a transaction, which is why the
+// runner has to know before it opens one.
+const rebuildMarker = "-- vexdock:rebuild"
+
+func (db *DB) apply(ctx context.Context, name, body string) error {
+	rebuild := strings.HasPrefix(body, rebuildMarker)
+	if rebuild {
+		// One connection serves the whole pool, so this reaches the migration.
+		if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+			return fmt.Errorf("disable foreign keys for %s: %w", name, err)
+		}
+		defer func() { _, _ = db.ExecContext(ctx, `PRAGMA foreign_keys = ON`) }()
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, body); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("apply migration %s: %w", name, err)
+	}
+	if rebuild {
+		// Enforcement was off, so the rows it would have rejected are still
+		// here. Find them while a rollback can still undo the damage.
+		if err := danglingReferences(ctx, tx); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("apply migration %s: %w", name, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, name, Now()); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
+func danglingReferences(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		return fmt.Errorf("foreign key check: %w", err)
+	}
+	defer rows.Close()
+
+	broken := []string{}
+	for rows.Next() {
+		var child, parent string
+		var rowid sql.NullInt64
+		var constraint int
+		if err := rows.Scan(&child, &rowid, &parent, &constraint); err != nil {
+			return fmt.Errorf("foreign key check: %w", err)
+		}
+		broken = append(broken, child+" -> "+parent)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("foreign key check: %w", err)
+	}
+	if len(broken) > 0 {
+		return fmt.Errorf("left %d dangling reference(s): %s", len(broken), strings.Join(unique(broken), ", "))
+	}
+	return nil
+}
+
+func unique(in []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, s := range in {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // ErrNotFound is returned by every lookup helper when no row matches.

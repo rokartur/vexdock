@@ -4,6 +4,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Button, ErrorText, Refresh, Section, Status } from '../components/primitives'
 import { api, type Deployment } from '../lib/api'
+import { useEnvironmentId } from '../lib/environment'
 import { duration, shortSha, since } from '../lib/format'
 
 function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deployment> {
@@ -72,10 +73,11 @@ function ProjectDeployments() {
 	const { projectId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
+	const environmentId = useEnvironmentId()
 
 	const deployments = useQuery({
-		queryKey: ['deployments', projectId],
-		queryFn: () => api.deployments(projectId),
+		queryKey: ['deployments', projectId, environmentId],
+		queryFn: () => api.deployments(projectId, environmentId),
 		refetchInterval: 5000,
 	})
 

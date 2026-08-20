@@ -178,9 +178,11 @@ func dashboardBody(managerAddr, webRoot string) string {
 	return b.String()
 }
 
-// Alias is the stable network alias for one compose service of one project.
-// Container ids change on every recreate; this name does not.
-func Alias(projectID, service string) string {
+// Alias is the stable network alias for one compose service of one environment.
+// Container ids change on every recreate; this name does not. It is keyed on
+// the environment because production and staging can both run a service called
+// web, and a shared alias would send traffic to whichever attached last.
+func Alias(environmentID, service string) string {
 	safe := strings.Map(func(r rune) rune {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
@@ -191,7 +193,7 @@ func Alias(projectID, service string) string {
 			return '-'
 		}
 	}, service)
-	return fmt.Sprintf("p_%s_%s", strings.ToLower(projectID), safe)
+	return fmt.Sprintf("p_%s_%s", strings.ToLower(environmentID), safe)
 }
 
 // SortedFileNames gives a deterministic order for diffing a rendered set.

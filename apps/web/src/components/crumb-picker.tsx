@@ -5,6 +5,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { api } from '../lib/api'
+import { useEnvironmentId } from '../lib/environment'
 import { Status } from './primitives'
 
 /**
@@ -92,7 +93,13 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 							data-checked={isCurrent}
 							onSelect={() => {
 								close()
-								void navigate({ to: '/projects/$projectId', params: { projectId: project.id } })
+								// Clearing the environment is deliberate: the id in the URL
+								// belongs to the project being left behind.
+								void navigate({
+									to: '/projects/$projectId',
+									params: { projectId: project.id },
+									search: { env: undefined },
+								})
 							}}
 						>
 							<span className='truncate'>{project.name}</span>
@@ -109,10 +116,51 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 	)
 }
 
+/**
+ * Switches which environment the pages below act on. Unlike the other two this
+ * changes a search param rather than the path, so the current tab stays open.
+ */
+export function EnvironmentCrumb({ projectId }: { projectId: string }) {
+	// `from` only types the search shape here; leaving `to` off is what keeps the
+	// current tab open while the environment underneath it changes.
+	const navigate = useNavigate({ from: '/projects/$projectId' })
+	const selected = useEnvironmentId()
+	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
+	// No selection means the default one, which is also what the manager assumes.
+	const current = environments.data?.find(env => (selected ? env.id === selected : env.is_default))
+
+	return (
+		<CrumbPicker placeholder='Find environment…' query={environments} label={current?.name ?? 'Production'}>
+			{close =>
+				environments.data?.map(env => (
+					<CommandItem
+						key={env.id}
+						value={`${env.name} ${env.slug}`}
+						data-checked={env.id === current?.id}
+						onSelect={() => {
+							close()
+							void navigate({ search: prev => ({ ...prev, env: env.id }) })
+						}}
+					>
+						<span className='truncate'>{env.name}</span>
+						{env.branch ? (
+							<span className='ml-auto font-mono text-meta text-muted-foreground'>{env.branch}</span>
+						) : null}
+					</CommandItem>
+				))
+			}
+		</CrumbPicker>
+	)
+}
+
 /** Switches between the services of the project the URL already names. */
 export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serviceId: string }) {
 	const navigate = useNavigate()
-	const services = useQuery({ queryKey: ['services', projectId], queryFn: () => api.services(projectId) })
+	const environmentId = useEnvironmentId()
+	const services = useQuery({
+		queryKey: ['services', projectId, environmentId],
+		queryFn: () => api.services(projectId, environmentId),
+	})
 	// The name and state come from the service's own query, which the page already
 	// polls and every action invalidates, so the crumb survives a failure of the
 	// sibling list and does not poll it a second time.
