@@ -168,3 +168,57 @@ func TestOverlayScopesCredentialsPerService(t *testing.T) {
 		}
 	}
 }
+
+// A compose fragment is the service body as the user wrote it. Named volumes
+// have to be declared at the top of the overlay or compose rejects the file,
+// and env_file: .env has to land on the project env file the Environment tab
+// writes, not a relative path next to the compose file.
+func TestOverlayRendersComposeFragmentVolumesAndEnvFile(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+
+	p, err := svc.Create(ctx, CreateInput{Name: "vault"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	fragment := `image: vaultwarden/server:1.37.1-alpine
+restart: always
+env_file:
+  - .env
+volumes:
+  - vaultwarden:/data
+expose:
+  - 80`
+	if _, err := svc.CreateService(ctx, p, ServiceInput{
+		Name:            "vaultwarden",
+		SourceType:      database.ServiceCompose,
+		ComposeFragment: fragment,
+	}); err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+
+	path, err := svc.WriteOverlay(ctx, p)
+	if err != nil || path == "" {
+		t.Fatalf("write overlay: %q, %v", path, err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read overlay: %v", err)
+	}
+	overlay := string(raw)
+	envPath := svc.EnvFilePath(p)
+	for _, want := range []string{
+		"image: vaultwarden/server:1.37.1-alpine",
+		"vaultwarden:/data",
+		"\nvolumes:\n  vaultwarden: {}\n",
+		"expose:",
+		envPath,
+	} {
+		if !strings.Contains(overlay, want) {
+			t.Errorf("overlay is missing %q:\n%s", want, overlay)
+		}
+	}
+	if strings.Contains(overlay, "- .env") {
+		t.Errorf("env_file still points at a relative .env:\n%s", overlay)
+	}
+}

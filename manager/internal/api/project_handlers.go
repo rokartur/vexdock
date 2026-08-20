@@ -346,7 +346,8 @@ func (s *Server) handlePutCompose(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
-	vars, err := s.Projects.Environment(r.Context(), r.PathValue("id"), true)
+	// Unmasked: this is the editor, and handing the value over is the point.
+	vars, err := s.Projects.Environment(r.Context(), r.PathValue("id"), false)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -374,7 +375,7 @@ func (s *Server) handlePutEnvironment(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	vars, err := s.Projects.Environment(r.Context(), project.ID, true)
+	vars, err := s.Projects.Environment(r.Context(), project.ID, false)
 	if err != nil {
 		serverError(w, err)
 		return

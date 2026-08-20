@@ -10,6 +10,7 @@ import (
 
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/engines"
+	"github.com/vexdock/platform/manager/internal/security"
 )
 
 // overlayFileName is the compose file the manager writes from the service rows
@@ -76,7 +77,7 @@ func (s *Service) WriteOverlay(ctx context.Context, p *database.Project) (string
 		if err := s.writeServiceEnv(ctx, p, svc); err != nil {
 			return "", err
 		}
-		fragment, volume, err := s.renderService(p, svc)
+		fragment, vols, err := s.renderService(p, svc)
 		if err != nil {
 			return "", fmt.Errorf("service %s: %w", svc.ComposeServiceName, err)
 		}
@@ -84,13 +85,16 @@ func (s *Service) WriteOverlay(ctx context.Context, p *database.Project) (string
 		// content character, so the next service's key would land on the previous
 		// one's last line. Normalise here, where all three render branches meet.
 		fmt.Fprintf(&body, "  %s:\n%s\n", svc.ComposeServiceName, strings.TrimRight(fragment, "\n"))
-		if volume != "" {
-			volumes = append(volumes, volume)
-		}
+		volumes = append(volumes, vols...)
 	}
 	if len(volumes) > 0 {
 		body.WriteString("\nvolumes:\n")
+		seen := make(map[string]struct{}, len(volumes))
 		for _, v := range volumes {
+			if _, ok := seen[v]; ok {
+				continue
+			}
+			seen[v] = struct{}{}
 			fmt.Fprintf(&body, "  %s: {}\n", v)
 		}
 	}
@@ -107,14 +111,19 @@ func (s *Service) WriteOverlay(ctx context.Context, p *database.Project) (string
 }
 
 // renderService turns one service row into its compose body, indented four
-// spaces, plus the named volume it needs declared at the top level.
-func (s *Service) renderService(p *database.Project, svc database.Service) (string, string, error) {
+// spaces, plus the named volumes it needs declared at the top level.
+func (s *Service) renderService(p *database.Project, svc database.Service) (string, []string, error) {
 	switch svc.SourceType {
 	case database.ServiceImage, database.ServiceGit:
 	case database.ServiceCompose:
-		return indent(svc.ComposeFragment, 4), "", nil
+		vols, err := namedVolumes(svc.ComposeFragment)
+		if err != nil {
+			return "", nil, err
+		}
+		fragment := retargetDotEnv(svc.ComposeFragment, s.EnvFilePath(p))
+		return indent(fragment, 4), vols, nil
 	default:
-		return "", "", fmt.Errorf("unknown source %q", svc.SourceType)
+		return "", nil, fmt.Errorf("unknown source %q", svc.SourceType)
 	}
 
 	if svc.Type == database.ServiceDatabase {
@@ -129,9 +138,13 @@ func (s *Service) renderService(p *database.Project, svc database.Service) (stri
 			EnvFile:  s.ServiceEnvFilePath(p, svc.ComposeServiceName),
 		})
 		if err != nil {
-			return "", "", err
+			return "", nil, err
 		}
-		return rendered.Fragment, rendered.Volume, nil
+		var vols []string
+		if rendered.Volume != "" {
+			vols = []string{rendered.Volume}
+		}
+		return rendered.Fragment, vols, nil
 	}
 
 	var b strings.Builder
@@ -139,7 +152,7 @@ func (s *Service) renderService(p *database.Project, svc database.Service) (stri
 	case database.ServiceImage:
 		image, err := engines.ValidateImage(svc.Image)
 		if err != nil {
-			return "", "", err
+			return "", nil, err
 		}
 		fmt.Fprintf(&b, "    image: %s\n", image)
 	case database.ServiceGit:
@@ -150,7 +163,7 @@ func (s *Service) renderService(p *database.Project, svc database.Service) (stri
 	}
 	b.WriteString("    restart: unless-stopped\n")
 	fmt.Fprintf(&b, "    env_file: [%q]\n", s.ServiceEnvFilePath(p, svc.ComposeServiceName))
-	return b.String(), "", nil
+	return b.String(), nil, nil
 }
 
 // writeServiceEnv materialises a managed service's environment next to the
@@ -176,4 +189,113 @@ func indent(block string, spaces int) string {
 		lines[i] = pad + line
 	}
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// retargetDotEnv points a fragment's env_file: .env at the project env file,
+// which is what the Environment tab writes.
+func retargetDotEnv(fragment, envPath string) string {
+	q := fmt.Sprintf("%q", envPath)
+	for _, pair := range [][2]string{
+		{"- .env", "- " + q},
+		{"- '.env'", "- " + q},
+		{`- ".env"`, "- " + q},
+		{"env_file: .env", "env_file: " + q},
+		{"env_file: [.env]", "env_file: [" + q + "]"},
+	} {
+		fragment = strings.ReplaceAll(fragment, pair[0], pair[1])
+	}
+	return fragment
+}
+
+func namedVolumes(fragment string) ([]string, error) {
+	lines := strings.Split(fragment, "\n")
+	keyIndent := -1
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" || strings.HasPrefix(trim, "#") || strings.HasPrefix(trim, "-") {
+			continue
+		}
+		ind := len(line) - len(strings.TrimLeft(line, " \t"))
+		if keyIndent < 0 || ind < keyIndent {
+			keyIndent = ind
+		}
+	}
+	if keyIndent < 0 {
+		return nil, nil
+	}
+	inVolumes := false
+	var names []string
+	seen := map[string]struct{}{}
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" || strings.HasPrefix(trim, "#") {
+			continue
+		}
+		ind := len(line) - len(strings.TrimLeft(line, " \t"))
+		if ind == keyIndent {
+			inVolumes = strings.HasPrefix(trim, "volumes:")
+			if !inVolumes {
+				continue
+			}
+			rest := strings.TrimSpace(strings.TrimPrefix(trim, "volumes:"))
+			if rest == "" {
+				continue
+			}
+			inVolumes = false
+			if err := appendNamedVolume(rest, &names, seen); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if !inVolumes || ind <= keyIndent || !strings.HasPrefix(trim, "-") {
+			continue
+		}
+		entry := strings.TrimSpace(strings.TrimPrefix(trim, "-"))
+		if err := appendNamedVolume(entry, &names, seen); err != nil {
+			return nil, err
+		}
+	}
+	return names, nil
+}
+
+func appendNamedVolume(entry string, names *[]string, seen map[string]struct{}) error {
+	src := namedVolumeSource(entry)
+	if src == "" {
+		return nil
+	}
+	if err := security.ValidateServiceName(src); err != nil {
+		return fmt.Errorf("volume %q: %w", src, err)
+	}
+	if _, ok := seen[src]; ok {
+		return nil
+	}
+	seen[src] = struct{}{}
+	*names = append(*names, src)
+	return nil
+}
+
+func namedVolumeSource(entry string) string {
+	entry = strings.Trim(strings.TrimSpace(entry), `"'`)
+	if entry == "" {
+		return ""
+	}
+	if strings.HasPrefix(entry, "[") && strings.HasSuffix(entry, "]") {
+		return namedVolumeSource(strings.TrimSpace(entry[1 : len(entry)-1]))
+	}
+	if strings.HasPrefix(entry, "./") || strings.HasPrefix(entry, "/") || strings.HasPrefix(entry, "~/") {
+		return ""
+	}
+	src, _, ok := strings.Cut(entry, ":")
+	if !ok {
+		return ""
+	}
+	src = strings.Trim(strings.TrimSpace(src), `"'`)
+	switch src {
+	case "", "type", "source", "target", "read_only":
+		return ""
+	}
+	if strings.Contains(src, "/") {
+		return ""
+	}
+	return src
 }

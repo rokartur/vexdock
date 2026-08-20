@@ -337,19 +337,20 @@ func (s *Service) ComposeProject(ctx context.Context, p *database.Project) (comp
 }
 
 // WriteEnvFile materialises the project environment at 0600 and returns its
-// path, or "" when the project has no variables.
+// path, or "" when the project has no variables (so compose omits --env-file).
+// The file itself is always written, even empty: a compose env_file: .env has
+// to open something.
 func (s *Service) WriteEnvFile(ctx context.Context, p *database.Project) (string, error) {
 	vars, err := s.Environment(ctx, p.ID, false)
 	if err != nil {
 		return "", err
 	}
 	path := s.EnvFilePath(p)
-	if len(vars) == 0 {
-		_ = os.Remove(path)
-		return "", nil
-	}
 	if err := writeEnvFile(path, vars); err != nil {
 		return "", err
+	}
+	if len(vars) == 0 {
+		return "", nil
 	}
 	return path, nil
 }

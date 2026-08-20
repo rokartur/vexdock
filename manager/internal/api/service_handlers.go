@@ -254,7 +254,8 @@ func (s *Server) handleGetServiceEnvironment(w http.ResponseWriter, r *http.Requ
 	if handleLookupError(w, err) {
 		return
 	}
-	vars, err := s.Projects.ServiceEnvironment(r.Context(), service.ID, true)
+	// Unmasked: this is the editor, and handing the value over is the point.
+	vars, err := s.Projects.ServiceEnvironment(r.Context(), service.ID, false)
 	if err != nil {
 		serverError(w, err)
 		return

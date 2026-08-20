@@ -9,8 +9,6 @@ export const Route = createFileRoute('/projects/$projectId/environment')({ compo
 
 /**
  * The environment is edited as .env text, so a file can be pasted in whole.
- * Secret values arrive masked; leaving a masked value untouched keeps the
- * stored secret, typing over it replaces it.
  */
 function ProjectEnvironment() {
 	const { projectId } = Route.useParams()
@@ -55,8 +53,7 @@ function ProjectEnvironment() {
 				spellCheck={false}
 			/>
 			<p className='mt-1 text-label text-muted-foreground'>
-				One KEY=value per line. Masked values stay as they are stored; new keys are stored as secrets. Redeploy
-				to apply.
+				One KEY=value per line. Redeploy to apply.
 			</p>
 		</Section>
 	)
