@@ -120,10 +120,10 @@ func (e *Engine) Trigger(ctx context.Context, project *database.Project, env *da
 		ProjectID:     project.ID,
 		EnvironmentID: env.ID,
 		ServiceName:   opts.ServiceName,
-		Branch:      ref,
-		Status:      database.DeploymentQueued,
-		Trigger:     opts.Trigger,
-		CreatedBy:   opts.Actor,
+		Branch:        ref,
+		Status:        database.DeploymentQueued,
+		Trigger:       opts.Trigger,
+		CreatedBy:     opts.Actor,
 	}
 	if opts.CommitSHA != "" {
 		d.CommitSHA = opts.CommitSHA

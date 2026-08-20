@@ -60,7 +60,7 @@ func TestCreateWithoutSourceStartsAsCompose(t *testing.T) {
 	if got := strings.Join(p.Tags, "|"); got != "staging" {
 		t.Fatalf("tags %v, want [staging]", p.Tags)
 	}
-	if content, err := svc.ReadComposeFile(p); err != nil || content != StarterCompose {
+	if content, err := svc.ReadComposeFile(p, defaultEnv(t, svc, p)); err != nil || content != StarterCompose {
 		t.Fatalf("compose file %q, err %v", content, err)
 	}
 
@@ -69,16 +69,28 @@ func TestCreateWithoutSourceStartsAsCompose(t *testing.T) {
 	if err := svc.Validate(p); err != nil {
 		t.Fatalf("validate git: %v", err)
 	}
-	if err := svc.ResetCheckout(p); err != nil {
+	if err := svc.ResetCheckout(context.Background(), p); err != nil {
 		t.Fatalf("reset checkout: %v", err)
 	}
-	entries, err := os.ReadDir(svc.RepositoryDir(p))
+	entries, err := os.ReadDir(svc.RepositoryDir(defaultEnv(t, svc, p)))
 	if err != nil {
 		t.Fatalf("read checkout: %v", err)
 	}
 	if len(entries) != 0 {
 		t.Fatalf("checkout still holds %d entries, git clone needs it empty", len(entries))
 	}
+}
+
+// defaultEnv is the environment Create makes alongside a project. Every path
+// and every compose call hangs off it now, so the tests reach for it the same
+// way the handlers do.
+func defaultEnv(t *testing.T, svc *Service, p *database.Project) *database.Environment {
+	t.Helper()
+	env, err := svc.db.DefaultEnvironment(context.Background(), p.ID)
+	if err != nil {
+		t.Fatalf("default environment: %v", err)
+	}
+	return env
 }
 
 func testService(t *testing.T) *Service {

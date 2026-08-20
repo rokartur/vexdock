@@ -21,9 +21,9 @@ type projectView struct {
 	Environments     []database.Environment `json:"environments"`
 	ServiceCount     int                    `json:"service_count"`
 	RunningCount     int                    `json:"running_count"`
-	Domains          []database.Domain    `json:"domains"`
-	LatestDeployment *database.Deployment `json:"latest_deployment"`
-	WebhookURL       string               `json:"webhook_url"`
+	Domains          []database.Domain      `json:"domains"`
+	LatestDeployment *database.Deployment   `json:"latest_deployment"`
+	WebhookURL       string                 `json:"webhook_url"`
 	// WebhookSecretSet reports whether HMAC verification is on; the secret
 	// itself is never returned.
 	WebhookSecretSet bool `json:"webhook_secret_set"`

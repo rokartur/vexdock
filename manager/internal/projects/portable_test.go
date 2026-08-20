@@ -22,10 +22,10 @@ func TestOverlaySkipsAnUnconfiguredApplication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	if _, err := svc.CreateService(ctx, p, ServiceInput{Name: "web", SourceType: database.ServiceUnconfigured}); err != nil {
+	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{Name: "web", SourceType: database.ServiceUnconfigured}); err != nil {
 		t.Fatalf("create unconfigured service: %v", err)
 	}
-	if _, err := svc.CreateService(ctx, p, ServiceInput{
+	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 		Name:       "db",
 		SourceType: database.ServiceImage,
 		Database:   &DatabaseInput{Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: "s3cret"},
@@ -33,7 +33,7 @@ func TestOverlaySkipsAnUnconfiguredApplication(t *testing.T) {
 		t.Fatalf("create database: %v", err)
 	}
 
-	path, err := svc.WriteOverlay(ctx, p)
+	path, err := svc.WriteOverlay(ctx, defaultEnv(t, svc, p))
 	if err != nil || path == "" {
 		t.Fatalf("write overlay: %q, %v", path, err)
 	}
@@ -61,7 +61,7 @@ func TestExportServicesWithholdsSecretsUnlessAsked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	if _, err := svc.CreateService(ctx, p, ServiceInput{
+	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 		Name:       "db",
 		SourceType: database.ServiceImage,
 		Database:   &DatabaseInput{Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: "s3cret"},
@@ -93,7 +93,7 @@ func TestExportServicesWithholdsSecretsUnlessAsked(t *testing.T) {
 
 func decodeExport(t *testing.T, svc *Service, ctx context.Context, p *database.Project, secrets bool) Export {
 	t.Helper()
-	payload, err := svc.ExportServices(ctx, p, secrets)
+	payload, err := svc.ExportServices(ctx, p, defaultEnv(t, svc, p), secrets)
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}

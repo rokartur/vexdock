@@ -21,6 +21,17 @@ func open(t *testing.T) *DB {
 	return db
 }
 
+// defaultEnv is the environment a project deploys into. Everything service and
+// deployment shaped hangs off it now.
+func defaultEnv(t *testing.T, db *DB, projectID string) *Environment {
+	t.Helper()
+	env, err := db.DefaultEnvironment(context.Background(), projectID)
+	if err != nil {
+		t.Fatalf("default environment: %v", err)
+	}
+	return env
+}
+
 func newProject(t *testing.T, db *DB, slug string) *Project {
 	t.Helper()
 	p := &Project{
@@ -31,6 +42,13 @@ func newProject(t *testing.T, db *DB, slug string) *Project {
 	p.ComposeProjectName = "p_" + p.ID
 	if err := db.CreateProject(context.Background(), p); err != nil {
 		t.Fatalf("create project: %v", err)
+	}
+	env := &Environment{
+		ID: p.ID, ProjectID: p.ID, Name: "Production", Slug: "production",
+		ComposeProjectName: p.ComposeProjectName, IsDefault: true,
+	}
+	if err := db.CreateEnvironment(context.Background(), env); err != nil {
+		t.Fatalf("create environment: %v", err)
 	}
 	return p
 }
@@ -62,7 +80,7 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 	project := newProject(t, db, "app")
 	// A second project must get its own independent numbering.
 	other := newProject(t, db, "other")
-	second := &Deployment{ProjectID: other.ID, Trigger: "manual"}
+	second := &Deployment{ProjectID: other.ID, EnvironmentID: other.ID, Trigger: "manual"}
 	if err := db.CreateDeployment(ctx, second); err != nil {
 		t.Fatalf("create deployment for second project: %v", err)
 	}
@@ -71,7 +89,7 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 	}
 
 	for want := 1; want <= 3; want++ {
-		d := &Deployment{ProjectID: project.ID, Trigger: "manual"}
+		d := &Deployment{ProjectID: project.ID, EnvironmentID: project.ID, Trigger: "manual"}
 		if err := db.CreateDeployment(ctx, d); err != nil {
 			t.Fatalf("create deployment: %v", err)
 		}
@@ -83,7 +101,7 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 		}
 	}
 
-	running := &Deployment{ProjectID: project.ID, Trigger: "manual", Status: DeploymentRunning}
+	running := &Deployment{ProjectID: project.ID, EnvironmentID: project.ID, Trigger: "manual", Status: DeploymentRunning}
 	if err := db.CreateDeployment(ctx, running); err != nil {
 		t.Fatalf("create running deployment: %v", err)
 	}
@@ -105,7 +123,7 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 		t.Fatalf("expected 1 success, got %d (%v)", n, err)
 	}
 
-	list, err := db.ListDeployments(ctx, project.ID, 10)
+	list, err := db.ListDeployments(ctx, defaultEnv(t, db, project.ID).ID, 10)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -119,18 +137,18 @@ func TestServiceUpsertAndPrune(t *testing.T) {
 	db := open(t)
 	project := newProject(t, db, "app")
 
-	first, err := db.UpsertService(ctx, project.ID, "web")
+	first, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "web")
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	again, err := db.UpsertService(ctx, project.ID, "web")
+	again, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "web")
 	if err != nil {
 		t.Fatalf("upsert twice: %v", err)
 	}
 	if first.ID != again.ID {
 		t.Fatal("upsert created a duplicate service row")
 	}
-	if _, err := db.UpsertService(ctx, project.ID, "worker"); err != nil {
+	if _, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "worker"); err != nil {
 		t.Fatalf("upsert worker: %v", err)
 	}
 
@@ -138,7 +156,7 @@ func TestServiceUpsertAndPrune(t *testing.T) {
 	if err := db.PruneServices(ctx, project.ID, []string{"web"}); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
-	services, err := db.ListServices(ctx, project.ID)
+	services, err := db.ListServices(ctx, defaultEnv(t, db, project.ID).ID)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -151,7 +169,7 @@ func TestDeletingAProjectCascades(t *testing.T) {
 	ctx := context.Background()
 	db := open(t)
 	project := newProject(t, db, "app")
-	service, err := db.UpsertService(ctx, project.ID, "web")
+	service, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "web")
 	if err != nil {
 		t.Fatalf("upsert service: %v", err)
 	}
@@ -254,24 +272,38 @@ func TestUpgradingToEnvironmentsKeepsData(t *testing.T) {
 	ctx := context.Background()
 	db := openUpTo(t, filepath.Join(t.TempDir(), "app.db"), "0009")
 
-	project := newProject(t, db, "app")
-	service, err := db.UpsertService(ctx, project.ID, "web")
-	if err != nil {
-		t.Fatalf("upsert service: %v", err)
+	// Everything here is raw SQL: the pre-0010 schema has no environment column,
+	// so the helpers that write these rows today cannot describe it.
+	project := &Project{
+		ID: NewID(), Name: "app", Slug: "app", SourceType: SourceGit,
+		RepositoryURL: "https://github.com/user/app", Branch: "main",
+		ComposePath: "compose.yml", WebhookToken: "tok-" + NewID(),
 	}
-	if err := db.UpsertSecret(ctx, ServiceScope, service.ID, "TOKEN", "sealed", true); err != nil {
+	project.ComposeProjectName = "p_" + project.ID
+	if err := db.CreateProject(ctx, project); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	serviceID := NewID()
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO services (id, project_id, compose_service_name, created_at) VALUES (?, ?, 'web', ?)`,
+		serviceID, project.ID, Now()); err != nil {
+		t.Fatalf("insert service: %v", err)
+	}
+	if err := db.UpsertSecret(ctx, ServiceScope, serviceID, "TOKEN", "sealed", true); err != nil {
 		t.Fatalf("upsert service secret: %v", err)
 	}
-	domain := &Domain{ID: NewID(), ProjectID: project.ID, ServiceID: service.ID, Hostname: "a.example.com", ContainerPort: 3000}
-	if err := db.CreateDomain(ctx, domain); err != nil {
-		t.Fatalf("create domain: %v", err)
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO domains (id, project_id, service_id, hostname, container_port, created_at, updated_at)
+		 VALUES (?, ?, ?, 'a.example.com', 3000, ?, ?)`,
+		NewID(), project.ID, serviceID, Now(), Now()); err != nil {
+		t.Fatalf("insert domain: %v", err)
 	}
 
 	if err := db.migrate(ctx); err != nil {
 		t.Fatalf("upgrade: %v", err)
 	}
 
-	secrets, err := db.ListSecrets(ctx, ServiceScope, service.ID)
+	secrets, err := db.ListSecrets(ctx, ServiceScope, serviceID)
 	if err != nil {
 		t.Fatalf("list service secrets: %v", err)
 	}
