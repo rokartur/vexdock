@@ -82,8 +82,11 @@ const (
 )
 
 type Service struct {
-	ID                 string `json:"id"`
-	ProjectID          string `json:"project_id"`
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	// EnvironmentID is the service's real owner: production and staging each
+	// have their own row for the same compose service name.
+	EnvironmentID      string `json:"environment_id"`
 	ComposeServiceName string `json:"compose_service_name"`
 	DisplayName        string `json:"display_name"`
 	Type               string `json:"type"`
@@ -115,6 +118,7 @@ func (s Service) Managed() bool { return s.SourceType != ServiceDerived && s.Sou
 type Domain struct {
 	ID            string `json:"id"`
 	ProjectID     string `json:"project_id"`
+	EnvironmentID string `json:"environment_id"`
 	ServiceID     string `json:"service_id"`
 	Hostname      string `json:"hostname"`
 	ContainerPort int    `json:"container_port"`
@@ -162,9 +166,10 @@ const (
 )
 
 type Deployment struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"project_id"`
-	Number    int    `json:"number"`
+	ID            string `json:"id"`
+	ProjectID     string `json:"project_id"`
+	EnvironmentID string `json:"environment_id"`
+	Number        int    `json:"number"`
 	// ServiceName scopes the pipeline to one compose service. Empty means all.
 	ServiceName string `json:"service_name"`
 	CommitSHA   string `json:"commit_sha"`
@@ -196,4 +201,24 @@ type Registry struct {
 	Username          string `json:"username"`
 	EncryptedPassword string `json:"-"`
 	CreatedAt         string `json:"created_at"`
+}
+
+// Environment is a deployable copy of a project. It owns the compose project
+// name, so the containers, volumes and networks of production and staging never
+// meet, and it owns the directory those containers are built from.
+//
+// Every project has exactly one default environment, created with the project
+// and not deletable: deleting the last environment would leave a project with
+// nothing to deploy.
+type Environment struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	// Branch overrides the project's branch. Empty means inherit it.
+	Branch             string `json:"branch"`
+	ComposeProjectName string `json:"compose_project_name"`
+	IsDefault          bool   `json:"is_default"`
+	CreatedAt          string `json:"created_at"`
+	UpdatedAt          string `json:"updated_at"`
 }

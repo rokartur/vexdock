@@ -94,8 +94,9 @@ func scanProject(row scanner) (*Project, error) {
 type SecretScope struct{ table, owner string }
 
 var (
-	ProjectScope = SecretScope{"project_secrets", "project_id"}
-	ServiceScope = SecretScope{"service_secrets", "service_id"}
+	ProjectScope     = SecretScope{"project_secrets", "project_id"}
+	EnvironmentScope = SecretScope{"environment_secrets", "environment_id"}
+	ServiceScope     = SecretScope{"service_secrets", "service_id"}
 )
 
 func (db *DB) UpsertSecret(ctx context.Context, sc SecretScope, ownerID, key, encrypted string, isSecret bool) error {
@@ -145,21 +146,21 @@ func (db *DB) ListSecrets(ctx context.Context, sc SecretScope, ownerID string) (
 
 // UpsertService records a compose service discovered during deployment. The
 // container id is deliberately not stored: it changes on every recreate.
-const serviceColumns = `id, project_id, compose_service_name, display_name, type, source_type,
+const serviceColumns = `id, project_id, environment_id, compose_service_name, display_name, type, source_type,
 	repository_url, branch, build_path, image, engine, data_path, compose_fragment, created_at, updated_at`
 
 // UpsertService records a service a deployment found in the project's own
 // compose file. It never touches a row that already exists, so a service the
 // dashboard created and then saw in the compose output keeps its own source.
-func (db *DB) UpsertService(ctx context.Context, projectID, composeServiceName string) (*Service, error) {
+func (db *DB) UpsertService(ctx context.Context, projectID, environmentID, composeServiceName string) (*Service, error) {
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (id, project_id, compose_service_name, display_name, type, source_type, created_at, updated_at)
-		 VALUES (?, ?, ?, '', ?, ?, ?, ?) ON CONFLICT (project_id, compose_service_name) DO NOTHING`,
-		NewID(), projectID, composeServiceName, ServiceApplication, ServiceDerived, Now(), Now())
+		`INSERT INTO services (id, project_id, environment_id, compose_service_name, display_name, type, source_type, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?) ON CONFLICT (environment_id, compose_service_name) DO NOTHING`,
+		NewID(), projectID, environmentID, composeServiceName, ServiceApplication, ServiceDerived, Now(), Now())
 	if err != nil {
 		return nil, err
 	}
-	return db.ServiceByName(ctx, projectID, composeServiceName)
+	return db.ServiceByName(ctx, environmentID, composeServiceName)
 }
 
 // CreateService records a service the dashboard owns. Its definition is
@@ -167,8 +168,8 @@ func (db *DB) UpsertService(ctx context.Context, projectID, composeServiceName s
 func (db *DB) CreateService(ctx context.Context, s *Service) error {
 	s.CreatedAt, s.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, s.ProjectID, s.ComposeServiceName, s.DisplayName, s.Type, s.SourceType,
+		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.DisplayName, s.Type, s.SourceType,
 		s.RepositoryURL, s.Branch, s.BuildPath, s.Image, s.Engine, s.DataPath, s.ComposeFragment,
 		s.CreatedAt, s.UpdatedAt)
 	return err
@@ -189,9 +190,9 @@ func (db *DB) DeleteService(ctx context.Context, id string) error {
 	return err
 }
 
-func (db *DB) ServiceByName(ctx context.Context, projectID, name string) (*Service, error) {
+func (db *DB) ServiceByName(ctx context.Context, environmentID, name string) (*Service, error) {
 	return scanService(db.QueryRowContext(ctx,
-		`SELECT `+serviceColumns+` FROM services WHERE project_id = ? AND compose_service_name = ?`, projectID, name))
+		`SELECT `+serviceColumns+` FROM services WHERE environment_id = ? AND compose_service_name = ?`, environmentID, name))
 }
 
 func (db *DB) ServiceByID(ctx context.Context, id string) (*Service, error) {
@@ -201,7 +202,7 @@ func (db *DB) ServiceByID(ctx context.Context, id string) (*Service, error) {
 
 func scanService(row scanner) (*Service, error) {
 	var s Service
-	err := row.Scan(&s.ID, &s.ProjectID, &s.ComposeServiceName, &s.DisplayName, &s.Type, &s.SourceType,
+	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.DisplayName, &s.Type, &s.SourceType,
 		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.Image, &s.Engine, &s.DataPath, &s.ComposeFragment,
 		&s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -213,9 +214,20 @@ func scanService(row scanner) (*Service, error) {
 	return &s, nil
 }
 
-func (db *DB) ListServices(ctx context.Context, projectID string) ([]Service, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT `+serviceColumns+` FROM services WHERE project_id = ? ORDER BY compose_service_name`, projectID)
+// ListServices returns one environment's services. Anything that needs every
+// service a project owns wants ListProjectServices instead.
+func (db *DB) ListServices(ctx context.Context, environmentID string) ([]Service, error) {
+	return db.services(ctx, `WHERE environment_id = ? ORDER BY compose_service_name`, environmentID)
+}
+
+// ListProjectServices spans every environment, which is what reconciliation and
+// anything counting a project's footprint needs.
+func (db *DB) ListProjectServices(ctx context.Context, projectID string) ([]Service, error) {
+	return db.services(ctx, `WHERE project_id = ? ORDER BY environment_id, compose_service_name`, projectID)
+}
+
+func (db *DB) services(ctx context.Context, where string, args ...any) ([]Service, error) {
+	rows, err := db.QueryContext(ctx, `SELECT `+serviceColumns+` FROM services `+where, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -234,8 +246,8 @@ func (db *DB) ListServices(ctx context.Context, projectID string) ([]Service, er
 // PruneServices drops derived services that disappeared from the compose file.
 // Managed services survive: they are the reason the overlay exists, and a
 // deploy that failed before rendering it must not delete them.
-func (db *DB) PruneServices(ctx context.Context, projectID string, keep []string) error {
-	existing, err := db.ListServices(ctx, projectID)
+func (db *DB) PruneServices(ctx context.Context, environmentID string, keep []string) error {
+	existing, err := db.ListServices(ctx, environmentID)
 	if err != nil {
 		return err
 	}

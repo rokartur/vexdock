@@ -44,20 +44,40 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "pong"})
 		return
 	}
-	if ref := pushRef(body); ref != "" && !refMatchesBranch(ref, project.Branch) {
-		writeJSON(w, http.StatusAccepted, map[string]string{"status": "ignored", "reason": "branch " + ref})
-		return
-	}
-
-	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
-		Trigger: deployments.TriggerWebhook,
-		Actor:   "webhook",
-	})
+	envs, err := s.DB.ListEnvironments(r.Context(), project.ID)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"status": "queued", "deployment_id": deployment.ID})
+	// One push can deploy more than one environment, and usually deploys none of
+	// the others: production tracks main while staging tracks its own branch, so
+	// each environment is matched against the branch it actually follows.
+	ref := pushRef(body)
+	queued := []string{}
+	for i := range envs {
+		env := &envs[i]
+		branch := env.Branch
+		if branch == "" {
+			branch = project.Branch
+		}
+		if ref != "" && !refMatchesBranch(ref, branch) {
+			continue
+		}
+		deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
+			Trigger: deployments.TriggerWebhook,
+			Actor:   "webhook",
+		})
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		queued = append(queued, deployment.ID)
+	}
+	if len(queued) == 0 {
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "ignored", "reason": "branch " + ref})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"status": "queued", "deployment_ids": queued})
 }
 
 // webhookSecretKey namespaces a project's optional HMAC secret in settings.

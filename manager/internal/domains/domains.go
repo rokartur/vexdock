@@ -52,7 +52,10 @@ func New(db *database.DB, cfg *config.Config, dockerClient *docker.Client, nginx
 
 // CreateInput is the Add Domain form.
 type CreateInput struct {
-	ProjectID     string
+	ProjectID string
+	// EnvironmentID picks which copy of the project serves the hostname. Empty
+	// means the default environment.
+	EnvironmentID string
 	ServiceName   string
 	Hostname      string
 	ContainerPort int
@@ -82,7 +85,11 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 	if err := security.ValidateServiceName(in.ServiceName); err != nil {
 		return nil, err
 	}
-	service, err := s.db.UpsertService(ctx, project.ID, in.ServiceName)
+	env, err := s.db.EnvironmentOrDefault(ctx, project.ID, in.EnvironmentID)
+	if err != nil {
+		return nil, err
+	}
+	service, err := s.db.UpsertService(ctx, project.ID, env.ID, in.ServiceName)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +109,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 	d := &database.Domain{
 		ID:                database.NewID(),
 		ProjectID:         project.ID,
+		EnvironmentID:     env.ID,
 		ServiceID:         service.ID,
 		Hostname:          host,
 		ContainerPort:     in.ContainerPort,
@@ -267,21 +275,21 @@ func (s *Service) Reconcile(ctx context.Context) error {
 
 	desired := map[string]string{}
 	for _, d := range domains {
-		project, err := s.db.ProjectByID(ctx, d.ProjectID)
-		if err != nil {
-			s.log.Warn("domain points at a missing project", "domain", d.Hostname)
-			continue
-		}
 		service, err := s.db.ServiceByID(ctx, d.ServiceID)
 		if err != nil {
 			s.log.Warn("domain points at a missing service", "domain", d.Hostname)
 			continue
 		}
-		alias := nginx.Alias(project.ID, service.ComposeServiceName)
+		env, err := s.db.EnvironmentByID(ctx, service.EnvironmentID)
+		if err != nil {
+			s.log.Warn("domain points at a missing environment", "domain", d.Hostname)
+			continue
+		}
+		alias := nginx.Alias(env.ID, service.ComposeServiceName)
 
 		// Attaching is best-effort: a stopped container must not block the rest
 		// of the configuration from being written.
-		if containerID, err := s.containerFor(ctx, project.ComposeProjectName, service.ComposeServiceName); err == nil {
+		if containerID, err := s.containerFor(ctx, env.ComposeProjectName, service.ComposeServiceName); err == nil {
 			if err := s.docker.ConnectWithAlias(ctx, s.cfg.ProxyNetwork, containerID, alias); err != nil {
 				s.log.Warn("proxy attach failed", "domain", d.Hostname, "error", err)
 			}

@@ -106,14 +106,20 @@ type Options struct {
 
 // Trigger enqueues a deployment and returns immediately; the pipeline runs in
 // the background so the HTTP request is never held open by a build.
-func (e *Engine) Trigger(ctx context.Context, project *database.Project, opts Options) (*database.Deployment, error) {
+func (e *Engine) Trigger(ctx context.Context, project *database.Project, env *database.Environment, opts Options) (*database.Deployment, error) {
+	// An environment can pin a branch of its own; staging deploying main is the
+	// default, not a rule.
 	ref := project.Branch
+	if env.Branch != "" {
+		ref = env.Branch
+	}
 	if opts.CommitSHA != "" {
 		ref = opts.CommitSHA
 	}
 	d := &database.Deployment{
-		ProjectID:   project.ID,
-		ServiceName: opts.ServiceName,
+		ProjectID:     project.ID,
+		EnvironmentID: env.ID,
+		ServiceName:   opts.ServiceName,
 		Branch:      ref,
 		Status:      database.DeploymentQueued,
 		Trigger:     opts.Trigger,
@@ -126,7 +132,7 @@ func (e *Engine) Trigger(ctx context.Context, project *database.Project, opts Op
 		return nil, err
 	}
 	e.bus.Publish(events.TopicSystem, "deployment.queued", d)
-	go e.run(project.ID, d.ID, ref)
+	go e.run(env.ID, d.ID, ref)
 	return d, nil
 }
 
@@ -143,25 +149,27 @@ func (e *Engine) Cancel(deploymentID string) error {
 	return nil
 }
 
-// lockFor returns the per-project mutex; the same project never deploys twice
-// concurrently, a queued deployment simply waits here.
+// lockFor returns the per-environment mutex; the same environment never deploys
+// twice concurrently, a queued deployment simply waits here. Production and
+// staging own separate directories and separate containers, so they are free to
+// deploy at the same time.
 // ponytail: in-process lock, sufficient while the manager is a single process.
-func (e *Engine) lockFor(projectID string) *sync.Mutex {
+func (e *Engine) lockFor(environmentID string) *sync.Mutex {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.locks[projectID] == nil {
-		e.locks[projectID] = &sync.Mutex{}
+	if e.locks[environmentID] == nil {
+		e.locks[environmentID] = &sync.Mutex{}
 	}
-	return e.locks[projectID]
+	return e.locks[environmentID]
 }
 
-func (e *Engine) run(projectID, deploymentID, ref string) {
-	lock := e.lockFor(projectID)
+func (e *Engine) run(environmentID, deploymentID, ref string) {
+	lock := e.lockFor(environmentID)
 	lock.Lock()
 	defer lock.Unlock()
 
-	// A wedged git clone or registry pull would otherwise hold the project lock
-	// forever and leave the deployment reading "running" with nothing running.
+	// A wedged git clone or registry pull would otherwise hold the environment
+	// lock forever and leave the deployment reading "running" with nothing running.
 	ctx, cancel := context.WithTimeout(context.Background(), deployTimeout)
 	e.mu.Lock()
 	e.cancels[deploymentID] = cancel
@@ -185,6 +193,7 @@ type pipeline struct {
 	ref          string
 	deployment   *database.Deployment
 	project      *database.Project
+	environment  *database.Environment
 	// target is the compose service this deploy is limited to, or empty for all.
 	target   string
 	position int
@@ -203,6 +212,10 @@ func (p *pipeline) execute(ctx context.Context) error {
 		return err
 	}
 	p.project, err = p.e.db.ProjectByID(ctx, p.deployment.ProjectID)
+	if err != nil {
+		return err
+	}
+	p.environment, err = p.e.db.EnvironmentByID(ctx, p.deployment.EnvironmentID)
 	if err != nil {
 		return err
 	}
@@ -231,7 +244,7 @@ func (p *pipeline) execute(ctx context.Context) error {
 		return err
 	}
 
-	composeProject, err := p.e.projects.ComposeProject(ctx, p.project)
+	composeProject, err := p.e.projects.ComposeProject(ctx, p.project, p.environment)
 	if err != nil {
 		p.begin(StepValidate)
 		return p.fail(err)
@@ -248,18 +261,18 @@ func (p *pipeline) execute(ctx context.Context) error {
 			return p.fail(fmt.Errorf("compose has no service %q", p.target))
 		}
 		p.printf("Compose is valid; deploying service %s", p.target)
-		if _, err := p.e.db.UpsertService(ctx, p.project.ID, p.target); err != nil {
+		if _, err := p.e.db.UpsertService(ctx, p.project.ID, p.environment.ID, p.target); err != nil {
 			return p.fail(err)
 		}
 		// Never prune siblings on a scoped deploy — they are simply not in scope.
 	} else {
 		p.printf("Compose is valid: %d service(s) - %s", len(names), strings.Join(names, ", "))
 		for _, name := range names {
-			if _, err := p.e.db.UpsertService(ctx, p.project.ID, name); err != nil {
+			if _, err := p.e.db.UpsertService(ctx, p.project.ID, p.environment.ID, name); err != nil {
 				return p.fail(err)
 			}
 		}
-		if err := p.e.db.PruneServices(ctx, p.project.ID, names); err != nil {
+		if err := p.e.db.PruneServices(ctx, p.environment.ID, names); err != nil {
 			return p.fail(err)
 		}
 	}
@@ -324,7 +337,7 @@ func (p *pipeline) gitSteps(ctx context.Context) error {
 	repo := git.Repo{
 		URL:  p.project.RepositoryURL,
 		Ref:  p.ref,
-		Dir:  p.e.projects.RepositoryDir(p.project),
+		Dir:  p.e.projects.RepositoryDir(p.environment),
 		Cred: cred,
 	}
 	p.printf("Fetching %s @ %s", p.project.RepositoryURL, p.ref)
@@ -352,7 +365,7 @@ func (p *pipeline) gitSteps(ctx context.Context) error {
 // time this runs, and p.fail on a closed step records nothing, which would turn
 // a failed service clone into a deployment that fails with an empty log.
 func (p *pipeline) serviceCheckouts(ctx context.Context) error {
-	services, err := p.e.db.ListServices(ctx, p.project.ID)
+	services, err := p.e.db.ListServices(ctx, p.environment.ID)
 	if err != nil {
 		p.begin(StepServiceCheckout)
 		return p.fail(err)
@@ -380,7 +393,7 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 		repo := git.Repo{
 			URL:  svc.RepositoryURL,
 			Ref:  svc.Branch,
-			Dir:  filepath.Join(p.e.projects.ServiceDir(p.project, svc.ComposeServiceName), "repository"),
+			Dir:  filepath.Join(p.e.projects.ServiceDir(p.environment, svc.ComposeServiceName), "repository"),
 			Cred: cred,
 		}
 		p.printf("Fetching %s @ %s for service %s", svc.RepositoryURL, svc.Branch, svc.ComposeServiceName)
@@ -398,7 +411,7 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 func (p *pipeline) waitHealthy(ctx context.Context) error {
 	deadline := time.Now().Add(healthTimeout)
 	for {
-		containers, err := p.e.docker.ListContainers(ctx, p.project.ComposeProjectName)
+		containers, err := p.e.docker.ListContainers(ctx, p.environment.ComposeProjectName)
 		if err != nil {
 			return err
 		}

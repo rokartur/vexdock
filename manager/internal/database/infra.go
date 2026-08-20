@@ -6,14 +6,14 @@ import (
 	"errors"
 )
 
-const domainColumns = `id, project_id, service_id, hostname, container_port, https_enabled, redirect_https,
+const domainColumns = `id, project_id, environment_id, service_id, hostname, container_port, https_enabled, redirect_https,
 	certificate_source, created_at, updated_at`
 
 func (db *DB) CreateDomain(ctx context.Context, d *Domain) error {
 	d.CreatedAt, d.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO domains (`+domainColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.ID, d.ProjectID, d.ServiceID, d.Hostname, d.ContainerPort,
+		`INSERT INTO domains (`+domainColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		d.ID, d.ProjectID, d.EnvironmentID, d.ServiceID, d.Hostname, d.ContainerPort,
 		boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS), d.CertificateSource, d.CreatedAt, d.UpdatedAt)
 	return err
 }
@@ -45,6 +45,10 @@ func (db *DB) ListProjectDomains(ctx context.Context, projectID string) ([]Domai
 	return db.queryDomains(ctx, `SELECT `+domainColumns+` FROM domains WHERE project_id = ? ORDER BY hostname`, projectID)
 }
 
+func (db *DB) ListEnvironmentDomains(ctx context.Context, environmentID string) ([]Domain, error) {
+	return db.queryDomains(ctx, `SELECT `+domainColumns+` FROM domains WHERE environment_id = ? ORDER BY hostname`, environmentID)
+}
+
 func (db *DB) queryDomains(ctx context.Context, query string, args ...any) ([]Domain, error) {
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -65,7 +69,7 @@ func (db *DB) queryDomains(ctx context.Context, query string, args ...any) ([]Do
 func scanDomain(row scanner) (*Domain, error) {
 	var d Domain
 	var https, redirect int
-	err := row.Scan(&d.ID, &d.ProjectID, &d.ServiceID, &d.Hostname, &d.ContainerPort, &https, &redirect,
+	err := row.Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.ServiceID, &d.Hostname, &d.ContainerPort, &https, &redirect,
 		&d.CertificateSource, &d.CreatedAt, &d.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound

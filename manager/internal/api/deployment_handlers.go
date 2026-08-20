@@ -76,12 +76,17 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 	if handleLookupError(w, err) {
 		return
 	}
+	// A rollback redeploys the environment the original deployment ran in.
+	env, err := s.DB.EnvironmentByID(r.Context(), target.EnvironmentID)
+	if handleLookupError(w, err) {
+		return
+	}
 	user, _ := auth.UserFrom(r.Context())
 	actor := ""
 	if user != nil {
 		actor = user.Email
 	}
-	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
+	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
 		Trigger:     deployments.TriggerRollback,
 		Actor:       actor,
 		CommitSHA:   target.CommitSHA,

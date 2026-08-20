@@ -130,6 +130,9 @@ func (s *Sampler) containers(ctx context.Context) ([]database.ContainerSample, e
 }
 
 // serviceIDs maps compose project and service labels to platform service ids.
+// The compose project label names an environment, not a project, so the walk
+// has to go through environments or staging's containers land on production's
+// services.
 func (s *Sampler) serviceIDs(ctx context.Context) (map[string]string, error) {
 	projects, err := s.db.ListProjects(ctx)
 	if err != nil {
@@ -137,12 +140,18 @@ func (s *Sampler) serviceIDs(ctx context.Context) (map[string]string, error) {
 	}
 	ids := map[string]string{}
 	for _, project := range projects {
-		services, err := s.db.ListServices(ctx, project.ID)
+		envs, err := s.db.ListEnvironments(ctx, project.ID)
 		if err != nil {
 			return nil, err
 		}
-		for _, service := range services {
-			ids[project.ComposeProjectName+"/"+service.ComposeServiceName] = service.ID
+		for _, env := range envs {
+			services, err := s.db.ListServices(ctx, env.ID)
+			if err != nil {
+				return nil, err
+			}
+			for _, service := range services {
+				ids[env.ComposeProjectName+"/"+service.ComposeServiceName] = service.ID
+			}
 		}
 	}
 	return ids, nil

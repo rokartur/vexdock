@@ -37,7 +37,7 @@ func (s *Server) handleEngineVersions(w http.ResponseWriter, r *http.Request) {
 // values come from that service's own environment, which is what the container
 // was started with, so an edited variable is reflected here immediately.
 func (s *Server) handleServiceDatabase(w http.ResponseWriter, r *http.Request) {
-	service, project, err := s.lookupService(r)
+	service, _, env, err := s.lookupService(r)
 	if handleLookupError(w, err) {
 		return
 	}
@@ -48,14 +48,14 @@ func (s *Server) handleServiceDatabase(w http.ResponseWriter, r *http.Request) {
 	}
 	// Unmasked: the connection panel exists to hand over the password, and the
 	// route is behind the same session guard as the environment editor.
-	vars, err := s.Projects.ServiceEnvironment(r.Context(), service.ID, false)
+	vars, err := s.Projects.ServiceVariables(r.Context(), service.ID)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	env := make(map[string]string, len(vars))
+	values := make(map[string]string, len(vars))
 	for _, v := range vars {
-		env[v.Key] = v.Value
+		values[v.Key] = v.Value
 	}
 	writeJSON(w, http.StatusOK, struct {
 		engines.Connection
@@ -65,11 +65,11 @@ func (s *Server) handleServiceDatabase(w http.ResponseWriter, r *http.Request) {
 	}{
 		// The hostname is the compose service name: sibling services in the
 		// project reach it there over the default network.
-		Connection: engines.Describe(engine, service.ComposeServiceName, service.Image, env),
+		Connection: engines.Describe(engine, service.ComposeServiceName, service.Image, values),
 		Name:       engine.Name,
 		Versions:   engine.Versions,
 		// Compose namespaces volumes by project, which is the name docker
 		// actually knows the data by.
-		DataVolume: project.ComposeProjectName + "_" + service.ComposeServiceName + "-data",
+		DataVolume: env.ComposeProjectName + "_" + service.ComposeServiceName + "-data",
 	})
 }

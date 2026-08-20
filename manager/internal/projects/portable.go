@@ -49,15 +49,16 @@ type Export struct {
 	Services []PortableService `json:"services"`
 }
 
-// ExportServices renders a project's manager-owned services as a base64 blob to
-// paste into another project's import. Services derived from the project's own
-// compose file are left out, because they already travel inside that file.
+// ExportServices renders one environment's manager-owned services as a base64
+// blob to paste into another environment's import. Services derived from the
+// project's own compose file are left out, because they already travel inside
+// that file.
 //
 // With secrets=false every secret exports as its key and an empty value, so the
 // import lands with the shape intact and the values to be refilled. Base64 is
 // not encryption: with secrets=true the blob is as sensitive as the database.
-func (s *Service) ExportServices(ctx context.Context, p *database.Project, secrets bool) (string, error) {
-	all, err := s.db.ListServices(ctx, p.ID)
+func (s *Service) ExportServices(ctx context.Context, p *database.Project, env *database.Environment, secrets bool) (string, error) {
+	all, err := s.db.ListServices(ctx, env.ID)
 	if err != nil {
 		return "", err
 	}
@@ -66,12 +67,12 @@ func (s *Service) ExportServices(ctx context.Context, p *database.Project, secre
 		if !svc.Managed() {
 			continue
 		}
-		env, err := s.ServiceEnvironment(ctx, svc.ID, false)
+		vars, err := s.ServiceVariables(ctx, svc.ID)
 		if err != nil {
 			return "", err
 		}
-		portable := make([]PortableEnvVar, 0, len(env))
-		for _, v := range env {
+		portable := make([]PortableEnvVar, 0, len(vars))
+		for _, v := range vars {
 			value := v.Value
 			if v.IsSecret && !secrets {
 				value = ""

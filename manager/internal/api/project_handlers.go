@@ -16,8 +16,11 @@ import (
 // projectView enriches the stored project with live state for the UI.
 type projectView struct {
 	database.Project
-	ServiceCount     int                  `json:"service_count"`
-	RunningCount     int                  `json:"running_count"`
+	// Environments ships with the project so the dashboard's picker does not
+	// need a second request per card.
+	Environments     []database.Environment `json:"environments"`
+	ServiceCount     int                    `json:"service_count"`
+	RunningCount     int                    `json:"running_count"`
 	Domains          []database.Domain    `json:"domains"`
 	LatestDeployment *database.Deployment `json:"latest_deployment"`
 	WebhookURL       string               `json:"webhook_url"`
@@ -44,8 +47,10 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// projectView is the card on the projects list, so it counts across every
+// environment: a project with a running staging is not a stopped project.
 func (s *Server) projectView(ctx context.Context, p *database.Project) (*projectView, error) {
-	services, err := s.DB.ListServices(ctx, p.ID)
+	services, err := s.DB.ListProjectServices(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,21 +58,30 @@ func (s *Server) projectView(ctx context.Context, p *database.Project) (*project
 	if err != nil {
 		return nil, err
 	}
+	envs, err := s.DB.ListEnvironments(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
 	view := &projectView{
 		Project:          *p,
+		Environments:     envs,
 		ServiceCount:     len(services),
 		Domains:          domainList,
 		WebhookURL:       s.Projects.WebhookURL(p),
 		WebhookSecretSet: s.setting(ctx, webhookSecretKey(p.ID)) != "",
 	}
-	if containers, err := s.Docker.ListContainers(ctx, p.ComposeProjectName); err == nil {
+	for _, env := range envs {
+		containers, err := s.Docker.ListContainers(ctx, env.ComposeProjectName)
+		if err != nil {
+			continue
+		}
 		for _, c := range containers {
 			if c.State == "running" {
 				view.RunningCount++
 			}
 		}
 	}
-	if recent, err := s.DB.ListDeployments(ctx, p.ID, 1); err == nil && len(recent) > 0 {
+	if recent, err := s.DB.ListProjectDeployments(ctx, p.ID, 1); err == nil && len(recent) > 0 {
 		view.LatestDeployment = &recent[0]
 	}
 	return view, nil
@@ -182,7 +196,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	// Only once the new source validates, so a rejected switch leaves the
 	// current checkout untouched.
 	if project.SourceType != previousSource {
-		if err := s.Projects.ResetCheckout(project); err != nil {
+		if err := s.Projects.ResetCheckout(r.Context(), project); err != nil {
 			serverError(w, err)
 			return
 		}
@@ -217,24 +231,36 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, view)
 }
 
-// handleDeleteProject tears the stack down before removing any record of it.
+// handleDeleteProject tears every environment's stack down before removing any
+// record of it. Missing one would leave containers running under a namespace
+// nothing points at any more.
 func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
 	}
+	envs, err := s.DB.ListEnvironments(r.Context(), project.ID)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
 	removeVolumes := r.URL.Query().Get("volumes") == "true"
-	if composeProject, err := s.Projects.ComposeProject(r.Context(), project); err == nil {
-		if err := composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes); err != nil {
-			s.Log.Warn("compose down during delete", "project", project.ID, "error", err)
+	for i := range envs {
+		env := &envs[i]
+		if composeProject, err := s.Projects.ComposeProject(r.Context(), project, env); err == nil {
+			if err := composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes); err != nil {
+				s.Log.Warn("compose down during delete", "environment", env.ID, "error", err)
+			}
 		}
 	}
 	if err := s.DB.DeleteProject(r.Context(), project.ID); err != nil {
 		serverError(w, err)
 		return
 	}
-	if err := s.Projects.RemoveDirectory(project.ID); err != nil {
-		s.Log.Warn("remove project directory", "project", project.ID, "error", err)
+	for i := range envs {
+		if err := s.Projects.RemoveDirectory(envs[i].ID); err != nil {
+			s.Log.Warn("remove environment directory", "environment", envs[i].ID, "error", err)
+		}
 	}
 	if err := s.Domains.Reconcile(r.Context()); err != nil {
 		s.Log.Warn("reconcile after project delete", "error", err)
@@ -243,8 +269,8 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
-	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	project, env, ok := s.projectEnv(w, r)
+	if !ok {
 		return
 	}
 	user, _ := auth.UserFrom(r.Context())
@@ -252,7 +278,7 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	if user != nil {
 		actor = user.Email
 	}
-	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
+	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
 		Trigger: deployments.TriggerManual,
 		Actor:   actor,
 	})
@@ -265,11 +291,11 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 
 // handleStopProject stops the stack without deleting anything.
 func (s *Server) handleStopProject(w http.ResponseWriter, r *http.Request) {
-	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	project, env, ok := s.projectEnv(w, r)
+	if !ok {
 		return
 	}
-	composeProject, err := s.Projects.ComposeProject(r.Context(), project)
+	composeProject, err := s.Projects.ComposeProject(r.Context(), project, env)
 	if err != nil {
 		badRequest(w, err)
 		return
@@ -286,12 +312,12 @@ func (s *Server) handleStopProject(w http.ResponseWriter, r *http.Request) {
 // ?secrets=true is asked for explicitly, because the blob is only encoded, not
 // encrypted, and it leaves here to end up on a clipboard.
 func (s *Server) handleExportServices(w http.ResponseWriter, r *http.Request) {
-	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	project, env, ok := s.projectEnv(w, r)
+	if !ok {
 		return
 	}
 	secrets := r.URL.Query().Get("secrets") == "true"
-	payload, err := s.Projects.ExportServices(r.Context(), project, secrets)
+	payload, err := s.Projects.ExportServices(r.Context(), project, env, secrets)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -308,11 +334,11 @@ func (s *Server) handleExportServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetCompose(w http.ResponseWriter, r *http.Request) {
-	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	project, env, ok := s.projectEnv(w, r)
+	if !ok {
 		return
 	}
-	content, err := s.Projects.ReadComposeFile(project)
+	content, err := s.Projects.ReadComposeFile(project, env)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -323,8 +349,8 @@ func (s *Server) handleGetCompose(w http.ResponseWriter, r *http.Request) {
 // handlePutCompose only applies to projects whose source is a pasted compose
 // file; a git-backed file would be overwritten by the next deployment.
 func (s *Server) handlePutCompose(w http.ResponseWriter, r *http.Request) {
-	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	project, env, ok := s.projectEnv(w, r)
+	if !ok {
 		return
 	}
 	if project.SourceType != database.SourceCompose {
@@ -338,16 +364,17 @@ func (s *Server) handlePutCompose(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.Projects.WriteComposeFile(project, req.Content); err != nil {
+	if err := s.Projects.WriteComposeFile(project, env, req.Content); err != nil {
 		badRequest(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func (s *Server) handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
-	// Unmasked: this is the editor, and handing the value over is the point.
-	vars, err := s.Projects.Environment(r.Context(), r.PathValue("id"), false)
+// handleGetProjectVariables returns the set shared by every environment.
+// Unmasked: this is the editor, and handing the value over is the point.
+func (s *Server) handleGetProjectVariables(w http.ResponseWriter, r *http.Request) {
+	vars, err := s.Projects.ProjectVariables(r.Context(), r.PathValue("id"))
 	if err != nil {
 		serverError(w, err)
 		return
@@ -355,7 +382,7 @@ func (s *Server) handleGetEnvironment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, vars)
 }
 
-func (s *Server) handlePutEnvironment(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePutProjectVariables(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return
@@ -367,15 +394,24 @@ func (s *Server) handlePutEnvironment(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.Projects.SetEnvironment(r.Context(), project.ID, req.Variables); err != nil {
+	if err := s.Projects.SetProjectVariables(r.Context(), project.ID, req.Variables); err != nil {
 		badRequest(w, err)
 		return
 	}
-	if _, err := s.Projects.WriteEnvFile(r.Context(), project); err != nil {
+	// A shared variable changes what every environment's containers see, so
+	// every .env has to be rewritten, not just the one the request came from.
+	envs, err := s.DB.ListEnvironments(r.Context(), project.ID)
+	if err != nil {
 		serverError(w, err)
 		return
 	}
-	vars, err := s.Projects.Environment(r.Context(), project.ID, false)
+	for i := range envs {
+		if _, err := s.Projects.WriteEnvFile(r.Context(), project, &envs[i]); err != nil {
+			serverError(w, err)
+			return
+		}
+	}
+	vars, err := s.Projects.ProjectVariables(r.Context(), project.ID)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -398,11 +434,11 @@ type serviceView struct {
 }
 
 func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
-	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	_, env, ok := s.projectEnv(w, r)
+	if !ok {
 		return
 	}
-	views, err := s.serviceViews(r.Context(), project)
+	views, err := s.serviceViews(r.Context(), env)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -410,12 +446,12 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, views)
 }
 
-func (s *Server) serviceViews(ctx context.Context, project *database.Project) ([]serviceView, error) {
-	services, err := s.DB.ListServices(ctx, project.ID)
+func (s *Server) serviceViews(ctx context.Context, env *database.Environment) ([]serviceView, error) {
+	services, err := s.DB.ListServices(ctx, env.ID)
 	if err != nil {
 		return nil, err
 	}
-	containers, err := s.Docker.ListContainers(ctx, project.ComposeProjectName)
+	containers, err := s.Docker.ListContainers(ctx, env.ComposeProjectName)
 	if err != nil {
 		containers = nil
 	}
@@ -449,7 +485,11 @@ func (s *Server) serviceViews(ctx context.Context, project *database.Project) ([
 }
 
 func (s *Server) handleListDeployments(w http.ResponseWriter, r *http.Request) {
-	list, err := s.DB.ListDeployments(r.Context(), r.PathValue("id"), 50)
+	_, env, ok := s.projectEnv(w, r)
+	if !ok {
+		return
+	}
+	list, err := s.DB.ListDeployments(r.Context(), env.ID, 50)
 	if err != nil {
 		serverError(w, err)
 		return
