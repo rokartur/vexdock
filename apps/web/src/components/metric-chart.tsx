@@ -78,10 +78,12 @@ type MetricCardProps = {
 	max?: number
 	/** Renders one sample per series while hovering. Without it the chart is inert. */
 	format?: (values: number[]) => string
+	/** What the reading is measured against: a total, a load average, a peak. */
+	hint?: ReactNode
 }
 
 /** Compact metric: label, current value, and the recorded window as a sparkline. */
-export function MetricCard({ label, value, series, max, format }: MetricCardProps) {
+export function MetricCard({ label, value, series, max, format, hint }: MetricCardProps) {
 	const ceiling = max ?? Math.max(...series.flatMap(points => points.map(point => point.value)), 0)
 	const filled = series.length === 1
 	const [primary = []] = series
@@ -100,9 +102,10 @@ export function MetricCard({ label, value, series, max, format }: MetricCardProp
 	}
 
 	return (
-		<div className='rounded-md border px-2.5 py-2'>
+		// Borderless: the enclosing Cells grid owns the hairlines.
+		<div className='px-3 py-2.5'>
 			<div className='text-meta tracking-wide text-muted-foreground uppercase'>{label}</div>
-			<div className='truncate font-mono text-title'>
+			<div className='mt-1 truncate font-mono text-reading tabular-nums'>
 				{index === null || !format ? (
 					value
 				) : (
@@ -115,6 +118,7 @@ export function MetricCard({ label, value, series, max, format }: MetricCardProp
 					</>
 				)}
 			</div>
+			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
 			{/* Hover only dates values that are already shown live, so there is
 			    nothing here a keyboard user cannot already read. */}
 			<div className='mt-1.5' onPointerMove={track} onPointerLeave={() => setHovered(null)}>

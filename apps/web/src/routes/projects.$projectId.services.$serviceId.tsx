@@ -3,16 +3,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { LogViewer } from '../components/log-viewer'
 import { MetricCard, type Point, ratesOf, seriesOf, useHistory } from '../components/metric-chart'
-import { Button, ErrorText, Field, Section } from '../components/primitives'
+import { Button, Cells, ErrorText, Fact, Facts, Field, Section } from '../components/primitives'
 import { Terminal } from '../components/terminal'
 import { api, type ContainerStats, type Service, type ServicePoint } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
 import { bytes, percent, since } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
-export const Route = createFileRoute('/projects/$projectId/services/$serviceId')({ component: ServiceDetail })
+export const Route = createFileRoute('/projects/$projectId/services/$serviceId')({
+	component: ServiceDetail,
+	// The open tab lives in the URL so a link can point straight at the logs.
+	validateSearch: (search: Record<string, unknown>): { tab?: Tab } => (isTab(search.tab) ? { tab: search.tab } : {}),
+})
 
 type Tab = 'overview' | 'environment' | 'logs' | 'terminal' | 'settings'
+
+const isTab = (value: unknown): value is Tab =>
+	['overview', 'environment', 'logs', 'terminal', 'settings'].includes(value as string)
 
 /**
  * A service the project's own compose file declares is described, never
@@ -41,7 +48,9 @@ function ServiceDetail() {
 	const { projectId, serviceId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const [tab, setTab] = useState<Tab>('overview')
+	const { tab = 'overview' } = Route.useSearch()
+	const setTab = (next: Tab) =>
+		navigate({ to: '.', search: prev => ({ ...prev, tab: next === 'overview' ? undefined : next }), replace: true })
 	const [stats, setStats] = useState<Sample | null>(null)
 
 	const service = useQuery({
@@ -122,7 +131,7 @@ function ServiceDetail() {
 				<>
 					{service.data?.type === 'database' ? <DatabasePanels serviceId={serviceId} /> : null}
 					<Section title='Overview'>
-						<div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-4'>
+						<Cells>
 							<MetricCard
 								label='CPU'
 								value={current ? percent(current.cpu_percent) : '-'}
@@ -132,37 +141,42 @@ function ServiceDetail() {
 							/>
 							<MetricCard
 								label='Memory'
-								value={
-									current ? `${bytes(current.memory_usage)} / ${bytes(current.memory_limit)}` : '-'
-								}
+								value={current ? bytes(current.memory_usage) : '-'}
 								series={[seriesOf(history, sample => sample.memory_usage)]}
 								max={current?.memory_limit}
-								format={([used]) => `${bytes(used)} / ${bytes(current?.memory_limit)}`}
+								format={([used]) => bytes(used)}
+								hint={current ? `of ${bytes(current.memory_limit)}` : undefined}
 							/>
 							<MetricCard
 								label='Network'
-								value={`${bytes(latest(received))}/s rx · ${bytes(latest(sent))}/s tx`}
+								value={`${bytes(latest(received))} / ${bytes(latest(sent))}`}
 								series={[received, sent]}
-								format={([rx, tx]) => `${bytes(rx)}/s rx · ${bytes(tx)}/s tx`}
+								format={([rx, tx]) => `${bytes(rx)} / ${bytes(tx)}`}
+								hint='rx / tx per second'
 							/>
 							<MetricCard
 								label='Block i/o'
-								value={`${bytes(latest(read))}/s r · ${bytes(latest(written))}/s w`}
+								value={`${bytes(latest(read))} / ${bytes(latest(written))}`}
 								series={[read, written]}
-								format={([r, w]) => `${bytes(r)}/s r · ${bytes(w)}/s w`}
+								format={([r, w]) => `${bytes(r)} / ${bytes(w)}`}
+								hint='read / write per second'
 							/>
+						</Cells>
+						<div className='mt-4 grid items-start gap-x-7 lg:grid-cols-2'>
+							<Facts>
+								<Fact label='Image' value={service.data?.running_image || service.data?.image || '-'} />
+								<Fact
+									label='Created'
+									value={service.data?.created_unix ? since(service.data.created_unix) : '-'}
+								/>
+								<Fact label='Restarts' value={service.data?.restart_count ?? 0} />
+							</Facts>
+							<Facts>
+								<Fact label='Health' value={service.data?.health || 'no healthcheck'} />
+								<Fact label='PIDs' value={stats?.pids ?? '-'} />
+								<Fact label='Container' value={service.data?.container_id?.slice(0, 12) || '-'} />
+							</Facts>
 						</div>
-						<dl className='mt-4 grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 lg:grid-cols-3'>
-							<Item label='Image' value={service.data?.running_image || service.data?.image || '-'} />
-							<Item
-								label='Created'
-								value={service.data?.created_unix ? since(service.data.created_unix) : '-'}
-							/>
-							<Item label='Restarts' value={String(service.data?.restart_count ?? 0)} />
-							<Item label='Health' value={service.data?.health || 'no healthcheck'} />
-							<Item label='PIDs' value={stats?.pids === undefined ? '-' : String(stats.pids)} />
-							<Item label='Container' value={service.data?.container_id?.slice(0, 12) || '-'} />
-						</dl>
 					</Section>
 				</>
 			) : null}
@@ -208,14 +222,14 @@ function DatabasePanels({ serviceId }: { serviceId: string }) {
 	return (
 		<div className='mb-4 grid gap-4 lg:grid-cols-2'>
 			<Section title='Connection'>
-				<dl className='grid grid-cols-2 gap-x-8 gap-y-1'>
-					<Item label='Host' value={data.host} />
-					<Item label='Port' value={String(data.port)} />
-					{data.database ? <Item label='Database' value={data.database} /> : null}
-					{data.user ? <Item label='User' value={data.user} /> : null}
-					<Item label='Password' value={mask(data.password)} />
-					<Item label='URL' value={revealed ? data.url : data.url.replace(data.password, '•••')} />
-				</dl>
+				<Facts>
+					<Fact label='Host' value={data.host} />
+					<Fact label='Port' value={data.port} />
+					{data.database ? <Fact label='Database' value={data.database} /> : null}
+					{data.user ? <Fact label='User' value={data.user} /> : null}
+					<Fact label='Password' value={mask(data.password)} />
+					<Fact label='URL' value={revealed ? data.url : data.url.replace(data.password, '•••')} />
+				</Facts>
 				<div className='mt-2 flex items-center gap-3'>
 					<Button variant='ghost' onClick={() => setRevealed(value => !value)}>
 						{revealed ? 'Hide' : 'Reveal'}
@@ -227,12 +241,12 @@ function DatabasePanels({ serviceId }: { serviceId: string }) {
 			</Section>
 
 			<Section title='Engine'>
-				<dl className='grid grid-cols-2 gap-x-8 gap-y-1'>
-					<Item label='Engine' value={data.engine} />
-					<Item label='Image' value={data.image} />
-					<Item label='Volume' value={data.data_volume} />
-					<Item label='Other tags' value={upgrades.slice(0, 4).join(', ') || '-'} />
-				</dl>
+				<Facts>
+					<Fact label='Engine' value={data.engine} />
+					<Fact label='Image' value={data.image} />
+					<Fact label='Volume' value={data.data_volume} />
+					<Fact label='Other tags' value={upgrades.slice(0, 4).join(', ') || '-'} />
+				</Facts>
 				<p className='mt-2 text-label text-muted-foreground'>
 					Change the image in Settings, then Deploy this service to move versions.
 				</p>
@@ -418,13 +432,4 @@ function ServiceSettings({ projectId, service }: { projectId: string; service: S
 function terminalUrl(serviceId: string): string {
 	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 	return `${protocol}//${window.location.host}/api/services/${serviceId}/terminal`
-}
-
-function Item({ label, value }: { label: string; value: string }) {
-	return (
-		<div className='py-1'>
-			<dt className='text-label tracking-wide text-muted-foreground uppercase'>{label}</dt>
-			<dd className='font-mono text-body break-all'>{value}</dd>
-		</div>
-	)
 }

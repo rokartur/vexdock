@@ -1,14 +1,14 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/dm-sans';
 @import '@xterm/xterm/css/xterm.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-	/* Inter Variable is the self-hosted build of the family rarv names 'Inter'. */
-	--font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+	/* DM Sans Variable is the self-hosted build of the preset's family. Mono is
+	 * kept for the surfaces that are literally machine output: console, code, ids. */
 	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
 	/* The app's type scale. Font size only: line-height stays inherited, which is
@@ -17,50 +17,85 @@
 	--text-label: 12px;
 	--text-body: 13px;
 	--text-title: 14px;
+	/* The one size that is allowed to be big: a live reading in a Cells grid. */
+	--text-reading: 19px;
 }
 
 /* Dark-only app: <html class="dark"> is hardcoded in routes/__root.tsx and there
  * is no theme toggle, so the light palette shadcn ships would never render.
  * Only theme-independent tokens live here; every colour is in .dark below. */
 :root {
-	--radius: 0.45rem;
+	/* Every rounded-* utility derives from this token, so the preset's corner
+	 * radius is set once here. */
+	--radius: 0.625rem;
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.145 0 0);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.145 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.145 0 0);
+	--primary: oklch(0.205 0 0);
+	--primary-foreground: oklch(0.985 0 0);
+	--secondary: oklch(0.97 0 0);
+	--secondary-foreground: oklch(0.205 0 0);
+	--muted: oklch(0.97 0 0);
+	--muted-foreground: oklch(0.556 0 0);
+	--accent: oklch(0.97 0 0);
+	--accent-foreground: oklch(0.205 0 0);
+	--destructive: oklch(0.577 0.245 27.325);
+	--border: oklch(0.922 0 0);
+	--input: oklch(0.922 0 0);
+	--ring: oklch(0.708 0 0);
+	--chart-1: oklch(0.87 0 0);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--sidebar: oklch(0.985 0 0);
+	--sidebar-foreground: oklch(0.145 0 0);
+	--sidebar-primary: oklch(0.205 0 0);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.205 0 0);
+	--sidebar-border: oklch(0.922 0 0);
+	--sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-	--background: #0f1012;
-	--foreground: #f3f3f4;
-	--card: #151619;
-	--card-foreground: #f3f3f4;
-	--popover: #151619;
-	--popover-foreground: #f3f3f4;
-	--primary: #f3f3f4;
-	--primary-foreground: #070708;
-	--secondary: #1a1c1e;
-	--secondary-foreground: #f3f3f4;
-	--muted: #1a1c1e;
-	--muted-foreground: #8c8f94;
-	--accent: #1a1c1e;
-	--accent-foreground: #f3f3f4;
-	/* Lifted from #dc4c4c so danger text clears 4.5:1 on its own 20% tint, which
-	 * is the only way this app renders destructive: tint plus red text. */
-	--destructive: #e4665f;
+	--background: oklch(0.145 0 0);
+	--foreground: oklch(0.985 0 0);
+	--card: oklch(0.205 0 0);
+	--card-foreground: oklch(0.985 0 0);
+	--popover: oklch(0.205 0 0);
+	--popover-foreground: oklch(0.985 0 0);
+	--primary: oklch(0.922 0 0);
+	--primary-foreground: oklch(0.205 0 0);
+	--secondary: oklch(0.269 0 0);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.269 0 0);
+	--muted-foreground: oklch(0.708 0 0);
+	--accent: oklch(0.269 0 0);
+	--accent-foreground: oklch(0.985 0 0);
+	/* Lifted well off pure red so danger text clears 4.5:1 on its own 20% tint,
+	 * which is the only way this app renders destructive: tint plus red text. */
+	--destructive: oklch(0.704 0.191 22.216);
 	--destructive-foreground: #ffffff;
-	--border: #26282d;
-	--input: #26282d;
-	--ring: #3b3e45;
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: #080809;
-	--sidebar-foreground: #8c8f94;
-	--sidebar-primary: #f3f3f4;
-	--sidebar-primary-foreground: #080809;
-	--sidebar-accent: #151619;
-	--sidebar-accent-foreground: #f3f3f4;
-	--sidebar-border: #1a1c1e;
-	--sidebar-ring: #3b3e45;
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 15%);
+	--ring: oklch(0.556 0 0);
+	--chart-1: oklch(0.87 0 0);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--sidebar: oklch(0.205 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.488 0.243 264.376);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.269 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
 	--info: var(--color-blue-500);
 	--info-foreground: var(--color-blue-400);
 	--success: var(--color-emerald-500);
@@ -71,9 +106,10 @@
 	--code-foreground: var(--foreground);
 	--code-highlight: --alpha(var(--color-white) / 4%);
 
-	/* Console surfaces (log tail, container shell). Deliberately darker than the
-	 * canvas so streamed engine output reads as machine output, not as UI. */
-	--console: #050505;
+	/* Console surfaces (log tail, container shell). Streamed engine output shares
+	 * the canvas and is set apart by its hairline frame and dimmer foreground
+	 * rather than by a surface of its own. */
+	--console: var(--background);
 	--console-foreground: #d4d4d4;
 	--console-muted: #8a8a8a;
 	--console-stderr: #ff8a80;
@@ -118,7 +154,7 @@
 	--color-console-stderr: var(--console-stderr);
 	--color-console-border: var(--console-border);
 	--font-heading: var(--font-sans);
-	--font-sans: 'Inter Variable', sans-serif;
+	--font-sans: 'DM Sans Variable', sans-serif;
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
@@ -244,7 +280,7 @@ html[data-popover-open] main [data-scroll-lock] {
 	input:not([type='checkbox'], [type='radio'], [data-slot], [cmdk-input]),
 	select:not([data-slot]),
 	textarea:not([data-slot]) {
-		@apply h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm transition-[color,box-shadow] duration-200 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
+		@apply h-8 w-full min-w-0 rounded-none border border-input bg-input/30 px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20;
 		color: inherit;
 	}
 

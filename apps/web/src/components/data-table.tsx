@@ -72,8 +72,9 @@ export function DataTable<TData extends RowData>({
 	const columnCount = table.getAllLeafColumns().length
 
 	return (
-		<div className='overflow-hidden rounded-md border'>
-			<ShadcnTable>
+		/* No box: rows are separated by their own hairlines, like every list in the panel. */
+		<div className='overflow-x-auto'>
+			<ShadcnTable className='text-body'>
 				<TableHeader>
 					{table.getHeaderGroups().map(headerGroup => (
 						<TableRow key={headerGroup.id} className='hover:bg-transparent'>
@@ -83,7 +84,7 @@ export function DataTable<TData extends RowData>({
 									<TableHead
 										key={header.id}
 										className={cn(
-											'h-8 px-3 text-label text-muted-foreground uppercase',
+											'h-7 pr-3 pl-0 text-meta tracking-wide text-muted-foreground uppercase',
 											header.column.columnDef.meta?.align === 'right' && 'text-right',
 										)}
 									>
@@ -114,7 +115,7 @@ export function DataTable<TData extends RowData>({
 						<SkeletonRows columns={columnCount} />
 					) : rows.length === 0 ? (
 						<TableRow className='hover:bg-transparent'>
-							<TableCell colSpan={columnCount} className='h-20 px-3 text-center text-muted-foreground'>
+							<TableCell colSpan={columnCount} className='h-20 text-center text-muted-foreground'>
 								{empty}
 							</TableCell>
 						</TableRow>
@@ -125,7 +126,7 @@ export function DataTable<TData extends RowData>({
 									<TableCell
 										key={cell.id}
 										className={cn(
-											'px-3 py-1.5',
+											'py-1.5 pr-3 pl-0',
 											cell.column.columnDef.meta?.align === 'right' && 'text-right',
 											cell.column.columnDef.meta?.mono && 'font-mono',
 										)}
@@ -148,7 +149,7 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
 			{Array.from({ length: rows }, (_row, index) => (
 				<TableRow key={index} className='hover:bg-transparent'>
 					{Array.from({ length: columns }, (_cell, cell) => (
-						<TableCell key={cell} className='px-3 py-1.5'>
+						<TableCell key={cell} className='py-1.5 pr-3 pl-0'>
 							<div className='h-3 w-24 bg-muted' />
 						</TableCell>
 					))}

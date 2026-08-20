@@ -143,6 +143,9 @@ export type Service = {
 	health: string
 	restart_count: number
 	created_unix: number
+	/** The sampler's newest reading, zero while the service is not running. */
+	cpu_percent: number
+	memory_usage: number
 }
 
 export type EnvVar = {

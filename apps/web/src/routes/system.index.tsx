@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Page, Refresh, Section, Status } from '../components/primitives'
+import { Fact, Facts, Page, Refresh, Section, Status } from '../components/primitives'
 import { api } from '../lib/api'
 import { bytes } from '../lib/format'
 
@@ -38,40 +38,33 @@ function SystemOverview() {
 
 	return (
 		<Page>
-			<Section title='Health' actions={<Refresh onClick={() => health.refetch()} busy={health.isFetching} />}>
-				<DataTable
-					data={healthRows}
-					columns={healthTableColumns}
-					loading={health.isLoading}
-					getRowId={row => row.name}
-					empty='No checks reported.'
-				/>
-			</Section>
-
-			<Section title='Host'>
-				<dl className='grid grid-cols-2 gap-x-8 gap-y-1 border-t border-border pt-2 lg:grid-cols-4'>
-					<Item label='Platform version' value={info.data?.version ?? '-'} />
-					<Item label='Docker' value={info.data?.host.docker_version ?? '-'} />
-					<Item label='OS' value={info.data?.host.os ?? '-'} />
-					<Item label='Architecture' value={info.data?.host.architecture ?? '-'} />
-					<Item label='CPUs' value={String(info.data?.host.cpus ?? '-')} />
-					<Item label='Memory' value={bytes(info.data?.host.memory_total)} />
-					<Item
-						label='Containers'
-						value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
+			<div className='grid items-start gap-x-7 lg:grid-cols-2'>
+				<Section title='Health' actions={<Refresh onClick={() => health.refetch()} busy={health.isFetching} />}>
+					<DataTable
+						data={healthRows}
+						columns={healthTableColumns}
+						loading={health.isLoading}
+						getRowId={row => row.name}
+						empty='No checks reported.'
 					/>
-					<Item label='Images' value={String(info.data?.images ?? 0)} />
-				</dl>
-			</Section>
-		</Page>
-	)
-}
+				</Section>
 
-function Item({ label, value }: { label: string; value: string }) {
-	return (
-		<div className='py-1'>
-			<dt className='text-label tracking-wide text-muted-foreground uppercase'>{label}</dt>
-			<dd className='font-mono text-body break-all'>{value}</dd>
-		</div>
+				<Section title='Host'>
+					<Facts>
+						<Fact label='Platform version' value={info.data?.version ?? '-'} />
+						<Fact label='Docker' value={info.data?.host.docker_version ?? '-'} />
+						<Fact label='OS' value={info.data?.host.os ?? '-'} />
+						<Fact label='Architecture' value={info.data?.host.architecture ?? '-'} />
+						<Fact label='CPUs' value={info.data?.host.cpus ?? '-'} />
+						<Fact label='Memory' value={bytes(info.data?.host.memory_total)} />
+						<Fact
+							label='Containers'
+							value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
+						/>
+						<Fact label='Images' value={info.data?.images ?? 0} />
+					</Facts>
+				</Section>
+			</div>
+		</Page>
 	)
 }

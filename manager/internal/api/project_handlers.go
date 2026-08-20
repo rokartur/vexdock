@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/deployments"
 	"github.com/vexdock/platform/manager/internal/docker"
+	"github.com/vexdock/platform/manager/internal/metrics"
 	"github.com/vexdock/platform/manager/internal/projects"
 )
 
@@ -431,7 +433,16 @@ type serviceView struct {
 	Health       string `json:"health"`
 	Restarts     int    `json:"restart_count"`
 	CreatedUnix  int64  `json:"created_unix"`
+	// The sampler's newest reading, so a list of services can show usage without
+	// opening a stats stream per row. Zero when nothing recent was recorded.
+	CPUPercent  float64 `json:"cpu_percent"`
+	MemoryUsage uint64  `json:"memory_usage"`
 }
+
+// staleReading is how old the newest recorded sample may be before a service is
+// reported as having no current usage. The sampler ticks every metrics.Interval;
+// two missed ticks means the container is gone, not merely between readings.
+const staleReading = 3 * metrics.Interval
 
 func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 	_, env, ok := s.projectEnv(w, r)
@@ -455,6 +466,10 @@ func (s *Server) serviceViews(ctx context.Context, env *database.Environment) ([
 	if err != nil {
 		containers = nil
 	}
+	usage, err := s.DB.LatestServiceMetrics(ctx, time.Now().Add(-staleReading))
+	if err != nil {
+		return nil, err
+	}
 	byService := map[string]int{}
 	for i, c := range containers {
 		name := c.Labels[docker.ComposeServiceLabel]
@@ -477,6 +492,10 @@ func (s *Server) serviceViews(ctx context.Context, env *database.Environment) ([
 				if info.State != nil && info.State.Health != nil {
 					view.Health = info.State.Health.Status
 				}
+			}
+			if reading, ok := usage[svc.ID]; ok && c.State == "running" {
+				view.CPUPercent = reading.CPUPercent
+				view.MemoryUsage = reading.MemoryUsage
 			}
 		}
 		out = append(out, view)

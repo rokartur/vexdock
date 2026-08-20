@@ -54,6 +54,22 @@ func TestMetricsBucketAndPrune(t *testing.T) {
 		t.Fatalf("expected counters 400 then 900, got %d then %d", service[0].NetworkRX, service[1].NetworkRX)
 	}
 
+	latest, err := db.LatestServiceMetrics(ctx, base.Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("latest service metrics: %v", err)
+	}
+	if latest["svc"].CPUPercent != 50 {
+		t.Fatalf("expected the newest reading, cpu 50, got %v", latest["svc"].CPUPercent)
+	}
+	// A window that starts after every reading has no current reading to report.
+	fresh, err := db.LatestServiceMetrics(ctx, base.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("latest service metrics after window: %v", err)
+	}
+	if len(fresh) != 0 {
+		t.Fatalf("expected stale readings to be dropped, got %d", len(fresh))
+	}
+
 	if err := db.PruneMetrics(ctx, base.Add(time.Hour)); err != nil {
 		t.Fatalf("prune: %v", err)
 	}

@@ -81,7 +81,7 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 			title='Refresh'
 			onClick={onClick}
 			disabled={busy}
-			className='flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
+			className='flex size-7 shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
 		>
 			<IconRefresh className='size-4' />
 		</button>
@@ -217,16 +217,52 @@ export function Section({
 	}
 
 	return (
-		<section className='mb-8' onKeyDown={onKeyDown}>
+		<section className='mb-7' onKeyDown={onKeyDown}>
 			<header className='mb-2 flex h-7 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-3'>
-					<h2 className='text-title font-medium'>{title}</h2>
-					{description ? <span className='text-xs text-muted-foreground'>{description}</span> : null}
+					<h2 className='text-meta tracking-wider text-muted-foreground uppercase'>{title}</h2>
+					{description ? <span className='text-meta text-muted-foreground/70'>{description}</span> : null}
 				</div>
 				{actions ? <div className='flex items-center gap-2'>{actions}</div> : null}
 			</header>
 			{children}
 		</section>
+	)
+}
+
+/**
+ * A row of readings sharing hairlines, the way the panel shows any set of
+ * numbers: no gaps, no per-card chrome, one border around the whole block.
+ * Children supply their own padding and must not draw their own border.
+ */
+export function Cells({ children, className }: { children: ReactNode; className?: string }) {
+	return (
+		<div
+			className={cn(
+				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px border bg-border [&>*]:bg-background',
+				className,
+			)}
+		>
+			{children}
+		</div>
+	)
+}
+
+/**
+ * A list of facts: label on the left, value on the right, one hairline per row.
+ * The shape the panel uses wherever a set of attributes is read, not edited.
+ */
+export function Facts({ children, className }: { children: ReactNode; className?: string }) {
+	return <dl className={cn('grid grid-cols-[max-content_1fr] gap-x-6 text-body', className)}>{children}</dl>
+}
+
+/** One row of a `Facts` list. The dt/dd pair are the grid's cells, so no wrapper. */
+export function Fact({ label, value }: { label: string; value: ReactNode }) {
+	return (
+		<>
+			<dt className='border-t py-1.5'>{label}</dt>
+			<dd className='truncate border-t py-1.5 text-right font-mono text-muted-foreground'>{value}</dd>
+		</>
 	)
 }
 
