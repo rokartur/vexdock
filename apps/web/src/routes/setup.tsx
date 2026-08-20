@@ -45,7 +45,7 @@ function SetupPage() {
 					if (!mismatch) setup.mutate()
 				}}
 			>
-				<Field label='Setup token' hint='Printed by the installer. Also in /opt/platform/.env.'>
+				<Field label='Setup token' hint='Printed by the installer. Also in /opt/vexdock/.env.'>
 					<input
 						type='password'
 						autoComplete='off'

@@ -50,7 +50,7 @@ the public internet. Check that:
 
 The failure reason is stored with the certificate and shown on the project's
 Domains tab. Use **renew** to retry after fixing the cause. While testing, set
-`ACME_STAGING=true` in `/opt/platform/.env` to avoid the production rate limit
+`ACME_STAGING=true` in `/opt/vexdock/.env` to avoid the production rate limit
 of five failures per hostname per hour.
 
 ## Disk is full
@@ -71,7 +71,7 @@ docker ps --filter name=vexdock
 The updater container is kept after it exits so those logs survive; the next
 update replaces it.
 
-Backups live in `/opt/platform/backups/<timestamp>/`, containing `app.db`,
+Backups live in `/opt/vexdock/backups/<timestamp>/`, containing `app.db`,
 `auth.db`, `master.key`, the generated proxy configuration and the certificates.
 A backup created with **Include volumes** also has a `volumes/<name>.tar.gz` per
 application volume. Restoring one is in
@@ -86,7 +86,7 @@ then unpack the archive back into the volume:
 ```sh
 docker run --rm \
   -v p_myproject_data:/dst \
-  -v /opt/platform/backups/2026-01-31T120000/volumes:/src:ro \
+  -v /opt/vexdock/backups/2026-01-31T120000/volumes:/src:ro \
   alpine tar xzf /src/p_myproject_data.tar.gz -C /dst
 ```
 
@@ -96,7 +96,7 @@ The volume names in the archive are the real Docker volume names, so
 ## Starting over without losing applications
 
 ```sh
-cd /opt/platform && docker compose down
+cd /opt/vexdock && docker compose down
 curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh
 ```
 

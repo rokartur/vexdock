@@ -21,7 +21,7 @@ The installer:
 
 1. Checks the operating system, architecture, memory, disk and ports.
 2. Installs Docker and the Compose plugin if they are missing.
-3. Creates `/opt/platform` and the shared `vexdock-proxy` network.
+3. Creates `/opt/vexdock` and the shared `vexdock-proxy` network.
 4. Downloads `compose.yml`, writes `.env` with a generated session secret and
    setup token, and starts the stack.
 5. Waits for the health check, then prints the dashboard URL and the setup
@@ -32,7 +32,7 @@ administrator account. The form closes permanently once an account exists.
 
 The token is what stops a stranger who finds the panel before you do from
 claiming it, so the dashboard is not usable until you paste it. If you lose the
-printed copy it is in `/opt/platform/.env` as `SETUP_TOKEN`.
+printed copy it is in `/opt/vexdock/.env` as `SETUP_TOKEN`.
 
 ### Options
 
@@ -40,7 +40,7 @@ Environment variables understood by the installer:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PLATFORM_ROOT` | `/opt/platform` | State directory |
+| `PLATFORM_ROOT` | `/opt/vexdock` | State directory. An install made before the rename keeps `/opt/platform`, since its projects bind-mount paths inside it |
 | `DASHBOARD_PORT` | `3000` | Port the dashboard listens on |
 | `PLATFORM_VERSION` | `latest` | Version to install |
 | `ACME_EMAIL` | empty | Contact address for Let's Encrypt |
@@ -68,8 +68,8 @@ Session cookies are only marked `Secure` when the panel has an HTTPS origin it
 knows about, so once the domain works set `PUBLIC_URL` and restart:
 
 ```sh
-sudo sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://panel.example.com|' /opt/platform/.env
-cd /opt/platform && sudo docker compose up -d
+sudo sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://panel.example.com|' /opt/vexdock/.env
+cd /opt/vexdock && sudo docker compose up -d
 ```
 
 Close port 3000 in the firewall afterwards, or the plaintext fallback stays
@@ -91,20 +91,20 @@ curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/ins
 ```
 
 A shell update keeps the five most recent backups under
-`/opt/platform/backups/` and deletes older ones.
+`/opt/vexdock/backups/` and deletes older ones.
 
 ## Restoring a backup
 
 A snapshot from **System → Backups** is a directory under
-`/opt/platform/backups/`, named for the UTC time it was taken. It contains
+`/opt/vexdock/backups/`, named for the UTC time it was taken. It contains
 `app.db`, `auth.db`, `master.key`, the generated Nginx configuration, the
 certificates and a copy of the system compose file. Restoring is a file copy
 onto a stopped stack:
 
 ```sh
-cd /opt/platform
+cd /opt/vexdock
 sudo docker compose down
-SNAPSHOT=/opt/platform/backups/2025-01-31T120000
+SNAPSHOT=/opt/vexdock/backups/2025-01-31T120000
 sudo cp "$SNAPSHOT"/app.db "$SNAPSHOT"/auth.db data/
 sudo cp "$SNAPSHOT"/master.key secrets/master.key
 sudo cp -a "$SNAPSHOT"/nginx/. nginx/
@@ -133,7 +133,7 @@ You are asked whether to keep the data:
 2. Remove the platform and all platform metadata.
 
 Deployed applications keep running in either case. They are ordinary compose
-projects under `/opt/platform/projects`, so `docker compose down` in a project
+projects under `/opt/vexdock/projects`, so `docker compose down` in a project
 directory removes one, and nothing else depends on the platform being installed.
 
 ## Firewall

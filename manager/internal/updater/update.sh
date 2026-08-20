@@ -12,7 +12,7 @@ case "$CLEANUP_OLD_IMAGES" in
     true|false) ;;
     *) echo "[updater] cleanup_old_images must be true or false" >&2; exit 1 ;;
 esac
-ROOT="${PLATFORM_ROOT:-/opt/platform}"
+ROOT="${PLATFORM_ROOT:-/opt/vexdock}"
 COMPOSE_FILE="$ROOT/compose.yml"
 COMPOSE_BACKUP="$ROOT/system/compose.previous.yml"
 ENV_FILE="$ROOT/.env"

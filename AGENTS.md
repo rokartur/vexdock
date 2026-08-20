@@ -80,7 +80,7 @@ The doc edit ships in the same change as the behaviour, not after it.
 | Route, error code, SSE stream | `docs/api.md` and `apps/web/src/lib/api.ts` |
 | Component boundary, deploy pipeline, reconciliation, networking | `docs/architecture.md` |
 | Auth, CSRF, secret handling, validation, a destructive action | `docs/security.md` |
-| Installer flags, ports, the `/opt/platform` layout | `docs/install.md` and the state tree in `README.md` |
+| Installer flags, ports, the `/opt/vexdock` layout | `docs/install.md` and the state tree in `README.md` |
 | A new failure mode with a known fix | `docs/troubleshooting.md` |
 | Package layout, conventions, test policy | `CONTRIBUTING.md` |
 | Anything above that changes how an agent works in this repo | this file |
@@ -88,4 +88,4 @@ The doc edit ships in the same change as the behaviour, not after it.
 ## Local only
 
 Dev state is `./.vexdock`; `.mocks/` and `DESIGN.md` are gitignored scratch.
-`/opt/platform` is a real installation — never touch it from a dev box.
+`/opt/vexdock` is a real installation — never touch it from a dev box.

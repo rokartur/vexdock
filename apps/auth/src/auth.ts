@@ -11,7 +11,7 @@ import { betterAuth } from 'better-auth'
  * requests, which keeps exactly one implementation of login in the system.
  */
 
-const root = process.env.PLATFORM_ROOT ?? '/opt/platform'
+const root = process.env.PLATFORM_ROOT ?? '/opt/vexdock'
 const databasePath = process.env.PLATFORM_AUTH_DB ?? `${root}/data/auth.db`
 mkdirSync(path.dirname(databasePath), { recursive: true })
 

@@ -18,7 +18,7 @@ RUN apk add --no-cache ca-certificates git openssh-client docker-cli docker-cli-
 
 COPY --from=build /out/manager /usr/local/bin/manager
 
-ENV PLATFORM_ROOT=/opt/platform \
+ENV PLATFORM_ROOT=/opt/vexdock \
     PLATFORM_LISTEN=:8080
 
 EXPOSE 8080

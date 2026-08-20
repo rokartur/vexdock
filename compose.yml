@@ -1,4 +1,4 @@
-# System stack. The installer copies this to /opt/platform/compose.yml and runs
+# System stack. The installer copies this to /opt/vexdock/compose.yml and runs
 # it from there; the updater recreates it with a new VERSION.
 #
 # PLATFORM_ROOT is mounted at the *same* path inside the manager so that bind
@@ -24,7 +24,7 @@ services:
     logging: *logging
 
     environment:
-      PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/platform}
+      PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/vexdock}
       PLATFORM_LISTEN: ":8080"
       PLATFORM_VERSION: ${VERSION:-latest}
       PLATFORM_PROXY_NETWORK: vexdock-proxy
@@ -36,7 +36,7 @@ services:
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${PLATFORM_ROOT:-/opt/platform}:${PLATFORM_ROOT:-/opt/platform}
+      - ${PLATFORM_ROOT:-/opt/vexdock}:${PLATFORM_ROOT:-/opt/vexdock}
 
     networks:
       - internal
@@ -50,7 +50,7 @@ services:
     logging: *logging
 
     environment:
-      PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/platform}
+      PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/vexdock}
       PLATFORM_PUBLIC_URL: ${PUBLIC_URL:-}
       PORT: "8081"
       # Signs every session cookie. Required: booting without it would sign
@@ -60,7 +60,7 @@ services:
       PLATFORM_SETUP_TOKEN: ${SETUP_TOKEN:-}
 
     volumes:
-      - ${PLATFORM_ROOT:-/opt/platform}/data:${PLATFORM_ROOT:-/opt/platform}/data
+      - ${PLATFORM_ROOT:-/opt/vexdock}/data:${PLATFORM_ROOT:-/opt/vexdock}/data
 
     networks:
       - internal
@@ -81,10 +81,10 @@ services:
       - "${DASHBOARD_PORT:-3000}:3000"
 
     volumes:
-      - ${PLATFORM_ROOT:-/opt/platform}/nginx/generated:/etc/nginx/generated:ro
-      - ${PLATFORM_ROOT:-/opt/platform}/nginx/custom:/etc/nginx/custom:ro
-      - ${PLATFORM_ROOT:-/opt/platform}/nginx/acme-challenge:/acme-challenge:ro
-      - ${PLATFORM_ROOT:-/opt/platform}/certificates:/certificates:ro
+      - ${PLATFORM_ROOT:-/opt/vexdock}/nginx/generated:/etc/nginx/generated:ro
+      - ${PLATFORM_ROOT:-/opt/vexdock}/nginx/custom:/etc/nginx/custom:ro
+      - ${PLATFORM_ROOT:-/opt/vexdock}/nginx/acme-challenge:/acme-challenge:ro
+      - ${PLATFORM_ROOT:-/opt/vexdock}/certificates:/certificates:ro
 
     networks:
       - internal

@@ -58,7 +58,7 @@ Values that reach a command line are validated first:
 
 - Environment variables are encrypted with AES-256-GCM before they touch SQLite.
   A fresh nonce per value means two identical secrets are not linkable.
-- The master key is a 0600 file under `/opt/platform/secrets`, never in the
+- The master key is a 0600 file under `/opt/vexdock/secrets`, never in the
   database it protects.
 - Git credentials never reach the command line. Tokens go through `GIT_ASKPASS`
   and SSH keys through a 0600 temporary file removed when the clone finishes.
@@ -75,7 +75,7 @@ Values that reach a command line are validated first:
   stored there and nowhere else, scoped to that one service.
 - A service name becomes a file name, so it is validated against
   `[a-zA-Z0-9][a-zA-Z0-9._-]*` first and cannot escape the project directory.
-- `/opt/platform/.env` holds the session secret and the setup token and is 0600.
+- `/opt/vexdock/.env` holds the session secret and the setup token and is 0600.
 - A service export withholds secret values by default, sending their keys with
   empty values. `?secrets=true` includes them, and that request is written to
   the audit log even though it is a read, because it is the one route that hands

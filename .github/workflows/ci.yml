@@ -89,7 +89,7 @@ jobs:
     timeout-minutes: 30
     needs: [manager, web]
     # The one path every user takes and the only one the other jobs skip: the
-    # installer script itself, against /opt/platform, with a real registry.
+    # installer script itself, against /opt/vexdock, with a real registry.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -114,13 +114,13 @@ jobs:
       - name: The installer generated its secrets
         run: |
           for key in BETTER_AUTH_SECRET SETUP_TOKEN; do
-            value=$(sudo sed -n "s/^$key=//p" /opt/platform/.env)
+            value=$(sudo sed -n "s/^$key=//p" /opt/vexdock/.env)
             [ ${#value} -eq 64 ] || { echo "$key is '$value'"; exit 1; }
           done
 
       - name: Run the end-to-end smoke test
         run: |
-          SETUP_TOKEN=$(sudo sed -n 's/^SETUP_TOKEN=//p' /opt/platform/.env) \
+          SETUP_TOKEN=$(sudo sed -n 's/^SETUP_TOKEN=//p' /opt/vexdock/.env) \
             ./scripts/smoke-test.sh
 
       - name: Logs on failure
