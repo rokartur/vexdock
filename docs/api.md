@@ -101,6 +101,12 @@ the project's own compose file declares are read-only; the ones the platform
 owns can be created, changed and removed. A service belongs to one environment,
 and a name is free again in each of them.
 
+Each listed service carries its live container alongside the stored record:
+`state`, `status`, `health`, `running_image`, `restart_count`, `created_unix`,
+and `cpu_percent` with `memory_usage` from the sampler's newest reading. Usage
+is zero when the service is not running or when nothing was recorded in the
+last three minutes, so the list never shows a dead container's last numbers.
+
 | Endpoint | Does |
 |---|---|
 | `POST /api/projects/{id}/services` | Adds a managed service |
@@ -160,7 +166,8 @@ curl -fsS -X POST \
 
 Create and edit do not start a container. `POST /api/services/{id}/deploy` runs
 the pipeline for that service alone; `POST /api/projects/{id}/deploy` still
-deploys every service in the project (used by CI, webhooks, and Deploy all).
+deploys every service in the project (used by CI, webhooks, and the dashboard's
+Deploy all, which it offers while a project has no services yet).
 
 ### Moving services between projects
 

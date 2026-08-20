@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, retainSearchParams, useNavigate, useParams } from '@tanstack/react-router'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { Button, ErrorText, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
@@ -67,9 +68,18 @@ function ProjectLayout() {
 						</Button>
 					</>
 				) : (
-					<Button variant='danger' onClick={() => setConfirmDelete(true)}>
-						Delete
-					</Button>
+					// Deleting a project is rare and unrecoverable, so it sits behind the
+					// overflow instead of one stray click away on every page below here.
+					<DropdownMenu>
+						<DropdownMenuTrigger render={<Button variant='ghost' aria-label='Project actions' />}>
+							···
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align='end'>
+							<DropdownMenuItem variant='destructive' onClick={() => setConfirmDelete(true)}>
+								Delete project
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				)
 			}
 			toolbar={<Tabs base={base} tabs={tabs} />}

@@ -139,6 +139,32 @@ func (db *DB) ServiceMetrics(ctx context.Context, serviceID string, since time.T
 	return out, rows.Err()
 }
 
+// LatestServiceMetrics returns the newest reading per service, ignoring anything
+// recorded before `since` so a service that stopped an hour ago reads as no
+// reading at all rather than as its last living numbers. SQLite takes the bare
+// columns from the same row as the MAX(), which is the row wanted here.
+func (db *DB) LatestServiceMetrics(ctx context.Context, since time.Time) (map[string]ContainerPoint, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT service_id, MAX(at), cpu_percent, memory_usage, memory_limit
+		 FROM container_metrics WHERE service_id != '' AND at >= ? GROUP BY service_id`,
+		since.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]ContainerPoint{}
+	for rows.Next() {
+		var serviceID string
+		var p ContainerPoint
+		if err := rows.Scan(&serviceID, &p.At, &p.CPUPercent, &p.MemoryUsage, &p.MemoryLimit); err != nil {
+			return nil, err
+		}
+		out[serviceID] = p
+	}
+	return out, rows.Err()
+}
+
 // PruneMetrics drops readings older than `before`, keeping both tables bounded.
 func (db *DB) PruneMetrics(ctx context.Context, before time.Time) error {
 	cutoff := before.Unix()
