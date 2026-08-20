@@ -89,7 +89,7 @@ function ProjectServices() {
 				<DropdownMenuTrigger render={<Button variant='primary' />}>+ New service</DropdownMenuTrigger>
 				<DropdownMenuContent align='start'>
 					{creatable.map(entry => (
-						<DropdownMenuItem key={entry.kind} onSelect={() => setCreating(entry.kind)}>
+						<DropdownMenuItem key={entry.kind} onClick={() => setCreating(entry.kind)}>
 							{entry.label}
 						</DropdownMenuItem>
 					))}
