@@ -82,9 +82,10 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 		actor = user.Email
 	}
 	deployment, err := s.Deployments.Trigger(r.Context(), project, deployments.Options{
-		Trigger:   deployments.TriggerRollback,
-		Actor:     actor,
-		CommitSHA: target.CommitSHA,
+		Trigger:     deployments.TriggerRollback,
+		Actor:       actor,
+		CommitSHA:   target.CommitSHA,
+		ServiceName: target.ServiceName,
 	})
 	if err != nil {
 		serverError(w, err)

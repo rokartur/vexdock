@@ -84,3 +84,12 @@ func TestArgsKeepEveryValueSeparate(t *testing.T) {
 		}
 	}
 }
+
+func TestUpArgsScope(t *testing.T) {
+	if got, want := strings.Join(upArgs(), " "), "up -d --remove-orphans"; got != want {
+		t.Fatalf("full up: want %q, got %q", want, got)
+	}
+	if got, want := strings.Join(upArgs("web"), " "), "up -d web"; got != want {
+		t.Fatalf("scoped up: want %q, got %q", want, got)
+	}
+}

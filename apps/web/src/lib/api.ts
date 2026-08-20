@@ -21,6 +21,8 @@ export type Deployment = {
 	id: string
 	project_id: string
 	number: number
+	/** Compose service this deploy targeted; empty means the whole project. */
+	service_name: string
 	commit_sha: string
 	branch: string
 	status: DeploymentStatus
@@ -445,6 +447,7 @@ export const api = {
 	deleteProject: (id: string, removeVolumes: boolean) =>
 		request<{ ok: boolean }>(`/api/projects/${id}?volumes=${removeVolumes}`, { method: 'DELETE' }),
 	deploy: (id: string) => request<Deployment>(`/api/projects/${id}/deploy`, { method: 'POST' }),
+	/** Full-stack stop. Prefer serviceAction('stop') for one service. */
 	stopProject: (id: string) => request<{ ok: boolean }>(`/api/projects/${id}/stop`, { method: 'POST' }),
 	compose: (id: string) => request<{ content: string; path: string }>(`/api/projects/${id}/compose`),
 	saveCompose: (id: string, content: string) =>
@@ -511,6 +514,7 @@ export const api = {
 		request<undefined>(`/api/services/${id}/environment`, { method: 'PUT', body: { variables } }),
 	serviceMetrics: (id: string, window: MetricWindow = '30m') =>
 		request<ServicePoint[]>(`/api/services/${id}/metrics?window=${window}`),
+	deployService: (id: string) => request<Deployment>(`/api/services/${id}/deploy`, { method: 'POST' }),
 	serviceAction: (id: string, action: 'start' | 'stop' | 'restart') =>
 		request<{ ok: boolean }>(`/api/services/${id}/${action}`, { method: 'POST' }),
 

@@ -72,7 +72,8 @@ function DeploymentPage() {
 						#{deployment?.number ?? ''}
 						{deployment ? <Status value={deployment.status} /> : null}
 						<span className='font-mono text-body text-muted-foreground'>
-							{deployment?.branch} {shortSha(deployment?.commit_sha)}
+							{deployment?.service_name || 'all'} · {deployment?.branch}{' '}
+							{shortSha(deployment?.commit_sha)}
 						</span>
 					</>
 				),

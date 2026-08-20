@@ -78,6 +78,8 @@ owns can be created, changed and removed.
 | `DELETE /api/services/{id}` | Removes it; its named volume is kept, its generated password is not |
 | `GET /api/services/{id}/database` | Connection details, database services only |
 | `GET \| PUT /api/services/{id}/environment` | Its own variables |
+| `POST /api/services/{id}/deploy` | Deploy this service only |
+| `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
 
 `source_type` is `unconfigured`, `git`, `image` or `compose`. Sending a
 `database` object instead picks the engine catalogue: the image, the volume and
@@ -125,7 +127,9 @@ curl -fsS -X POST \
   https://panel.example.com/api/projects/$PROJECT_ID/services
 ```
 
-None of these start a container. Deploy the project to apply them.
+Create and edit do not start a container. `POST /api/services/{id}/deploy` runs
+the pipeline for that service alone; `POST /api/projects/{id}/deploy` still
+deploys every service in the project (used by CI, webhooks, and Deploy all).
 
 ### Moving services between projects
 
@@ -164,15 +168,27 @@ the operator sets it explicitly. Draft GitHub releases are never offered.
 
 ## Deploy from CI
 
+Whole project:
+
 ```sh
 curl -fsS -X POST \
   -H "Authorization: Bearer $PLATFORM_TOKEN" \
   https://panel.example.com/api/projects/$PROJECT_ID/deploy
 ```
 
-The call returns `202` with the deployment id as soon as the pipeline is queued.
-Poll `GET /api/deployments/{id}` for the outcome, or subscribe to its event
-stream.
+One service:
+
+```sh
+curl -fsS -X POST \
+  -H "Authorization: Bearer $PLATFORM_TOKEN" \
+  https://panel.example.com/api/services/$SERVICE_ID/deploy
+```
+
+Both return `202` with the deployment id as soon as the pipeline is queued. A
+service deploy sets `service_name` on the deployment; a project deploy leaves it
+empty. Poll `GET /api/deployments/{id}` for the outcome, or subscribe to its
+event stream. Rollback of a service-scoped deployment redeploys that service
+only.
 
 ## Webhooks
 

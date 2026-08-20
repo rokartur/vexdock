@@ -28,6 +28,11 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			header: 'Status',
 			cell: ({ row }) => <Status value={row.original.status} />,
 		}),
+		cell.accessor(deployment => deployment.service_name || 'all', {
+			id: 'service',
+			header: 'Service',
+			meta: { mono: true },
+		}),
 		cell.accessor(deployment => deployment.branch, { id: 'branch', header: 'Branch', meta: { mono: true } }),
 		cell.accessor(deployment => deployment.commit_sha, {
 			id: 'commit',

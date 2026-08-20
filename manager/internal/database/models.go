@@ -162,18 +162,20 @@ const (
 )
 
 type Deployment struct {
-	ID         string `json:"id"`
-	ProjectID  string `json:"project_id"`
-	Number     int    `json:"number"`
-	CommitSHA  string `json:"commit_sha"`
-	Branch     string `json:"branch"`
-	Status     string `json:"status"`
-	Trigger    string `json:"trigger"`
-	CreatedBy  string `json:"created_by"`
-	Error      string `json:"error"`
-	StartedAt  string `json:"started_at"`
-	FinishedAt string `json:"finished_at"`
-	CreatedAt  string `json:"created_at"`
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	Number    int    `json:"number"`
+	// ServiceName scopes the pipeline to one compose service. Empty means all.
+	ServiceName string `json:"service_name"`
+	CommitSHA   string `json:"commit_sha"`
+	Branch      string `json:"branch"`
+	Status      string `json:"status"`
+	Trigger     string `json:"trigger"`
+	CreatedBy   string `json:"created_by"`
+	Error       string `json:"error"`
+	StartedAt   string `json:"started_at"`
+	FinishedAt  string `json:"finished_at"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type DeploymentStep struct {
