@@ -45,12 +45,12 @@ type Service struct {
 	cfg     *config.Config
 	backups *backup.Service
 
-	mu              sync.Mutex
-	latest          string
-	latestAt        time.Time
+	mu               sync.Mutex
+	latest           string
+	latestAt         time.Time
 	cachedPrerelease bool
-	releaseAPI      string
-	rawBase         string
+	releaseAPI       string
+	rawBase          string
 }
 
 // New wires the updater. repo is the "owner/name" GitHub slug that publishes
