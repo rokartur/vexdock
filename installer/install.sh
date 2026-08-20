@@ -283,11 +283,17 @@ do_install() {
     create_network
     fetch_compose
     write_env
+    # env_set only inserts missing keys, so a retry after a partial install
+    # would keep the previous VERSION=latest and pull tags that do not exist.
+    if [ "$VERSION" != latest ]; then
+        sed -i "s/^VERSION=.*/VERSION=$VERSION/" "$ROOT/.env"
+    fi
     start_stack
     wait_healthy
 
     ip="$(detect_ip)"
     printf '\n%sInstallation complete%s\n\n' "$GREEN" "$RESET"
+
     printf 'Dashboard:\nhttp://%s:%s\n\n' "$ip" "$DASHBOARD_PORT"
     printf 'Setup token (needed once, to create the administrator):\n%s\n\n' "$(setup_token)"
     printf 'Kept in %s/.env if you lose it.\n\n' "$ROOT"

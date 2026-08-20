@@ -259,6 +259,7 @@ export type VersionStatus = {
 	current: string
 	latest: string
 	update_available: boolean
+	beta: boolean
 	checked_at: string
 }
 
@@ -585,6 +586,8 @@ export const api = {
 	createBackup: (includeVolumes = false) =>
 		request<Backup>(`/api/system/backup?volumes=${includeVolumes}`, { method: 'POST' }),
 	version: () => request<VersionStatus>('/api/system/version'),
+	setVersionChannel: (beta: boolean) =>
+		request<VersionStatus>('/api/system/version', { method: 'PUT', body: { beta } }),
 	update: (version?: string) =>
 		request<{ status: string; message: string }>('/api/system/update', {
 			method: 'POST',

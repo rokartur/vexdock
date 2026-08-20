@@ -172,3 +172,7 @@ killed mid-swap. Instead it takes a backup and launches a detached updater
 container that pulls the new images, recreates the stack, waits for the manager's
 own health check and rolls back to the previous version if it never turns
 healthy.
+
+Update checks read the GitHub releases list (not `/latest`, which skips
+prereleases). Stable track is the default; a beta install stays on the beta
+track until the operator turns it off under System → About.
