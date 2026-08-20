@@ -17,6 +17,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/events"
 	"github.com/vexdock/platform/manager/internal/metrics"
 	"github.com/vexdock/platform/manager/internal/notify"
+	"github.com/vexdock/platform/manager/internal/updater"
 )
 
 // handleHealth is the unauthenticated liveness/readiness probe used by the
@@ -71,7 +72,31 @@ func writable(dir string) error {
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.Updater.Status(r.Context()))
+	writeJSON(w, http.StatusOK, s.Updater.Status(r.Context(), s.updateIncludesPrerelease(r.Context())))
+}
+
+// handlePutVersionChannel toggles the beta (prerelease) update track.
+func (s *Server) handlePutVersionChannel(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Beta bool `json:"beta"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	value := "false"
+	if req.Beta {
+		value = "true"
+	}
+	if err := s.DB.SetSetting(r.Context(), updater.SettingBeta, value); err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.Updater.Status(r.Context(), req.Beta))
+}
+
+func (s *Server) updateIncludesPrerelease(ctx context.Context) bool {
+	return updater.IncludePrerelease(s.setting(ctx, updater.SettingBeta), s.Config.Version)
 }
 
 // handleSystemInfo powers the dashboard summary.
@@ -301,7 +326,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		// An empty body means "update to latest".
 		req.Version = ""
 	}
-	if err := s.Updater.Start(r.Context(), req.Version); err != nil {
+	if err := s.Updater.Start(r.Context(), req.Version, s.updateIncludesPrerelease(r.Context())); err != nil {
 		badRequest(w, err)
 		return
 	}

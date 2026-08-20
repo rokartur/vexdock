@@ -151,6 +151,17 @@ would add, and then creates each service through `POST .../services` and
 one is. Variables that arrive without a value are not replayed, which leaves a
 generated password in place rather than blanking it.
 
+## Platform version
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `update_available` (public) |
+| `PUT /api/system/version` | `{"beta": true\|false}` — pin the update track; returns the same payload |
+| `POST /api/system/update` | Start an in-place upgrade to `{"version"}` or to latest on the track |
+
+`beta` defaults from the installed tag (a prerelease stays on prereleases) until
+the operator sets it explicitly. Draft GitHub releases are never offered.
+
 ## Deploy from CI
 
 ```sh
