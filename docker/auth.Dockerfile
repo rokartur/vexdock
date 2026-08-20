@@ -21,7 +21,7 @@ FROM oven/bun:1-alpine
 WORKDIR /app
 COPY --from=build /server.js ./server.js
 
-ENV PLATFORM_ROOT=/opt/platform \
+ENV PLATFORM_ROOT=/opt/vexdock \
     PORT=8081
 
 EXPOSE 8081

@@ -13,7 +13,16 @@ set -eu
 REPO="${PLATFORM_REPO:-rokartur/vexdock}"
 RAW_BASE="${PLATFORM_RAW_BASE:-https://raw.githubusercontent.com/$REPO}"
 REGISTRY="${PLATFORM_REGISTRY:-ghcr.io/${REPO%%/*}}"
-ROOT="${PLATFORM_ROOT:-/opt/platform}"
+# Installs made before the directory was renamed still live in /opt/platform,
+# and their deployed projects bind-mount paths inside it, so they are adopted
+# where they are rather than moved under the running containers.
+if [ -n "${PLATFORM_ROOT:-}" ]; then
+    ROOT="$PLATFORM_ROOT"
+elif [ -f /opt/platform/compose.yml ]; then
+    ROOT=/opt/platform
+else
+    ROOT=/opt/vexdock
+fi
 PROXY_NETWORK="vexdock-proxy"
 DASHBOARD_PORT="${DASHBOARD_PORT:-3000}"
 VERSION="${PLATFORM_VERSION:-latest}"

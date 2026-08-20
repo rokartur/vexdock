@@ -53,7 +53,7 @@ const (
 
 // Load builds the configuration and creates every state directory it needs.
 func Load() (*Config, error) {
-	root := env("PLATFORM_ROOT", "/opt/platform")
+	root := env("PLATFORM_ROOT", "/opt/vexdock")
 	if !filepath.IsAbs(root) {
 		abs, err := filepath.Abs(root)
 		if err != nil {

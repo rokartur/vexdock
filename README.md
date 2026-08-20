@@ -64,10 +64,10 @@ Applications are ordinary compose projects joined to a shared `vexdock-proxy`
 network under a stable alias, so a recreated container keeps serving without
 touching the proxy configuration.
 
-State lives in `/opt/platform`:
+State lives in `/opt/vexdock`:
 
 ```
-/opt/platform
+/opt/vexdock
 ├── compose.yml          system stack
 ├── .env                 version, options, session secret, setup token (0600)
 ├── data/app.db          SQLite: projects, domains, deployments
