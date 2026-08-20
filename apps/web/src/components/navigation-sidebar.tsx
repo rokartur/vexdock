@@ -87,7 +87,7 @@ export function NavigationSidebar({
 			{/* Dims the page while the hidden sidebar is peeked at. */}
 			<div
 				className={cn(
-					'fixed inset-y-0 right-0 left-0 bg-sidebar transition-opacity duration-[250ms]',
+					'fixed inset-y-0 right-0 left-0 bg-black transition-opacity duration-[250ms]',
 					showTemporary ? 'opacity-50' : 'pointer-events-none opacity-0',
 				)}
 			/>
@@ -112,7 +112,7 @@ export function NavigationSidebar({
 				<nav
 					className={cn(
 						'relative flex h-full w-full flex-col gap-4 bg-sidebar p-3 transition-all',
-						isHidden && 'mr-2 mb-2 h-[calc(100%-1rem)] rounded-xl border border-border px-3.5',
+						isHidden && 'mr-2 mb-2 h-[calc(100%-1rem)] px-3.5 shadow-lg ring-1 ring-foreground/10',
 					)}
 				>
 					{children}

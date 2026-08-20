@@ -73,8 +73,9 @@ const HIDDEN_KEY = 'navigation-leftBarIsHidden'
 /** Read on the first render for the same reason as the rail's width. */
 const storedHidden = () => typeof localStorage !== 'undefined' && localStorage.getItem(HIDDEN_KEY) === 'true'
 
+/** Active is a bar in the margin, not a pill: the rail keeps a single left edge. */
 const linkClass =
-	'group flex h-7.5 items-center gap-2.5 rounded-lg border border-transparent px-2 text-title text-muted-foreground hover:bg-accent hover:text-foreground data-[status=active]:border-border data-[status=active]:bg-sidebar-accent data-[status=active]:text-foreground'
+	'group flex h-7 items-center gap-2.5 px-2 text-body text-muted-foreground hover:bg-accent hover:text-foreground data-[status=active]:bg-sidebar-accent data-[status=active]:text-foreground data-[status=active]:shadow-[inset_2px_0_0_var(--color-foreground)]'
 
 function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?: boolean }) {
 	return (
@@ -155,9 +156,9 @@ export function Shell({ children }: { children: ReactNode }) {
 				<div className='flex min-w-0 items-center gap-2'>
 					<div className='min-w-0 flex-1'>
 						<DropdownMenu>
-							<DropdownMenuTrigger className='flex h-7 max-w-full min-w-0 items-center gap-2 rounded-lg pr-2 pl-1 text-left hover:bg-accent'>
-								<Avatar className='size-5 rounded-md'>
-									<AvatarFallback className='rounded-md bg-secondary text-[10px] font-normal text-foreground'>
+							<DropdownMenuTrigger className='flex h-7 max-w-full min-w-0 items-center gap-2 pr-2 pl-1 text-left hover:bg-accent'>
+								<Avatar className='size-5 rounded-none'>
+									<AvatarFallback className='rounded-none bg-secondary text-[10px] font-normal text-foreground'>
 										VX
 									</AvatarFallback>
 								</Avatar>
@@ -185,7 +186,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<button
 							type='button'
 							onClick={() => setPaletteOpen(true)}
-							className='flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground'
+							className='flex size-7 items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground'
 							aria-label='Search'
 						>
 							<IconSearch className='size-4' />
@@ -193,7 +194,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<button
 							type='button'
 							onClick={toggleHidden}
-							className='flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground'
+							className='flex size-7 items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground'
 							aria-label={isHidden ? 'Show sidebar' : 'Hide sidebar'}
 						>
 							<IconLayoutSidebar className='size-4' />
@@ -204,7 +205,9 @@ export function Shell({ children }: { children: ReactNode }) {
 				<div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
 					{groups.map(group => (
 						<div key={group.label} className='flex flex-col gap-1'>
-							<span className='px-2 text-label text-muted-foreground'>{group.label}</span>
+							<span className='px-2 text-meta tracking-wider text-muted-foreground uppercase'>
+								{group.label}
+							</span>
 							<div className='flex flex-col gap-0.5'>
 								{group.items.map(item => (
 									<NavigationLink
@@ -222,10 +225,10 @@ export function Shell({ children }: { children: ReactNode }) {
 					<Link
 						draggable={false}
 						to='/system/settings'
-						className='group flex h-10 items-center gap-2.5 rounded-lg px-2 text-left hover:bg-accent'
+						className='group flex h-10 items-center gap-2.5 px-2 text-left hover:bg-accent'
 					>
-						<Avatar className='size-6'>
-							<AvatarFallback className='bg-secondary text-[10px] font-normal text-foreground'>
+						<Avatar className='size-6 rounded-none'>
+							<AvatarFallback className='rounded-none bg-secondary text-[10px] font-normal text-foreground'>
 								{(email || '?').slice(0, 2).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>
@@ -250,7 +253,7 @@ export function Shell({ children }: { children: ReactNode }) {
 				</div>
 			</NavigationSidebar>
 
-			<main className='m-2 ml-0 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background'>
+			<main className='flex min-h-0 flex-1 flex-col overflow-hidden border-l border-sidebar-border bg-background'>
 				{children}
 			</main>
 

@@ -71,8 +71,16 @@ state belongs to TanStack Query; component state is local.
 therefore not hand-edited without reason. Pages never import them directly:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Button, Table, Section, Field, Status), so a design change happens in one file.
-True black background, dense tables, no decorative chrome, and no continuously
+Near-black background, dense tables, no decorative chrome, and no continuously
 repainting animation: the panel is often left open.
+
+The look is carried by tokens in `src/styles.css`, not by classes on pages:
+the palette, `--radius`, the type scale and `--font-sans` (DM Sans; `--font-mono`
+stays for machine output: console, code, ids) are set once there, so reskinning
+is a token edit and never a sweep over pages. Borders are single hairlines (`--border`), never boxes around content:
+tables separate rows with them, readings sit in a `Cells` grid that owns the
+hairlines its children must not redraw, and attributes are read as a `Facts`
+list: label left, value right, a rule between rows.
 
 ## Tests
 

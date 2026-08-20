@@ -3,15 +3,18 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Page, Refresh, Section, Status } from '../components/primitives'
+import { Cells, Fact, Facts, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
 import { bytes, duration, percent, shortSha, since } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
 type RecentDeployment = SystemInfo['recent_deployments'][number]
 
+/** The live stream carries a load average the recorded buckets do not. */
+type HostSample = HostPoint & { load_average?: number }
+
 /** Recorded buckets are stamped in unix seconds; live samples use the browser clock. */
-const toMillis = (point: HostPoint): HostPoint => ({ ...point, at: point.at * 1000 })
+const toMillis = (point: HostPoint): HostSample => ({ ...point, at: point.at * 1000 })
 
 const deploymentColumns: Columns<RecentDeployment> = (() => {
 	const cell = columnsFor<RecentDeployment>()
@@ -69,7 +72,7 @@ export const Route = createFileRoute('/')({ component: DashboardPage })
 function DashboardPage() {
 	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo, refetchInterval: 15_000 })
 	const recorded = useQuery({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
-	const [stats, setStats] = useState<HostPoint | null>(null)
+	const [stats, setStats] = useState<HostSample | null>(null)
 
 	useEventSource('/api/system/stats', {
 		stats: data => setStats({ ...(data as HostStats), at: Date.now() }),
@@ -82,61 +85,67 @@ function DashboardPage() {
 	// Until the first live sample lands, the newest recorded bucket is the reading.
 	const current = stats ?? history.at(-1)
 	const diskUsed = current && current.disk_total > 0 ? current.disk_used / current.disk_total : 0
+	const host = info.data?.host
 
 	return (
-		<Page>
-			<Section title='System'>
-				<div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-4'>
+		<Page
+			actions={
+				host ? (
+					<span className='truncate text-meta text-muted-foreground'>
+						{[
+							host.name,
+							`${host.os}/${host.architecture}`,
+							`${host.cpus} vCPU`,
+							bytes(host.memory_total),
+							`docker ${host.docker_version}`,
+						].join(' · ')}
+					</span>
+				) : null
+			}
+		>
+			<Section title='Host' description='live, 30m history'>
+				<Cells>
 					<MetricCard
 						label='CPU'
 						value={current ? percent(current.cpu_percent) : '-'}
 						series={[seriesOf(history, sample => sample.cpu_percent)]}
 						max={100}
 						format={([cpu]) => percent(cpu)}
+						hint={stats?.load_average === undefined ? undefined : `load ${stats.load_average.toFixed(2)}`}
 					/>
 					<MetricCard
-						label='RAM'
-						value={
-							current && current.memory_total > 0
-								? `${bytes(current.memory_used)} / ${bytes(current.memory_total)}`
-								: bytes(info.data?.host.memory_total)
-						}
+						label='Memory'
+						value={current ? bytes(current.memory_used) : '-'}
 						series={[seriesOf(history, sample => sample.memory_used)]}
 						max={current?.memory_total}
-						format={([used]) => `${bytes(used)} / ${bytes(current?.memory_total)}`}
+						format={([used]) => bytes(used)}
+						hint={`of ${bytes(current?.memory_total ?? host?.memory_total)}`}
 					/>
 					{/* Disk moves in hours, so a line would be flat; the bar says more. */}
-					<div className='rounded-md border px-2.5 py-2'>
+					<div className='px-3 py-2.5'>
 						<div className='text-meta tracking-wide text-muted-foreground uppercase'>Disk</div>
-						<div className='font-mono text-title'>
-							{current && current.disk_total > 0
-								? `${bytes(current.disk_used)} / ${bytes(current.disk_total)}`
-								: '-'}
+						<div className='mt-1 font-mono text-reading tabular-nums'>
+							{current ? bytes(current.disk_used) : '-'}
 						</div>
-						<div className='mt-3 h-1 rounded-full bg-muted'>
-							<div
-								className='h-full rounded-full bg-foreground'
-								style={{ width: percent(diskUsed * 100) }}
-							/>
+						<div className='mt-0.5 text-meta text-muted-foreground'>
+							of {bytes(current?.disk_total)} · {percent(diskUsed * 100)}
 						</div>
-						<div className='mt-1.5 font-mono text-meta text-muted-foreground'>
-							{percent(diskUsed * 100)} used
+						<div className='mt-2.5 h-0.5 bg-muted'>
+							<div className='h-full bg-foreground' style={{ width: percent(diskUsed * 100) }} />
 						</div>
 					</div>
-					<div className='rounded-md border px-2.5 py-2'>
+					<div className='px-3 py-2.5'>
 						<div className='text-meta tracking-wide text-muted-foreground uppercase'>Platform</div>
-						<dl className='mt-1 grid grid-cols-[auto_1fr] gap-x-3 text-body'>
-							<dt className='text-muted-foreground'>Projects</dt>
-							<dd className='text-right font-mono'>{info.data?.projects ?? 0}</dd>
-							<dt className='text-muted-foreground'>Containers</dt>
-							<dd className='text-right font-mono'>
-								{info.data?.containers_running ?? 0} / {info.data?.containers ?? 0}
-							</dd>
-							<dt className='text-muted-foreground'>Images</dt>
-							<dd className='text-right font-mono'>{info.data?.images ?? 0}</dd>
-						</dl>
+						<Facts className='mt-1.5 gap-x-3'>
+							<Fact label='Projects' value={info.data?.projects ?? 0} />
+							<Fact
+								label='Containers'
+								value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
+							/>
+							<Fact label='Images' value={info.data?.images ?? 0} />
+						</Facts>
 					</div>
-				</div>
+				</Cells>
 			</Section>
 
 			<Section
