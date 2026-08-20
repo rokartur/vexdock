@@ -80,7 +80,9 @@ reachable.
 From the dashboard: **System → Settings → About**. A backup is taken first, then
 a short-lived updater container fetches the new `compose.yml`, pulls the new
 images and recreates the stack. If the manager does not become healthy, the
-previous version and compose file are restored automatically.
+previous version and compose file are restored automatically. Enable **Remove
+previous version images after a successful update** to reclaim those image tags
+only after rollback is no longer needed; it is off by default.
 
 From the shell:
 

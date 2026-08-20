@@ -9,6 +9,7 @@ export const Route = createFileRoute('/system/settings/about')({ component: Vers
 /** Installed vs published build, and the in-place upgrade. */
 function Version() {
 	const [message, setMessage] = useState('')
+	const [cleanupOldImages, setCleanupOldImages] = useState(false)
 	const queryClient = useQueryClient()
 	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
 
@@ -21,7 +22,7 @@ function Version() {
 	})
 
 	const update = useMutation({
-		mutationFn: () => api.update(version.data?.latest),
+		mutationFn: () => api.update(version.data?.latest, cleanupOldImages),
 		onSuccess: result => setMessage(result.message),
 	})
 
@@ -56,6 +57,12 @@ function Version() {
 					checked={version.data?.beta ?? false}
 					disabled={setChannel.isPending || version.isLoading}
 					onChange={checked => setChannel.mutate(checked)}
+				/>
+				<Check
+					label='Remove previous version images after a successful update'
+					checked={cleanupOldImages}
+					disabled={update.isPending}
+					onChange={setCleanupOldImages}
 				/>
 			</div>
 			<ErrorText error={update.error ?? setChannel.error} />

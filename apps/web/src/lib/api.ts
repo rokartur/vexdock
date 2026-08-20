@@ -655,10 +655,10 @@ export const api = {
 	version: () => request<VersionStatus>('/api/system/version'),
 	setVersionChannel: (beta: boolean) =>
 		request<VersionStatus>('/api/system/version', { method: 'PUT', body: { beta } }),
-	update: (version?: string) =>
+	update: (version: string | undefined, cleanupOldImages: boolean) =>
 		request<{ status: string; message: string }>('/api/system/update', {
 			method: 'POST',
-			body: { version: version ?? '' },
+			body: { version: version ?? '', cleanup_old_images: cleanupOldImages },
 		}),
 	health: () => request<HealthReport>('/api/health'),
 }
