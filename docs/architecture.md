@@ -70,7 +70,10 @@ is escaped `$$VAR`.
 A database's volume is named after its service (`<service>-data`), so a second
 database cannot mount the first one's data. Deleting a service leaves the volume
 behind: recreating it under the same name picks the data back up, and dropping a
-database stays an explicit act.
+database stays an explicit act. A compose fragment that mounts a named volume
+gets that volume declared at the top of the overlay. `env_file: .env` in a
+fragment is rewritten to the project env file, which is what the Environment
+tab writes.
 
 A rendered fragment declares no `networks:`, so a managed service joins the
 project's default network and is reachable from its siblings at its own service

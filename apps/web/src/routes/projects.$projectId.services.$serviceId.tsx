@@ -281,8 +281,7 @@ function ServiceEnvironment({ serviceId }: { serviceId: string }) {
 				spellCheck={false}
 			/>
 			<p className='mt-1 text-label text-muted-foreground'>
-				One KEY=value per line. Masked values stay as they are stored; new keys are stored as secrets. Redeploy
-				to apply.
+				One KEY=value per line. Redeploy to apply.
 			</p>
 		</Section>
 	)

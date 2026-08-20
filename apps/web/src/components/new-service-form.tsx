@@ -179,7 +179,7 @@ export function NewServiceForm({
 			{kind === 'compose' ? (
 				<Field
 					label='Compose fragment'
-					hint='The service body, without its name. Volumes and env files are yours to declare.'
+					hint='The service body, without its name. Named volumes are declared for you. env_file: .env is the project environment.'
 				>
 					<textarea
 						required
