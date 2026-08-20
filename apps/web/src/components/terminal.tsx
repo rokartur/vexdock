@@ -76,7 +76,10 @@ export function Terminal({ url }: { url: string }) {
 	return (
 		<div>
 			<div className='mb-2 text-label text-muted-foreground'>{status}</div>
-			<div ref={hostRef} className='terminal-host h-[60vh] border border-console-border bg-console' />
+			<div
+				ref={hostRef}
+				className='terminal-host h-[60vh] overflow-hidden rounded-lg border border-console-border bg-console'
+			/>
 		</div>
 	)
 }

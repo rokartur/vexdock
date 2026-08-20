@@ -178,35 +178,37 @@ export function ImportServicesForm({
 					<p className='mb-2 text-label text-muted-foreground'>
 						{parsed.services.length} service{parsed.services.length === 1 ? '' : 's'} from {parsed.project}
 					</p>
-					{parsed.services.map(service => {
-						const collides = taken.has(service.name)
-						const on = !collides && !skipped.includes(service.name)
-						return (
-							<div
-								key={service.name}
-								className={`flex items-center gap-3 border-b border-border py-1.5 text-body last:border-0 ${collides ? 'opacity-40' : ''}`}
-							>
-								<Check
-									label={service.name}
-									checked={on}
-									disabled={collides}
-									onChange={next =>
-										setSkipped(current =>
-											next
-												? current.filter(name => name !== service.name)
-												: [...current, service.name],
-										)
-									}
-								/>
-								<span className='truncate font-mono text-label text-muted-foreground'>
-									{service.image || service.repository_url || service.source_type}
-								</span>
-								<span className='ml-auto shrink-0 text-label text-muted-foreground'>
-									{collides ? 'name taken' : `${(service.env ?? []).length} vars`}
-								</span>
-							</div>
-						)
-					})}
+					<div className='rounded-lg border border-border px-3'>
+						{parsed.services.map(service => {
+							const collides = taken.has(service.name)
+							const on = !collides && !skipped.includes(service.name)
+							return (
+								<div
+									key={service.name}
+									className={`flex items-center gap-3 border-b border-border py-1.5 text-body last:border-0 ${collides ? 'opacity-40' : ''}`}
+								>
+									<Check
+										label={service.name}
+										checked={on}
+										disabled={collides}
+										onChange={next =>
+											setSkipped(current =>
+												next
+													? current.filter(name => name !== service.name)
+													: [...current, service.name],
+											)
+										}
+									/>
+									<span className='truncate font-mono text-label text-muted-foreground'>
+										{service.image || service.repository_url || service.source_type}
+									</span>
+									<span className='ml-auto shrink-0 text-label text-muted-foreground'>
+										{collides ? 'name taken' : `${(service.env ?? []).length} vars`}
+									</span>
+								</div>
+							)
+						})}
+					</div>
 					{withheldSecrets ? (
 						<p className='mt-2 text-label text-muted-foreground'>
 							Some secrets were exported without their values. Fill them in after importing.

@@ -83,7 +83,7 @@ export function LogViewer({ url }: { url: string }) {
 					{connected ? 'streaming' : 'disconnected'} · {visible.length} lines
 				</span>
 			</div>
-			<div className='h-[60vh] overflow-auto border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground'>
+			<div className='h-[60vh] overflow-auto rounded-lg border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground'>
 				{visible.length === 0 ? (
 					<p className='text-console-muted'>Waiting for output…</p>
 				) : (

@@ -30,7 +30,7 @@ function CrumbPicker({
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger className='-mx-1 flex h-7 min-w-0 items-center gap-2 px-1.5 hover:bg-accent data-popup-open:bg-accent'>
+			<PopoverTrigger className='-mx-1 flex h-7 min-w-0 items-center gap-2 rounded-md px-1.5 hover:bg-accent data-popup-open:bg-accent'>
 				<span className='flex min-w-0 items-center gap-2 truncate'>{label}</span>
 				<IconChevronDown className='size-3 shrink-0 text-muted-foreground' />
 			</PopoverTrigger>

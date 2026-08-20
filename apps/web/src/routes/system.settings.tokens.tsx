@@ -79,7 +79,7 @@ function ApiTokens() {
 			/>
 
 			{issued ? (
-				<p className='mt-3 max-w-2xl border border-border p-2 font-mono text-body break-all'>
+				<p className='mt-3 max-w-2xl rounded-lg border border-border p-2 font-mono text-body break-all'>
 					{issued}
 					<span className='mt-1 block font-sans text-label text-amber-400'>
 						Copy it now. It is not shown again.
