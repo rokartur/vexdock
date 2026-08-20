@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { api, type EnvVar } from '../lib/api'
+import { useEnvironmentId } from '../lib/environment'
 import { Button, Check, ErrorText, Field } from './primitives'
 
 /** The sources a service can be created with. A derived service is the project's
@@ -99,6 +100,7 @@ export function ImportServicesForm({
 	const [pasted, setPasted] = useState('')
 	const [skipped, setSkipped] = useState<string[]>([])
 
+	const environmentId = useEnvironmentId()
 	const decoded = useMemo(() => decodeExport(pasted), [pasted])
 	const parsed = decoded instanceof Error ? null : decoded
 
@@ -120,20 +122,24 @@ export function ImportServicesForm({
 			/* oxlint-disable no-await-in-loop -- sequential is the point, see above */
 			for (const service of importable) {
 				try {
-					const created = await api.createService(projectId, {
-						name: service.name,
-						source_type: service.source_type,
-						repository_url: service.repository_url,
-						branch: service.branch,
-						build_path: service.build_path,
-						image: service.engine ? undefined : service.image,
-						compose_fragment: service.compose_fragment,
-						database: service.engine
-							? { engine: service.engine, image: service.image, data_path: service.data_path }
-							: undefined,
-					})
-					const seeded = await api.serviceEnvironment(created.id)
-					await api.saveServiceEnvironment(created.id, mergeEnv(seeded, service))
+					const created = await api.createService(
+						projectId,
+						{
+							name: service.name,
+							source_type: service.source_type,
+							repository_url: service.repository_url,
+							branch: service.branch,
+							build_path: service.build_path,
+							image: service.engine ? undefined : service.image,
+							compose_fragment: service.compose_fragment,
+							database: service.engine
+								? { engine: service.engine, image: service.image, data_path: service.data_path }
+								: undefined,
+						},
+						environmentId,
+					)
+					const seeded = await api.serviceVariables(created.id)
+					await api.saveServiceVariables(created.id, mergeEnv(seeded, service))
 				} catch (error) {
 					throw new Error(`${service.name}: ${error instanceof Error ? error.message : String(error)}`, {
 						cause: error,

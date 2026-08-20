@@ -81,6 +81,28 @@ export type Project = {
 	latest_deployment: Deployment | null
 	webhook_url: string
 	webhook_secret_set: boolean
+	/** Every deployable copy of the project, default first. */
+	environments: Environment[]
+}
+
+/**
+ * A deployable copy of a project. It owns the docker namespace, so production
+ * and staging never share a container, a volume or a network alias.
+ *
+ * The default environment carries its project's id, which is what makes an
+ * install that predates environments keep running untouched.
+ */
+export type Environment = {
+	id: string
+	project_id: string
+	name: string
+	slug: string
+	/** Empty means the environment deploys whatever branch the project does. */
+	branch: string
+	compose_project_name: string
+	is_default: boolean
+	created_at: string
+	updated_at: string
 }
 
 /** An application is built or pulled; a database is a catalog image with a volume. */
@@ -409,6 +431,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 	return payload as T
 }
 
+/**
+ * Project routes act on one environment. Leaving it off means the default one,
+ * which is how a dashboard that has never heard of environments keeps working.
+ */
+function environmentQuery(environmentId?: string) {
+	return environmentId ? `?environment=${environmentId}` : ''
+}
+
 export const api = {
 	// Sign-in and sessions belong to better-auth (src/lib/auth-client.ts); this
 	// is the manager's own view of the caller.
@@ -446,16 +476,36 @@ export const api = {
 	) => request<Project>(`/api/projects/${id}`, { method: 'PATCH', body }),
 	deleteProject: (id: string, removeVolumes: boolean) =>
 		request<{ ok: boolean }>(`/api/projects/${id}?volumes=${removeVolumes}`, { method: 'DELETE' }),
-	deploy: (id: string) => request<Deployment>(`/api/projects/${id}/deploy`, { method: 'POST' }),
+	deploy: (id: string, environmentId?: string) =>
+		request<Deployment>(`/api/projects/${id}/deploy${environmentQuery(environmentId)}`, { method: 'POST' }),
 	/** Full-stack stop. Prefer serviceAction('stop') for one service. */
-	stopProject: (id: string) => request<{ ok: boolean }>(`/api/projects/${id}/stop`, { method: 'POST' }),
-	compose: (id: string) => request<{ content: string; path: string }>(`/api/projects/${id}/compose`),
-	saveCompose: (id: string, content: string) =>
-		request<{ ok: boolean }>(`/api/projects/${id}/compose`, { method: 'PUT', body: { content } }),
-	environment: (id: string) => request<EnvVar[]>(`/api/projects/${id}/environment`),
-	saveEnvironment: (id: string, variables: EnvVar[]) =>
-		request<EnvVar[]>(`/api/projects/${id}/environment`, { method: 'PUT', body: { variables } }),
-	services: (id: string) => request<Service[]>(`/api/projects/${id}/services`),
+	stopProject: (id: string, environmentId?: string) =>
+		request<{ ok: boolean }>(`/api/projects/${id}/stop${environmentQuery(environmentId)}`, { method: 'POST' }),
+	compose: (id: string, environmentId?: string) =>
+		request<{ content: string; path: string }>(`/api/projects/${id}/compose${environmentQuery(environmentId)}`),
+	saveCompose: (id: string, content: string, environmentId?: string) =>
+		request<{ ok: boolean }>(`/api/projects/${id}/compose${environmentQuery(environmentId)}`, {
+			method: 'PUT',
+			body: { content },
+		}),
+	/** The variables every environment of the project shares. */
+	projectVariables: (id: string) => request<EnvVar[]>(`/api/projects/${id}/variables`),
+	saveProjectVariables: (id: string, variables: EnvVar[]) =>
+		request<EnvVar[]>(`/api/projects/${id}/variables`, { method: 'PUT', body: { variables } }),
+	environments: (projectId: string) => request<Environment[]>(`/api/projects/${projectId}/environments`),
+	createEnvironment: (projectId: string, body: { name: string; branch?: string }) =>
+		request<Environment>(`/api/projects/${projectId}/environments`, { method: 'POST', body }),
+	updateEnvironment: (id: string, body: Partial<{ name: string; branch: string }>) =>
+		request<Environment>(`/api/environments/${id}`, { method: 'PATCH', body }),
+	/** Stops the containers before dropping the record. The default one is refused. */
+	deleteEnvironment: (id: string, removeVolumes: boolean) =>
+		request<{ ok: boolean }>(`/api/environments/${id}?volumes=${removeVolumes}`, { method: 'DELETE' }),
+	/** The variables that make this environment differ from its siblings. */
+	environmentVariables: (id: string) => request<EnvVar[]>(`/api/environments/${id}/variables`),
+	saveEnvironmentVariables: (id: string, variables: EnvVar[]) =>
+		request<EnvVar[]>(`/api/environments/${id}/variables`, { method: 'PUT', body: { variables } }),
+	services: (id: string, environmentId?: string) =>
+		request<Service[]>(`/api/projects/${id}/services${environmentQuery(environmentId)}`),
 	/**
 	 * Adds a service the manager owns to a project. Passing `database` picks the
 	 * catalog branch, which renders the image and seeds the credentials itself.
@@ -480,15 +530,23 @@ export const api = {
 				data_path?: string
 			}
 		},
-	) => request<Service>(`/api/projects/${projectId}/services`, { method: 'POST', body }),
+		environmentId?: string,
+	) =>
+		request<Service>(`/api/projects/${projectId}/services${environmentQuery(environmentId)}`, {
+			method: 'POST',
+			body,
+		}),
 	/**
 	 * Renders the project's managed services as base64 for another project's
 	 * import. Secret values stay behind unless asked for: the blob is encoded,
 	 * not encrypted, and it is headed for a clipboard.
 	 */
-	exportServices: (projectId: string, secrets: boolean) =>
-		request<{ payload: string; secrets: boolean }>(`/api/projects/${projectId}/services/export?secrets=${secrets}`),
-	deployments: (id: string) => request<Deployment[]>(`/api/projects/${id}/deployments`),
+	exportServices: (projectId: string, secrets: boolean, environmentId?: string) =>
+		request<{ payload: string; secrets: boolean }>(
+			`/api/projects/${projectId}/services/export?secrets=${secrets}${environmentId ? `&environment=${environmentId}` : ''}`,
+		),
+	deployments: (id: string, environmentId?: string) =>
+		request<Deployment[]>(`/api/projects/${id}/deployments${environmentQuery(environmentId)}`),
 	projectDomains: (id: string) => request<Domain[]>(`/api/projects/${id}/domains`),
 
 	service: (id: string) => request<Service>(`/api/services/${id}`),
@@ -509,9 +567,9 @@ export const api = {
 	/** The named volume survives; dropping a database's data stays explicit. */
 	deleteService: (id: string) => request<undefined>(`/api/services/${id}`, { method: 'DELETE' }),
 	serviceDatabase: (id: string) => request<DatabaseConnection>(`/api/services/${id}/database`),
-	serviceEnvironment: (id: string) => request<EnvVar[]>(`/api/services/${id}/environment`),
-	saveServiceEnvironment: (id: string, variables: EnvVar[]) =>
-		request<undefined>(`/api/services/${id}/environment`, { method: 'PUT', body: { variables } }),
+	serviceVariables: (id: string) => request<EnvVar[]>(`/api/services/${id}/variables`),
+	saveServiceVariables: (id: string, variables: EnvVar[]) =>
+		request<undefined>(`/api/services/${id}/variables`, { method: 'PUT', body: { variables } }),
 	serviceMetrics: (id: string, window: MetricWindow = '30m') =>
 		request<ServicePoint[]>(`/api/services/${id}/metrics?window=${window}`),
 	deployService: (id: string) => request<Deployment>(`/api/services/${id}/deploy`, { method: 'POST' }),

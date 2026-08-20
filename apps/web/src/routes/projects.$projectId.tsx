@@ -1,17 +1,26 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Outlet, useNavigate, useParams } from '@tanstack/react-router'
-import { ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
+import { createFileRoute, Outlet, retainSearchParams, useNavigate, useParams } from '@tanstack/react-router'
+import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { Button, ErrorText, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 
-export const Route = createFileRoute('/projects/$projectId')({ component: ProjectLayout })
+export const Route = createFileRoute('/projects/$projectId')({
+	component: ProjectLayout,
+	// Every page below this one acts on one environment, so it belongs in the
+	// URL rather than in a store: a pasted link lands on the same environment it
+	// was copied from. Retaining it keeps the tabs from silently falling back to
+	// the default one on every click.
+	validateSearch: (search: Record<string, unknown>): { env?: string } =>
+		typeof search.env === 'string' ? { env: search.env } : {},
+	search: { middlewares: [retainSearchParams(['env'])] },
+})
 
 const tabs = [
 	{ suffix: '', label: 'Services' },
 	{ suffix: '/deployments', label: 'Deployments' },
 	{ suffix: '/domains', label: 'Domains' },
-	{ suffix: '/environment', label: 'Environment' },
+	{ suffix: '/environment', label: 'Variables' },
 	{ suffix: '/settings', label: 'Settings' },
 ]
 
@@ -37,7 +46,13 @@ function ProjectLayout() {
 	return (
 		<Page
 			labels={{
-				[projectId]: <ProjectCrumb projectId={projectId} />,
+				[projectId]: (
+					<>
+						<ProjectCrumb projectId={projectId} />
+						<span className='text-muted-foreground'>/</span>
+						<EnvironmentCrumb projectId={projectId} />
+					</>
+				),
 				services: null,
 				...(serviceId ? { [serviceId]: <ServiceCrumb projectId={projectId} serviceId={serviceId} /> } : {}),
 			}}

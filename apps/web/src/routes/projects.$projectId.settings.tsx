@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Button, Check, ErrorText, Field, Section } from '../components/primitives'
 import { api, type CredentialKind, type SourceType } from '../lib/api'
+import { useEnvironmentId } from '../lib/environment'
 
 export const Route = createFileRoute('/projects/$projectId/settings')({ component: ProjectSettings })
 
@@ -10,7 +11,11 @@ function ProjectSettings() {
 	const { projectId } = Route.useParams()
 	const queryClient = useQueryClient()
 	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
-	const compose = useQuery({ queryKey: ['compose', projectId], queryFn: () => api.compose(projectId) })
+	const environmentId = useEnvironmentId()
+	const compose = useQuery({
+		queryKey: ['compose', projectId, environmentId],
+		queryFn: () => api.compose(projectId, environmentId),
+	})
 
 	const [name, setName] = useState('')
 	const [sourceType, setSourceType] = useState<SourceType>('compose')
@@ -64,7 +69,7 @@ function ProjectSettings() {
 	})
 
 	const saveCompose = useMutation({
-		mutationFn: () => api.saveCompose(projectId, composeContent),
+		mutationFn: () => api.saveCompose(projectId, composeContent, environmentId),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['compose', projectId] }),
 	})
 
@@ -191,8 +196,102 @@ function ProjectSettings() {
 				</Section>
 			)}
 
+			<Environments projectId={projectId} />
 			<ExportServices projectId={projectId} />
 		</>
+	)
+}
+
+/**
+ * Environments are created and destroyed here rather than from the breadcrumb
+ * picker: switching is constant, and deleting one takes its containers and
+ * volumes with it.
+ */
+function Environments({ projectId }: { projectId: string }) {
+	const queryClient = useQueryClient()
+	const [name, setName] = useState('')
+	const [branch, setBranch] = useState('')
+	const [confirming, setConfirming] = useState<string | null>(null)
+
+	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
+	const refresh = () => queryClient.invalidateQueries({ queryKey: ['environments', projectId] })
+
+	const create = useMutation({
+		mutationFn: () => api.createEnvironment(projectId, { name, branch: branch || undefined }),
+		onSuccess: async () => {
+			setName('')
+			setBranch('')
+			await refresh()
+		},
+	})
+	const remove = useMutation({
+		mutationFn: (id: string) => api.deleteEnvironment(id, true),
+		onSuccess: async () => {
+			setConfirming(null)
+			await refresh()
+		},
+	})
+
+	return (
+		<Section title='Environments' description='each one deploys on its own, into its own containers'>
+			<ErrorText error={create.error ?? remove.error} />
+			<ul className='mb-4'>
+				{environments.data?.map(env => (
+					<li key={env.id} className='flex h-9 items-center gap-3 border-b'>
+						<span className='text-body'>{env.name}</span>
+						<span className='font-mono text-meta text-muted-foreground'>
+							{env.branch || 'project branch'}
+						</span>
+						{env.is_default ? null : (
+							<span className='ml-auto'>
+								{confirming === env.id ? (
+									<>
+										<Button
+											variant='danger'
+											onClick={() => remove.mutate(env.id)}
+											disabled={remove.isPending}
+										>
+											Delete with volumes
+										</Button>
+										<Button variant='ghost' onClick={() => setConfirming(null)}>
+											Cancel
+										</Button>
+									</>
+								) : (
+									<Button variant='ghost' onClick={() => setConfirming(env.id)}>
+										Delete
+									</Button>
+								)}
+							</span>
+						)}
+					</li>
+				))}
+			</ul>
+			<form
+				className='grid gap-x-6 md:grid-cols-2'
+				onSubmit={event => {
+					event.preventDefault()
+					create.mutate()
+				}}
+			>
+				<Field label='Name' hint='Becomes the slug the API and the directory use.'>
+					<input
+						required
+						value={name}
+						onChange={event => setName(event.target.value)}
+						placeholder='Staging'
+					/>
+				</Field>
+				<Field label='Branch' hint='Empty follows the project’s branch.'>
+					<input value={branch} onChange={event => setBranch(event.target.value)} placeholder='develop' />
+				</Field>
+				<div>
+					<Button variant='primary' type='submit' disabled={create.isPending || !name}>
+						{create.isPending ? 'Creating…' : 'Add environment'}
+					</Button>
+				</div>
+			</form>
+		</Section>
 	)
 }
 
@@ -204,10 +303,11 @@ function ProjectSettings() {
 function ExportServices({ projectId }: { projectId: string }) {
 	const [secrets, setSecrets] = useState(false)
 	const [copied, setCopied] = useState(false)
+	const environmentId = useEnvironmentId()
 
 	const exported = useQuery({
-		queryKey: ['export', projectId, secrets],
-		queryFn: () => api.exportServices(projectId, secrets),
+		queryKey: ['export', projectId, secrets, environmentId],
+		queryFn: () => api.exportServices(projectId, secrets, environmentId),
 	})
 
 	return (
