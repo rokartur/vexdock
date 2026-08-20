@@ -197,9 +197,9 @@ generated password in place rather than blanking it.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `update_available` (public) |
-| `PUT /api/system/version` | `{"beta": true\|false}` — pin the update track; returns the same payload |
-| `POST /api/system/update` | Start an in-place upgrade to `{"version"}` or to latest on the track; `"cleanup_old_images": true` removes the previous platform image tags after a successful health check |
+| `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `cleanup_old_images`, `update_available` (public) |
+| `PUT /api/system/version` | `{"beta", "cleanup_old_images"}` — both update preferences, sent together; returns the same payload |
+| `POST /api/system/update` | Start an in-place upgrade to `{"version"}` or to latest on the track |
 
 `cleanup_old_images` defaults to `false`. It only targets images referenced by
 the previous system compose file; application images are not included.

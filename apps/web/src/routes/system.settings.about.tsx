@@ -2,19 +2,18 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Button, Check, ErrorText, Section } from '../components/primitives'
-import { api } from '../lib/api'
+import { api, type VersionSettings } from '../lib/api'
 
 export const Route = createFileRoute('/system/settings/about')({ component: Version })
 
 /** Installed vs published build, and the in-place upgrade. */
 function Version() {
 	const [message, setMessage] = useState('')
-	const [cleanupOldImages, setCleanupOldImages] = useState(false)
 	const queryClient = useQueryClient()
 	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
 
-	const setChannel = useMutation({
-		mutationFn: api.setVersionChannel,
+	const setSettings = useMutation({
+		mutationFn: api.setVersionSettings,
 		onSuccess: data => {
 			queryClient.setQueryData(['version'], data)
 			setMessage('')
@@ -22,9 +21,17 @@ function Version() {
 	})
 
 	const update = useMutation({
-		mutationFn: () => api.update(version.data?.latest, cleanupOldImages),
+		mutationFn: () => api.update(version.data?.latest),
 		onSuccess: result => setMessage(result.message),
 	})
+
+	// The endpoint takes the whole preference set, so a toggle carries the
+	// other one along.
+	const save = (patch: Partial<VersionSettings>) => {
+		if (!version.data) return
+		const { beta, cleanup_old_images } = version.data
+		setSettings.mutate({ beta, cleanup_old_images, ...patch })
+	}
 
 	return (
 		<Section title='Version' description='a backup is taken before the swap and rolled back if health fails'>
@@ -55,17 +62,17 @@ function Version() {
 				<Check
 					label='Include beta releases'
 					checked={version.data?.beta ?? false}
-					disabled={setChannel.isPending || version.isLoading}
-					onChange={checked => setChannel.mutate(checked)}
+					disabled={setSettings.isPending || version.isLoading}
+					onChange={beta => save({ beta })}
 				/>
 				<Check
 					label='Remove previous version images after a successful update'
-					checked={cleanupOldImages}
-					disabled={update.isPending}
-					onChange={setCleanupOldImages}
+					checked={version.data?.cleanup_old_images ?? false}
+					disabled={setSettings.isPending || version.isLoading || update.isPending}
+					onChange={cleanup_old_images => save({ cleanup_old_images })}
 				/>
 			</div>
-			<ErrorText error={update.error ?? setChannel.error} />
+			<ErrorText error={update.error ?? setSettings.error} />
 			{message ? <p className='pt-2 text-body text-emerald-400'>{message}</p> : null}
 		</Section>
 	)

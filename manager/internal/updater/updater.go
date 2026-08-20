@@ -37,6 +37,10 @@ const UpdaterImage = "docker:28-cli"
 // "true" / "false"; empty means follow the installed version's track.
 const SettingBeta = "updater.beta"
 
+// SettingCleanupOldImages is the system_settings key for pruning the previous
+// platform images after a successful update. "true" / "false"; empty is off.
+const SettingCleanupOldImages = "updater.cleanup_old_images"
+
 // versionPattern is the only shape accepted for a target version, so nothing
 // user-supplied can be reinterpreted by the shell inside the updater container.
 var versionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$`)
@@ -88,6 +92,10 @@ type Status struct {
 	UpdateAvailable bool   `json:"update_available"`
 	Beta            bool   `json:"beta"`
 	CheckedAt       string `json:"checked_at"`
+
+	// CleanupOldImages is filled in by the API from system_settings; the
+	// updater itself only receives it as an argument to Start.
+	CleanupOldImages bool `json:"cleanup_old_images"`
 }
 
 // Status reports the installed version and the newest release on the chosen track.
