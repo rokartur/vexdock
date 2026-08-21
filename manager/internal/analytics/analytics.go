@@ -21,10 +21,14 @@ const Retention = 90 * 24 * time.Hour
 const (
 	KindPageview = "pageview"
 	KindPing     = "ping"
+	// KindLeave is the tab reporting that it is gone.
+	KindLeave = "leave"
 )
 
 // OnlineWindow is how recently a visitor must have been seen to count as
-// online. The beacon pings once a minute while its tab is visible.
+// online. The beacon pings once a minute while its tab is visible and reports
+// a leave when it goes away, so this only has to catch the tabs that died
+// without saying anything.
 const OnlineWindow = 5 * time.Minute
 
 // Field limits. The ingest endpoint is public, so everything it accepts is

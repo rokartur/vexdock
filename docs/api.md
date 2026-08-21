@@ -256,8 +256,9 @@ section the analytics page shows, in one response. An unknown range is a day.
 
 `visits` are sessions: a gap of more than thirty minutes starts a new one.
 `avg_duration` is their mean length in seconds and `bounce_rate` the share with
-a single page view, 0 to 1. `online` counts distinct visitors seen in the last
-five minutes. Every breakdown carries both `count` (hits) and `visitors`
+a single page view, 0 to 1. `online` counts visitors whose latest event in the
+last five minutes was not a `leave`, and `online_pages` is the page each of them
+is on. Every breakdown carries both `count` (hits) and `visitors`
 (distinct people) and is capped at twenty rows.
 
 `DELETE /api/analytics/{hostname}` erases every event of that site and answers
@@ -273,7 +274,8 @@ panel API:
   Always answered `204`, including for an unknown host or a bot.
 
 `k` is `pageview`, `ping` (a heartbeat the beacon sends every minute while the
-tab is visible, which is what visit duration is measured from) or a custom event
+tab is visible, which is what visit duration is measured from), `leave` (the tab
+went hidden or closed, which ends the visitor's presence) or a custom event
 name. Fire one with `vx('signup', { plan: 'pro' })`; the payload is capped at
 1 KB and stored as sent.
 

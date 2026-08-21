@@ -85,9 +85,7 @@ func (db *DB) TrafficFor(ctx context.Context, hostname string, since, onlineSinc
 		return nil, err
 	}
 
-	if err := db.QueryRowContext(ctx,
-		`SELECT COUNT(DISTINCT visitor) FROM analytics_events WHERE hostname = ? AND at >= ?`,
-		hostname, online).Scan(&summary.Online); err != nil {
+	if err := db.onlineNow(ctx, hostname, online, limit, summary); err != nil {
 		return nil, err
 	}
 
@@ -116,8 +114,7 @@ func (db *DB) TrafficFor(ctx context.Context, hostname string, since, onlineSinc
 		{into: &summary.Devices, column: "device", condition: "kind = 'pageview'", from: from},
 		{into: &summary.Browsers, column: "browser", condition: "kind = 'pageview'", from: from},
 		{into: &summary.Systems, column: "os", condition: "kind = 'pageview'", from: from},
-		{into: &summary.Events, column: "kind", condition: "kind NOT IN ('pageview', 'ping')", from: from, byCount: true},
-		{into: &summary.OnlinePages, column: "path", condition: "kind IN ('pageview', 'ping') AND path != ''", from: online},
+		{into: &summary.Events, column: "kind", condition: "kind NOT IN ('pageview', 'ping', 'leave')", from: from, byCount: true},
 	}
 	for _, section := range sections {
 		rows, err := db.breakdown(ctx, hostname, section.from, section.column, section.condition, section.byCount, limit)
@@ -127,6 +124,46 @@ func (db *DB) TrafficFor(ctx context.Context, hostname string, since, onlineSinc
 		*section.into = rows
 	}
 	return summary, nil
+}
+
+// liveVisitors keeps the one row per visitor that says where they are now: the
+// latest event in the window, dropping whoever's latest event was a leave. Any
+// event within the window would count a tab that closed four minutes ago,
+// which is what someone watching "online" notices first. Ties on the same
+// second break by insertion order, since a bounce sends its pageview and its
+// leave inside one.
+const liveVisitors = `WITH ranked AS (
+         SELECT visitor, kind, path,
+                ROW_NUMBER() OVER (PARTITION BY visitor ORDER BY at DESC, rowid DESC) AS seq
+         FROM analytics_events WHERE hostname = ? AND at >= ?
+     ),
+     live AS (SELECT visitor, path FROM ranked WHERE seq = 1 AND kind != 'leave')`
+
+// onlineNow fills in who is here and what they are reading.
+func (db *DB) onlineNow(ctx context.Context, hostname string, since int64, limit int, summary *TrafficSummary) error {
+	if err := db.QueryRowContext(ctx, liveVisitors+` SELECT COUNT(*) FROM live`,
+		hostname, since).Scan(&summary.Online); err != nil {
+		return err
+	}
+
+	rows, err := db.QueryContext(ctx, liveVisitors+
+		` SELECT path, COUNT(*), COUNT(DISTINCT visitor) FROM live
+		  WHERE path != '' GROUP BY path ORDER BY 2 DESC, 1 LIMIT ?`,
+		hostname, since, limit)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	summary.OnlinePages = []Breakdown{}
+	for rows.Next() {
+		var b Breakdown
+		if err := rows.Scan(&b.Name, &b.Count, &b.Visitors); err != nil {
+			return err
+		}
+		summary.OnlinePages = append(summary.OnlinePages, b)
+	}
+	return rows.Err()
 }
 
 // visitStats derives visits, their length and the bounce rate from the raw
