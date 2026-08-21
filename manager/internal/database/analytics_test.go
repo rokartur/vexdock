@@ -28,8 +28,10 @@ func TestTrafficSummary(t *testing.T) {
 	record(2*time.Minute, AnalyticsEvent{Visitor: "ada", Kind: "ping", Path: "/"})
 	record(4*time.Minute, AnalyticsEvent{Visitor: "ada", Path: "/pricing", Country: "PL", Device: "desktop", Browser: "Firefox", OS: "Linux"})
 	record(4*time.Minute, AnalyticsEvent{Visitor: "ada", Kind: "signup", Path: "/pricing", Props: `{"plan":"pro"}`})
-	// Grace lands once and leaves: a bounce with no duration.
+	// Grace lands once and closes the tab in the same second: a bounce with no
+	// duration, and gone the moment her beacon says so.
 	record(time.Minute, AnalyticsEvent{Visitor: "grace", Path: "/", Country: "DE", Device: "mobile", Browser: "Safari", OS: "iOS"})
+	record(time.Minute, AnalyticsEvent{Visitor: "grace", Kind: "leave", Path: "/"})
 	// Ada again, hours later. Past the session gap, so a second visit.
 	record(3*time.Hour, AnalyticsEvent{Visitor: "ada", Path: "/", Country: "PL", Device: "desktop", Browser: "Firefox", OS: "Linux"})
 	// Another host must not leak into the numbers.
@@ -65,7 +67,14 @@ func TestTrafficSummary(t *testing.T) {
 		t.Fatalf("referrers = %+v", summary.Referrers)
 	}
 	if len(summary.Events) != 1 || summary.Events[0].Name != "signup" {
-		t.Fatalf("events = %+v, want one signup", summary.Events)
+		t.Fatalf("events = %+v, want one signup (a leave is not a custom event)", summary.Events)
+	}
+	// Both are inside the online window, but Grace reported leaving.
+	if summary.Online != 1 {
+		t.Fatalf("online = %d, want only Ada", summary.Online)
+	}
+	if len(summary.OnlinePages) != 1 || summary.OnlinePages[0].Name != "/" || summary.OnlinePages[0].Visitors != 1 {
+		t.Fatalf("online pages = %+v, want Ada on /", summary.OnlinePages)
 	}
 	if len(summary.Countries) != 2 || summary.Countries[0].Name != "PL" {
 		t.Fatalf("countries = %+v", summary.Countries)

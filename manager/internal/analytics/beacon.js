@@ -48,6 +48,17 @@
 		if (document.visibilityState === 'visible') send('ping')
 	}, 60_000)
 
+	// Presence is the last thing a visitor said, so leaving has to be said out
+	// loud: without this the panel keeps counting a closed tab until its events
+	// age out. visibilitychange covers a backgrounded phone, pagehide a closed
+	// desktop tab, and both are the events that still fire when a page dies.
+	// ponytail: one hidden tab reports the whole device as gone until another
+	// tab's next heartbeat.
+	addEventListener('visibilitychange', () => {
+		send(document.visibilityState === 'visible' ? 'ping' : 'leave')
+	})
+	addEventListener('pagehide', () => send('leave'))
+
 	window.vx = (name, props) => send(String(name), props)
 
 	pageview()

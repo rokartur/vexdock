@@ -24,7 +24,7 @@ function AnalyticsPage() {
 		queryKey: ['analytics', selected, range],
 		queryFn: () => api.analytics(selected as string, range),
 		enabled: Boolean(selected),
-		// Online counts age out after five minutes, so keep them close to live.
+		// Online drops as soon as a visitor leaves, so keep the page close to live.
 		refetchInterval: 30_000,
 	})
 	const traffic = analytics.data?.traffic
