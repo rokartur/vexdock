@@ -1,10 +1,13 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { motion } from 'motion/react'
 import { cn } from '@/utils/cn'
 
 /** Width bounds of the navigation panel, in rem (219px / 329px / 252px). */
 export const MIN_NAV_WIDTH_REM = 13.6875
 export const MAX_NAV_WIDTH_REM = 20.5625
 export const DEFAULT_NAV_WIDTH_REM = 15.75
+/** Width of the collapsed navigation hit-target in px. */
+export const NAV_COLLAPSED_WIDTH = 8
 const WIDTH_KEY = 'navigation-leftBarWidth'
 
 /**
@@ -19,6 +22,14 @@ function storedWidth() {
 	return stored >= MIN_NAV_WIDTH_REM && stored <= MAX_NAV_WIDTH_REM ? stored : DEFAULT_NAV_WIDTH_REM
 }
 
+interface NavigationSidebarProps {
+	children: ReactNode
+	canHide?: boolean
+	isHidden?: boolean
+	showTemporary?: boolean
+	onShowTemporaryChange?: (show: boolean) => void
+}
+
 /**
  * The shell's left rail: a fixed, resizable panel that can be hidden entirely
  * and slid back in by hovering the screen edge. Hidden state is owned by the
@@ -26,98 +37,159 @@ function storedWidth() {
  */
 export function NavigationSidebar({
 	children,
+	canHide = false,
 	isHidden = false,
 	showTemporary = false,
 	onShowTemporaryChange,
-}: {
-	children: ReactNode
-	isHidden?: boolean
-	showTemporary?: boolean
-	onShowTemporaryChange?: (show: boolean) => void
-}) {
-	const [width, setWidth] = useState(storedWidth)
+}: Readonly<NavigationSidebarProps>) {
+	const [leftBarWidth, setLeftBarWidth] = useState(storedWidth)
+	const [renderWidth, setRenderWidth] = useState(leftBarWidth)
 	const [isResizing, setIsResizing] = useState(false)
 	const navRef = useRef<HTMLDivElement>(null)
+	const isResizingRef = useRef(false)
+	const resizeStartXRef = useRef(0)
+	const resizeStartWidthRef = useRef(0)
+	const pendingWidthRef = useRef(leftBarWidth)
+	const frameRef = useRef<number | null>(null)
 
-	const widthPx = width * 16
-	const transition = isResizing ? '' : 'transition-[width,left] duration-[250ms] ease-out'
+	const sidebarIsHidden = canHide && isHidden
+	const sidebarShownTemporary = canHide && showTemporary
+	const navWidthPx = renderWidth * 16
 
-	const startResize = (startX: number) => {
+	useEffect(() => {
+		if (!isResizing) {
+			setRenderWidth(leftBarWidth)
+			pendingWidthRef.current = leftBarWidth
+		}
+	}, [isResizing, leftBarWidth])
+
+	useEffect(
+		() => () => {
+			if (frameRef.current !== null) {
+				window.cancelAnimationFrame(frameRef.current)
+			}
+		},
+		[],
+	)
+
+	function handleMouseEnter() {
+		if (sidebarIsHidden) {
+			onShowTemporaryChange?.(true)
+		}
+	}
+
+	function handleMouseLeave() {
+		if (isResizingRef.current) return
+		if (sidebarIsHidden) {
+			onShowTemporaryChange?.(false)
+		}
+	}
+
+	function startResize(startX: number) {
+		if (sidebarIsHidden && !sidebarShownTemporary) return
+
+		isResizingRef.current = true
 		setIsResizing(true)
-		const startWidth = width
-		let next = width
+		resizeStartXRef.current = startX
+		resizeStartWidthRef.current = renderWidth
+		pendingWidthRef.current = renderWidth
 
-		const onMove = (event: MouseEvent) => {
-			const raw = isHidden ? event.clientX / 16 : startWidth + (event.clientX - startX) / 16
-			next = Math.min(MAX_NAV_WIDTH_REM, Math.max(MIN_NAV_WIDTH_REM, raw))
-			setWidth(next)
+		if (sidebarIsHidden) {
+			onShowTemporaryChange?.(true)
 		}
 
-		const onUp = (event: MouseEvent) => {
+		const handleMouseMove = (event: MouseEvent) => {
+			const newWidthRem = sidebarIsHidden
+				? event.clientX / 16
+				: resizeStartWidthRef.current + (event.clientX - resizeStartXRef.current) / 16
+			pendingWidthRef.current = Math.min(MAX_NAV_WIDTH_REM, Math.max(MIN_NAV_WIDTH_REM, newWidthRem))
+			if (frameRef.current !== null) return
+
+			frameRef.current = window.requestAnimationFrame(() => {
+				frameRef.current = null
+				setRenderWidth(pendingWidthRef.current)
+			})
+		}
+
+		const handleMouseUp = (event: MouseEvent) => {
+			isResizingRef.current = false
 			setIsResizing(false)
-			document.removeEventListener('mousemove', onMove)
-			document.removeEventListener('mouseup', onUp)
+			document.removeEventListener('mousemove', handleMouseMove)
+			document.removeEventListener('mouseup', handleMouseUp)
 			document.body.style.cursor = ''
 			document.body.style.userSelect = ''
-			localStorage.setItem(WIDTH_KEY, String(next))
 
-			if (isHidden) {
-				const bounds = navRef.current?.getBoundingClientRect()
-				const overNav =
-					bounds !== undefined &&
-					event.clientX >= bounds.left &&
-					event.clientX <= bounds.right &&
-					event.clientY >= bounds.top &&
-					event.clientY <= bounds.bottom
-				if (!overNav) onShowTemporaryChange?.(false)
+			if (frameRef.current !== null) {
+				window.cancelAnimationFrame(frameRef.current)
+				frameRef.current = null
+			}
+
+			setRenderWidth(pendingWidthRef.current)
+			setLeftBarWidth(pendingWidthRef.current)
+			localStorage.setItem(WIDTH_KEY, String(pendingWidthRef.current))
+
+			if (sidebarIsHidden) {
+				const navBounds = navRef.current?.getBoundingClientRect()
+				const pointerIsOverNav =
+					navBounds !== undefined &&
+					event.clientX >= navBounds.left &&
+					event.clientX <= navBounds.right &&
+					event.clientY >= navBounds.top &&
+					event.clientY <= navBounds.bottom
+
+				if (!pointerIsOverNav) {
+					onShowTemporaryChange?.(false)
+				}
 			}
 		}
 
-		document.addEventListener('mousemove', onMove)
-		document.addEventListener('mouseup', onUp)
+		document.addEventListener('mousemove', handleMouseMove)
+		document.addEventListener('mouseup', handleMouseUp)
 		document.body.style.cursor = 'col-resize'
 		document.body.style.userSelect = 'none'
 	}
 
 	return (
 		<div className='relative'>
-			{/* Dims the page while the hidden sidebar is peeked at. */}
-			<div
-				className={cn(
-					'fixed inset-y-0 right-0 left-0 bg-black transition-opacity duration-[250ms]',
-					showTemporary ? 'opacity-50' : 'pointer-events-none opacity-0',
-				)}
-			/>
-
-			{/* Spacer: the only thing that reserves layout width for the rail. */}
-			<div className={cn('relative h-full', transition)} style={{ width: isHidden ? 0 : widthPx }} />
-
-			{/* Hover hit-target on the screen edge while the rail is hidden. */}
-			{isHidden && (
-				<div className='fixed inset-y-0 left-0 z-30 w-2' onMouseEnter={() => onShowTemporaryChange?.(true)} />
+			{canHide && (
+				<motion.div
+					className={cn(
+						'fixed inset-y-0 right-0 bg-sidebar',
+						!sidebarShownTemporary && 'pointer-events-none',
+					)}
+					style={{ left: 0 }}
+					animate={{ opacity: sidebarShownTemporary ? 0.5 : 0 }}
+				/>
 			)}
 
-			<div
+			<motion.div
+				initial={{ width: navWidthPx }}
+				animate={{ width: sidebarIsHidden ? NAV_COLLAPSED_WIDTH : navWidthPx }}
+				transition={isResizing ? { duration: 0 } : { duration: 0.25, type: 'spring', bounce: 0 }}
+				className='relative h-full'
+				onMouseEnter={handleMouseEnter}
+			/>
+
+			<motion.div
 				ref={navRef}
+				initial={{ left: 0 }}
+				animate={{ left: sidebarIsHidden && !sidebarShownTemporary ? -navWidthPx : 0 }}
+				transition={isResizing ? { duration: 0 } : { duration: 0.25, type: 'spring', bounce: 0 }}
+				style={{ width: `${renderWidth}rem` }}
 				className={cn(
 					'fixed top-0 bottom-0 z-40 flex h-full items-end pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
-					isHidden && 'bottom-2 pl-2',
-					transition,
+					sidebarIsHidden && 'bottom-2 pl-2',
 				)}
-				style={{ width: `${width}rem`, left: isHidden && !showTemporary ? -widthPx : 0 }}
-				onMouseLeave={() => !isResizing && isHidden && onShowTemporaryChange?.(false)}
+				onMouseLeave={handleMouseLeave}
 			>
 				<nav
 					className={cn(
-						// p-2 is the same gutter the content panel's margin uses, so the rail's
-						// rows and the panel's top edge line up on one 8px frame.
-						'relative flex h-full w-full flex-col gap-4 bg-sidebar p-2 transition-all',
-						isHidden &&
-							'mr-2 mb-2 h-[calc(100%-1rem)] rounded-xl px-3.5 shadow-lg ring-1 ring-foreground/10',
+						'relative flex h-full w-full flex-col gap-4 bg-sidebar p-3 transition-all',
+						sidebarIsHidden && 'mr-2 mb-2 h-[calc(100%-1rem)] rounded-xl border border-zinc-800 px-3.5',
 					)}
 				>
 					{children}
-					{(!isHidden || showTemporary) && (
+					{(!sidebarIsHidden || sidebarShownTemporary) && (
 						<button
 							type='button'
 							aria-label='Resize sidebar'
@@ -127,12 +199,12 @@ export function NavigationSidebar({
 							}}
 							className={cn(
 								'absolute top-0 -right-2 bottom-0 z-10 hidden w-4 cursor-col-resize border-0 bg-transparent p-0 after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:transition-colors md:block',
-								isResizing ? 'after:bg-ring' : 'hover:after:bg-ring',
+								isResizing ? 'after:bg-zinc-500/50' : 'hover:after:bg-zinc-500/50',
 							)}
 						/>
 					)}
 				</nav>
-			</div>
+			</motion.div>
 		</div>
 	)
 }

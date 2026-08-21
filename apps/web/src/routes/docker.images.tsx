@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
@@ -49,17 +49,8 @@ export const Route = createFileRoute('/docker/images')({ component: ImagesPage }
 
 function ImagesPage() {
 	const queryClient = useQueryClient()
-	const [reference, setReference] = useState('')
 
 	const images = useQuery({ queryKey: ['images'], queryFn: api.images })
-
-	const pull = useMutation({
-		mutationFn: () => api.pullImage(reference),
-		onSuccess: async () => {
-			setReference('')
-			await queryClient.invalidateQueries({ queryKey: ['images'] })
-		},
-	})
 
 	const remove = useMutation({
 		mutationFn: (id: string) => api.removeImage(id, false),
@@ -72,35 +63,15 @@ function ImagesPage() {
 
 	return (
 		<Page>
-			<Section title='Pull image'>
-				<form
-					className='flex gap-2 border-t border-border pt-3'
-					onSubmit={event => {
-						event.preventDefault()
-						pull.mutate()
-					}}
-				>
-					<input
-						required
-						value={reference}
-						placeholder='ghcr.io/user/app:latest'
-						onChange={event => setReference(event.target.value)}
-						className='max-w-md font-mono text-body'
-					/>
-					<Button type='submit' variant='primary' disabled={pull.isPending}>
-						{pull.isPending ? 'Pulling…' : 'Pull'}
-					</Button>
-				</form>
-				<ErrorText error={pull.error} />
-			</Section>
-
 			<Section
 				title='Local images'
 				description={`${data.length} total`}
 				actions={<Refresh onClick={() => images.refetch()} busy={images.isFetching} />}
+				className='mb-0 flex h-full min-h-0 flex-col'
 			>
 				<ErrorText error={remove.error} />
 				<DataTable
+					fillHeight
 					data={data}
 					columns={columns}
 					loading={images.isLoading}
