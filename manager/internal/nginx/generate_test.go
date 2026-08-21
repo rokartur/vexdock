@@ -65,6 +65,27 @@ func TestRenderCustomDirectives(t *testing.T) {
 	mustContain(t, conf, "        proxy_request_buffering off;")
 }
 
+func TestRenderAnalytics(t *testing.T) {
+	conf := Render(Upstream{
+		Hostname: "a.example.com", Alias: "a", Port: 80,
+		HTTPS: true, RedirectHTTPS: true, CertDir: "/c", Analytics: true,
+	})
+	mustContain(t, conf, "location = /_vx.js {")
+	mustContain(t, conf, "proxy_pass http://"+ManagerUpstream+"/api/collect;")
+	mustContain(t, conf, `sub_filter '</head>' '<script defer src="/_vx.js"></script></head>';`)
+	// A compressed upstream body cannot be rewritten.
+	mustContain(t, conf, `proxy_set_header Accept-Encoding "";`)
+	// The redirecting HTTP block serves nothing, so the beacon lives once.
+	if strings.Count(conf, "location = /_vx {") != 1 {
+		t.Fatal("the collect endpoint should be rendered once")
+	}
+
+	plain := Render(Upstream{Hostname: "a.example.com", Alias: "a", Port: 80})
+	if strings.Contains(plain, "_vx") || strings.Contains(plain, "sub_filter") {
+		t.Fatal("analytics leaked into a domain that did not enable it")
+	}
+}
+
 func TestAliasIsStableAndSafe(t *testing.T) {
 	got := Alias("01JABCXYZ", "Web App")
 	if got != "p_01jabcxyz_web-app" {

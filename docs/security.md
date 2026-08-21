@@ -29,6 +29,30 @@ Everything in front of it is therefore treated as untrusted input.
   path, the resulting status, the credential type and the client address.
   Rejected cross-origin attempts are recorded too.
 
+## Analytics collection
+
+The hit endpoint is the only public write path besides webhooks, and it is
+open to every visitor of a tracked site by definition.
+
+- Nginx only routes `/_vx` for a hostname whose domain enabled analytics, and
+  the manager checks the domain again by the `Host` Nginx forwarded. The
+  hostname is never read from the request body, so a hit cannot be attributed
+  to a site the sender does not control.
+- The endpoint answers `204` to everything. A distinguishable error would tell
+  a prober which hostnames are tracked.
+- Visitors are identified by a hash of a daily random salt, the address, the
+  user agent and the hostname. The salt lives in memory only, so the same
+  person is not linkable across days, across sites, or by anyone holding a copy
+  of the database. No cookie is set and no identifier is stored on the device.
+- Query strings are dropped before storage, referrers are reduced to a host,
+  and the country comes from an edge header when one exists, otherwise from the
+  browser's timezone. No IP address is written to the database.
+- Path, referrer, event name and event payload are all length capped, and the
+  request body is read through a limit, so a public endpoint cannot be used to
+  write arbitrary blobs. Nginx rate limits the path with the same zone as the
+  panel API.
+- Events are deleted after ninety days by the retention job.
+
 ## Command execution
 
 The platform shells out to `git`, `docker` and `docker compose`. It never builds

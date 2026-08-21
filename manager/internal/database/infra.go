@@ -7,14 +7,15 @@ import (
 )
 
 const domainColumns = `id, project_id, environment_id, service_id, hostname, container_port, https_enabled, redirect_https,
-	certificate_source, created_at, updated_at`
+	certificate_source, analytics, created_at, updated_at`
 
 func (db *DB) CreateDomain(ctx context.Context, d *Domain) error {
 	d.CreatedAt, d.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO domains (`+domainColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO domains (`+domainColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		d.ID, d.ProjectID, d.EnvironmentID, d.ServiceID, d.Hostname, d.ContainerPort,
-		boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS), d.CertificateSource, d.CreatedAt, d.UpdatedAt)
+		boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS), d.CertificateSource, boolToInt(d.Analytics),
+		d.CreatedAt, d.UpdatedAt)
 	return err
 }
 
@@ -22,9 +23,9 @@ func (db *DB) UpdateDomain(ctx context.Context, d *Domain) error {
 	d.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
 		`UPDATE domains SET service_id=?, hostname=?, container_port=?, https_enabled=?, redirect_https=?,
-		 certificate_source=?, updated_at=? WHERE id=?`,
+		 certificate_source=?, analytics=?, updated_at=? WHERE id=?`,
 		d.ServiceID, d.Hostname, d.ContainerPort, boolToInt(d.HTTPSEnabled), boolToInt(d.RedirectHTTPS),
-		d.CertificateSource, d.UpdatedAt, d.ID)
+		d.CertificateSource, boolToInt(d.Analytics), d.UpdatedAt, d.ID)
 	return err
 }
 
@@ -35,6 +36,10 @@ func (db *DB) DeleteDomain(ctx context.Context, id string) error {
 
 func (db *DB) DomainByID(ctx context.Context, id string) (*Domain, error) {
 	return scanDomain(db.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM domains WHERE id = ?`, id))
+}
+
+func (db *DB) DomainByHostname(ctx context.Context, hostname string) (*Domain, error) {
+	return scanDomain(db.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM domains WHERE hostname = ?`, hostname))
 }
 
 func (db *DB) ListDomains(ctx context.Context) ([]Domain, error) {
@@ -68,16 +73,16 @@ func (db *DB) queryDomains(ctx context.Context, query string, args ...any) ([]Do
 
 func scanDomain(row scanner) (*Domain, error) {
 	var d Domain
-	var https, redirect int
+	var https, redirect, analytics int
 	err := row.Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.ServiceID, &d.Hostname, &d.ContainerPort, &https, &redirect,
-		&d.CertificateSource, &d.CreatedAt, &d.UpdatedAt)
+		&d.CertificateSource, &analytics, &d.CreatedAt, &d.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	d.HTTPSEnabled, d.RedirectHTTPS = https != 0, redirect != 0
+	d.HTTPSEnabled, d.RedirectHTTPS, d.Analytics = https != 0, redirect != 0, analytics != 0
 	return &d, nil
 }
 

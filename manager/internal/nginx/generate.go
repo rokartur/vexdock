@@ -21,6 +21,9 @@ type Upstream struct {
 	CertDir string
 	// Custom is optional user-supplied directives injected into location /.
 	Custom string
+	// Analytics serves the visit beacon from this hostname and injects it into
+	// HTML responses, so the deployed app needs no script tag of its own.
+	Analytics bool
 }
 
 // ChallengeRoot is where the ACME HTTP-01 tokens are written; Nginx serves it
@@ -29,6 +32,16 @@ const ChallengeRoot = "/acme-challenge"
 
 // AuthUpstream is the better-auth service, which serves /api/auth.
 const AuthUpstream = "auth:8081"
+
+// ManagerUpstream is the manager API, reachable from Nginx on the internal
+// network only.
+const ManagerUpstream = "manager:8080"
+
+// Analytics beacon paths, served from the visited site so no request leaves it.
+const (
+	BeaconPath  = "/_vx.js"
+	CollectPath = "/_vx"
+)
 
 // FileName is the deterministic config filename for a hostname.
 func FileName(hostname string) string { return hostname + ".conf" }
@@ -52,7 +65,10 @@ func Render(u Upstream) string {
 		b.WriteString("\n    location / {\n        return 301 https://$host$request_uri;\n    }\n}\n")
 	} else {
 		b.WriteString("\n")
-		b.WriteString(proxyLocation(target, u.Custom))
+		if u.Analytics {
+			b.WriteString(analyticsLocations())
+		}
+		b.WriteString(proxyLocation(target, u.Custom, u.Analytics))
 		b.WriteString("}\n")
 	}
 
@@ -70,7 +86,10 @@ func Render(u Upstream) string {
 	b.WriteString("    ssl_session_timeout 1d;\n\n")
 	b.WriteString(challengeLocation())
 	b.WriteString("\n")
-	b.WriteString(proxyLocation(target, u.Custom))
+	if u.Analytics {
+		b.WriteString(analyticsLocations())
+	}
+	b.WriteString(proxyLocation(target, u.Custom, u.Analytics))
 	b.WriteString("}\n")
 	return b.String()
 }
@@ -82,7 +101,27 @@ func challengeLocation() string {
 		"    }\n"
 }
 
-func proxyLocation(target, custom string) string {
+// analyticsLocations keeps the beacon first-party: the script and the hit both
+// come from the visited hostname and Nginx forwards them to the manager, so no
+// cross-origin request and no third-party domain is involved.
+func analyticsLocations() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "    location = %s {\n", BeaconPath)
+	fmt.Fprintf(&b, "        proxy_pass http://%s/api/collect.js;\n", ManagerUpstream)
+	b.WriteString("        proxy_set_header Host $http_host;\n")
+	b.WriteString("    }\n\n")
+
+	fmt.Fprintf(&b, "    location = %s {\n", CollectPath)
+	b.WriteString("        limit_req zone=api_limit burst=20 nodelay;\n")
+	fmt.Fprintf(&b, "        proxy_pass http://%s/api/collect;\n", ManagerUpstream)
+	b.WriteString("        proxy_set_header Host $http_host;\n")
+	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
+	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
+	b.WriteString("    }\n\n")
+	return b.String()
+}
+
+func proxyLocation(target, custom string, analytics bool) string {
 	var b strings.Builder
 	b.WriteString("    location / {\n")
 	b.WriteString("        resolver 127.0.0.11 valid=10s ipv6=off;\n")
@@ -100,6 +139,14 @@ func proxyLocation(target, custom string) string {
 	b.WriteString("        proxy_cache off;\n")
 	b.WriteString("        proxy_read_timeout 3600s;\n")
 	b.WriteString("        proxy_send_timeout 3600s;\n")
+	if analytics {
+		// sub_filter cannot rewrite a compressed body, so the upstream is asked
+		// for plain HTML; Nginx still gzips it on the way out.
+		b.WriteString("\n        proxy_set_header Accept-Encoding \"\";\n")
+		b.WriteString("        sub_filter_types text/html;\n")
+		b.WriteString("        sub_filter_once on;\n")
+		fmt.Fprintf(&b, "        sub_filter '</head>' '<script defer src=\"%s\"></script></head>';\n", BeaconPath)
+	}
 	if strings.TrimSpace(custom) != "" {
 		b.WriteString("\n")
 		for _, line := range strings.Split(strings.TrimSpace(custom), "\n") {

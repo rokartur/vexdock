@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vexdock/platform/manager/internal/analytics"
 	"github.com/vexdock/platform/manager/internal/api"
 	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/backup"
@@ -200,6 +201,9 @@ func scheduler(ctx context.Context, db *database.DB, domainService *domains.Serv
 		}
 		if err := db.PruneMetrics(ctx, time.Now().Add(-metrics.Retention)); err != nil {
 			log.Warn("metrics retention", "error", err)
+		}
+		if err := db.PruneAnalytics(ctx, time.Now().Add(-analytics.Retention)); err != nil {
+			log.Warn("analytics retention", "error", err)
 		}
 		if err := backupService.Prune(10); err != nil {
 			log.Warn("backup retention", "error", err)

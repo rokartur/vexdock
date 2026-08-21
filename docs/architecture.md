@@ -165,6 +165,23 @@ what happened while nobody was watching. A sampler writes one host row and one
 row per running container a minute, and the scheduler prunes anything older than
 seven days, so both tables stay bounded without operator attention.
 
+## Site analytics
+
+A domain can count its own visits. Turning it on changes only the generated
+vhost: Nginx injects `<script defer src="/_vx.js">` into HTML responses with
+`sub_filter` and routes `/_vx.js` and `/_vx` to the manager. The deployed app is
+never modified, the script is served from the site's own hostname, and the hits
+never leave the server. Because `sub_filter` cannot rewrite a compressed body,
+those vhosts ask the upstream for plain HTML and let Nginx compress the result.
+
+The manager stores one row per hit and computes everything at read time: views,
+unique visitors, sessions and their length, bounce rate, top pages, referrers,
+regions, devices and custom events. There are no rollup tables to keep in sync,
+and the scheduler prunes events older than ninety days, so the table stays
+bounded like the metrics ones. Visitors are a daily rotating hash rather than a
+cookie, which keeps the feature out of consent-banner territory but also means a
+returning-visitor count is not possible by construction.
+
 ## Certificates
 
 A domain either gets its certificate from Let's Encrypt or you upload one. Both

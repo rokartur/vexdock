@@ -27,6 +27,7 @@ func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 		CertificateSource string `json:"certificate_source"`
 		CertificatePEM    string `json:"certificate_pem"`
 		PrivateKeyPEM     string `json:"private_key_pem"`
+		Analytics         bool   `json:"analytics"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
@@ -43,6 +44,7 @@ func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 		CertificateSource: req.CertificateSource,
 		CertificatePEM:    req.CertificatePEM,
 		PrivateKeyPEM:     req.PrivateKeyPEM,
+		Analytics:         req.Analytics,
 	})
 	if err != nil {
 		// A domain that exists but failed certificate issuance is a partial
@@ -70,6 +72,7 @@ func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 		CertificateSource *string `json:"certificate_source"`
 		CertificatePEM    *string `json:"certificate_pem"`
 		PrivateKeyPEM     *string `json:"private_key_pem"`
+		Analytics         *bool   `json:"analytics"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
@@ -89,6 +92,9 @@ func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.CertificateSource != nil {
 		domain.CertificateSource = *req.CertificateSource
+	}
+	if req.Analytics != nil {
+		domain.Analytics = *req.Analytics
 	}
 	update := domains.UpdateInput{}
 	if req.CertificatePEM != nil {
