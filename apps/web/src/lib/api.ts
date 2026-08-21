@@ -655,6 +655,8 @@ export const api = {
 
 	analytics: (hostname: string, range: AnalyticsRange) =>
 		request<{ domain: Domain; traffic: Traffic }>(`/api/analytics/${hostname}?range=${range}`),
+	clearAnalytics: (hostname: string) =>
+		request<{ deleted: number }>(`/api/analytics/${hostname}`, { method: 'DELETE' }),
 
 	deployment: (id: string) => request<{ deployment: Deployment; steps: DeploymentStep[] }>(`/api/deployments/${id}`),
 	cancelDeployment: (id: string) => request<{ ok: boolean }>(`/api/deployments/${id}/cancel`, { method: 'POST' }),

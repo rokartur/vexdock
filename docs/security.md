@@ -123,10 +123,14 @@ Values that reach a command line are validated first:
 
 ## Destructive actions
 
-Nothing is pruned or deleted on a schedule. The updater removes previous system
-image tags only when the operator selects that option, and only after the new
-manager is healthy. Removing a volume requires an explicit `confirm=true`, and
+Nothing an operator created is pruned or deleted on a schedule; only the
+bounded observability tables age out on their own, metrics after seven days and
+analytics events after ninety. The updater removes previous system image tags
+only when the operator selects that option, and only after the new manager is
+healthy. Removing a volume requires an explicit `confirm=true`, and
 every cleanup screen shows what will be reclaimed before anything is removed.
+Clearing a site's analytics erases every event for that hostname at once, so
+the dashboard asks twice and names the site in the confirmation.
 Uninstalling keeps application data by default.
 
 ## Proxy configuration

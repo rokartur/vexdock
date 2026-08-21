@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Button, ErrorText, Fact, Facts, Page, Refresh, Section } from '../components/primitives'
 import { type AnalyticsRange, api, type Breakdown, type TrafficPoint } from '../lib/api'
@@ -28,6 +28,15 @@ function AnalyticsPage() {
 		refetchInterval: 30_000,
 	})
 	const traffic = analytics.data?.traffic
+	const queryClient = useQueryClient()
+	const [confirmClear, setConfirmClear] = useState(false)
+	const clear = useMutation({
+		mutationFn: () => api.clearAnalytics(selected as string),
+		onSuccess: () => {
+			setConfirmClear(false)
+			return queryClient.invalidateQueries({ queryKey: ['analytics'] })
+		},
+	})
 
 	if (!(domains.isLoading || tracked.length)) {
 		return (
@@ -96,6 +105,28 @@ function AnalyticsPage() {
 				<Top title='Operating systems' rows={traffic?.systems} unit='visitors' />
 				<Top title='Events' rows={traffic?.events} unit='fired' />
 			</div>
+
+			<Section title='Clear statistics' description='every event of this site, all ranges'>
+				<ErrorText error={clear.error} />
+				{confirmClear ? (
+					<div className='flex gap-2'>
+						<Button variant='danger' onClick={() => clear.mutate()} disabled={clear.isPending}>
+							{clear.isPending ? 'Deleting…' : `Delete every event of ${selected}`}
+						</Button>
+						<Button variant='ghost' onClick={() => setConfirmClear(false)}>
+							Cancel
+						</Button>
+					</div>
+				) : (
+					<Button variant='danger' onClick={() => setConfirmClear(true)}>
+						Clear statistics
+					</Button>
+				)}
+				<p className='mt-1 text-label text-muted-foreground'>
+					The counters restart from zero and the history is gone. There is no undo and no export, and the
+					other tracked domains are untouched. Collection stays on.
+				</p>
+			</Section>
 		</Page>
 	)
 }
