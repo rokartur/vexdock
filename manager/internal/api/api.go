@@ -119,6 +119,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/domains/{id}", s.protected(s.handleDeleteDomain))
 	mux.Handle("POST /api/domains/{id}/certificate", s.protected(s.handleIssueCertificate))
 	mux.Handle("GET /api/analytics/{hostname}", s.protected(s.handleAnalytics))
+	mux.Handle("DELETE /api/analytics/{hostname}", s.protected(s.handleClearAnalytics))
 
 	mux.Handle("GET /api/deployments/{id}", s.protected(s.handleGetDeployment))
 	mux.Handle("GET /api/deployments/{id}/events", s.protected(s.handleDeploymentEvents))

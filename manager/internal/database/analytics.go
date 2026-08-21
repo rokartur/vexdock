@@ -220,3 +220,12 @@ func (db *DB) PruneAnalytics(ctx context.Context, before time.Time) error {
 	_, err := db.ExecContext(ctx, `DELETE FROM analytics_events WHERE at < ?`, before.Unix())
 	return err
 }
+
+// ClearAnalytics drops every event of one site and reports how many went.
+func (db *DB) ClearAnalytics(ctx context.Context, hostname string) (int64, error) {
+	result, err := db.ExecContext(ctx, `DELETE FROM analytics_events WHERE hostname = ?`, hostname)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

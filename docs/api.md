@@ -260,6 +260,10 @@ a single page view, 0 to 1. `online` counts distinct visitors seen in the last
 five minutes. Every breakdown carries both `count` (hits) and `visitors`
 (distinct people) and is capped at twenty rows.
 
+`DELETE /api/analytics/{hostname}` erases every event of that site and answers
+`{ "deleted": 1840 }`. It is not scoped to a range, there is no undo, and other
+domains keep their history. Collection stays on.
+
 Collection is off until a domain sets `analytics: true`. The generated vhost
 then serves two paths from the site itself, both public and neither part of the
 panel API:

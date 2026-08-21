@@ -108,6 +108,21 @@ func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"domain": domain, "traffic": summary})
 }
 
+// handleClearAnalytics deletes every event of one site. There is no undo and
+// no export, so the dashboard asks twice before calling it.
+func (s *Server) handleClearAnalytics(w http.ResponseWriter, r *http.Request) {
+	domain, err := s.DB.DomainByHostname(r.Context(), r.PathValue("hostname"))
+	if handleLookupError(w, err) {
+		return
+	}
+	deleted, err := s.DB.ClearAnalytics(r.Context(), domain.Hostname)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": deleted})
+}
+
 // analyticsRange maps the requested window to a bucket size that keeps the
 // chart around a hundred points. Anything unknown is a day.
 func analyticsRange(name string) (window time.Duration, bucket int64) {

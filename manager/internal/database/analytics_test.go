@@ -90,4 +90,31 @@ func TestTrafficSummary(t *testing.T) {
 	if pruned.Views != 1 {
 		t.Fatalf("views after prune = %d, want the single later visit", pruned.Views)
 	}
+
+	// A neighbour with an event the prune did not reach, to prove clearing one
+	// site leaves the others alone.
+	if err := db.RecordAnalyticsEvent(ctx, base.Add(3*time.Hour), AnalyticsEvent{
+		Hostname: "other.com", Visitor: "zed", Kind: "pageview", Path: "/",
+	}); err != nil {
+		t.Fatalf("record neighbour: %v", err)
+	}
+
+	deleted, err := db.ClearAnalytics(ctx, "example.com")
+	if err != nil || deleted != 1 {
+		t.Fatalf("clear = %d, %v, want the one surviving event", deleted, err)
+	}
+	cleared, err := db.TrafficFor(ctx, "example.com", base.Add(-time.Hour), base.Add(-time.Hour), 3600, 20)
+	if err != nil {
+		t.Fatalf("traffic after clear: %v", err)
+	}
+	if cleared.Views != 0 {
+		t.Fatalf("views after clear = %d, want none", cleared.Views)
+	}
+	other, err := db.TrafficFor(ctx, "other.com", base.Add(-time.Hour), base.Add(-time.Hour), 3600, 20)
+	if err != nil {
+		t.Fatalf("traffic other host: %v", err)
+	}
+	if other.Views != 1 {
+		t.Fatal("clearing one site must leave the others alone")
+	}
 }
