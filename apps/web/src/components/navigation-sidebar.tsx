@@ -5,9 +5,6 @@ import { cn } from '@/utils/cn'
 export const MIN_NAV_WIDTH_REM = 13.6875
 export const MAX_NAV_WIDTH_REM = 20.5625
 export const DEFAULT_NAV_WIDTH_REM = 15.75
-/** Width of the hover hit-target left behind when the sidebar is hidden. */
-const NAV_COLLAPSED_WIDTH = 8
-
 const WIDTH_KEY = 'navigation-leftBarWidth'
 
 /**
@@ -93,11 +90,12 @@ export function NavigationSidebar({
 			/>
 
 			{/* Spacer: the only thing that reserves layout width for the rail. */}
-			<div
-				className={cn('relative h-full', transition)}
-				style={{ width: isHidden ? NAV_COLLAPSED_WIDTH : widthPx }}
-				onMouseEnter={() => isHidden && onShowTemporaryChange?.(true)}
-			/>
+			<div className={cn('relative h-full', transition)} style={{ width: isHidden ? 0 : widthPx }} />
+
+			{/* Hover hit-target on the screen edge while the rail is hidden. */}
+			{isHidden && (
+				<div className='fixed inset-y-0 left-0 z-30 w-2' onMouseEnter={() => onShowTemporaryChange?.(true)} />
+			)}
 
 			<div
 				ref={navRef}
