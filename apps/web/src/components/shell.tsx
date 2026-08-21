@@ -149,6 +149,7 @@ export function Shell({ children }: { children: ReactNode }) {
 		// The rail's colour is also the canvas the content panel floats on.
 		<div className='flex h-dvh w-full overflow-hidden bg-sidebar'>
 			<NavigationSidebar
+				canHide
 				isHidden={isHidden}
 				showTemporary={showTemporary}
 				onShowTemporaryChange={setShowTemporary}
@@ -253,8 +254,9 @@ export function Shell({ children }: { children: ReactNode }) {
 				</div>
 			</NavigationSidebar>
 
-			{/* Inset card, so the rail's colour reads as the canvas it floats on. */}
-			<main className='m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background'>
+			{/* Inset card, so the rail's colour reads as the canvas it floats on. The rail's
+			    spacer owns the left gutter (8px when collapsed), so the panel skips ml. */}
+			<main className='m-2 ml-0 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background'>
 				{children}
 			</main>
 

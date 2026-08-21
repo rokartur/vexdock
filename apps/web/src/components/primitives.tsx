@@ -203,12 +203,15 @@ export function Section({
 	children,
 	description,
 	onSave,
+	className,
 }: {
 	title: string
 	actions?: ReactNode
 	children: ReactNode
 	description?: string
 	onSave?: () => void
+	/** Layout only, e.g. letting a section fill the page for a full-height table. */
+	className?: string
 }) {
 	const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
 		if (!onSave || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
@@ -217,7 +220,7 @@ export function Section({
 	}
 
 	return (
-		<section className='mb-7' onKeyDown={onKeyDown}>
+		<section className={cn('mb-7', className)} onKeyDown={onKeyDown}>
 			<header className='mb-2 flex h-7 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-3'>
 					<h2 className='text-meta tracking-wider text-muted-foreground uppercase'>{title}</h2>
