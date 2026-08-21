@@ -178,9 +178,11 @@ The manager stores one row per hit and computes everything at read time: views,
 unique visitors, sessions and their length, bounce rate, top pages, referrers,
 regions, devices and custom events. There are no rollup tables to keep in sync,
 and the scheduler prunes events older than ninety days, so the table stays
-bounded like the metrics ones. Visitors are a daily rotating hash rather than a
-cookie, which keeps the feature out of consent-banner territory but also means a
-returning-visitor count is not possible by construction.
+bounded like the metrics ones. Visitors are a daily rotating hash of the
+address and the coarse device bucket rather than a cookie, which keeps the
+feature out of consent-banner territory but also fixes the resolution: a
+private window is not a second person, and two phones on one home connection
+are not two either. A returning-visitor count is not possible by construction.
 
 ## Certificates
 
