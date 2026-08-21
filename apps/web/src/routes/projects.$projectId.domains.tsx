@@ -13,6 +13,7 @@ type DomainTableDeps = {
 	renewing: boolean
 	replace: (domain: Domain) => void
 	remove: (domainId: string) => void
+	toggleAnalytics: (domain: Domain) => void
 }
 
 function domainTableColumns({
@@ -22,6 +23,7 @@ function domainTableColumns({
 	renewing,
 	replace,
 	remove,
+	toggleAnalytics,
 }: DomainTableDeps): Columns<Domain> {
 	const cell = columnsFor<Domain>()
 	return [
@@ -50,6 +52,15 @@ function domainTableColumns({
 		cell.accessor(domain => (domain.certificate_source === 'custom' ? 'uploaded' : "Let's Encrypt"), {
 			id: 'source',
 			header: 'Source',
+		}),
+		cell.accessor(domain => (domain.analytics ? 'on' : 'off'), {
+			id: 'analytics',
+			header: 'Analytics',
+			cell: ({ row: { original } }) => (
+				<Button variant='ghost' onClick={() => toggleAnalytics(original)}>
+					{original.analytics ? 'on' : 'off'}
+				</Button>
+			),
 		}),
 		cell.accessor(domain => certificateFor(domain.id)?.status ?? 'none', {
 			id: 'certificate',
@@ -117,6 +128,7 @@ function ProjectDomains() {
 	const [source, setSource] = useState<CertificateSource>('letsencrypt')
 	const [certPem, setCertPem] = useState('')
 	const [keyPem, setKeyPem] = useState('')
+	const [analytics, setAnalytics] = useState(false)
 	// An uploaded certificate expires and has to be replaced by hand.
 	const [replacing, setReplacing] = useState<Domain | null>(null)
 	const [replaceCert, setReplaceCert] = useState('')
@@ -140,6 +152,7 @@ function ProjectDomains() {
 				certificate_source: source,
 				certificate_pem: source === 'custom' ? certPem : undefined,
 				private_key_pem: source === 'custom' ? keyPem : undefined,
+				analytics,
 			}),
 		onSuccess: async result => {
 			setWarning(result.warning ?? '')
@@ -160,6 +173,11 @@ function ProjectDomains() {
 		onSuccess: invalidate,
 	})
 
+	const tracking = useMutation({
+		mutationFn: (domain: Domain) => api.updateDomain(domain.id, { analytics: !domain.analytics }),
+		onSuccess: invalidate,
+	})
+
 	const replace = useMutation({
 		mutationFn: (id: string) =>
 			api.updateDomain(id, {
@@ -177,6 +195,7 @@ function ProjectDomains() {
 
 	const { mutate: issueCertificate, isPending: issuing } = issue
 	const { mutate: removeDomain } = remove
+	const { mutate: toggleAnalytics } = tracking
 	const { data: serviceList } = services
 	const { data: certificateList } = certificates
 	const columns = useMemo(
@@ -188,8 +207,9 @@ function ProjectDomains() {
 				renewing: issuing,
 				replace: setReplacing,
 				remove: removeDomain,
+				toggleAnalytics,
 			}),
-		[certificateList, serviceList, issueCertificate, issuing, removeDomain],
+		[certificateList, serviceList, issueCertificate, issuing, removeDomain, toggleAnalytics],
 	)
 
 	return (
@@ -206,7 +226,7 @@ function ProjectDomains() {
 					getRowId={domain => domain.id}
 					empty='No domains yet. Point an A record at this server, then add it below.'
 				/>
-				<ErrorText error={remove.error ?? issue.error} />
+				<ErrorText error={remove.error ?? issue.error ?? tracking.error} />
 				{certificates.data?.some(cert => cert.status === 'failed') ? (
 					<p className='pt-2 text-body text-amber-400'>
 						{certificates.data.find(cert => cert.status === 'failed')?.last_error}
@@ -302,6 +322,7 @@ function ProjectDomains() {
 							disabled={!https}
 							onChange={setRedirect}
 						/>
+						<Check label='Collect analytics' checked={analytics} onChange={setAnalytics} />
 					</div>
 					{https ? (
 						<div className='md:col-span-4'>

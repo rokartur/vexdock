@@ -63,6 +63,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/system/version", s.handleVersion)
 	mux.HandleFunc("POST /api/webhooks/projects/{token}", s.handleWebhook)
+	// The beacon and its hits come from visitors of tracked sites, not from the
+	// panel, so they cannot carry a session. Nginx only routes them for a
+	// hostname whose domain has analytics enabled.
+	mux.HandleFunc("GET /api/collect.js", s.handleBeaconScript)
+	mux.HandleFunc("POST /api/collect", s.handleCollect)
 
 	// Authenticated.
 	mux.Handle("GET /api/me", s.protected(s.handleMe))
@@ -113,6 +118,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/domains/{id}", s.protected(s.handleUpdateDomain))
 	mux.Handle("DELETE /api/domains/{id}", s.protected(s.handleDeleteDomain))
 	mux.Handle("POST /api/domains/{id}/certificate", s.protected(s.handleIssueCertificate))
+	mux.Handle("GET /api/analytics/{hostname}", s.protected(s.handleAnalytics))
 
 	mux.Handle("GET /api/deployments/{id}", s.protected(s.handleGetDeployment))
 	mux.Handle("GET /api/deployments/{id}/events", s.protected(s.handleDeploymentEvents))

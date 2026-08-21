@@ -126,8 +126,10 @@ type Domain struct {
 	RedirectHTTPS bool   `json:"redirect_https"`
 	// CertificateSource is CertLetsEncrypt or CertCustom.
 	CertificateSource string `json:"certificate_source"`
-	CreatedAt         string `json:"created_at"`
-	UpdatedAt         string `json:"updated_at"`
+	// Analytics injects the visit beacon into HTML responses for this hostname.
+	Analytics bool   `json:"analytics"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // Certificate statuses.

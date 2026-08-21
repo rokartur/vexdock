@@ -66,6 +66,8 @@ type CreateInput struct {
 	// CertificatePEM and PrivateKeyPEM are only read for a custom source.
 	CertificatePEM string
 	PrivateKeyPEM  string
+	// Analytics turns on visit tracking for the hostname.
+	Analytics bool
 }
 
 // Create validates and stores a domain, then reconciles the proxy so it starts
@@ -116,6 +118,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 		HTTPSEnabled:      in.HTTPS,
 		RedirectHTTPS:     in.RedirectHTTPS,
 		CertificateSource: source,
+		Analytics:         in.Analytics,
 	}
 	if err := s.db.CreateDomain(ctx, d); err != nil {
 		return nil, fmt.Errorf("domain %s is already in use: %w", host, err)
@@ -305,6 +308,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			HTTPS:         https,
 			RedirectHTTPS: d.RedirectHTTPS,
 			CertDir:       "/certificates/" + certificates.DirName(d.Hostname),
+			Analytics:     d.Analytics,
 		})
 	}
 
@@ -325,7 +329,7 @@ func (s *Service) dashboardVhost(ctx context.Context) (string, string, bool) {
 		return "", "", false
 	}
 	https := s.certs.Exists(host)
-	body := nginx.RenderDashboard(host, "manager:8080", "/usr/share/nginx/html", https, "/certificates/"+host)
+	body := nginx.RenderDashboard(host, nginx.ManagerUpstream, "/usr/share/nginx/html", https, "/certificates/"+host)
 	return body, nginx.FileName(host), true
 }
 

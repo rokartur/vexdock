@@ -231,6 +231,48 @@ empty. Poll `GET /api/deployments/{id}` for the outcome, or subscribe to its
 event stream. Rollback of a service-scoped deployment redeploys that service
 only.
 
+## Analytics
+
+`GET /api/analytics/{hostname}?range=24h|7d|30d` returns the domain and every
+section the analytics page shows, in one response. An unknown range is a day.
+
+```json
+{
+  "domain": { "hostname": "app.example.com", "analytics": true },
+  "traffic": {
+    "views": 1840,
+    "visitors": 612,
+    "online": 7,
+    "visits": 733,
+    "avg_duration": 96,
+    "bounce_rate": 0.41,
+    "series": [{ "at": 1738000800, "views": 42, "visitors": 31 }],
+    "pages": [{ "name": "/pricing", "count": 210, "visitors": 180 }],
+    "referrers": [], "countries": [], "devices": [], "browsers": [],
+    "systems": [], "events": [], "online_pages": []
+  }
+}
+```
+
+`visits` are sessions: a gap of more than thirty minutes starts a new one.
+`avg_duration` is their mean length in seconds and `bounce_rate` the share with
+a single page view, 0 to 1. `online` counts distinct visitors seen in the last
+five minutes. Every breakdown carries both `count` (hits) and `visitors`
+(distinct people) and is capped at twenty rows.
+
+Collection is off until a domain sets `analytics: true`. The generated vhost
+then serves two paths from the site itself, both public and neither part of the
+panel API:
+
+- `GET /_vx.js` the beacon, injected into HTML responses before `</head>`.
+- `POST /_vx` one hit: `{"k":"pageview","p":"/pricing","r":"…","tz":"Europe/Warsaw"}`.
+  Always answered `204`, including for an unknown host or a bot.
+
+`k` is `pageview`, `ping` (a heartbeat the beacon sends every minute while the
+tab is visible, which is what visit duration is measured from) or a custom event
+name. Fire one with `vx('signup', { plan: 'pro' })`; the payload is capped at
+1 KB and stored as sent.
+
 ## Webhooks
 
 Each Git project exposes an auto-deploy URL containing a random token, shown in

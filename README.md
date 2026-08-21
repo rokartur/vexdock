@@ -40,6 +40,10 @@ token and create the administrator account.
 - **Managed databases.** PostgreSQL, MySQL, MariaDB, MongoDB and Valkey added
   to a project with their image, volume and credentials generated, or any other
   image you name.
+- **Site analytics.** Flip a switch on a domain and Nginx starts counting page
+  views, unique visitors, who is reading what right now, visit length, bounce
+  rate, referrers, regions, devices and your own events. No script tag in your
+  app, no cookie, no third party.
 - **API tokens.** The same REST API the dashboard uses, for CI.
 - **Audit log.** Who changed what, when, and from where.
 

@@ -5,6 +5,7 @@ import {
 	IconArchive,
 	IconBox,
 	IconCertificate,
+	IconChartBar,
 	IconChevronDown,
 	IconDatabase,
 	IconFolder,
@@ -44,6 +45,7 @@ const groups: { label: string; items: NavItem[] }[] = [
 			{ to: '/', label: 'Dashboard', icon: IconHome, exact: true },
 			{ to: '/projects', label: 'Projects', icon: IconFolder },
 			{ to: '/domains', label: 'Domains', icon: IconWorld },
+			{ to: '/analytics', label: 'Analytics', icon: IconChartBar },
 		],
 	},
 	{
