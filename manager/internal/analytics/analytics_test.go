@@ -86,14 +86,53 @@ func TestCountryPrefersEdgeHeader(t *testing.T) {
 
 func TestVisitorIsStableWithinADayAndPerSite(t *testing.T) {
 	now := time.Now()
-	first := Visitor(now, "example.com", "1.2.3.4", "Firefox")
-	if again := Visitor(now.Add(time.Hour), "example.com", "1.2.3.4", "Firefox"); again != first {
+	chrome := Client{Device: "desktop", Browser: "Chrome", OS: "macOS"}
+	first := Visitor(now, "example.com", "1.2.3.4", chrome)
+	if again := Visitor(now.Add(time.Hour), "example.com", "1.2.3.4", chrome); again != first {
 		t.Error("the same visitor should hash the same within a day")
 	}
-	if other := Visitor(now, "other.com", "1.2.3.4", "Firefox"); other == first {
+	if other := Visitor(now, "other.com", "1.2.3.4", chrome); other == first {
 		t.Error("the same person on two sites must not share an identifier")
 	}
-	if other := Visitor(now, "example.com", "5.6.7.8", "Firefox"); other == first {
+	if other := Visitor(now, "example.com", "5.6.7.8", chrome); other == first {
 		t.Error("different visitors must not collide")
+	}
+	phone := Client{Device: "mobile", Browser: "Chrome", OS: "Android"}
+	if other := Visitor(now, "example.com", "1.2.3.4", phone); other == first {
+		t.Error("two devices behind one address should still be two visitors")
+	}
+}
+
+// A private window and a version bump both change the user agent string but
+// not the device, and an operating system rotates the low half of its IPv6
+// address on its own. Neither may produce a second visitor.
+func TestVisitorSurvivesTheSameDeviceLookingDifferent(t *testing.T) {
+	now := time.Now()
+	stable := Visitor(now, "example.com", "2a01:110:8012:1010:1111:2222:3333:4444", ParseUA(chromeUA("142.0.0.0")))
+	rotated := Visitor(now, "example.com", "2a01:110:8012:1010:9999:8888:7777:6666", ParseUA(chromeUA("143.0.0.0")))
+	if rotated != stable {
+		t.Error("same device, new IPv6 suffix and browser version, should be one visitor")
+	}
+	if other := Visitor(now, "example.com", "2a01:110:8012:2020::1", ParseUA(chromeUA("142.0.0.0"))); other == stable {
+		t.Error("a different /64 is a different visitor")
+	}
+}
+
+func chromeUA(version string) string {
+	return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/" + version + " Safari/537.36"
+}
+
+func TestNormalizeIP(t *testing.T) {
+	cases := map[string]string{
+		"1.2.3.4":                    "1.2.3.4",
+		"::ffff:1.2.3.4":             "1.2.3.4",
+		"2a01:110:8012:1010:1:2:3:4": "2a01:110:8012:1010::/64",
+		"fe80::1%en0":                "fe80::/64",
+		"not an address":             "not an address",
+	}
+	for in, want := range cases {
+		if got := NormalizeIP(in); got != want {
+			t.Errorf("NormalizeIP(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

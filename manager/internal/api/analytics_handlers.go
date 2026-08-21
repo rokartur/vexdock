@@ -62,7 +62,7 @@ func (s *Server) handleCollect(w http.ResponseWriter, r *http.Request) {
 	client := analytics.ParseUA(userAgent)
 	event := database.AnalyticsEvent{
 		Hostname: hostname,
-		Visitor:  analytics.Visitor(now, hostname, clientIP(r), userAgent),
+		Visitor:  analytics.Visitor(now, hostname, visitorIP(r), client),
 		Kind:     kind,
 		Path:     analytics.CleanPath(hit.Path),
 		Referrer: analytics.ReferrerHost(hit.Referrer, hostname),
@@ -75,6 +75,18 @@ func (s *Server) handleCollect(w http.ResponseWriter, r *http.Request) {
 	if err := s.DB.RecordAnalyticsEvent(r.Context(), now, event); err != nil {
 		s.Log.Warn("analytics write failed", "hostname", hostname, "error", err)
 	}
+}
+
+// visitorIP prefers the address a CDN in front of Nginx already resolved.
+// Behind Cloudflare $remote_addr is an edge node, so two tabs can arrive from
+// two different addresses and count as two people. Unlike the audit log's
+// clientIP this trusts a header the client could forge, which is acceptable
+// here: a forged one only skews that site's own visitor count.
+func visitorIP(r *http.Request) string {
+	if edge := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); edge != "" {
+		return edge
+	}
+	return clientIP(r)
 }
 
 // handleAnalytics returns every section the analytics page shows for one
