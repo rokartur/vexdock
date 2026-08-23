@@ -35,18 +35,30 @@ type Breakdown struct {
 	Visitors int    `json:"visitors"`
 }
 
-// TrafficSummary is everything the analytics page shows for one domain in one
-// window, so the page is one request.
-type TrafficSummary struct {
+// TrafficTotals is one window's headline numbers, so the window before it can
+// be reported in the same shape and the dashboard can show a trend.
+type TrafficTotals struct {
 	Views    int `json:"views"`
 	Visitors int `json:"visitors"`
-	// Online is distinct visitors seen within the last few minutes.
-	Online int `json:"online"`
-	Visits int `json:"visits"`
+	Visits   int `json:"visits"`
 	// AvgDuration is the mean visit length in seconds.
 	AvgDuration int `json:"avg_duration"`
 	// BounceRate is the share of visits with a single pageview, 0 to 1.
 	BounceRate float64 `json:"bounce_rate"`
+}
+
+// TrafficSummary is everything the analytics page shows for one domain in one
+// window, so the page is one request.
+type TrafficSummary struct {
+	TrafficTotals
+	// Previous is the same window immediately before this one.
+	Previous TrafficTotals `json:"previous"`
+	// Online is distinct visitors seen within the last few minutes.
+	Online int `json:"online"`
+
+	// Bucket is the series' step in seconds. A bucket without events is absent
+	// from Series, so a reader needs the step to tell a gap from a quiet period.
+	Bucket int64 `json:"bucket"`
 
 	Series      []TrafficPoint `json:"series"`
 	Pages       []Breakdown    `json:"pages"`
@@ -68,32 +80,32 @@ func (db *DB) RecordAnalyticsEvent(ctx context.Context, at time.Time, e Analytic
 	return err
 }
 
-// TrafficFor aggregates one domain's window. Every section is a separate query
-// against the same index; SQLite is local, so the round trips are free and the
-// alternative is one query nobody can read.
-func (db *DB) TrafficFor(ctx context.Context, hostname string, since, onlineSince time.Time,
+// TrafficFor aggregates one domain's window, which ends at now and reaches
+// back by window, plus the window before it for comparison. Every section is a
+// separate query against the same index; SQLite is local, so the round trips
+// are free and the alternative is one query nobody can read.
+func (db *DB) TrafficFor(ctx context.Context, hostname string, now time.Time, window, onlineWindow time.Duration,
 	bucket int64, limit int,
 ) (*TrafficSummary, error) {
-	from, online := since.Unix(), onlineSince.Unix()
-	summary := &TrafficSummary{}
+	from, to := now.Add(-window).Unix(), now.Unix()
+	summary := &TrafficSummary{Bucket: clampBucket(bucket)}
 
-	err := db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FILTER (WHERE kind = 'pageview'), COUNT(DISTINCT visitor)
-		 FROM analytics_events WHERE hostname = ? AND at >= ?`,
-		hostname, from).Scan(&summary.Views, &summary.Visitors)
+	totals, err := db.totals(ctx, hostname, from, to)
+	if err != nil {
+		return nil, err
+	}
+	summary.TrafficTotals = totals
+
+	summary.Previous, err = db.totals(ctx, hostname, now.Add(-2*window).Unix(), from)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := db.onlineNow(ctx, hostname, online, limit, summary); err != nil {
+	if err := db.onlineNow(ctx, hostname, now.Add(-onlineWindow).Unix(), limit, summary); err != nil {
 		return nil, err
 	}
 
-	if err := db.visitStats(ctx, hostname, from, summary); err != nil {
-		return nil, err
-	}
-
-	summary.Series, err = db.trafficSeries(ctx, hostname, from, clampBucket(bucket))
+	summary.Series, err = db.TrafficSeries(ctx, hostname, now.Add(-window), summary.Bucket)
 	if err != nil {
 		return nil, err
 	}
@@ -166,19 +178,27 @@ func (db *DB) onlineNow(ctx context.Context, hostname string, since int64, limit
 	return rows.Err()
 }
 
-// visitStats derives visits, their length and the bounce rate from the raw
-// events: a gap of more than thirty minutes starts a new visit, exactly like
-// every other analytics tool defines a session.
-func (db *DB) visitStats(ctx context.Context, hostname string, from int64, summary *TrafficSummary) error {
-	const sessionGap = 1800
-	var visits int
-	var duration, bounce float64
+// totals counts one half-open window [from, to). Visits, their length and the
+// bounce rate come out of the raw events: a gap of more than thirty minutes
+// starts a new visit, exactly like every other analytics tool defines a session.
+func (db *DB) totals(ctx context.Context, hostname string, from, to int64) (TrafficTotals, error) {
+	var totals TrafficTotals
 	err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FILTER (WHERE kind = 'pageview'), COUNT(DISTINCT visitor)
+		 FROM analytics_events WHERE hostname = ? AND at >= ? AND at < ?`,
+		hostname, from, to).Scan(&totals.Views, &totals.Visitors)
+	if err != nil {
+		return totals, err
+	}
+
+	const sessionGap = 1800
+	var duration, bounce float64
+	err = db.QueryRowContext(ctx,
 		`WITH hits AS (
 		     SELECT visitor, at, kind,
 		            LAG(at) OVER (PARTITION BY visitor ORDER BY at) AS previous
 		     FROM analytics_events
-		     WHERE hostname = ? AND at >= ? AND kind IN ('pageview', 'ping')
+		     WHERE hostname = ? AND at >= ? AND at < ? AND kind IN ('pageview', 'ping')
 		 ),
 		 marked AS (
 		     SELECT visitor, at, kind,
@@ -193,19 +213,22 @@ func (db *DB) visitStats(ctx context.Context, hostname string, from int64, summa
 		 )
 		 SELECT COUNT(*), COALESCE(AVG(seconds), 0), COALESCE(AVG(CASE WHEN views <= 1 THEN 1.0 ELSE 0 END), 0)
 		 FROM visits`,
-		hostname, from, sessionGap).Scan(&visits, &duration, &bounce)
+		hostname, from, to, sessionGap).Scan(&totals.Visits, &duration, &bounce)
 	if err != nil {
-		return err
+		return totals, err
 	}
-	summary.Visits, summary.AvgDuration, summary.BounceRate = visits, int(duration), bounce
-	return nil
+	totals.AvgDuration, totals.BounceRate = int(duration), bounce
+	return totals, nil
 }
 
-func (db *DB) trafficSeries(ctx context.Context, hostname string, from, bucket int64) ([]TrafficPoint, error) {
+// TrafficSeries counts pageviews and visitors per bucket since a point in
+// time. Buckets with no events are left out.
+func (db *DB) TrafficSeries(ctx context.Context, hostname string, since time.Time, bucket int64) ([]TrafficPoint, error) {
+	bucket = clampBucket(bucket)
 	rows, err := db.QueryContext(ctx,
 		`SELECT (at / ?) * ? AS b, COUNT(*) FILTER (WHERE kind = 'pageview'), COUNT(DISTINCT visitor)
 		 FROM analytics_events WHERE hostname = ? AND at >= ? GROUP BY b ORDER BY b`,
-		bucket, bucket, hostname, from)
+		bucket, bucket, hostname, since.Unix())
 	if err != nil {
 		return nil, err
 	}

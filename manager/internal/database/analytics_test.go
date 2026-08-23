@@ -41,10 +41,17 @@ func TestTrafficSummary(t *testing.T) {
 		t.Fatalf("record other host: %v", err)
 	}
 
-	summary, err := db.TrafficFor(ctx, "example.com", base.Add(-time.Hour), base.Add(-time.Hour), 3600, 20)
-	if err != nil {
-		t.Fatalf("traffic: %v", err)
+	// A window that ends now and reaches back past every event.
+	traffic := func(hostname string, window, onlineWindow time.Duration) *TrafficSummary {
+		t.Helper()
+		summary, err := db.TrafficFor(ctx, hostname, time.Now(), window, onlineWindow, 3600, 20)
+		if err != nil {
+			t.Fatalf("traffic %s: %v", hostname, err)
+		}
+		return summary
 	}
+
+	summary := traffic("example.com", 6*time.Hour, 6*time.Hour)
 
 	if summary.Views != 4 || summary.Visitors != 2 {
 		t.Fatalf("views/visitors = %d/%d, want 4/2", summary.Views, summary.Visitors)
@@ -81,21 +88,22 @@ func TestTrafficSummary(t *testing.T) {
 	}
 
 	// Nobody is online: the window starts after every event.
-	fresh, err := db.TrafficFor(ctx, "example.com", base.Add(-time.Hour), time.Now().Add(time.Hour), 3600, 20)
-	if err != nil {
-		t.Fatalf("traffic online window: %v", err)
-	}
+	fresh := traffic("example.com", 6*time.Hour, 0)
 	if fresh.Online != 0 || len(fresh.OnlinePages) != 0 {
 		t.Fatalf("online = %d, pages = %+v, want nobody", fresh.Online, fresh.OnlinePages)
+	}
+
+	// Three hours back holds Ada's later visit alone; the three hours before it
+	// hold everything else, counted separately for the trend.
+	split := traffic("example.com", 3*time.Hour, 6*time.Hour)
+	if split.Views != 1 || split.Previous.Views != 3 {
+		t.Fatalf("views now/previous = %d/%d, want 1/3", split.Views, split.Previous.Views)
 	}
 
 	if err := db.PruneAnalytics(ctx, base.Add(2*time.Hour)); err != nil {
 		t.Fatalf("prune: %v", err)
 	}
-	pruned, err := db.TrafficFor(ctx, "example.com", base.Add(-time.Hour), base.Add(-time.Hour), 3600, 20)
-	if err != nil {
-		t.Fatalf("traffic after prune: %v", err)
-	}
+	pruned := traffic("example.com", 6*time.Hour, 6*time.Hour)
 	if pruned.Views != 1 {
 		t.Fatalf("views after prune = %d, want the single later visit", pruned.Views)
 	}
@@ -112,18 +120,11 @@ func TestTrafficSummary(t *testing.T) {
 	if err != nil || deleted != 1 {
 		t.Fatalf("clear = %d, %v, want the one surviving event", deleted, err)
 	}
-	cleared, err := db.TrafficFor(ctx, "example.com", base.Add(-time.Hour), base.Add(-time.Hour), 3600, 20)
-	if err != nil {
-		t.Fatalf("traffic after clear: %v", err)
-	}
+	cleared := traffic("example.com", 6*time.Hour, 6*time.Hour)
 	if cleared.Views != 0 {
 		t.Fatalf("views after clear = %d, want none", cleared.Views)
 	}
-	other, err := db.TrafficFor(ctx, "other.com", base.Add(-time.Hour), base.Add(-time.Hour), 3600, 20)
-	if err != nil {
-		t.Fatalf("traffic other host: %v", err)
-	}
-	if other.Views != 1 {
+	if other := traffic("other.com", 6*time.Hour, 6*time.Hour); other.Views != 1 {
 		t.Fatal("clearing one site must leave the others alone")
 	}
 }

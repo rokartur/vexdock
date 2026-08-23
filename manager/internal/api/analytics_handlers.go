@@ -98,14 +98,32 @@ func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	window, bucket := analyticsRange(r.URL.Query().Get("range"))
-	now := time.Now()
-	summary, err := s.DB.TrafficFor(r.Context(), domain.Hostname, now.Add(-window),
-		now.Add(-analytics.OnlineWindow), bucket, 20)
+	summary, err := s.DB.TrafficFor(r.Context(), domain.Hostname, time.Now(), window, analytics.OnlineWindow, bucket, 20)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"domain": domain, "traffic": summary})
+}
+
+// activityWindow is how far back the weekday heatmap looks. Four weeks give
+// every weekday four samples, which is enough for a pattern to show.
+const activityWindow = 28 * 24 * time.Hour
+
+// handleAnalyticsActivity returns four weeks of hourly counts. The dashboard
+// folds them into a weekday grid itself, because only the browser knows which
+// hour of which day these seconds are in.
+func (s *Server) handleAnalyticsActivity(w http.ResponseWriter, r *http.Request) {
+	domain, err := s.DB.DomainByHostname(r.Context(), r.PathValue("hostname"))
+	if handleLookupError(w, err) {
+		return
+	}
+	series, err := s.DB.TrafficSeries(r.Context(), domain.Hostname, time.Now().Add(-activityWindow), 3600)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"series": series})
 }
 
 // handleClearAnalytics deletes every event of one site. There is no undo and

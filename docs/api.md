@@ -235,6 +235,9 @@ only.
 
 `GET /api/analytics/{hostname}?range=24h|7d|30d` returns the domain and every
 section the analytics page shows, in one response. An unknown range is a day.
+`bucket` is the series' step in seconds (900 for 24h, 3600 for 7d, 21600 for
+30d); a bucket with no events is left out of `series`, so a chart fills its own
+gaps.
 
 ```json
 {
@@ -246,6 +249,8 @@ section the analytics page shows, in one response. An unknown range is a day.
     "visits": 733,
     "avg_duration": 96,
     "bounce_rate": 0.41,
+    "previous": { "views": 1640, "visitors": 548, "visits": 690, "avg_duration": 102, "bounce_rate": 0.44 },
+    "bucket": 900,
     "series": [{ "at": 1738000800, "views": 42, "visitors": 31 }],
     "pages": [{ "name": "/pricing", "count": 210, "visitors": 180 }],
     "referrers": [], "countries": [], "devices": [], "browsers": [],
@@ -259,7 +264,15 @@ section the analytics page shows, in one response. An unknown range is a day.
 a single page view, 0 to 1. `online` counts visitors whose latest event in the
 last five minutes was not a `leave`, and `online_pages` is the page each of them
 is on. Every breakdown carries both `count` (hits) and `visitors`
-(distinct people) and is capped at twenty rows.
+(distinct people) and is capped at twenty rows. `previous` repeats the headline
+numbers for the window of the same length immediately before this one, which is
+where the dashboard's trend percentages come from.
+
+`GET /api/analytics/{hostname}/activity` returns four weeks of hourly buckets,
+`{ "series": [{ "at": 1738000800, "views": 42, "visitors": 31 }] }`, in the same
+sparse shape. It is what the dashboard's weekday heatmap folds into local days
+and hours; the server stays in unix seconds because only the browser knows the
+reader's timezone.
 
 `DELETE /api/analytics/{hostname}` erases every event of that site and answers
 `{ "deleted": 1840 }`. It is not scoped to a range, there is no undo, and other
