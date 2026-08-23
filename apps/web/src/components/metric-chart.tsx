@@ -80,10 +80,20 @@ type MetricCardProps = {
 	format?: (values: number[]) => string
 	/** What the reading is measured against: a total, a load average, a peak. */
 	hint?: ReactNode
+	/** How much history the series covers, for the chart's accessible name. */
+	windowLabel?: string
 }
 
 /** Compact metric: label, current value, and the recorded window as a sparkline. */
-export function MetricCard({ label, value, series, max, format, hint }: MetricCardProps) {
+export function MetricCard({
+	label,
+	value,
+	series,
+	max,
+	format,
+	hint,
+	windowLabel = 'last 30 minutes',
+}: MetricCardProps) {
 	const ceiling = max ?? Math.max(...series.flatMap(points => points.map(point => point.value)), 0)
 	const filled = series.length === 1
 	const [primary = []] = series
@@ -128,7 +138,7 @@ export function MetricCard({ label, value, series, max, format, hint }: MetricCa
 					height={VIEW_HEIGHT}
 					preserveAspectRatio='none'
 					role='img'
-					aria-label={`${label}, last 30 minutes`}
+					aria-label={`${label}, ${windowLabel}`}
 					className='block'
 				>
 					{series.map((points, position) => (
@@ -201,7 +211,11 @@ function ago(milliseconds: number) {
 		return `${seconds}s ago`
 	}
 	const minutes = Math.round(seconds / 60)
-	return minutes < 60 ? `${minutes}m ago` : `${Math.round(minutes / 60)}h ago`
+	if (minutes < 60) {
+		return `${minutes}m ago`
+	}
+	const hours = Math.round(minutes / 60)
+	return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`
 }
 
 type Coordinate = { x: number; y: number }

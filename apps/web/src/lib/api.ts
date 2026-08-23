@@ -76,15 +76,23 @@ export type Breakdown = {
 	visitors: number
 }
 
-export type Traffic = {
+/** One window's headline numbers. */
+export type TrafficTotals = {
 	views: number
 	visitors: number
-	online: number
 	visits: number
 	/** Mean visit length in seconds. */
 	avg_duration: number
 	/** Share of visits with a single pageview, 0 to 1. */
 	bounce_rate: number
+}
+
+export type Traffic = TrafficTotals & {
+	/** The same window immediately before this one. */
+	previous: TrafficTotals
+	online: number
+	/** Step of `series` in seconds. A bucket with no events is absent from it. */
+	bucket: number
 	series: TrafficPoint[]
 	pages: Breakdown[]
 	referrers: Breakdown[]
@@ -655,6 +663,8 @@ export const api = {
 
 	analytics: (hostname: string, range: AnalyticsRange) =>
 		request<{ domain: Domain; traffic: Traffic }>(`/api/analytics/${hostname}?range=${range}`),
+	/** Four weeks of hourly buckets, for the weekday heatmap. */
+	analyticsActivity: (hostname: string) => request<{ series: TrafficPoint[] }>(`/api/analytics/${hostname}/activity`),
 	clearAnalytics: (hostname: string) =>
 		request<{ deleted: number }>(`/api/analytics/${hostname}`, { method: 'DELETE' }),
 
