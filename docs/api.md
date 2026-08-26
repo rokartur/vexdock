@@ -223,6 +223,7 @@ daemon and nothing is replayed for ticks missed while the manager was down.
 
 | Endpoint | Does |
 |---|---|
+| `GET /api/tasks` | Every task on the server, each naming the service it runs in |
 | `GET \| POST /api/services/{id}/tasks` | The service's tasks; create one |
 | `PATCH /api/tasks/{id}` | Change any writable field; omitted fields are left alone |
 | `DELETE /api/tasks/{id}` | Remove it and its run history |
@@ -235,7 +236,9 @@ until it has run once, and `next_run`, absent while the task is disabled or its
 expression never comes round again. A run carries `started_at`, `finished_at`,
 `exit_code` and `output`; output over 64 KB keeps its tail, which is the half
 that says why a command failed. The `last_run` on a task listing carries no
-`output` — read `runs` for that — so a list of tasks stays small.
+`output` — read `runs` for that — so a list of tasks stays small. Rows from
+`GET /api/tasks` carry `service_name`, `project_id` and `project_name` on top,
+which is what the cross-project list needs to name and link a row.
 
 `timezone` is an IANA name such as `Europe/Warsaw`, defaulting to `UTC`, and it
 is the wall clock the expression is read against: `0 3 * * *` in Warsaw fires at

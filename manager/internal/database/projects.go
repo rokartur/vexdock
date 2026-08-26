@@ -226,6 +226,12 @@ func (db *DB) ListProjectServices(ctx context.Context, projectID string) ([]Serv
 	return db.services(ctx, `WHERE project_id = ? ORDER BY environment_id, compose_service_name`, projectID)
 }
 
+// AllServices spans every project, for the views that list something owned by a
+// service without knowing which one first.
+func (db *DB) AllServices(ctx context.Context) ([]Service, error) {
+	return db.services(ctx, ``)
+}
+
 func (db *DB) services(ctx context.Context, where string, args ...any) ([]Service, error) {
 	rows, err := db.QueryContext(ctx, `SELECT `+serviceColumns+` FROM services `+where, args...)
 	if err != nil {
