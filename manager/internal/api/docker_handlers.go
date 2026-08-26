@@ -115,7 +115,8 @@ func (s *Server) handleListImages(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// handlePullImage streams pull progress as SSE so large layers show movement.
+// handlePullImage waits for the pull and answers with the daemon's own progress
+// output in one payload.
 func (s *Server) handlePullImage(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reference string `json:"reference"`

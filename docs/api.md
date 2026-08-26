@@ -27,6 +27,27 @@ required.
 curl -H "Authorization: Bearer $PLATFORM_TOKEN" https://panel.example.com/api/projects
 ```
 
+`GET /api/me` returns the account behind whichever credential was used.
+
+**API tokens.** They are managed through the API as well, and the raw value is
+returned exactly once, by the call that creates it. Only a hash is stored, so a
+lost token is replaced rather than recovered.
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/tokens` | The tokens that exist, by name and prefix |
+| `POST /api/tokens` | `{"name"}`; answers `201` with `{"token", "value"}` |
+| `DELETE /api/tokens/{id}` | Revokes one |
+
+## Health
+
+`GET /api/health` is public and takes no credential; the installer, the updater
+and Docker's own healthcheck all read it. It reports `{"status", "checks"}`,
+where `checks` covers the database, the Docker socket, storage writability, free
+disk and Nginx. `status` is `healthy` with `200`, or `unhealthy` with `503` when
+any of the first four fails. A failing Nginx is reported but does not make the
+manager unhealthy, because the panel has to stay reachable to fix it.
+
 ## Errors
 
 Every error uses one envelope:
@@ -207,6 +228,66 @@ the previous system compose file; application images are not included.
 `beta` defaults from the installed tag (a prerelease stays on prereleases) until
 the operator sets it explicitly. Draft GitHub releases are never offered.
 
+## System
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/system/info` | Host and Docker facts, project and container counts, the ten most recent deployments |
+| `GET /api/system/metrics` | Recorded host usage over `?window=`, which seeds the charts before live samples arrive |
+| `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, notification webhook, Cloudflare token |
+| `GET /api/system/certificates` | Every issued certificate |
+| `GET /api/system/audit` | The hundred most recent state-changing calls |
+| `POST /api/system/backup` | Takes a snapshot; `?volumes=true` includes volume archives. `201` |
+| `GET /api/system/backups` | The snapshots on disk |
+
+`?window=` is `30m`, `1h`, `6h`, `24h` or `7d`, and anything else is `30m`. The
+range is reduced to at most 240 points, so a wider window returns coarser
+buckets rather than more rows.
+
+Settings are written whole, like the other settings screens. Within them
+`cloudflare_api_token` is write-only: leave it out to keep the stored token,
+send `""` to clear it. A read reports only `cloudflare_token_set`.
+
+A volume backup can run for minutes and reach many gigabytes, so it is asked for
+per call rather than being the default. A snapshot contains the master key,
+which makes it as sensitive as the server.
+
+## Docker resources
+
+The platform does not hide the daemon it runs on. Containers it did not create
+are listed too, with `managed` false, rather than being left out.
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/docker/containers` | Every container, with its compose project and service |
+| `POST /api/docker/containers/{id}/{action}` | `start`, `stop`, `restart` or `remove`; remove takes `?force=true` |
+| `GET /api/docker/images` | Images with their size and how many containers use them |
+| `POST /api/docker/images/pull` | `{"reference"}`; answers with the daemon's output once the pull has finished |
+| `DELETE /api/docker/images/{id}` | Removes one; `?force=true` when it is tagged or in use |
+| `GET /api/docker/volumes` | Volumes; `size` and `ref_count` are `-1` when Docker reported no usage |
+| `DELETE /api/docker/volumes/{name}` | Requires `?confirm=true` |
+| `GET /api/docker/networks` | Networks and the containers on them |
+| `GET /api/docker/cleanup` | What a cleanup would reclaim, in bytes, touching nothing |
+| `POST /api/docker/cleanup/{kind}` | `containers`, `images`, `volumes`, `networks` or `build-cache` |
+
+Nothing is pruned on a schedule. A cleanup answers
+`{"kind", "removed", "space_reclaimed"}`. `cleanup/volumes` wants `?confirm=true`
+just as the single delete does, because an unused volume is a stopped project's
+data rather than junk; the other kinds can be rebuilt and ask for nothing.
+
+## Registries
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/registries` | Configured registries; the token is never returned |
+| `POST /api/registries` | `{"name", "url", "username", "password"}`. `201` |
+| `DELETE /api/registries/{id}` | Removes one |
+
+Creating one verifies the credentials by logging the daemon in, so a typo is
+caught here rather than in the middle of a deployment, and a registry whose
+login fails is not kept. The token is encrypted before storage and piped to
+`docker login` on stdin, so it never appears in a process listing.
+
 ## Deploy from CI
 
 Whole project:
@@ -273,6 +354,12 @@ panel API:
 - `POST /_vx` one hit: `{"k":"pageview","p":"/pricing","r":"…","tz":"Europe/Warsaw"}`.
   Always answered `204`, including for an unknown host or a bot.
 
+Nginx proxies the two to `/api/collect.js` and `/api/collect` on the manager,
+which is why they are unauthenticated: they are called by every visitor to a
+site, not by the panel. Both are rate limited by Nginx, and events age out after
+ninety days. Do not call the `/api/collect` form directly; the site's own path
+is the contract.
+
 `k` is `pageview`, `ping` (a heartbeat the beacon sends every minute while the
 tab is visible, which is what visit duration is measured from), `leave` (the tab
 went hidden or closed, which ends the visitor's presence) or a custom event
@@ -282,7 +369,9 @@ name. Fire one with `vx('signup', { plan: 'pro' })`; the payload is capped at
 ## Webhooks
 
 Each Git project exposes an auto-deploy URL containing a random token, shown in
-**Project → Settings**. Point your provider at it and enable auto deploy.
+**Project → Settings**. It is `POST /api/webhooks/projects/{token}`, and the
+token is the only credential: no session or bearer token is involved. Point your
+provider at it and enable auto deploy.
 
 - The pushed branch is matched against every environment of the project: one
   that overrides the branch is deployed when the push is on its own branch, the
