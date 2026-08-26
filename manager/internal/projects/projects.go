@@ -425,12 +425,15 @@ func writeEnvFile(path string, vars []EnvVar) error {
 }
 
 // escapeEnvValue quotes values so newlines and spaces survive compose parsing.
+// A dollar becomes $$ because compose interpolates variables inside the double
+// quotes as well as outside them, so a raw $ would silently eat the rest of the
+// value: a password of p$ssw0rd reaches the container as p.
 func escapeEnvValue(v string) string {
 	if v == "" {
 		return `""`
 	}
 	if strings.ContainsAny(v, " \t\n\"'$#") {
-		replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
+		replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, `$`, `$$`)
 		return `"` + replacer.Replace(v) + `"`
 	}
 	return v

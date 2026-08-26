@@ -115,7 +115,8 @@ func (s *Server) handleListImages(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// handlePullImage streams pull progress as SSE so large layers show movement.
+// handlePullImage waits for the pull and answers with the daemon's own progress
+// output in one payload.
 func (s *Server) handlePullImage(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reference string `json:"reference"`
@@ -273,7 +274,17 @@ func (s *Server) handleCleanupPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCleanup(w http.ResponseWriter, r *http.Request) {
-	report, err := s.Docker.Prune(r.Context(), r.PathValue("kind"))
+	kind := r.PathValue("kind")
+	// An image can be pulled again and a network recreated, but an unused volume
+	// is data: a stopped project's database has no container referencing it, so
+	// pruning is the same irreversible delete as removing one by name and asks
+	// for the same confirmation.
+	if kind == "volumes" && r.URL.Query().Get("confirm") != "true" {
+		writeError(w, http.StatusPreconditionRequired, "CONFIRMATION_REQUIRED",
+			"Pruning unused volumes is irreversible. Repeat the request with confirm=true.", nil)
+		return
+	}
+	report, err := s.Docker.Prune(r.Context(), kind)
 	if err != nil {
 		badRequest(w, err)
 		return

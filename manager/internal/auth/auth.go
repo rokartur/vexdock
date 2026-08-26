@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -174,31 +175,65 @@ func SameOrigin(r *http.Request) bool {
 		// cross-site form post would always carry one.
 		return true
 	}
-	parsed, err := parseHost(origin)
+	scheme, host, err := splitOrigin(origin)
 	if err != nil {
 		return false
 	}
-	return strings.EqualFold(parsed, hostOnly(r.Host))
+	return canonicalOrigin(scheme, host) == canonicalOrigin(requestScheme(r), r.Host)
 }
 
-func parseHost(origin string) (string, error) {
-	trimmed := origin
-	for _, prefix := range []string{"https://", "http://"} {
-		if strings.HasPrefix(trimmed, prefix) {
-			trimmed = strings.TrimPrefix(trimmed, prefix)
-			return hostOnly(trimmed), nil
+// canonicalOrigin spells an origin out in full so that two ways of writing the
+// same one compare equal. The port is always present, because a browser omits
+// it when it is the scheme's default while a Host header may carry it, and the
+// scheme is always present, because without it plain http on port 80 and TLS on
+// 443 both reduce to the bare hostname and a page served over http would pass as
+// the dashboard.
+func canonicalOrigin(scheme, host string) string {
+	scheme = strings.ToLower(scheme)
+	host = strings.ToLower(host)
+	if _, _, err := net.SplitHostPort(host); err != nil {
+		switch scheme {
+		case "https":
+			host += ":443"
+		case "http":
+			host += ":80"
 		}
 	}
-	return "", fmt.Errorf("unsupported origin %q", origin)
+	return scheme + "://" + host
 }
 
-// hostOnly drops the port so http://host:3000 matches a Host of host.
-func hostOnly(value string) string {
-	if idx := strings.IndexByte(value, '/'); idx >= 0 {
-		value = value[:idx]
+// requestScheme reports the scheme the browser actually used. Nginx sets
+// X-Forwarded-Proto on the panel's /api/ location; a manager reached directly on
+// its published port is plain http, and then the Origin says http too, so the
+// two still agree. A browser cannot set this header on a cross-site request, so
+// trusting it costs nothing the attacker did not already have.
+func requestScheme(r *http.Request) string {
+	proto, _, _ := strings.Cut(r.Header.Get("X-Forwarded-Proto"), ",")
+	if proto = strings.TrimSpace(proto); proto != "" {
+		return proto
 	}
-	if idx := strings.LastIndexByte(value, ':'); idx > 0 && !strings.Contains(value[idx:], "]") {
-		value = value[:idx]
+	if r.TLS != nil {
+		return "https"
 	}
-	return value
+	return "http"
+}
+
+// splitOrigin separates an Origin into the scheme and the host it names. This
+// server deploys arbitrary projects, and one of them publishing a port on the
+// dashboard's own hostname is ordinary: a page served from http://panel:8080
+// must not pass as the dashboard on panel:443.
+func splitOrigin(origin string) (scheme, host string, err error) {
+	scheme, host, found := strings.Cut(strings.TrimSpace(origin), "://")
+	if !found {
+		return "", "", fmt.Errorf("unsupported origin %q", origin)
+	}
+	if scheme = strings.ToLower(scheme); scheme != "http" && scheme != "https" {
+		return "", "", fmt.Errorf("unsupported origin %q", origin)
+	}
+	// An Origin carries no path and no credentials, but tolerate a trailing slash.
+	host = strings.TrimSuffix(host, "/")
+	if host == "" || strings.ContainsAny(host, "/@") {
+		return "", "", fmt.Errorf("origin %q names no host", origin)
+	}
+	return scheme, host, nil
 }

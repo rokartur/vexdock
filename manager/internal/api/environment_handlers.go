@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/vexdock/platform/manager/internal/database"
@@ -116,6 +117,14 @@ func (s *Server) handleUpdateEnvironment(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleDeleteEnvironment(w http.ResponseWriter, r *http.Request) {
 	env, project, ok := s.environmentAndProject(w, r)
 	if !ok {
+		return
+	}
+	// DeleteEnvironment refuses the default environment, but the teardown below
+	// is destructive and irreversible, so the refusal has to happen before it
+	// rather than after: otherwise ?volumes=true answers 400 having already
+	// removed the running stack and its data.
+	if env.IsDefault {
+		badRequest(w, errors.New("the default environment cannot be deleted"))
 		return
 	}
 	removeVolumes := r.URL.Query().Get("volumes") == "true"
