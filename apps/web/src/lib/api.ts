@@ -204,6 +204,10 @@ export type EnvVar = {
 export type ScheduledTask = {
 	id: string
 	service_id: string
+	/** Both task lists name the owner, so one table can serve either. */
+	service_name: string
+	project_id: string
+	project_name: string
 	name: string
 	description: string
 	/** Five field cron expression, read against the task's timezone. */
@@ -222,13 +226,6 @@ export type ScheduledTask = {
 }
 
 export type TaskShell = 'sh' | 'bash'
-
-/** A task on the cross-project list, which has to name the service it runs in. */
-export type TaskWithOwner = ScheduledTask & {
-	service_name: string
-	project_id: string
-	project_name: string
-}
 
 /** Everything a task's form writes. Create sends it whole, edit sends a subset. */
 export type TaskInput = {
@@ -681,7 +678,7 @@ export const api = {
 	serviceAction: (id: string, action: 'start' | 'stop' | 'restart') =>
 		request<{ ok: boolean }>(`/api/services/${id}/${action}`, { method: 'POST' }),
 
-	tasks: () => request<TaskWithOwner[]>('/api/tasks'),
+	tasks: () => request<ScheduledTask[]>('/api/tasks'),
 	serviceTasks: (id: string) => request<ScheduledTask[]>(`/api/services/${id}/tasks`),
 	createTask: (serviceId: string, body: TaskInput) =>
 		request<ScheduledTask>(`/api/services/${serviceId}/tasks`, { method: 'POST', body }),
