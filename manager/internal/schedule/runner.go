@@ -40,7 +40,7 @@ func (r *Runner) Run(ctx context.Context) {
 			return
 		case now := <-timer.C:
 			timer.Reset(time.Until(now.Truncate(time.Minute).Add(time.Minute)))
-			r.tick(ctx, now.UTC())
+			r.tick(ctx, now)
 		}
 	}
 }
@@ -52,12 +52,7 @@ func (r *Runner) tick(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, task := range tasks {
-		parsed, err := Parse(task.Schedule)
-		if err != nil {
-			r.log.Warn("scheduled task has an invalid schedule", "task", task.ID, "schedule", task.Schedule, "error", err)
-			continue
-		}
-		if !parsed.Match(now) {
+		if !r.due(task, now) {
 			continue
 		}
 		go func(task database.ScheduledTask) {
@@ -69,6 +64,24 @@ func (r *Runner) tick(ctx context.Context, now time.Time) {
 			}
 		}(task)
 	}
+}
+
+// due reports whether a task fires at this instant. Each task reads the same
+// instant against its own wall clock, which is what makes "0 3 * * *" mean 3am
+// where the user lives. A task the manager cannot make sense of is loud and
+// skipped, never guessed at.
+func (r *Runner) due(task database.ScheduledTask, now time.Time) bool {
+	parsed, err := Parse(task.Schedule)
+	if err != nil {
+		r.log.Warn("scheduled task has an invalid schedule", "task", task.ID, "schedule", task.Schedule, "error", err)
+		return false
+	}
+	loc, err := Location(task.Timezone)
+	if err != nil {
+		r.log.Warn("scheduled task has an unknown timezone", "task", task.ID, "timezone", task.Timezone, "error", err)
+		return false
+	}
+	return parsed.Match(now.In(loc))
 }
 
 // ErrAlreadyRunning is returned when a task's previous run has not finished.
@@ -120,9 +133,14 @@ func (r *Runner) exec(ctx context.Context, task database.ScheduledTask) (string,
 	if err != nil {
 		return "", -1, err
 	}
+	shell := task.Shell
+	if shell == "" {
+		shell = "sh"
+	}
 	// The command is the user's own shell line, run inside their own container,
-	// which is exactly the reach the built-in terminal already gives them.
-	return r.docker.ExecOutput(ctx, containerID, []string{"/bin/sh", "-c", task.Command})
+	// which is exactly the reach the built-in terminal already gives them. The
+	// shell name is one of two constants, checked when the task was saved.
+	return r.docker.ExecOutput(ctx, containerID, []string{"/bin/" + shell, "-c", task.Command})
 }
 
 func (r *Runner) claim(taskID string) bool {

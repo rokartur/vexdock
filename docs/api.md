@@ -224,19 +224,27 @@ daemon and nothing is replayed for ticks missed while the manager was down.
 | Endpoint | Does |
 |---|---|
 | `GET \| POST /api/services/{id}/tasks` | The service's tasks; create one |
-| `PATCH /api/tasks/{id}` | Change `name`, `schedule`, `command` or `enabled`; omitted fields are left alone |
+| `PATCH /api/tasks/{id}` | Change any writable field; omitted fields are left alone |
 | `DELETE /api/tasks/{id}` | Remove it and its run history |
 | `POST /api/tasks/{id}/run` | Run it now, answering with the finished run |
 | `GET /api/tasks/{id}/runs` | Recent runs, newest first, `?limit=` up to 100 |
 
-A task carries `name`, `schedule`, `command`, `enabled` and a `last_run` that is
-absent until it has run once. A run carries `started_at`, `finished_at`,
+A task carries `name`, `description`, `schedule`, `timezone`, `command`, `shell`
+and `enabled`, plus two fields the manager derives on read: `last_run`, absent
+until it has run once, and `next_run`, absent while the task is disabled or its
+expression never comes round again. A run carries `started_at`, `finished_at`,
 `exit_code` and `output`; output over 64 KB keeps its tail, which is the half
 that says why a command failed. The `last_run` on a task listing carries no
 `output` — read `runs` for that — so a list of tasks stays small.
 
-Schedules are five fields — minute, hour, day of month, month, day of week —
-matched against **UTC**, not the server's local time. Each field takes `*`, a
+`timezone` is an IANA name such as `Europe/Warsaw`, defaulting to `UTC`, and it
+is the wall clock the expression is read against: `0 3 * * *` in Warsaw fires at
+03:00 there, whichever side of a daylight-saving change the day falls on. An
+unknown zone is rejected with `400`. `shell` is `sh` or `bash`, defaulting to
+`sh`, which is the one an Alpine image is guaranteed to have.
+
+Schedules are five fields — minute, hour, day of month, month, day of week.
+Each field takes `*`, a
 number, `a-b`, a `/step` suffix and comma separated lists; months and weekdays
 also take their three letter names, and `@hourly`, `@daily`, `@weekly`,
 `@monthly` and `@yearly` work as shorthands. When both day fields are
@@ -247,12 +255,12 @@ expression that does not parse is rejected at write time with `400`.
 curl -fsS -X POST \
   -H "Authorization: Bearer $PLATFORM_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"prune","schedule":"0 3 * * *","command":"php artisan model:prune"}' \
+  -d '{"name":"prune","schedule":"0 3 * * *","timezone":"Europe/Warsaw","command":"php artisan model:prune"}' \
   https://panel.example.com/api/services/$SERVICE_ID/tasks
 ```
 
-The command is handed to `/bin/sh -c` in the service's container, so shell
-syntax works and nothing runs on the host. A run that finishes non-zero is still
+The command is handed to `/bin/sh -c`, or `/bin/bash -c`, in the service's
+container, so shell syntax works and nothing runs on the host. A run that finishes non-zero is still
 a `200`: the run happened, and its exit code is in the payload. A task whose
 previous run has not finished is not started again, from the tick or from
 `run`, which answers `409 TASK_RUNNING` instead, and one still going after 30

@@ -205,14 +205,33 @@ export type ScheduledTask = {
 	id: string
 	service_id: string
 	name: string
-	/** Five field cron expression, matched against UTC. */
+	description: string
+	/** Five field cron expression, read against the task's timezone. */
 	schedule: string
+	/** IANA zone name. */
+	timezone: string
 	command: string
+	shell: TaskShell
 	enabled: boolean
 	created_at: string
 	updated_at: string
-	/** Absent until the task has run once. */
+	/** Absent until the task has run once. Carries no output. */
 	last_run?: TaskRun
+	/** Absent while the task is disabled or its expression never comes round. */
+	next_run?: string
+}
+
+export type TaskShell = 'sh' | 'bash'
+
+/** Everything a task's form writes. Create sends it whole, edit sends a subset. */
+export type TaskInput = {
+	name: string
+	description: string
+	schedule: string
+	timezone: string
+	command: string
+	shell: TaskShell
+	enabled: boolean
 }
 
 export type TaskRun = {
@@ -656,9 +675,9 @@ export const api = {
 		request<{ ok: boolean }>(`/api/services/${id}/${action}`, { method: 'POST' }),
 
 	serviceTasks: (id: string) => request<ScheduledTask[]>(`/api/services/${id}/tasks`),
-	createTask: (serviceId: string, body: { name: string; schedule: string; command: string }) =>
+	createTask: (serviceId: string, body: TaskInput) =>
 		request<ScheduledTask>(`/api/services/${serviceId}/tasks`, { method: 'POST', body }),
-	updateTask: (id: string, body: Partial<{ name: string; schedule: string; command: string; enabled: boolean }>) =>
+	updateTask: (id: string, body: Partial<TaskInput>) =>
 		request<ScheduledTask>(`/api/tasks/${id}`, { method: 'PATCH', body }),
 	deleteTask: (id: string) => request<undefined>(`/api/tasks/${id}`, { method: 'DELETE' }),
 	/** Runs the task now and resolves with the finished run, exit code and all. */

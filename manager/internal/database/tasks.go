@@ -8,11 +8,16 @@ import (
 
 // ScheduledTask is a cron job that runs inside a service's container.
 type ScheduledTask struct {
-	ID        string `json:"id"`
-	ServiceID string `json:"service_id"`
-	Name      string `json:"name"`
-	Schedule  string `json:"schedule"`
-	Command   string `json:"command"`
+	ID          string `json:"id"`
+	ServiceID   string `json:"service_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Schedule    string `json:"schedule"`
+	// Timezone is the IANA zone whose wall clock the schedule is read against.
+	Timezone string `json:"timezone"`
+	Command  string `json:"command"`
+	// Shell is "sh" or "bash", whichever the image actually ships.
+	Shell     string `json:"shell"`
 	Enabled   bool   `json:"enabled"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
@@ -20,6 +25,9 @@ type ScheduledTask struct {
 	// output is left empty here; a list of tasks should not carry a megabyte of
 	// console noise nobody asked for.
 	LastRun *TaskRun `json:"last_run,omitempty"`
+	// NextRun is when the schedule fires next. Computed on read rather than
+	// stored, since it is a function of the expression and the current time.
+	NextRun string `json:"next_run,omitempty"`
 }
 
 // TaskRun is one execution of a scheduled task.
@@ -32,11 +40,12 @@ type TaskRun struct {
 	Output     string `json:"output"`
 }
 
-const taskColumns = `id, service_id, name, schedule, command, enabled, created_at, updated_at`
+const taskColumns = `id, service_id, name, description, schedule, timezone, command, shell, enabled, created_at, updated_at`
 
 func scanTask(row interface{ Scan(...any) error }) (*ScheduledTask, error) {
 	var t ScheduledTask
-	err := row.Scan(&t.ID, &t.ServiceID, &t.Name, &t.Schedule, &t.Command, &t.Enabled, &t.CreatedAt, &t.UpdatedAt)
+	err := row.Scan(&t.ID, &t.ServiceID, &t.Name, &t.Description, &t.Schedule, &t.Timezone,
+		&t.Command, &t.Shell, &t.Enabled, &t.CreatedAt, &t.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -127,16 +136,18 @@ func (db *DB) ScheduledTaskByID(ctx context.Context, id string) (*ScheduledTask,
 func (db *DB) CreateScheduledTask(ctx context.Context, t *ScheduledTask) error {
 	t.ID, t.CreatedAt, t.UpdatedAt = NewID(), Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO scheduled_tasks (`+taskColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.ServiceID, t.Name, t.Schedule, t.Command, t.Enabled, t.CreatedAt, t.UpdatedAt)
+		`INSERT INTO scheduled_tasks (`+taskColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.ServiceID, t.Name, t.Description, t.Schedule, t.Timezone,
+		t.Command, t.Shell, t.Enabled, t.CreatedAt, t.UpdatedAt)
 	return err
 }
 
 func (db *DB) UpdateScheduledTask(ctx context.Context, t *ScheduledTask) error {
 	t.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
-		`UPDATE scheduled_tasks SET name = ?, schedule = ?, command = ?, enabled = ?, updated_at = ? WHERE id = ?`,
-		t.Name, t.Schedule, t.Command, t.Enabled, t.UpdatedAt, t.ID)
+		`UPDATE scheduled_tasks SET name = ?, description = ?, schedule = ?, timezone = ?,
+		        command = ?, shell = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+		t.Name, t.Description, t.Schedule, t.Timezone, t.Command, t.Shell, t.Enabled, t.UpdatedAt, t.ID)
 	return err
 }
 

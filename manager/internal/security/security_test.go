@@ -138,6 +138,24 @@ func TestValidateGitRef(t *testing.T) {
 	}
 }
 
+// The shell becomes /bin/<shell> in an argv, so anything but the two constants
+// has to be refused rather than passed through.
+func TestValidateTaskShell(t *testing.T) {
+	for raw, want := range map[string]string{"sh": "sh", "bash": "bash", " bash ": "bash", "": "sh"} {
+		switch shell, err := ValidateTaskShell(raw); {
+		case err != nil:
+			t.Fatalf("shell %q rejected: %v", raw, err)
+		case shell != want:
+			t.Fatalf("shell %q became %q, want %q", raw, shell, want)
+		}
+	}
+	for _, bad := range []string{"zsh", "sh -c", "../../usr/bin/env", "sh;id", "SH"} {
+		if _, err := ValidateTaskShell(bad); err == nil {
+			t.Fatalf("shell %q should have been rejected", bad)
+		}
+	}
+}
+
 func TestVerifyGitHubSignature(t *testing.T) {
 	body := []byte(`{"ref":"refs/heads/main"}`)
 	const secret = "s3cret"

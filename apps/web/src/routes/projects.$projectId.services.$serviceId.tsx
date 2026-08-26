@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
 import { MetricCard, type Point, ratesOf, seriesOf, useHistory } from '../components/metric-chart'
-import { Button, Cells, ErrorText, Fact, Facts, Field, Section } from '../components/primitives'
+import { Button, Cells, Check, ErrorText, Fact, Facts, Field, Section } from '../components/primitives'
 import { Terminal } from '../components/terminal'
-import { api, type ContainerStats, type ScheduledTask, type Service, type ServicePoint } from '../lib/api'
+import {
+	api,
+	type ContainerStats,
+	type ScheduledTask,
+	type Service,
+	type ServicePoint,
+	type TaskInput,
+} from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
-import { bytes, duration, percent, since } from '../lib/format'
+import { bytes, duration, percent, since, until } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
 export const Route = createFileRoute('/projects/$projectId/services/$serviceId')({
@@ -305,9 +313,33 @@ function ServiceEnvironment({ serviceId }: { serviceId: string }) {
 	)
 }
 
-type TaskForm = { id: string | null; name: string; schedule: string; command: string }
+/** A task being written. `id` is null while it is still a new one. */
+type TaskForm = TaskInput & { id: string | null }
 
-const emptyTask: TaskForm = { id: null, name: '', schedule: '0 3 * * *', command: '' }
+const emptyTask: TaskForm = {
+	id: null,
+	name: '',
+	description: '',
+	schedule: '0 3 * * *',
+	// The browser's own zone, because "3am" means 3am where the person sits.
+	timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+	command: '',
+	shell: 'sh',
+	enabled: true,
+}
+
+/** The schedules people actually write, so most tasks never touch the field. */
+const cronPresets = [
+	{ label: 'Every 5 minutes', value: '*/5 * * * *' },
+	{ label: 'Every 15 minutes', value: '*/15 * * * *' },
+	{ label: 'Every hour', value: '0 * * * *' },
+	{ label: 'Every day at midnight', value: '0 0 * * *' },
+	{ label: 'Every day at 3am', value: '0 3 * * *' },
+	{ label: 'Every Monday at 9am', value: '0 9 * * 1' },
+	{ label: 'First of the month', value: '0 0 1 * *' },
+]
+
+const timezones = Intl.supportedValuesOf('timeZone')
 
 type TaskActions = {
 	select: (id: string) => void
@@ -339,10 +371,34 @@ function taskColumns({
 				<>
 					{row.original.name}
 					{row.original.enabled ? null : <span className='ml-2 text-label text-muted-foreground'>off</span>}
+					{row.original.description ? (
+						<span className='block max-w-64 truncate text-label text-muted-foreground'>
+							{row.original.description}
+						</span>
+					) : null}
 				</>
 			),
 		}),
-		cell.accessor(task => task.schedule, { id: 'schedule', header: 'Schedule', meta: { mono: true } }),
+		cell.accessor(task => task.schedule, {
+			id: 'schedule',
+			header: 'Schedule',
+			cell: ({ row }) => (
+				<>
+					<span className='font-mono'>{row.original.schedule}</span>
+					<span className='block text-label text-muted-foreground'>{row.original.timezone}</span>
+				</>
+			),
+		}),
+		cell.accessor(task => task.next_run ?? '', {
+			id: 'next-run',
+			header: 'Next run',
+			cell: ({ row }) =>
+				row.original.next_run ? (
+					until(row.original.next_run)
+				) : (
+					<span className='text-muted-foreground'>{row.original.enabled ? 'never' : 'paused'}</span>
+				),
+		}),
 		cell.accessor(task => task.command, {
 			id: 'command',
 			header: 'Command',
@@ -409,18 +465,22 @@ function taskColumns({
 
 /**
  * Cron jobs that exec inside this service's container, with the same reach as
- * the terminal tab. The manager ticks once a minute against UTC and skips a
- * task whose previous run has not finished.
+ * the terminal tab. The manager ticks once a minute, reads each expression in
+ * the task's own timezone, and skips a task whose previous run is still going.
  */
 function ScheduledTasks({ serviceId }: { serviceId: string }) {
 	const queryClient = useQueryClient()
-	const [form, setForm] = useState<TaskForm>(emptyTask)
+	// A form is open exactly when there is one to edit, so one state covers both.
+	const [form, setForm] = useState<TaskForm | null>(null)
 	const [selected, setSelected] = useState<string | null>(null)
 	const [confirming, setConfirming] = useState<string | null>(null)
 
 	const tasks = useQuery({
 		queryKey: ['service', serviceId, 'tasks'],
 		queryFn: () => api.serviceTasks(serviceId),
+		// The server computes next_run at fetch time, so a still list would count
+		// down to zero and stay there.
+		refetchInterval: 30_000,
 	})
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: ['service', serviceId, 'tasks'] })
 	const selectedTask = tasks.data?.find(task => task.id === selected)
@@ -428,7 +488,7 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 	const save = useMutation({
 		mutationFn: ({ id, ...body }: TaskForm) => (id ? api.updateTask(id, body) : api.createTask(serviceId, body)),
 		onSuccess: async () => {
-			setForm(emptyTask)
+			setForm(null)
 			await invalidate()
 		},
 	})
@@ -449,7 +509,7 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 		onSuccess: async (_result, id) => {
 			setConfirming(null)
 			if (selected === id) setSelected(null)
-			if (form.id === id) setForm(emptyTask)
+			if (form?.id === id) setForm(null)
 			await invalidate()
 		},
 	})
@@ -464,7 +524,7 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 		() =>
 			taskColumns({
 				select: setSelected,
-				edit: task => setForm({ id: task.id, name: task.name, schedule: task.schedule, command: task.command }),
+				edit: task => setForm(taskToForm(task)),
 				run: runTask,
 				toggle: toggleTask,
 				remove: removeTask,
@@ -477,7 +537,15 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 
 	return (
 		<>
-			<Section title='Scheduled tasks' description='run inside this service’s container, on UTC'>
+			<Section
+				title='Scheduled tasks'
+				description='run inside this service’s container'
+				actions={
+					<Button variant='primary' onClick={() => setForm(emptyTask)}>
+						New task
+					</Button>
+				}
+			>
 				<DataTable
 					data={tasks.data ?? []}
 					columns={columns}
@@ -485,82 +553,174 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 					getRowId={task => task.id}
 					empty='No scheduled tasks.'
 				/>
-
-				<form
-					className='mt-3 flex flex-wrap items-end gap-2'
-					onSubmit={event => {
-						event.preventDefault()
-						save.mutate(form)
-					}}
-				>
-					<div className='w-48'>
-						<Field label='Name'>
-							<input
-								required
-								value={form.name}
-								onChange={event => setForm({ ...form, name: event.target.value })}
-								placeholder='nightly backup'
-							/>
-						</Field>
-					</div>
-					<div className='w-40'>
-						<Field label='Schedule' hint='cron, or @daily'>
-							<input
-								required
-								value={form.schedule}
-								onChange={event => setForm({ ...form, schedule: event.target.value })}
-								className='font-mono'
-							/>
-						</Field>
-					</div>
-					<div className='min-w-64 flex-1'>
-						<Field label='Command'>
-							<input
-								required
-								value={form.command}
-								onChange={event => setForm({ ...form, command: event.target.value })}
-								placeholder='php artisan schedule:run'
-								className='font-mono'
-								spellCheck={false}
-							/>
-						</Field>
-					</div>
-					<div className='flex gap-2 pb-3'>
-						<Button type='submit' disabled={save.isPending}>
-							{form.id ? 'Save task' : 'Add task'}
-						</Button>
-						{form.id ? (
-							<Button variant='ghost' onClick={() => setForm(emptyTask)}>
-								Cancel
-							</Button>
-						) : null}
-					</div>
-				</form>
-				<ErrorText error={save.error ?? run.error ?? toggle.error ?? remove.error} />
+				<ErrorText error={run.error ?? toggle.error ?? remove.error} />
 			</Section>
 
-			{selectedTask ? <TaskRuns task={selectedTask} onClose={() => setSelected(null)} /> : null}
+			<Dialog
+				open={form !== null}
+				onOpenChange={open => {
+					if (open) return
+					setForm(null)
+					// Otherwise the next task opened inherits this one's failure.
+					save.reset()
+				}}
+			>
+				<DialogContent className='sm:max-w-lg'>
+					<DialogHeader>
+						<DialogTitle>{form?.id ? 'Edit task' : 'New task'}</DialogTitle>
+					</DialogHeader>
+					{form ? (
+						<TaskFormFields
+							form={form}
+							onChange={setForm}
+							onSubmit={() => save.mutate(form)}
+							saving={save.isPending}
+							error={save.error}
+						/>
+					) : null}
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={selectedTask !== undefined}
+				onOpenChange={open => {
+					if (!open) setSelected(null)
+				}}
+			>
+				<DialogContent className='sm:max-w-2xl'>
+					<DialogHeader>
+						<DialogTitle>{selectedTask ? `Runs of ${selectedTask.name}` : ''}</DialogTitle>
+					</DialogHeader>
+					{selectedTask ? <TaskRuns task={selectedTask} /> : null}
+				</DialogContent>
+			</Dialog>
 		</>
 	)
 }
 
+/** Only the columns a task's form writes; the rest would fail the PATCH body. */
+const taskToForm = ({
+	id,
+	name,
+	description,
+	schedule,
+	timezone,
+	command,
+	shell,
+	enabled,
+}: ScheduledTask): TaskForm => ({ id, name, description, schedule, timezone, command, shell, enabled })
+
+function TaskFormFields({
+	form,
+	onChange,
+	onSubmit,
+	saving,
+	error,
+}: {
+	form: TaskForm
+	onChange: (form: TaskForm) => void
+	onSubmit: () => void
+	saving: boolean
+	error: unknown
+}) {
+	return (
+		<form
+			onSubmit={event => {
+				event.preventDefault()
+				onSubmit()
+			}}
+		>
+			<Field label='Name'>
+				<input
+					required
+					value={form.name}
+					onChange={event => onChange({ ...form, name: event.target.value })}
+					placeholder='nightly backup'
+				/>
+			</Field>
+			<Field label='Description'>
+				<input
+					value={form.description}
+					onChange={event => onChange({ ...form, description: event.target.value })}
+					placeholder='what it does, for whoever reads this next'
+				/>
+			</Field>
+			<Field label='Schedule' hint='cron, or @daily'>
+				{/* The preset writes the expression rather than replacing it, so the
+				    field stays the one source of truth. */}
+				<select
+					value={cronPresets.some(preset => preset.value === form.schedule) ? form.schedule : ''}
+					onChange={event => onChange({ ...form, schedule: event.target.value })}
+				>
+					<option value=''>Custom</option>
+					{cronPresets.map(preset => (
+						<option key={preset.value} value={preset.value}>
+							{preset.label}
+						</option>
+					))}
+				</select>
+				<input
+					required
+					value={form.schedule}
+					onChange={event => onChange({ ...form, schedule: event.target.value })}
+					className='mt-1.5 font-mono'
+				/>
+			</Field>
+			<div className='grid grid-cols-2 gap-3'>
+				<Field label='Timezone' hint='the zone those hours are read in'>
+					<select
+						value={form.timezone}
+						onChange={event => onChange({ ...form, timezone: event.target.value })}
+					>
+						<option value='UTC'>UTC</option>
+						{timezones.map(zone => (
+							<option key={zone} value={zone}>
+								{zone}
+							</option>
+						))}
+					</select>
+				</Field>
+				<Field label='Shell' hint='sh is the one Alpine images have'>
+					<select
+						value={form.shell}
+						onChange={event => onChange({ ...form, shell: event.target.value === 'bash' ? 'bash' : 'sh' })}
+					>
+						<option value='sh'>sh</option>
+						<option value='bash'>bash</option>
+					</select>
+				</Field>
+			</div>
+			<Field label='Command'>
+				<textarea
+					required
+					rows={4}
+					value={form.command}
+					onChange={event => onChange({ ...form, command: event.target.value })}
+					placeholder='php artisan schedule:run'
+					className='font-mono text-body'
+					spellCheck={false}
+				/>
+			</Field>
+			<Check label='Enabled' checked={form.enabled} onChange={enabled => onChange({ ...form, enabled })} />
+			<ErrorText error={error} />
+			<div className='mt-3'>
+				<Button type='submit' variant='primary' disabled={saving}>
+					{form.id ? 'Save task' : 'Add task'}
+				</Button>
+			</div>
+		</form>
+	)
+}
+
 /** Recent executions of one task, newest first, with the output it produced. */
-function TaskRuns({ task, onClose }: { task: ScheduledTask; onClose: () => void }) {
+function TaskRuns({ task }: { task: ScheduledTask }) {
 	const [openRun, setOpenRun] = useState<string | null>(null)
 	const runs = useQuery({ queryKey: ['task', task.id, 'runs'], queryFn: () => api.taskRuns(task.id) })
 
 	const shown = runs.data?.find(candidate => candidate.id === openRun) ?? runs.data?.[0]
 
 	return (
-		<Section
-			title={`Runs of ${task.name}`}
-			description='newest 20'
-			actions={
-				<Button variant='ghost' onClick={onClose}>
-					close
-				</Button>
-			}
-		>
+		<div>
 			{runs.data?.length ? (
 				<div className='flex flex-wrap gap-2'>
 					{runs.data.map(item => (
@@ -589,7 +749,7 @@ function TaskRuns({ task, onClose }: { task: ScheduledTask; onClose: () => void 
 					{shown.output || 'No output.'}
 				</pre>
 			) : null}
-		</Section>
+		</div>
 	)
 }
 

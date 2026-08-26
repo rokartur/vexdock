@@ -31,6 +31,20 @@ export function since(iso: string | number | undefined | null): string {
 	return `${Math.floor(hours / 24)}d ago`
 }
 
+/** The mirror of `since`, for a time that has not arrived yet: in 12m, in 6h. */
+export function until(iso: string | undefined | null): string {
+	if (!iso) return '-'
+	const then = Date.parse(iso)
+	if (Number.isNaN(then)) return '-'
+	const seconds = Math.max(0, Math.floor((then - Date.now()) / 1000))
+	if (seconds < 60) return `in ${seconds}s`
+	const minutes = Math.floor(seconds / 60)
+	if (minutes < 60) return `in ${minutes}m`
+	const hours = Math.floor(minutes / 60)
+	if (hours < 24) return `in ${hours}h`
+	return `in ${Math.floor(hours / 24)}d`
+}
+
 export function duration(start: string, end: string): string {
 	if (!start) return '-'
 	const from = Date.parse(start)

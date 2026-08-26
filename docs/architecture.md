@@ -171,10 +171,12 @@ A service can carry cron jobs that run inside its own container. They live in
 the manager for the same reason everything else does: it is the only component
 holding the Docker socket, so scheduling them anywhere else would mean handing
 that socket to a second process. There is no cron daemon and no crontab on the
-host. One goroutine wakes on the wall clock minute, matches every enabled task's
-expression against UTC, and execs the ones that fire; a task whose previous run
-has not finished is skipped rather than stacked, and a tick missed while the
-manager was down is not replayed. Each run stores its exit code and the tail of
+host. One goroutine wakes on the wall clock minute, reads that instant in each
+enabled task's own timezone, and execs the ones whose expression matches; a task
+whose previous run has not finished is skipped rather than stacked, and a tick
+missed while the manager was down is not replayed. The timezone is the task's,
+not the server's, because a nightly backup means local night; tzdata ships in
+the manager image for that reason. Each run stores its exit code and the tail of
 its output, pruned to the newest twenty per task by the same scheduler that
 prunes metrics. Runs left open by a restart are closed on boot, the same way
 interrupted deployments are, so the UI never shows an execution nothing is

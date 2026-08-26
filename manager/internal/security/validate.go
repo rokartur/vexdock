@@ -165,6 +165,20 @@ func ValidateTaskCommand(raw string) (string, error) {
 	return cmd, nil
 }
 
+// ValidateTaskShell accepts the interpreter a scheduled task's command is fed
+// to. It becomes an argv element as /bin/<shell>, so the answer is one of two
+// constants and never user text.
+func ValidateTaskShell(raw string) (string, error) {
+	switch shell := strings.TrimSpace(raw); shell {
+	case "sh", "bash":
+		return shell, nil
+	case "":
+		return "sh", nil
+	default:
+		return "", fmt.Errorf("shell must be sh or bash")
+	}
+}
+
 // ValidateSubPath accepts a path that must stay inside the directory it will be
 // joined to, and returns it without its leading slash. Empty means the root of
 // that directory. ".." is rejected rather than cleaned away: a build path lands
