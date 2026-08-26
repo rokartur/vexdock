@@ -15,7 +15,6 @@ import (
 	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/deployments"
-	dockersdk "github.com/vexdock/platform/manager/internal/docker"
 	"github.com/vexdock/platform/manager/internal/engines"
 	"github.com/vexdock/platform/manager/internal/projects"
 	"github.com/vexdock/platform/manager/internal/security"
@@ -51,24 +50,7 @@ func (s *Server) resolveServiceContainer(ctx context.Context, serviceID string) 
 	if err != nil {
 		return "", err
 	}
-	containers, err := s.Docker.ListContainers(ctx, env.ComposeProjectName)
-	if err != nil {
-		return "", err
-	}
-	var fallback string
-	for _, c := range containers {
-		if c.Labels[dockersdk.ComposeServiceLabel] != service.ComposeServiceName {
-			continue
-		}
-		if c.State == "running" {
-			return c.ID, nil
-		}
-		fallback = c.ID
-	}
-	if fallback == "" {
-		return "", errors.New("this service has no container yet - deploy it first")
-	}
-	return fallback, nil
+	return s.Docker.ServiceContainer(ctx, env.ComposeProjectName, service.ComposeServiceName)
 }
 
 func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {

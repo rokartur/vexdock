@@ -138,6 +138,7 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `GET \| PUT /api/services/{id}/variables` | Its own variables |
 | `POST /api/services/{id}/deploy` | Deploy this service only |
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
+| `GET \| POST /api/services/{id}/tasks` | Its [scheduled tasks](#scheduled-tasks) |
 
 `source_type` is `unconfigured`, `git`, `image` or `compose`. Sending a
 `database` object instead picks the engine catalogue: the image, the volume and
@@ -213,6 +214,53 @@ would add, and then creates each service through `POST .../services` and
 `PUT .../variables`, so an imported service is validated exactly as a typed
 one is. Variables that arrive without a value are not replayed, which leaves a
 generated password in place rather than blanking it.
+
+## Scheduled tasks
+
+A scheduled task is a cron expression and a shell line that runs inside one
+service's container. The manager ticks once a minute; there is no separate cron
+daemon and nothing is replayed for ticks missed while the manager was down.
+
+| Endpoint | Does |
+|---|---|
+| `GET \| POST /api/services/{id}/tasks` | The service's tasks; create one |
+| `PATCH /api/tasks/{id}` | Change `name`, `schedule`, `command` or `enabled`; omitted fields are left alone |
+| `DELETE /api/tasks/{id}` | Remove it and its run history |
+| `POST /api/tasks/{id}/run` | Run it now, answering with the finished run |
+| `GET /api/tasks/{id}/runs` | Recent runs, newest first, `?limit=` up to 100 |
+
+A task carries `name`, `schedule`, `command`, `enabled` and a `last_run` that is
+absent until it has run once. A run carries `started_at`, `finished_at`,
+`exit_code` and `output`; output over 64 KB keeps its tail, which is the half
+that says why a command failed. The `last_run` on a task listing carries no
+`output` — read `runs` for that — so a list of tasks stays small.
+
+Schedules are five fields — minute, hour, day of month, month, day of week —
+matched against **UTC**, not the server's local time. Each field takes `*`, a
+number, `a-b`, a `/step` suffix and comma separated lists; months and weekdays
+also take their three letter names, and `@hourly`, `@daily`, `@weekly`,
+`@monthly` and `@yearly` work as shorthands. When both day fields are
+restricted, either one matching fires the task, as in every other cron. An
+expression that does not parse is rejected at write time with `400`.
+
+```sh
+curl -fsS -X POST \
+  -H "Authorization: Bearer $PLATFORM_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"prune","schedule":"0 3 * * *","command":"php artisan model:prune"}' \
+  https://panel.example.com/api/services/$SERVICE_ID/tasks
+```
+
+The command is handed to `/bin/sh -c` in the service's container, so shell
+syntax works and nothing runs on the host. A run that finishes non-zero is still
+a `200`: the run happened, and its exit code is in the payload. A task whose
+previous run has not finished is not started again, from the tick or from
+`run`, which answers `409 TASK_RUNNING` instead, and one still going after 30
+minutes is killed. Runs are kept 20 deep per task, a task with no container yet
+records the failure rather than disappearing, and a run cut short by a manager
+restart is closed out on the next boot instead of showing as forever running.
+`run` does not hand the command the request's lifetime either: closing the
+connection does not cancel it.
 
 ## Platform version
 

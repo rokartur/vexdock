@@ -201,6 +201,31 @@ export type EnvVar = {
 	updated_at: string
 }
 
+export type ScheduledTask = {
+	id: string
+	service_id: string
+	name: string
+	/** Five field cron expression, matched against UTC. */
+	schedule: string
+	command: string
+	enabled: boolean
+	created_at: string
+	updated_at: string
+	/** Absent until the task has run once. */
+	last_run?: TaskRun
+}
+
+export type TaskRun = {
+	id: string
+	task_id: string
+	started_at: string
+	/** Empty while the run is still going. */
+	finished_at: string
+	/** -1 when the command never started. */
+	exit_code: number
+	output: string
+}
+
 export type Certificate = {
 	id: string
 	domain_id: string
@@ -629,6 +654,16 @@ export const api = {
 	deployService: (id: string) => request<Deployment>(`/api/services/${id}/deploy`, { method: 'POST' }),
 	serviceAction: (id: string, action: 'start' | 'stop' | 'restart') =>
 		request<{ ok: boolean }>(`/api/services/${id}/${action}`, { method: 'POST' }),
+
+	serviceTasks: (id: string) => request<ScheduledTask[]>(`/api/services/${id}/tasks`),
+	createTask: (serviceId: string, body: { name: string; schedule: string; command: string }) =>
+		request<ScheduledTask>(`/api/services/${serviceId}/tasks`, { method: 'POST', body }),
+	updateTask: (id: string, body: Partial<{ name: string; schedule: string; command: string; enabled: boolean }>) =>
+		request<ScheduledTask>(`/api/tasks/${id}`, { method: 'PATCH', body }),
+	deleteTask: (id: string) => request<undefined>(`/api/tasks/${id}`, { method: 'DELETE' }),
+	/** Runs the task now and resolves with the finished run, exit code and all. */
+	runTask: (id: string) => request<TaskRun>(`/api/tasks/${id}/run`, { method: 'POST' }),
+	taskRuns: (id: string) => request<TaskRun[]>(`/api/tasks/${id}/runs`),
 
 	domains: () => request<Domain[]>('/api/domains'),
 	createDomain: (body: {

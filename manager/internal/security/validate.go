@@ -147,6 +147,24 @@ func ValidateGitRef(ref string) (string, error) {
 	return r, nil
 }
 
+// ValidateTaskCommand accepts a scheduled task's shell line. It is passed as a
+// single argv element to a shell inside the user's own container, which is the
+// reach the built-in terminal already gives them, so the only limits are that
+// it exists, fits in the database, and carries nothing exec cannot pass on.
+func ValidateTaskCommand(raw string) (string, error) {
+	cmd := strings.TrimSpace(raw)
+	if cmd == "" {
+		return "", fmt.Errorf("command is required")
+	}
+	if len(cmd) > 4096 {
+		return "", fmt.Errorf("command is too long")
+	}
+	if strings.ContainsRune(cmd, 0) {
+		return "", fmt.Errorf("command must not contain null bytes")
+	}
+	return cmd, nil
+}
+
 // ValidateSubPath accepts a path that must stay inside the directory it will be
 // joined to, and returns it without its leading slash. Empty means the root of
 // that directory. ".." is rejected rather than cleaned away: a build path lands

@@ -35,6 +35,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/nginx"
 	"github.com/vexdock/platform/manager/internal/notify"
 	"github.com/vexdock/platform/manager/internal/projects"
+	"github.com/vexdock/platform/manager/internal/schedule"
 	"github.com/vexdock/platform/manager/internal/security"
 	"github.com/vexdock/platform/manager/internal/updater"
 )
@@ -120,15 +121,19 @@ func run() error {
 		log.With("component", "deployment"))
 	backupService := backup.New(cfg, db, dockerClient)
 	updaterService := updater.New(cfg, backupService, repoSlug)
+	taskRunner := schedule.NewRunner(db, dockerClient, log.With("component", "tasks"))
 
 	if err := deploymentEngine.RecoverInterrupted(ctx); err != nil {
 		log.Warn("recover interrupted deployments", "error", err)
+	}
+	if err := db.RecoverInterruptedTaskRuns(ctx); err != nil {
+		log.Warn("recover interrupted task runs", "error", err)
 	}
 
 	server := api.New(api.Deps{
 		Config: cfg, DB: db, Auth: authService, Projects: projectService, Domains: domainService,
 		Deployments: deploymentEngine, Docker: dockerClient, Nginx: nginxManager, Certs: certIssuer,
-		Bus: bus, Updater: updaterService, Backups: backupService, Cipher: cipher,
+		Bus: bus, Updater: updaterService, Backups: backupService, Tasks: taskRunner, Cipher: cipher,
 		Log: log.With("component", "api"),
 	})
 
@@ -137,6 +142,7 @@ func run() error {
 	go scheduler(ctx, db, domainService, backupService, log.With("component", "scheduler"))
 	go notify.New(db, bus, log.With("component", "notify")).Run(ctx)
 	go metrics.NewSampler(db, dockerClient, cfg.Root, log.With("component", "metrics")).Run(ctx)
+	go taskRunner.Run(ctx)
 
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -204,6 +210,9 @@ func scheduler(ctx context.Context, db *database.DB, domainService *domains.Serv
 		}
 		if err := db.PruneAnalytics(ctx, time.Now().Add(-analytics.Retention)); err != nil {
 			log.Warn("analytics retention", "error", err)
+		}
+		if err := db.PruneTaskRuns(ctx, 20); err != nil {
+			log.Warn("task run retention", "error", err)
 		}
 		if err := backupService.Prune(10); err != nil {
 			log.Warn("backup retention", "error", err)

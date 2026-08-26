@@ -22,6 +22,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/events"
 	"github.com/vexdock/platform/manager/internal/nginx"
 	"github.com/vexdock/platform/manager/internal/projects"
+	"github.com/vexdock/platform/manager/internal/schedule"
 	"github.com/vexdock/platform/manager/internal/security"
 	"github.com/vexdock/platform/manager/internal/updater"
 )
@@ -41,6 +42,7 @@ type Deps struct {
 	Bus         *events.Bus
 	Updater     *updater.Service
 	Backups     *backup.Service
+	Tasks       *schedule.Runner
 	Cipher      *security.Cipher
 	Log         *slog.Logger
 }
@@ -106,6 +108,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/services/{id}/stats", s.protected(s.handleServiceStats))
 	mux.Handle("GET /api/services/{id}/metrics", s.protected(s.handleServiceMetrics))
 	mux.Handle("GET /api/services/{id}/terminal", s.protected(s.handleTerminal))
+	mux.Handle("GET /api/services/{id}/tasks", s.protected(s.handleListServiceTasks))
+	mux.Handle("POST /api/services/{id}/tasks", s.protected(s.handleCreateServiceTask))
+
+	mux.Handle("PATCH /api/tasks/{id}", s.protected(s.handleUpdateTask))
+	mux.Handle("DELETE /api/tasks/{id}", s.protected(s.handleDeleteTask))
+	mux.Handle("POST /api/tasks/{id}/run", s.protected(s.handleRunTask))
+	mux.Handle("GET /api/tasks/{id}/runs", s.protected(s.handleTaskRuns))
 
 	mux.Handle("GET /api/environments/{id}", s.protected(s.handleGetEnvironment))
 	mux.Handle("PATCH /api/environments/{id}", s.protected(s.handleUpdateEnvironment))
