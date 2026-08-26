@@ -83,9 +83,23 @@ func Parse(expr string) (Schedule, error) {
 	return s, nil
 }
 
-// Match reports whether the schedule fires at t, to minute precision.
+// Location resolves a task's IANA zone name against the system tzdata, reading
+// an empty name as UTC so a task written before zones existed keeps its meaning.
+func Location(name string) (*time.Location, error) {
+	if name == "" {
+		return time.UTC, nil
+	}
+	return time.LoadLocation(name)
+}
+
+// Match reports whether the schedule fires at t, to minute precision, reading t
+// in whatever location it carries.
 func (s Schedule) Match(t time.Time) bool {
-	if s.minute&bit(t.Minute()) == 0 || s.hour&bit(t.Hour()) == 0 || s.month&bit(int(t.Month())) == 0 {
+	return s.minute&bit(t.Minute()) != 0 && s.hour&bit(t.Hour()) != 0 && s.matchDate(t)
+}
+
+func (s Schedule) matchDate(t time.Time) bool {
+	if s.month&bit(int(t.Month())) == 0 {
 		return false
 	}
 	dom := s.dom&bit(t.Day()) != 0
@@ -96,6 +110,43 @@ func (s Schedule) Match(t time.Time) bool {
 		return dom && dow
 	}
 	return dom || dow
+}
+
+// Next returns the first minute strictly after t that the schedule fires, in
+// t's location. It reports false for an expression the calendar never reaches,
+// such as February 30th, after searching five years ahead.
+//
+// Across a DST jump the wall clock is what moves: a 02:30 task does not run on
+// the night that has no 02:30, and runs twice on the night that has two.
+func (s Schedule) Next(t time.Time) (time.Time, bool) {
+	next := t.Truncate(time.Minute).Add(time.Minute)
+	limit := next.AddDate(5, 0, 0)
+	for next.Before(limit) {
+		// Skipping whole days and hours is what keeps a rare expression like
+		// "Feb 29" from walking two million minutes to reach its answer.
+		switch {
+		case !s.matchDate(next):
+			next = dayStart(next).AddDate(0, 0, 1)
+		case s.hour&bit(next.Hour()) == 0:
+			next = hourStart(next).Add(time.Hour)
+		case s.minute&bit(next.Minute()) != 0:
+			return next, true
+		default:
+			next = next.Add(time.Minute)
+		}
+	}
+	return time.Time{}, false
+}
+
+// dayStart and hourStart rebuild a time from its calendar fields instead of
+// truncating it, which rounds against UTC and lands mid-hour in a zone like
+// Asia/Kathmandu.
+func dayStart(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+func hourStart(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, t.Location())
 }
 
 func isStar(s string) bool { return s == "*" || strings.HasPrefix(s, "*/") }

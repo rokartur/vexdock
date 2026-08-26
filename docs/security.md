@@ -100,11 +100,13 @@ Values that reach a command line are validated first:
   Cloudflare token configured, since HTTP-01 cannot validate one and DNS-01 can.
 
 A [scheduled task](api.md#scheduled-tasks) is the one place a user's own shell
-line is executed. It is passed as a single argument to `/bin/sh -c` inside that
-service's container, which is the same reach the dashboard's terminal already
-gives an authenticated operator, and never on the host. The manager checks only
-that the command exists, fits, and carries no null byte; the cron expression
-must parse before the task is stored. Task output is written to SQLite
+line is executed. It is passed as a single argument to `/bin/sh -c`, or
+`/bin/bash -c`, inside that service's container, which is the same reach the
+dashboard's terminal already gives an authenticated operator, and never on the
+host. The manager checks only that the command exists, fits, and carries no null
+byte; the shell name is narrowed to those two constants before it becomes part
+of an argv, and the cron expression and timezone must both resolve before the
+task is stored. Task output is written to SQLite
 unencrypted, so a command that echoes a secret leaves it in the run history.
 
 ## Secrets

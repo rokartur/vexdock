@@ -61,3 +61,50 @@ func TestMatch(t *testing.T) {
 		}
 	}
 }
+
+func TestNext(t *testing.T) {
+	warsaw, err := time.LoadLocation("Europe/Warsaw")
+	if err != nil {
+		t.Fatalf("load timezone: %v", err)
+	}
+
+	cases := []struct {
+		expr string
+		from time.Time
+		want string
+	}{
+		{"*/15 * * * *", time.Date(2024, 3, 6, 13, 31, 20, 0, time.UTC), "2024-03-06T13:45:00Z"},
+		// Strictly after: a schedule matching right now points at the next one.
+		{"0 3 * * *", time.Date(2024, 3, 6, 3, 0, 0, 0, time.UTC), "2024-03-07T03:00:00Z"},
+		{"0 9 * * 1", time.Date(2024, 3, 6, 13, 0, 0, 0, time.UTC), "2024-03-11T09:00:00Z"},
+		// A day skip that lands years out still resolves.
+		{"0 0 29 2 *", time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC), "2028-02-29T00:00:00Z"},
+		// The zone of the input decides the wall clock: the next 03:00 in Warsaw is
+		// tomorrow morning, which is 02:00Z.
+		{"0 3 * * *", time.Date(2024, 3, 6, 13, 0, 0, 0, warsaw), "2024-03-07T02:00:00Z"},
+	}
+
+	for _, c := range cases {
+		s, err := Parse(c.expr)
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", c.expr, err)
+		}
+		next, ok := s.Next(c.from)
+		if !ok {
+			t.Errorf("Parse(%q).Next(%s) found nothing", c.expr, c.from)
+			continue
+		}
+		if got := next.UTC().Format(time.RFC3339); got != c.want {
+			t.Errorf("Parse(%q).Next(%s) = %s, want %s", c.expr, c.from, got, c.want)
+		}
+	}
+
+	// February 30th is a valid expression the calendar never reaches.
+	never, err := Parse("0 0 30 2 *")
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if _, ok := never.Next(time.Now()); ok {
+		t.Error("Next found a February 30th")
+	}
+}

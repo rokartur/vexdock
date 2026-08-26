@@ -37,9 +37,9 @@ token and create the administrator account.
   host, including stacks the platform did not create.
 - **Logs, metrics and a terminal.** Live container logs, CPU/RAM/network stats
   and an interactive shell, all in the browser.
-- **Scheduled tasks.** A cron expression and a command per service, run inside
-  its container. No crontab on the host; every run keeps its exit code and
-  output.
+- **Scheduled tasks.** A cron expression, a timezone and a command per service,
+  run inside its container. No crontab on the host; every run keeps its exit
+  code and output.
 - **Managed databases.** PostgreSQL, MySQL, MariaDB, MongoDB and Valkey added
   to a project with their image, volume and credentials generated, or any other
   image you name.

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/schedule"
@@ -15,21 +16,33 @@ import (
 // so a PATCH that omits one leaves it alone; apply then validates the result,
 // which makes create and update the same check.
 type taskInput struct {
-	Name     *string `json:"name"`
-	Schedule *string `json:"schedule"`
-	Command  *string `json:"command"`
-	Enabled  *bool   `json:"enabled"`
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+	Schedule    *string `json:"schedule"`
+	Timezone    *string `json:"timezone"`
+	Command     *string `json:"command"`
+	Shell       *string `json:"shell"`
+	Enabled     *bool   `json:"enabled"`
 }
 
 func (in taskInput) apply(task *database.ScheduledTask) error {
 	if in.Name != nil {
 		task.Name = strings.TrimSpace(*in.Name)
 	}
+	if in.Description != nil {
+		task.Description = strings.TrimSpace(*in.Description)
+	}
 	if in.Schedule != nil {
 		task.Schedule = strings.TrimSpace(*in.Schedule)
 	}
+	if in.Timezone != nil {
+		task.Timezone = strings.TrimSpace(*in.Timezone)
+	}
 	if in.Command != nil {
 		task.Command = *in.Command
+	}
+	if in.Shell != nil {
+		task.Shell = *in.Shell
 	}
 	if in.Enabled != nil {
 		task.Enabled = *in.Enabled
@@ -38,15 +51,57 @@ func (in taskInput) apply(task *database.ScheduledTask) error {
 	if task.Name == "" {
 		return errors.New("name is required")
 	}
+	// Free text goes to a list cell and to the error below, so it is bounded here
+	// rather than left to whatever the request body limit happens to be.
+	if len(task.Name) > 200 {
+		return errors.New("name is too long")
+	}
+	if len(task.Description) > 500 {
+		return errors.New("description is too long")
+	}
+	if len(task.Timezone) > 64 {
+		return errors.New("timezone is too long")
+	}
 	if _, err := schedule.Parse(task.Schedule); err != nil {
 		return err
 	}
+	if _, err := schedule.Location(task.Timezone); err != nil {
+		return errors.New("unknown timezone " + task.Timezone)
+	}
+	shell, err := security.ValidateTaskShell(task.Shell)
+	if err != nil {
+		return err
+	}
+	task.Shell = shell
 	command, err := security.ValidateTaskCommand(task.Command)
 	if err != nil {
 		return err
 	}
 	task.Command = command
 	return nil
+}
+
+// setNextRun fills in when a task fires next, the readout that tells a user
+// their expression means what they meant. A disabled task fires never, and an
+// expression the calendar never reaches leaves the field out.
+func setNextRun(task *database.ScheduledTask, now time.Time) {
+	task.NextRun = ""
+	if !task.Enabled {
+		return
+	}
+	parsed, err := schedule.Parse(task.Schedule)
+	if err != nil {
+		return
+	}
+	loc, err := schedule.Location(task.Timezone)
+	if err != nil {
+		return
+	}
+	// UTC to match every other timestamp the API hands out; the browser renders
+	// it in local time either way.
+	if next, ok := parsed.Next(now.In(loc)); ok {
+		task.NextRun = next.UTC().Format(time.RFC3339Nano)
+	}
 }
 
 func (s *Server) handleListServiceTasks(w http.ResponseWriter, r *http.Request) {
@@ -57,6 +112,10 @@ func (s *Server) handleListServiceTasks(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		serverError(w, err)
 		return
+	}
+	now := time.Now()
+	for i := range tasks {
+		setNextRun(&tasks[i], now)
 	}
 	writeJSON(w, http.StatusOK, tasks)
 }
@@ -79,6 +138,7 @@ func (s *Server) handleCreateServiceTask(w http.ResponseWriter, r *http.Request)
 		serverError(w, err)
 		return
 	}
+	setNextRun(&task, time.Now())
 	writeJSON(w, http.StatusCreated, task)
 }
 
@@ -100,6 +160,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
+	setNextRun(task, time.Now())
 	writeJSON(w, http.StatusOK, task)
 }
 

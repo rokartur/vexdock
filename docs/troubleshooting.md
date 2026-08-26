@@ -61,9 +61,12 @@ listed with its exit code and the output it produced.
 - **`this service has no container yet - deploy it first`** — the task execs into
   the service's own container, so the service has to be deployed and present.
 - **Nothing in the list at all** — the task is off, or its schedule has not come
-  round yet. Schedules are matched in **UTC**, not the server's timezone, and a
-  tick that passed while the manager was down is not replayed. **run now**
-  executes it immediately and reports the same output the schedule would.
+  round yet. The **Next run** column says when it is due; if that reads wrong,
+  the task's timezone is not the one you meant. A tick that passed while the
+  manager was down is not replayed. **run now** executes it immediately and
+  reports the same output the schedule would.
+- **`bash: not found`** — the task asked for bash and the image only ships sh.
+  Switch the task's shell, or install bash in the image.
 - **`interrupted by a manager restart`** — the manager stopped mid-run. The
   command may have half finished; the next tick is unaffected.
 - **The run list says the previous run is still going** — a task never overlaps
