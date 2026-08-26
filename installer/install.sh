@@ -200,7 +200,8 @@ fetch_compose() {
     fi
     [ -s "$ROOT/compose.yml.new" ] \
         || { rm -f "$ROOT/compose.yml.new"; die "Downloaded compose.yml is empty"; }
-    mv "$ROOT/compose.yml.new" "$ROOT/compose.yml"
+    mv "$ROOT/compose.yml.new" "$ROOT/compose.yml" \
+        || { rm -f "$ROOT/compose.yml.new"; die "Could not replace $ROOT/compose.yml"; }
     ok "System compose downloaded"
 }
 
