@@ -410,16 +410,22 @@ func (s *Server) streamContainerLogs(w http.ResponseWriter, r *http.Request, con
 		return
 	}
 
+	ctx := r.Context()
 	lines := make(chan logPayload, 256)
 	go func() {
 		defer close(lines)
 		if tty {
-			scanLines(reader, "stdout", lines)
+			scanLines(ctx, reader, "stdout", lines)
 			return
 		}
 		// Non-TTY containers use the multiplexed stream format.
 		pr, pw := io.Pipe()
 		errPr, errPw := io.Pipe()
+		// Closing the read ends releases StdCopy if it is parked writing to a
+		// pipe this goroutine has stopped draining, which is what happens the
+		// moment the client disconnects.
+		defer pr.Close()
+		defer errPr.Close()
 		go func() {
 			_, err := stdcopy.StdCopy(pw, errPw, reader)
 			_ = pw.CloseWithError(err)
@@ -427,10 +433,10 @@ func (s *Server) streamContainerLogs(w http.ResponseWriter, r *http.Request, con
 		}()
 		done := make(chan struct{})
 		go func() {
-			scanLines(errPr, "stderr", lines)
+			scanLines(ctx, errPr, "stderr", lines)
 			close(done)
 		}()
-		scanLines(pr, "stdout", lines)
+		scanLines(ctx, pr, "stdout", lines)
 		<-done
 	}()
 
@@ -461,7 +467,19 @@ type logPayload struct {
 	Text   string `json:"text"`
 }
 
-func scanLines(r io.Reader, stream string, out chan<- logPayload) {
+// scanLines splits a log stream into lines and hands them to out. Every send
+// races the context: out is buffered, and a client that disconnects while the
+// buffer is full would otherwise park this goroutine forever, since closing the
+// reader cannot wake a goroutine already blocked on a channel send.
+func scanLines(ctx context.Context, r io.Reader, stream string, out chan<- logPayload) {
+	send := func(text string) bool {
+		select {
+		case out <- logPayload{Stream: stream, Text: text}:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
 	buf := make([]byte, 32*1024)
 	var pending strings.Builder
 	for {
@@ -472,7 +490,9 @@ func scanLines(r io.Reader, stream string, out chan<- logPayload) {
 			idx := strings.LastIndexByte(text, '\n')
 			if idx >= 0 {
 				for _, line := range strings.Split(text[:idx], "\n") {
-					out <- logPayload{Stream: stream, Text: line}
+					if !send(line) {
+						return
+					}
 				}
 				pending.Reset()
 				pending.WriteString(text[idx+1:])
@@ -480,7 +500,7 @@ func scanLines(r io.Reader, stream string, out chan<- logPayload) {
 		}
 		if err != nil {
 			if rest := strings.TrimRight(pending.String(), "\r\n"); rest != "" {
-				out <- logPayload{Stream: stream, Text: rest}
+				send(rest)
 			}
 			return
 		}
