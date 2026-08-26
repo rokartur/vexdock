@@ -19,11 +19,16 @@ func TestSameOrigin(t *testing.T) {
 		{"no origin header", "panel.example.com", "", true},
 		{"same host", "panel.example.com", "https://panel.example.com", true},
 		{"same host with port", "panel.example.com:3000", "http://panel.example.com:3000", true},
-		{"port differs from host header", "panel.example.com", "http://panel.example.com:3000", true},
+		{"trailing slash", "panel.example.com", "https://panel.example.com/", true},
+		// A deployed project publishing a port on the dashboard's hostname is an
+		// ordinary thing to do here, and its pages must not count as the panel.
+		{"another port on the same host", "panel.example.com", "http://panel.example.com:8080", false},
+		{"panel port omitted by the origin", "panel.example.com:3000", "http://panel.example.com", false},
 		{"different host", "panel.example.com", "https://evil.example.com", false},
 		{"host as a prefix of the origin", "panel.example.com", "https://panel.example.com.evil.net", false},
 		{"unsupported scheme", "panel.example.com", "chrome-extension://abcdef", false},
 		{"null origin", "panel.example.com", "null", false},
+		{"scheme with no host", "panel.example.com", "https://", false},
 	}
 
 	for _, tc := range cases {

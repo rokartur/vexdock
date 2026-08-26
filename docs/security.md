@@ -17,8 +17,12 @@ Everything in front of it is therefore treated as untrusted input.
   `https://` origin for the panel, because a fresh install is reached over plain
   HTTP on port 3000 and a browser would discard the cookie.
 - Every cookie-authenticated mutation must carry an `Origin` matching the host
-  the request was addressed to. Browsers cannot forge either, so this is the
-  CSRF defence, on both the manager and the auth service.
+  and port the request was addressed to, so a project that publishes its own
+  port on the panel's hostname does not pass as the panel. Browsers cannot forge
+  either, so this is the CSRF defence, on both the manager and the auth service.
+  A request carrying no `Origin` at all is let through: a browser always sends
+  one on a cross-site mutation, so its absence means the caller was not a
+  browser page and is authenticating with a token rather than a cookie.
 - Creating the first administrator additionally requires the setup token the
   installer generated and printed. Without it a panel that is publicly reachable
   before its owner reaches it would be claimed by whoever found it first.

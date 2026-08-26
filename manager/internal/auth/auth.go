@@ -174,31 +174,32 @@ func SameOrigin(r *http.Request) bool {
 		// cross-site form post would always carry one.
 		return true
 	}
-	parsed, err := parseHost(origin)
+	parsed, err := originAuthority(origin)
 	if err != nil {
 		return false
 	}
-	return strings.EqualFold(parsed, hostOnly(r.Host))
+	return strings.EqualFold(parsed, r.Host)
 }
 
-func parseHost(origin string) (string, error) {
-	trimmed := origin
+// originAuthority returns the host and port an Origin names, and the port is
+// part of it on purpose. This server deploys arbitrary projects, and one of them
+// publishing a port on the dashboard's own hostname is ordinary: a page served
+// from http://panel:8080 must not pass as the dashboard on panel:443. Nginx
+// forwards the client's Host untouched, so both sides carry the port alike.
+func originAuthority(origin string) (string, error) {
 	for _, prefix := range []string{"https://", "http://"} {
-		if strings.HasPrefix(trimmed, prefix) {
-			trimmed = strings.TrimPrefix(trimmed, prefix)
-			return hostOnly(trimmed), nil
+		rest, found := strings.CutPrefix(origin, prefix)
+		if !found {
+			continue
 		}
+		// An Origin carries no path, but tolerate a trailing slash.
+		if idx := strings.IndexByte(rest, '/'); idx >= 0 {
+			rest = rest[:idx]
+		}
+		if rest == "" {
+			return "", fmt.Errorf("origin %q names no host", origin)
+		}
+		return rest, nil
 	}
 	return "", fmt.Errorf("unsupported origin %q", origin)
-}
-
-// hostOnly drops the port so http://host:3000 matches a Host of host.
-func hostOnly(value string) string {
-	if idx := strings.IndexByte(value, '/'); idx >= 0 {
-		value = value[:idx]
-	}
-	if idx := strings.LastIndexByte(value, ':'); idx > 0 && !strings.Contains(value[idx:], "]") {
-		value = value[:idx]
-	}
-	return value
 }
