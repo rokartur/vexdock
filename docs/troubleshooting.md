@@ -53,6 +53,23 @@ Domains tab. Use **renew** to retry after fixing the cause. While testing, set
 `ACME_STAGING=true` in `/opt/vexdock/.env` to avoid the production rate limit
 of five failures per hostname per hour.
 
+## A scheduled task does not run
+
+Open the service's **Tasks** tab; every attempt is in the run list with its exit
+code and output.
+
+- **`this service has no container yet - deploy it first`** — the task execs into
+  the service's own container, so the service has to be deployed and present.
+- **Nothing in the list at all** — the task is off, or its schedule has not come
+  round yet. Schedules are matched in **UTC**, not the server's timezone, and a
+  tick that passed while the manager was down is not replayed. **run now**
+  executes it immediately and reports the same output the schedule would.
+- **`interrupted by a manager restart`** — the manager stopped mid-run. The
+  command may have half finished; the next tick is unaffected.
+- **The run list says the previous run is still going** — a task never overlaps
+  itself. A command that takes longer than its interval is skipped, not queued,
+  and one that hangs is killed after 30 minutes.
+
 ## Disk is full
 
 **System → Cleanup** shows what each category would reclaim. Unused images and

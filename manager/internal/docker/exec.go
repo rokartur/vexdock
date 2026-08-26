@@ -3,7 +3,6 @@ package docker
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -14,8 +13,41 @@ import (
 // ShellCandidates is the fallback chain used when attaching a terminal.
 var ShellCandidates = []string{"/bin/bash", "/bin/sh"}
 
+// maxExecOutput bounds what one exec can buffer. Scheduled tasks run commands
+// nobody vetted, and a job that floods stdout must not grow the manager's heap
+// until the daemon closes the stream.
+const maxExecOutput = 1 << 20
+
+// tailWriter keeps the last maxExecOutput bytes written to it. The tail is what
+// says why a command failed, so the head is what gets dropped.
+type tailWriter struct {
+	buf       []byte
+	truncated bool
+}
+
+func (w *tailWriter) Write(p []byte) (int, error) {
+	w.buf = append(w.buf, p...)
+	// Trim at twice the cap so a chatty command reallocates rarely, not per write.
+	if len(w.buf) > 2*maxExecOutput {
+		w.truncated = true
+		w.buf = append(w.buf[:0], w.buf[len(w.buf)-maxExecOutput:]...)
+	}
+	return len(p), nil
+}
+
+func (w *tailWriter) String() string {
+	if len(w.buf) > maxExecOutput {
+		return "[output truncated]\n" + string(w.buf[len(w.buf)-maxExecOutput:])
+	}
+	if w.truncated {
+		return "[output truncated]\n" + string(w.buf)
+	}
+	return string(w.buf)
+}
+
 // ExecOutput runs a non-interactive command inside a container and returns its
-// combined output plus exit code. Used for `nginx -t` and `nginx -s reload`.
+// combined output plus exit code. Used for `nginx -t`, `nginx -s reload` and
+// scheduled tasks.
 func (c *Client) ExecOutput(ctx context.Context, containerID string, argv []string) (string, int, error) {
 	created, err := c.api.ContainerExecCreate(ctx, containerID, container.ExecOptions{
 		AttachStdout: true,
@@ -31,7 +63,7 @@ func (c *Client) ExecOutput(ctx context.Context, containerID string, argv []stri
 	}
 	defer resp.Close()
 
-	var out strings.Builder
+	var out tailWriter
 	if _, err := stdcopy.StdCopy(&out, &out, resp.Reader); err != nil {
 		return out.String(), -1, fmt.Errorf("exec read: %w", err)
 	}

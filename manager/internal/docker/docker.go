@@ -63,6 +63,29 @@ func (c *Client) ListContainers(ctx context.Context, composeProject string) ([]c
 	return c.api.ContainerList(ctx, opts)
 }
 
+// ServiceContainer maps a compose service to its container id, preferring a
+// running one over a stopped leftover.
+func (c *Client) ServiceContainer(ctx context.Context, composeProject, composeService string) (string, error) {
+	containers, err := c.ListContainers(ctx, composeProject)
+	if err != nil {
+		return "", err
+	}
+	var stopped string
+	for _, ctr := range containers {
+		if ctr.Labels[ComposeServiceLabel] != composeService {
+			continue
+		}
+		if ctr.State == "running" {
+			return ctr.ID, nil
+		}
+		stopped = ctr.ID
+	}
+	if stopped == "" {
+		return "", errors.New("this service has no container yet - deploy it first")
+	}
+	return stopped, nil
+}
+
 func (c *Client) Inspect(ctx context.Context, id string) (container.InspectResponse, error) {
 	return c.api.ContainerInspect(ctx, id)
 }

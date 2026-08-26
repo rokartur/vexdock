@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
 import { MetricCard, type Point, ratesOf, seriesOf, useHistory } from '../components/metric-chart'
 import { Button, Cells, ErrorText, Fact, Facts, Field, Section } from '../components/primitives'
 import { Terminal } from '../components/terminal'
-import { api, type ContainerStats, type Service, type ServicePoint } from '../lib/api'
+import { api, type ContainerStats, type ScheduledTask, type Service, type ServicePoint } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
-import { bytes, percent, since } from '../lib/format'
+import { bytes, duration, percent, since } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
 export const Route = createFileRoute('/projects/$projectId/services/$serviceId')({
@@ -16,10 +17,10 @@ export const Route = createFileRoute('/projects/$projectId/services/$serviceId')
 	validateSearch: (search: Record<string, unknown>): { tab?: Tab } => (isTab(search.tab) ? { tab: search.tab } : {}),
 })
 
-type Tab = 'overview' | 'environment' | 'logs' | 'terminal' | 'settings'
+type Tab = 'overview' | 'environment' | 'logs' | 'terminal' | 'tasks' | 'settings'
 
 const isTab = (value: unknown): value is Tab =>
-	['overview', 'environment', 'logs', 'terminal', 'settings'].includes(value as string)
+	['overview', 'environment', 'logs', 'terminal', 'tasks', 'settings'].includes(value as string)
 
 /**
  * A service the project's own compose file declares is described, never
@@ -28,8 +29,8 @@ const isTab = (value: unknown): value is Tab =>
  */
 const tabsFor = (service: Service | undefined): Tab[] =>
 	service && service.source_type !== 'derived'
-		? ['overview', 'environment', 'logs', 'terminal', 'settings']
-		: ['overview', 'logs', 'terminal']
+		? ['overview', 'environment', 'logs', 'terminal', 'tasks', 'settings']
+		: ['overview', 'logs', 'terminal', 'tasks']
 
 /**
  * Recorded buckets and live SSE samples share one shape, stamped in
@@ -193,6 +194,8 @@ function ServiceDetail() {
 				)
 			) : null}
 
+			{tab === 'tasks' ? <ScheduledTasks serviceId={serviceId} /> : null}
+
 			{tab === 'settings' && service.data ? (
 				<ServiceSettings projectId={projectId} service={service.data} />
 			) : null}
@@ -298,6 +301,248 @@ function ServiceEnvironment({ serviceId }: { serviceId: string }) {
 				spellCheck={false}
 			/>
 			<p className='mt-1 text-label text-muted-foreground'>One KEY=value per line. Redeploy to apply.</p>
+		</Section>
+	)
+}
+
+type TaskForm = { id: string | null; name: string; schedule: string; command: string }
+
+const emptyTask: TaskForm = { id: null, name: '', schedule: '0 3 * * *', command: '' }
+
+function taskColumns(
+	edit: (task: ScheduledTask) => void,
+	run: (id: string) => void,
+	toggle: (task: ScheduledTask) => void,
+	remove: (id: string) => void,
+	runningId: string | null,
+): Columns<ScheduledTask> {
+	const cell = columnsFor<ScheduledTask>()
+	return [
+		cell.accessor(task => task.name, {
+			id: 'name',
+			header: 'Name',
+			cell: ({ row }) => (
+				<>
+					<button type='button' className='cursor-pointer hover:underline' onClick={() => edit(row.original)}>
+						{row.original.name}
+					</button>
+					{row.original.enabled ? null : <span className='ml-2 text-label text-muted-foreground'>off</span>}
+				</>
+			),
+		}),
+		cell.accessor(task => task.schedule, { id: 'schedule', header: 'Schedule', meta: { mono: true } }),
+		cell.accessor(task => task.command, {
+			id: 'command',
+			header: 'Command',
+			meta: { mono: true },
+			cell: ({ row }) => <span className='block max-w-80 truncate'>{row.original.command}</span>,
+		}),
+		cell.accessor(task => task.last_run?.started_at ?? '', {
+			id: 'last-run',
+			header: 'Last run',
+			cell: ({ row }) => {
+				const last = row.original.last_run
+				if (!last) return 'never'
+				return (
+					<span className={last.exit_code === 0 ? undefined : 'text-red-400'}>
+						{since(last.started_at)}
+						{last.exit_code === 0 ? '' : ` · exit ${last.exit_code}`}
+					</span>
+				)
+			},
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row }) => (
+				<div className='flex justify-end gap-2'>
+					<Button disabled={runningId !== null} variant='ghost' onClick={() => run(row.original.id)}>
+						{runningId === row.original.id ? 'running' : 'run now'}
+					</Button>
+					<Button variant='ghost' onClick={() => toggle(row.original)}>
+						{row.original.enabled ? 'disable' : 'enable'}
+					</Button>
+					<Button variant='danger' onClick={() => remove(row.original.id)}>
+						delete
+					</Button>
+				</div>
+			),
+		}),
+	]
+}
+
+/**
+ * Cron jobs that exec inside this service's container, with the same reach as
+ * the terminal tab. The manager ticks once a minute against UTC and skips a
+ * task whose previous run has not finished.
+ */
+function ScheduledTasks({ serviceId }: { serviceId: string }) {
+	const queryClient = useQueryClient()
+	const [form, setForm] = useState<TaskForm>(emptyTask)
+	const [selected, setSelected] = useState<string | null>(null)
+
+	const tasks = useQuery({
+		queryKey: ['service', serviceId, 'tasks'],
+		queryFn: () => api.serviceTasks(serviceId),
+	})
+	const invalidate = () => queryClient.invalidateQueries({ queryKey: ['service', serviceId, 'tasks'] })
+
+	const save = useMutation({
+		mutationFn: ({ id, ...body }: TaskForm) => (id ? api.updateTask(id, body) : api.createTask(serviceId, body)),
+		onSuccess: async () => {
+			setForm(emptyTask)
+			await invalidate()
+		},
+	})
+	const run = useMutation({
+		mutationFn: (id: string) => api.runTask(id),
+		onSuccess: async (_result, id) => {
+			setSelected(id)
+			await queryClient.invalidateQueries({ queryKey: ['task', id, 'runs'] })
+			await invalidate()
+		},
+	})
+	const toggle = useMutation({
+		mutationFn: (task: ScheduledTask) => api.updateTask(task.id, { enabled: !task.enabled }),
+		onSuccess: invalidate,
+	})
+	const remove = useMutation({
+		mutationFn: (id: string) => api.deleteTask(id),
+		onSuccess: async (_result, id) => {
+			if (selected === id) setSelected(null)
+			if (form.id === id) setForm(emptyTask)
+			await invalidate()
+		},
+	})
+
+	const { mutate: runTask } = run
+	const { mutate: toggleTask } = toggle
+	const { mutate: removeTask } = remove
+	// A manual run holds the request open until the command exits, so the row has
+	// to say so; a second click would only earn a 409.
+	const runningId = run.isPending ? run.variables : null
+	const columns = useMemo(
+		() =>
+			taskColumns(
+				task => {
+					setForm({ id: task.id, name: task.name, schedule: task.schedule, command: task.command })
+					setSelected(task.id)
+				},
+				runTask,
+				toggleTask,
+				removeTask,
+				runningId,
+			),
+		[runTask, toggleTask, removeTask, runningId],
+	)
+
+	return (
+		<>
+			<Section title='Scheduled tasks' description='run inside this service’s container, on UTC'>
+				<DataTable
+					data={tasks.data ?? []}
+					columns={columns}
+					loading={tasks.isLoading}
+					getRowId={task => task.id}
+					empty='No scheduled tasks.'
+				/>
+
+				<form
+					className='mt-3 flex flex-wrap items-end gap-2'
+					onSubmit={event => {
+						event.preventDefault()
+						save.mutate(form)
+					}}
+				>
+					<div className='w-48'>
+						<Field label='Name'>
+							<input
+								required
+								value={form.name}
+								onChange={event => setForm({ ...form, name: event.target.value })}
+								placeholder='nightly backup'
+							/>
+						</Field>
+					</div>
+					<div className='w-40'>
+						<Field label='Schedule' hint='cron, or @daily'>
+							<input
+								required
+								value={form.schedule}
+								onChange={event => setForm({ ...form, schedule: event.target.value })}
+								className='font-mono'
+							/>
+						</Field>
+					</div>
+					<div className='min-w-64 flex-1'>
+						<Field label='Command'>
+							<input
+								required
+								value={form.command}
+								onChange={event => setForm({ ...form, command: event.target.value })}
+								placeholder='php artisan schedule:run'
+								className='font-mono'
+								spellCheck={false}
+							/>
+						</Field>
+					</div>
+					<div className='flex gap-2 pb-3'>
+						<Button type='submit' disabled={save.isPending}>
+							{form.id ? 'Save task' : 'Add task'}
+						</Button>
+						{form.id ? (
+							<Button variant='ghost' onClick={() => setForm(emptyTask)}>
+								Cancel
+							</Button>
+						) : null}
+					</div>
+				</form>
+				<ErrorText error={save.error ?? run.error ?? toggle.error ?? remove.error} />
+			</Section>
+
+			{selected ? <TaskRuns taskId={selected} /> : null}
+		</>
+	)
+}
+
+/** Recent executions of one task, newest first, with the output it produced. */
+function TaskRuns({ taskId }: { taskId: string }) {
+	const [openRun, setOpenRun] = useState<string | null>(null)
+	const runs = useQuery({ queryKey: ['task', taskId, 'runs'], queryFn: () => api.taskRuns(taskId) })
+
+	const shown = runs.data?.find(candidate => candidate.id === openRun) ?? runs.data?.[0]
+
+	return (
+		<Section title='Runs' description='newest 20'>
+			{runs.data?.length ? (
+				<div className='flex flex-wrap gap-2'>
+					{runs.data.map(item => (
+						<button
+							key={item.id}
+							type='button'
+							onClick={() => setOpenRun(item.id)}
+							className={`cursor-pointer rounded-md border px-2 py-1 text-label ${
+								item.id === shown?.id ? 'border-foreground' : 'border-border text-muted-foreground'
+							}`}
+						>
+							<span className={item.exit_code === 0 ? undefined : 'text-red-400'}>
+								{since(item.started_at)}
+							</span>
+							<span className='ml-2 font-mono text-muted-foreground'>
+								{item.finished_at ? duration(item.started_at, item.finished_at) : 'running'}
+							</span>
+						</button>
+					))}
+				</div>
+			) : (
+				<p className='text-body text-muted-foreground'>This task has not run yet.</p>
+			)}
+			{shown ? (
+				<pre className='mt-3 max-h-96 overflow-auto rounded-lg border border-border p-2 font-mono text-body whitespace-pre-wrap'>
+					{shown.output || 'No output.'}
+				</pre>
+			) : null}
 		</Section>
 	)
 }
