@@ -14,6 +14,7 @@ import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as DomainsRouteImport } from './routes/domains'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as DeploymentsDeploymentIdRouteImport } from './routes/deployments.$deploymentId'
 import { Route as DockerContainersRouteImport } from './routes/docker.containers'
 import { Route as DockerImagesRouteImport } from './routes/docker.images'
@@ -61,6 +62,11 @@ const LoginRoute = LoginRouteImport.update({
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeploymentsDeploymentIdRoute = DeploymentsDeploymentIdRouteImport.update({
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/domains': typeof DomainsRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/tasks': typeof TasksRoute
   '/deployments/$deploymentId': typeof DeploymentsDeploymentIdRoute
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/domains': typeof DomainsRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/tasks': typeof TasksRoute
   '/deployments/$deploymentId': typeof DeploymentsDeploymentIdRoute
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
@@ -250,6 +258,7 @@ export interface FileRoutesById {
   '/domains': typeof DomainsRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/tasks': typeof TasksRoute
   '/deployments/$deploymentId': typeof DeploymentsDeploymentIdRoute
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/domains'
     | '/login'
     | '/setup'
+    | '/tasks'
     | '/deployments/$deploymentId'
     | '/docker/containers'
     | '/docker/images'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/domains'
     | '/login'
     | '/setup'
+    | '/tasks'
     | '/deployments/$deploymentId'
     | '/docker/containers'
     | '/docker/images'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/domains'
     | '/login'
     | '/setup'
+    | '/tasks'
     | '/deployments/$deploymentId'
     | '/docker/containers'
     | '/docker/images'
@@ -371,6 +383,7 @@ export interface RootRouteChildren {
   DomainsRoute: typeof DomainsRoute
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
+  TasksRoute: typeof TasksRoute
   DeploymentsDeploymentIdRoute: typeof DeploymentsDeploymentIdRoute
   DockerContainersRoute: typeof DockerContainersRoute
   DockerImagesRoute: typeof DockerImagesRoute
@@ -421,6 +434,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/deployments/$deploymentId': {
@@ -633,6 +653,7 @@ const rootRouteChildren: RootRouteChildren = {
   DomainsRoute: DomainsRoute,
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
+  TasksRoute: TasksRoute,
   DeploymentsDeploymentIdRoute: DeploymentsDeploymentIdRoute,
   DockerContainersRoute: DockerContainersRoute,
   DockerImagesRoute: DockerImagesRoute,

@@ -57,8 +57,17 @@ func scanTask(row interface{ Scan(...any) error }) (*ScheduledTask, error) {
 
 // ScheduledTasksByService lists a service's tasks, newest run attached.
 func (db *DB) ScheduledTasksByService(ctx context.Context, serviceID string) ([]ScheduledTask, error) {
+	return db.listTasks(ctx, `WHERE service_id = ?`, serviceID)
+}
+
+// AllScheduledTasks lists every task on the server, newest run attached.
+func (db *DB) AllScheduledTasks(ctx context.Context) ([]ScheduledTask, error) {
+	return db.listTasks(ctx, ``)
+}
+
+func (db *DB) listTasks(ctx context.Context, where string, args ...any) ([]ScheduledTask, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT `+taskColumns+` FROM scheduled_tasks WHERE service_id = ? ORDER BY created_at`, serviceID)
+		`SELECT `+taskColumns+` FROM scheduled_tasks `+where+` ORDER BY created_at`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +83,7 @@ func (db *DB) ScheduledTasksByService(ctx context.Context, serviceID string) ([]
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	last, err := db.lastRunPerTask(ctx, serviceID)
+	last, err := db.lastRunPerTask(ctx, where, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,16 +95,16 @@ func (db *DB) ScheduledTasksByService(ctx context.Context, serviceID string) ([]
 	return out, nil
 }
 
-// lastRunPerTask fetches the newest run of every task on a service in one
-// query, keyed by task id.
-func (db *DB) lastRunPerTask(ctx context.Context, serviceID string) (map[string]*TaskRun, error) {
+// lastRunPerTask fetches the newest run of every task matching the same clause
+// in one query, keyed by task id.
+func (db *DB) lastRunPerTask(ctx context.Context, where string, args ...any) (map[string]*TaskRun, error) {
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, task_id, started_at, finished_at, exit_code FROM (
 			SELECT id, task_id, started_at, finished_at, exit_code,
 			       ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY started_at DESC) AS rank
 			FROM scheduled_task_runs
-			WHERE task_id IN (SELECT id FROM scheduled_tasks WHERE service_id = ?)
-		) WHERE rank = 1`, serviceID)
+			WHERE task_id IN (SELECT id FROM scheduled_tasks `+where+`)
+		) WHERE rank = 1`, args...)
 	if err != nil {
 		return nil, err
 	}

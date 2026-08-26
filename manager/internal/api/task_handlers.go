@@ -104,6 +104,56 @@ func setNextRun(task *database.ScheduledTask, now time.Time) {
 	}
 }
 
+// taskWithOwner is a task as the cross-project list needs it: the service and
+// project a row belongs to, so the page can name it and link to it without a
+// request per row.
+type taskWithOwner struct {
+	database.ScheduledTask
+	ServiceName string `json:"service_name"`
+	ProjectID   string `json:"project_id"`
+	ProjectName string `json:"project_name"`
+}
+
+func (s *Server) handleListAllTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := s.DB.AllScheduledTasks(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	services, err := s.DB.AllServices(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	projects, err := s.DB.ListProjects(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	serviceByID := map[string]database.Service{}
+	for _, service := range services {
+		serviceByID[service.ID] = service
+	}
+	projectByID := map[string]database.Project{}
+	for _, project := range projects {
+		projectByID[project.ID] = project
+	}
+
+	now := time.Now()
+	out := make([]taskWithOwner, 0, len(tasks))
+	for i := range tasks {
+		setNextRun(&tasks[i], now)
+		service := serviceByID[tasks[i].ServiceID]
+		out = append(out, taskWithOwner{
+			ScheduledTask: tasks[i],
+			ServiceName:   service.ComposeServiceName,
+			ProjectID:     service.ProjectID,
+			ProjectName:   projectByID[service.ProjectID].Name,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *Server) handleListServiceTasks(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.DB.ServiceByID(r.Context(), r.PathValue("id")); handleLookupError(w, err) {
 		return

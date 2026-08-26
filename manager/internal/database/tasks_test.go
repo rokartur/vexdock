@@ -15,9 +15,9 @@ func newTask(t *testing.T, db *DB, serviceID string) *ScheduledTask {
 	return task
 }
 
-func taskService(t *testing.T, db *DB) *Service {
+func taskService(t *testing.T, db *DB, slug string) *Service {
 	t.Helper()
-	project := newProject(t, db, "tasks")
+	project := newProject(t, db, slug)
 	env := defaultEnv(t, db, project.ID)
 	service := &Service{
 		ID: NewID(), ProjectID: project.ID, EnvironmentID: env.ID,
@@ -32,7 +32,7 @@ func taskService(t *testing.T, db *DB) *Service {
 func TestTaskRunsAreTruncatedAndPruned(t *testing.T) {
 	ctx := context.Background()
 	db := open(t)
-	task := newTask(t, db, taskService(t, db).ID)
+	task := newTask(t, db, taskService(t, db, "tasks").ID)
 
 	for i := range 5 {
 		run, err := db.StartTaskRun(ctx, task.ID)
@@ -74,7 +74,7 @@ func TestTaskRunsAreTruncatedAndPruned(t *testing.T) {
 func TestInterruptedRunsAreClosedOnBoot(t *testing.T) {
 	ctx := context.Background()
 	db := open(t)
-	service := taskService(t, db)
+	service := taskService(t, db, "tasks")
 	task := newTask(t, db, service.ID)
 	if _, err := db.StartTaskRun(ctx, task.ID); err != nil {
 		t.Fatalf("start run: %v", err)
@@ -97,10 +97,52 @@ func TestInterruptedRunsAreClosedOnBoot(t *testing.T) {
 	}
 }
 
+// The cross-project list and the per-service list share one query, so the
+// filter has to be the only thing that differs between them.
+func TestAllScheduledTasksSpansServicesAndKeepsLastRuns(t *testing.T) {
+	ctx := context.Background()
+	db := open(t)
+	first := taskService(t, db, "first")
+	second := taskService(t, db, "second")
+	taskOnFirst := newTask(t, db, first.ID)
+	newTask(t, db, second.ID)
+	run, err := db.StartTaskRun(ctx, taskOnFirst.ID)
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := db.FinishTaskRun(ctx, run, 0, "done"); err != nil {
+		t.Fatalf("finish run: %v", err)
+	}
+
+	all, err := db.AllScheduledTasks(ctx)
+	if err != nil {
+		t.Fatalf("list all tasks: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("got %d tasks across two services, want 2", len(all))
+	}
+	for _, task := range all {
+		switch {
+		case task.ID == taskOnFirst.ID && task.LastRun == nil:
+			t.Error("the task that ran lost its last run")
+		case task.ID != taskOnFirst.ID && task.LastRun != nil:
+			t.Error("a task that never ran picked up someone else's run")
+		}
+	}
+
+	mine, err := db.ScheduledTasksByService(ctx, second.ID)
+	if err != nil {
+		t.Fatalf("list service tasks: %v", err)
+	}
+	if len(mine) != 1 {
+		t.Fatalf("got %d tasks on one service, want 1", len(mine))
+	}
+}
+
 func TestDeletingATaskDeletesItsRuns(t *testing.T) {
 	ctx := context.Background()
 	db := open(t)
-	task := newTask(t, db, taskService(t, db).ID)
+	task := newTask(t, db, taskService(t, db, "tasks").ID)
 	if _, err := db.StartTaskRun(ctx, task.ID); err != nil {
 		t.Fatalf("start run: %v", err)
 	}

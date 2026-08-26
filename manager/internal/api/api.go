@@ -111,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/services/{id}/tasks", s.protected(s.handleListServiceTasks))
 	mux.Handle("POST /api/services/{id}/tasks", s.protected(s.handleCreateServiceTask))
 
+	mux.Handle("GET /api/tasks", s.protected(s.handleListAllTasks))
 	mux.Handle("PATCH /api/tasks/{id}", s.protected(s.handleUpdateTask))
 	mux.Handle("DELETE /api/tasks/{id}", s.protected(s.handleDeleteTask))
 	mux.Handle("POST /api/tasks/{id}/run", s.protected(s.handleRunTask))
