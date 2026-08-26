@@ -39,7 +39,8 @@ token and create the administrator account.
   and an interactive shell, all in the browser.
 - **Scheduled tasks.** A cron expression, a timezone and a command per service,
   run inside its container. No crontab on the host; every run keeps its exit
-  code and output.
+  code and output. One page lists every task on the server, with what is due
+  next and what failed last.
 - **Managed databases.** PostgreSQL, MySQL, MariaDB, MongoDB and Valkey added
   to a project with their image, volume and credentials generated, or any other
   image you name.
