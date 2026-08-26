@@ -676,9 +676,12 @@ export const api = {
 	networks: () => request<NetworkSummary[]>('/api/docker/networks'),
 	cleanupPreview: () => request<CleanupPreview>('/api/docker/cleanup'),
 	cleanup: (kind: 'containers' | 'images' | 'volumes' | 'networks' | 'build-cache') =>
-		request<{ kind: string; removed: number; space_reclaimed: number }>(`/api/docker/cleanup/${kind}`, {
-			method: 'POST',
-		}),
+		request<{ kind: string; removed: number; space_reclaimed: number }>(
+			// An unused volume is a stopped project's data, so the manager wants the
+			// same confirmation here as it does for removing one by name.
+			`/api/docker/cleanup/${kind}${kind === 'volumes' ? '?confirm=true' : ''}`,
+			{ method: 'POST' },
+		),
 
 	registries: () => request<Registry[]>('/api/registries'),
 	createRegistry: (body: { name: string; url: string; username: string; password: string }) =>

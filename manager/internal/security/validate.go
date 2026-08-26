@@ -115,6 +115,25 @@ func ValidateGitURL(raw string) (string, error) {
 	return s, nil
 }
 
+// ValidateCommandArg accepts a value that is passed to a command as its own
+// argument. Every argument already travels as a separate slice element, so
+// there is no shell to escape, but the command parses its own flags: a value
+// starting with a dash would be read as an option rather than as the registry
+// or login name it is meant to be. `kind` names the field in the error.
+func ValidateCommandArg(kind, value string) (string, error) {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return "", fmt.Errorf("%s is required", kind)
+	}
+	if strings.ContainsAny(v, " \t\n\r") {
+		return "", fmt.Errorf("%s must not contain whitespace", kind)
+	}
+	if strings.HasPrefix(v, "-") {
+		return "", fmt.Errorf("%s must not start with a dash", kind)
+	}
+	return v, nil
+}
+
 // ValidateGitRef accepts a branch, tag or commit-ish. It rejects anything that
 // could be read as a git option or shell metacharacter.
 func ValidateGitRef(ref string) (string, error) {

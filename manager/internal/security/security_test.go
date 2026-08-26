@@ -173,3 +173,24 @@ func TestRandomTokenIsUnique(t *testing.T) {
 		t.Fatal("token hashing collides trivially")
 	}
 }
+
+// A registry host and login name are handed to `docker login` as arguments.
+// There is no shell to escape, but the command reads its own flags, so a value
+// starting with a dash must never get that far.
+func TestValidateCommandArgRejectsOptionLookalikes(t *testing.T) {
+	got, err := ValidateCommandArg("url", "  ghcr.io ")
+	if err != nil {
+		t.Fatalf("a plain registry host was rejected: %v", err)
+	}
+	if got != "ghcr.io" {
+		t.Fatalf("ValidateCommandArg = %q, want ghcr.io", got)
+	}
+	if _, err := ValidateCommandArg("url", "registry.example.com:5000"); err != nil {
+		t.Fatalf("a host with a port was rejected: %v", err)
+	}
+	for _, bad := range []string{"", "   ", "--config=/tmp/x", "-v", "ghcr.io extra", "gh\tcr.io", "ghcr.io\n--help"} {
+		if _, err := ValidateCommandArg("url", bad); err == nil {
+			t.Fatalf("value %q should have been rejected", bad)
+		}
+	}
+}

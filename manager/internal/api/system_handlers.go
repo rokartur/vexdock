@@ -19,6 +19,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/events"
 	"github.com/vexdock/platform/manager/internal/metrics"
 	"github.com/vexdock/platform/manager/internal/notify"
+	"github.com/vexdock/platform/manager/internal/security"
 	"github.com/vexdock/platform/manager/internal/updater"
 )
 
@@ -388,8 +389,20 @@ func (s *Server) handleCreateRegistry(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if req.Name == "" || req.URL == "" || req.Username == "" || req.Password == "" {
+	if req.Name == "" || req.Password == "" {
 		badRequest(w, errors.New("name, url, username and token are all required"))
+		return
+	}
+	// Both reach the docker CLI as arguments, so they are validated before they
+	// are stored rather than at the point of use.
+	registryURL, err := security.ValidateCommandArg("url", req.URL)
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	username, err := security.ValidateCommandArg("username", req.Username)
+	if err != nil {
+		badRequest(w, err)
 		return
 	}
 	encrypted, err := s.Cipher.Encrypt(req.Password)
@@ -397,12 +410,12 @@ func (s *Server) handleCreateRegistry(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	registry := &database.Registry{Name: req.Name, URL: req.URL, Username: req.Username, EncryptedPassword: encrypted}
+	registry := &database.Registry{Name: req.Name, URL: registryURL, Username: username, EncryptedPassword: encrypted}
 	if err := s.DB.CreateRegistry(r.Context(), registry); err != nil {
 		badRequest(w, err)
 		return
 	}
-	if err := s.dockerLogin(r.Context(), req.URL, req.Username, req.Password); err != nil {
+	if err := s.dockerLogin(r.Context(), registryURL, username, req.Password); err != nil {
 		_ = s.DB.DeleteRegistry(r.Context(), registry.ID)
 		badRequest(w, err)
 		return
