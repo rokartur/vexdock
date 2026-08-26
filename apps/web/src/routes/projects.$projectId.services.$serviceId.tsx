@@ -309,13 +309,27 @@ type TaskForm = { id: string | null; name: string; schedule: string; command: st
 
 const emptyTask: TaskForm = { id: null, name: '', schedule: '0 3 * * *', command: '' }
 
-function taskColumns(
-	edit: (task: ScheduledTask) => void,
-	run: (id: string) => void,
-	toggle: (task: ScheduledTask) => void,
-	remove: (id: string) => void,
-	runningId: string | null,
-): Columns<ScheduledTask> {
+type TaskActions = {
+	select: (id: string) => void
+	edit: (task: ScheduledTask) => void
+	run: (id: string) => void
+	toggle: (task: ScheduledTask) => void
+	remove: (id: string) => void
+	runningId: string | null
+	confirming: string | null
+	setConfirming: (id: string | null) => void
+}
+
+function taskColumns({
+	select,
+	edit,
+	run,
+	toggle,
+	remove,
+	runningId,
+	confirming,
+	setConfirming,
+}: TaskActions): Columns<ScheduledTask> {
 	const cell = columnsFor<ScheduledTask>()
 	return [
 		cell.accessor(task => task.name, {
@@ -323,9 +337,7 @@ function taskColumns(
 			header: 'Name',
 			cell: ({ row }) => (
 				<>
-					<button type='button' className='cursor-pointer hover:underline' onClick={() => edit(row.original)}>
-						{row.original.name}
-					</button>
+					{row.original.name}
 					{row.original.enabled ? null : <span className='ml-2 text-label text-muted-foreground'>off</span>}
 				</>
 			),
@@ -340,14 +352,20 @@ function taskColumns(
 		cell.accessor(task => task.last_run?.started_at ?? '', {
 			id: 'last-run',
 			header: 'Last run',
+			// The last run is the way into the history: clicking what a task did last
+			// shows everything it has done.
 			cell: ({ row }) => {
 				const last = row.original.last_run
-				if (!last) return 'never'
+				if (!last) return <span className='text-muted-foreground'>never</span>
 				return (
-					<span className={last.exit_code === 0 ? undefined : 'text-red-400'}>
+					<button
+						type='button'
+						className={`cursor-pointer hover:underline ${last.exit_code === 0 ? '' : 'text-red-400'}`}
+						onClick={() => select(row.original.id)}
+					>
 						{since(last.started_at)}
 						{last.exit_code === 0 ? '' : ` · exit ${last.exit_code}`}
-					</span>
+					</button>
 				)
 			},
 		}),
@@ -355,19 +373,36 @@ function taskColumns(
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<div className='flex justify-end gap-2'>
-					<Button disabled={runningId !== null} variant='ghost' onClick={() => run(row.original.id)}>
-						{runningId === row.original.id ? 'running' : 'run now'}
-					</Button>
-					<Button variant='ghost' onClick={() => toggle(row.original)}>
-						{row.original.enabled ? 'disable' : 'enable'}
-					</Button>
-					<Button variant='danger' onClick={() => remove(row.original.id)}>
-						delete
-					</Button>
-				</div>
-			),
+			cell: ({ row: { original } }) =>
+				// Deleting a task takes its whole run history with it, so it asks first.
+				confirming === original.id ? (
+					<div className='flex justify-end gap-2'>
+						<Button variant='danger' onClick={() => remove(original.id)}>
+							confirm delete
+						</Button>
+						<Button variant='ghost' onClick={() => setConfirming(null)}>
+							cancel
+						</Button>
+					</div>
+				) : (
+					<div className='flex justify-end gap-2'>
+						<Button variant='ghost' onClick={() => select(original.id)}>
+							logs
+						</Button>
+						<Button disabled={runningId !== null} variant='ghost' onClick={() => run(original.id)}>
+							{runningId === original.id ? 'running' : 'run now'}
+						</Button>
+						<Button variant='ghost' onClick={() => edit(original)}>
+							edit
+						</Button>
+						<Button variant='ghost' onClick={() => toggle(original)}>
+							{original.enabled ? 'disable' : 'enable'}
+						</Button>
+						<Button variant='ghost' onClick={() => setConfirming(original.id)}>
+							delete
+						</Button>
+					</div>
+				),
 		}),
 	]
 }
@@ -381,12 +416,14 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 	const queryClient = useQueryClient()
 	const [form, setForm] = useState<TaskForm>(emptyTask)
 	const [selected, setSelected] = useState<string | null>(null)
+	const [confirming, setConfirming] = useState<string | null>(null)
 
 	const tasks = useQuery({
 		queryKey: ['service', serviceId, 'tasks'],
 		queryFn: () => api.serviceTasks(serviceId),
 	})
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: ['service', serviceId, 'tasks'] })
+	const selectedTask = tasks.data?.find(task => task.id === selected)
 
 	const save = useMutation({
 		mutationFn: ({ id, ...body }: TaskForm) => (id ? api.updateTask(id, body) : api.createTask(serviceId, body)),
@@ -410,6 +447,7 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 	const remove = useMutation({
 		mutationFn: (id: string) => api.deleteTask(id),
 		onSuccess: async (_result, id) => {
+			setConfirming(null)
 			if (selected === id) setSelected(null)
 			if (form.id === id) setForm(emptyTask)
 			await invalidate()
@@ -424,17 +462,17 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 	const runningId = run.isPending ? run.variables : null
 	const columns = useMemo(
 		() =>
-			taskColumns(
-				task => {
-					setForm({ id: task.id, name: task.name, schedule: task.schedule, command: task.command })
-					setSelected(task.id)
-				},
-				runTask,
-				toggleTask,
-				removeTask,
+			taskColumns({
+				select: setSelected,
+				edit: task => setForm({ id: task.id, name: task.name, schedule: task.schedule, command: task.command }),
+				run: runTask,
+				toggle: toggleTask,
+				remove: removeTask,
 				runningId,
-			),
-		[runTask, toggleTask, removeTask, runningId],
+				confirming,
+				setConfirming,
+			}),
+		[runTask, toggleTask, removeTask, runningId, confirming],
 	)
 
 	return (
@@ -501,20 +539,28 @@ function ScheduledTasks({ serviceId }: { serviceId: string }) {
 				<ErrorText error={save.error ?? run.error ?? toggle.error ?? remove.error} />
 			</Section>
 
-			{selected ? <TaskRuns taskId={selected} /> : null}
+			{selectedTask ? <TaskRuns task={selectedTask} onClose={() => setSelected(null)} /> : null}
 		</>
 	)
 }
 
 /** Recent executions of one task, newest first, with the output it produced. */
-function TaskRuns({ taskId }: { taskId: string }) {
+function TaskRuns({ task, onClose }: { task: ScheduledTask; onClose: () => void }) {
 	const [openRun, setOpenRun] = useState<string | null>(null)
-	const runs = useQuery({ queryKey: ['task', taskId, 'runs'], queryFn: () => api.taskRuns(taskId) })
+	const runs = useQuery({ queryKey: ['task', task.id, 'runs'], queryFn: () => api.taskRuns(task.id) })
 
 	const shown = runs.data?.find(candidate => candidate.id === openRun) ?? runs.data?.[0]
 
 	return (
-		<Section title='Runs' description='newest 20'>
+		<Section
+			title={`Runs of ${task.name}`}
+			description='newest 20'
+			actions={
+				<Button variant='ghost' onClick={onClose}>
+					close
+				</Button>
+			}
+		>
 			{runs.data?.length ? (
 				<div className='flex flex-wrap gap-2'>
 					{runs.data.map(item => (

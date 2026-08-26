@@ -55,8 +55,8 @@ of five failures per hostname per hour.
 
 ## A scheduled task does not run
 
-Open the service's **Tasks** tab; every attempt is in the run list with its exit
-code and output.
+Open the service's **Tasks** tab and press **logs** on the task; every attempt is
+listed with its exit code and the output it produced.
 
 - **`this service has no container yet - deploy it first`** — the task execs into
   the service's own container, so the service has to be deployed and present.
