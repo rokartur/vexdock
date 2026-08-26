@@ -43,6 +43,34 @@ func TestNormalizeTagsCaps(t *testing.T) {
 	}
 }
 
+// Compose interpolates variables inside a double-quoted env value, so anything
+// escapeEnvValue quotes has to survive that second pass too. A dollar is the
+// dangerous one: unescaped, compose reads p$ssw0rd as p plus an unset variable
+// and the container gets p.
+func TestEscapeEnvValue(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"dollar", `p$ssw0rd`, `"p$$ssw0rd"`},
+		{"dollar braces", `${HOME}`, `"$${HOME}"`},
+		{"empty", ``, `""`},
+		{"plain", `simple`, `simple`},
+		{"space", `two words`, `"two words"`},
+		{"quote", `say "hi"`, `"say \"hi\""`},
+		{"newline", "a\nb", `"a\nb"`},
+		{"backslash left bare when nothing forces quoting", `C:\tmp`, `C:\tmp`},
+		{"backslash doubled once quoted", `C:\tmp dir`, `"C:\\tmp dir"`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := escapeEnvValue(c.value); got != c.want {
+				t.Fatalf("escapeEnvValue(%q) = %s, want %s", c.value, got, c.want)
+			}
+		})
+	}
+}
+
 // A project created from nothing but a name has to be complete enough to open:
 // a compose source, a starter file on disk, and a checkout that a later switch
 // to git can clone into.
