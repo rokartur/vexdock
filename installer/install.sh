@@ -185,15 +185,22 @@ resolve_version() {
 
 # The compose file must come from the same ref as the images it references, or a
 # pinned install runs new images against main's topology.
+# An update stops the stack before it gets here, so writing compose.yml in place
+# would let a dead transfer truncate the only file that can start the platform
+# again. Land it beside the live one and move it over once it is whole.
 fetch_compose() {
     if [ -n "${PLATFORM_LOCAL_COMPOSE:-}" ]; then
-        cp "$PLATFORM_LOCAL_COMPOSE" "$ROOT/compose.yml"
+        cp "$PLATFORM_LOCAL_COMPOSE" "$ROOT/compose.yml.new" \
+            || die "Could not copy compose.yml from $PLATFORM_LOCAL_COMPOSE"
     else
         ref=main
         [ "$VERSION" = latest ] || ref="$VERSION"
-        curl -fsSL "$RAW_BASE/$ref/compose.yml" -o "$ROOT/compose.yml" \
-            || die "Could not download compose.yml from $RAW_BASE/$ref"
+        curl -fsSL "$RAW_BASE/$ref/compose.yml" -o "$ROOT/compose.yml.new" \
+            || { rm -f "$ROOT/compose.yml.new"; die "Could not download compose.yml from $RAW_BASE/$ref"; }
     fi
+    [ -s "$ROOT/compose.yml.new" ] \
+        || { rm -f "$ROOT/compose.yml.new"; die "Downloaded compose.yml is empty"; }
+    mv "$ROOT/compose.yml.new" "$ROOT/compose.yml"
     ok "System compose downloaded"
 }
 
@@ -326,6 +333,9 @@ do_update() {
     cp -a "$ROOT/nginx" "$ROOT/backups/$stamp/nginx" 2>/dev/null || true
     cp -a "$ROOT/certificates" "$ROOT/backups/$stamp/certificates" 2>/dev/null || true
     cp -a "$ROOT/secrets" "$ROOT/backups/$stamp/secrets" 2>/dev/null || true
+    # compose.yml is the file this update replaces, so a backup without it can
+    # restore the data but not the topology that ran against it.
+    cp -a "$ROOT/compose.yml" "$ROOT/backups/$stamp/compose.yml" 2>/dev/null || true
     ok "Backup written to $ROOT/backups/$stamp"
     # Keep the five most recent; unbounded update backups fill a small VPS disk.
     # The stamps are ISO, so the glob is already in chronological order.
