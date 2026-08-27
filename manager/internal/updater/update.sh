@@ -132,6 +132,10 @@ fi
 if wait_healthy; then
     cleanup_old_images
     log "update to $VERSION completed"
+    # Nobody reads the logs of an update that worked, so the container takes
+    # itself out. This kills the script mid-command; a failed update never
+    # reaches here and keeps its container for `docker logs`.
+    docker rm -f vexdock-updater
     exit 0
 fi
 
