@@ -200,6 +200,10 @@ case "$1" in
         [ "$2" = rm ]
         printf '%s\n' "$3" >> "$REMOVED_IMAGES"
         ;;
+    rm)
+        [ "$3" = vexdock-updater ]
+        : > "$PLATFORM_ROOT/self-removed"
+        ;;
     *) echo "unexpected docker command: $*" >&2; exit 1 ;;
 esac
 `
@@ -214,6 +218,10 @@ esac
 			cmd.Dir = root
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("update script: %v\n%s", err, out)
+			}
+
+			if _, err := os.Stat(filepath.Join(root, "self-removed")); err != nil {
+				t.Fatalf("successful update did not remove its own container: %v", err)
 			}
 
 			removed, err := os.ReadFile(removedPath)

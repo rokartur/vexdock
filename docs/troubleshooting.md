@@ -88,8 +88,8 @@ docker logs vexdock-updater
 docker ps --filter name=vexdock
 ```
 
-The updater container is kept after it exits so those logs survive; the next
-update replaces it.
+A successful update deletes its own container. One that failed is kept so those
+logs survive, until the next update replaces it.
 
 Backups live in `/opt/vexdock/backups/<timestamp>/`, containing `app.db`,
 `auth.db`, `master.key`, the generated proxy configuration and the certificates.
