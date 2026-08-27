@@ -276,6 +276,9 @@ export type ContainerSummary = {
 	networks: string[] | null
 }
 
+/** `remove` refuses a running container: the daemon wants force, which the dashboard never sends. */
+export type ContainerAction = 'start' | 'stop' | 'restart' | 'remove'
+
 export type ImageSummary = {
 	id: string
 	repo_tags: string[] | null
@@ -732,7 +735,7 @@ export const api = {
 	rollback: (id: string) => request<Deployment>(`/api/deployments/${id}/rollback`, { method: 'POST' }),
 
 	containers: () => request<ContainerSummary[]>('/api/docker/containers'),
-	containerAction: (id: string, action: 'start' | 'stop' | 'restart' | 'remove') =>
+	containerAction: (id: string, action: ContainerAction) =>
 		request<{ ok: boolean }>(`/api/docker/containers/${id}/${action}`, { method: 'POST' }),
 	images: () => request<ImageSummary[]>('/api/docker/images'),
 	pullImage: (reference: string) =>
