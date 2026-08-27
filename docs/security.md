@@ -155,6 +155,9 @@ recreated. Every cleanup screen shows what will be reclaimed before anything is
 removed.
 Clearing a site's analytics erases every event for that hostname at once, so
 the dashboard asks twice and names the site in the confirmation.
+Deleting a container is offered only once it is stopped, so the dashboard never
+sends the `force` the API would accept; the volumes stay behind either way, and
+the next deploy recreates anything the platform manages.
 Uninstalling keeps application data by default.
 
 ## Proxy configuration

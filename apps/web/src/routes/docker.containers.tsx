@@ -5,7 +5,7 @@ import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
 import { Button, ErrorText, Page, Refresh, Section, Status } from '../components/primitives'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../components/ui/drawer'
-import { api, type ContainerSummary } from '../lib/api'
+import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
 import { since } from '../lib/format'
 
 function containerName(container: ContainerSummary) {
@@ -14,10 +14,17 @@ function containerName(container: ContainerSummary) {
 
 type ContainerActions = {
 	showLogs: (id: string) => void
-	act: (id: string, action: 'start' | 'stop' | 'restart') => void
+	act: (id: string, action: ContainerAction) => void
+	pendingDelete: string | null
+	setPendingDelete: (id: string | null) => void
 }
 
-function containerTableColumns({ showLogs, act }: ContainerActions): Columns<ContainerSummary> {
+function containerTableColumns({
+	showLogs,
+	act,
+	pendingDelete,
+	setPendingDelete,
+}: ContainerActions): Columns<ContainerSummary> {
 	const cell = columnsFor<ContainerSummary>()
 	return [
 		cell.accessor(containerName, {
@@ -56,6 +63,18 @@ function containerTableColumns({ showLogs, act }: ContainerActions): Columns<Con
 			cell: ({ row }) => {
 				const container = row.original
 				const running = container.state === 'running'
+				if (pendingDelete === container.id) {
+					return (
+						<span className='flex justify-end gap-1.5'>
+							<Button variant='danger' onClick={() => act(container.id, 'remove')}>
+								confirm delete
+							</Button>
+							<Button variant='ghost' onClick={() => setPendingDelete(null)}>
+								cancel
+							</Button>
+						</span>
+					)
+				}
 				return (
 					<span className='flex justify-end gap-1.5'>
 						<Button variant='ghost' onClick={() => showLogs(container.id)}>
@@ -67,6 +86,12 @@ function containerTableColumns({ showLogs, act }: ContainerActions): Columns<Con
 						<Button variant='ghost' onClick={() => act(container.id, running ? 'stop' : 'start')}>
 							{running ? 'stop' : 'start'}
 						</Button>
+						{/* A running container is stopped first: no force flag, no service killed by a mis-click. */}
+						{running ? null : (
+							<Button variant='ghost' onClick={() => setPendingDelete(container.id)}>
+								delete
+							</Button>
+						)}
 					</span>
 				)
 			},
@@ -83,6 +108,7 @@ export const Route = createFileRoute('/docker/containers')({ component: Containe
 function ContainersPage() {
 	const queryClient = useQueryClient()
 	const [logsFor, setLogsFor] = useState<string | null>(null)
+	const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
 	const containers = useQuery({
 		queryKey: ['containers'],
@@ -91,16 +117,24 @@ function ContainersPage() {
 	})
 
 	const act = useMutation({
-		mutationFn: ({ id, action }: { id: string; action: 'start' | 'stop' | 'restart' | 'remove' }) =>
-			api.containerAction(id, action),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['containers'] }),
+		mutationFn: ({ id, action }: { id: string; action: ContainerAction }) => api.containerAction(id, action),
+		onSuccess: async () => {
+			setPendingDelete(null)
+			await queryClient.invalidateQueries({ queryKey: ['containers'] })
+		},
 	})
 
 	const data = containers.data ?? []
 	const { mutate: runAction } = act
 	const columns = useMemo(
-		() => containerTableColumns({ showLogs: setLogsFor, act: (id, action) => runAction({ id, action }) }),
-		[runAction],
+		() =>
+			containerTableColumns({
+				showLogs: setLogsFor,
+				act: (id, action) => runAction({ id, action }),
+				pendingDelete,
+				setPendingDelete,
+			}),
+		[runAction, pendingDelete],
 	)
 
 	return (
