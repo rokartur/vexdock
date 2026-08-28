@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
-import { Button, Cells, ErrorText, Refresh, Section, Status } from '../components/primitives'
+import { Button, Cell, Cells, ErrorText, Refresh, Section, Status } from '../components/primitives'
 import { api, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent, since } from '../lib/format'
@@ -144,9 +144,8 @@ function serviceColumns({ projectId, hostnames, deploy, act }: RowActions): Colu
 							variant='ghost'
 							render={
 								<Link
-									to='/projects/$projectId/services/$serviceId'
+									to='/projects/$projectId/services/$serviceId/logs'
 									params={{ projectId, serviceId: original.id }}
-									search={{ tab: 'logs' }}
 								/>
 							}
 						>
@@ -224,58 +223,40 @@ function ProjectServices() {
 
 	return (
 		<>
-			<Cells className='mb-7'>
-				<div className='px-3 py-2.5'>
-					<div className='text-meta tracking-wide text-muted-foreground uppercase'>Services</div>
-					<div className='mt-1 font-mono text-reading tabular-nums'>
-						{running} / {data.length}
-					</div>
-					<div className='mt-0.5 text-meta text-muted-foreground'>running</div>
-				</div>
-				<div className='px-3 py-2.5'>
-					<div className='text-meta tracking-wide text-muted-foreground uppercase'>Last deploy</div>
-					<div className='mt-1 text-reading'>
-						{latest ? (
+			<Cells className='mb-10'>
+				<Cell label='Services' value={`${running} / ${data.length}`} hint='running' />
+				<Cell
+					label='Last deploy'
+					value={
+						latest ? (
 							<Link
 								to='/deployments/$deploymentId'
 								params={{ deploymentId: latest.id }}
-								className='font-mono hover:underline'
+								className='hover:underline'
 							>
 								#{latest.number}
 							</Link>
 						) : (
 							<span className='text-muted-foreground'>none yet</span>
-						)}
-					</div>
-					<div className='mt-0.5 flex items-center gap-2 text-meta text-muted-foreground'>
-						{latest ? (
-							<>
+						)
+					}
+					hint={
+						latest ? (
+							<span className='flex items-center gap-2'>
 								<Status value={latest.status} />
 								<span>{since(latest.created_at)}</span>
 								<span>{duration(latest.started_at, latest.finished_at)}</span>
-							</>
-						) : null}
-					</div>
-				</div>
-				<div className='px-3 py-2.5'>
-					<div className='text-meta tracking-wide text-muted-foreground uppercase'>Domains</div>
-					<div className='mt-1 truncate font-mono text-reading'>
-						{domains.data?.[0]?.hostname ?? <span className='text-muted-foreground'>none</span>}
-					</div>
-					<div className='mt-0.5 text-meta text-muted-foreground'>
-						{(domains.data?.length ?? 0) > 1 ? `+${(domains.data?.length ?? 0) - 1} more` : ' '}
-					</div>
-				</div>
-				<div className='px-3 py-2.5'>
-					<div className='text-meta tracking-wide text-muted-foreground uppercase'>CPU</div>
-					<div className='mt-1 font-mono text-reading tabular-nums'>{percent(cpu)}</div>
-					<div className='mt-0.5 text-meta text-muted-foreground'>across its services</div>
-				</div>
-				<div className='px-3 py-2.5'>
-					<div className='text-meta tracking-wide text-muted-foreground uppercase'>Memory</div>
-					<div className='mt-1 font-mono text-reading tabular-nums'>{bytes(memory)}</div>
-					<div className='mt-0.5 text-meta text-muted-foreground'>across its services</div>
-				</div>
+							</span>
+						) : null
+					}
+				/>
+				<Cell
+					label='Domains'
+					value={domains.data?.[0]?.hostname ?? <span className='text-muted-foreground'>none</span>}
+					hint={(domains.data?.length ?? 0) > 1 ? `+${(domains.data?.length ?? 0) - 1} more` : null}
+				/>
+				<Cell label='CPU' value={percent(cpu)} hint='across its services' />
+				<Cell label='Memory' value={bytes(memory)} hint='across its services' />
 			</Cells>
 
 			<Section
@@ -364,14 +345,9 @@ function hostnamesByService(domains: Domain[]): Map<string, string[]> {
 }
 
 function TypeBadge({ type }: { type: Service['type'] }) {
-	const database = type === 'database'
 	return (
-		<span
-			className={`shrink-0 border px-1.5 py-0.5 font-mono text-label uppercase ${
-				database ? 'border-emerald-900 text-emerald-500' : 'border-indigo-900 text-indigo-400'
-			}`}
-		>
-			{database ? 'DB' : 'App'}
+		<span className='shrink-0 rounded-sm border px-1.5 py-0.5 font-mono text-label text-muted-foreground uppercase'>
+			{type === 'database' ? 'DB' : 'App'}
 		</span>
 	)
 }

@@ -1,15 +1,15 @@
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { curveThrough, MetricCard, type Point } from '../components/metric-chart'
-import { Button, Cells, ErrorText, Page, Refresh, Section } from '../components/primitives'
+import { Button, Cell, Cells, ErrorText, Page, Refresh, Section, Segmented } from '../components/primitives'
 import { type AnalyticsRange, api, type Breakdown, type Traffic, type TrafficPoint } from '../lib/api'
 import { delta, dense, WEEKDAYS, weekdayHours } from '../lib/traffic'
 
 const ranges: { value: AnalyticsRange; label: string }[] = [
-	{ value: '24h', label: '24 hours' },
-	{ value: '7d', label: '7 days' },
-	{ value: '30d', label: '30 days' },
+	{ value: '24h', label: '24h' },
+	{ value: '7d', label: '7d' },
+	{ value: '30d', label: '30d' },
 ]
 
 export const Route = createFileRoute('/analytics')({ component: AnalyticsPage })
@@ -64,12 +64,13 @@ function AnalyticsPage() {
 	return (
 		<Page
 			actions={<Refresh onClick={() => analytics.refetch()} busy={analytics.isFetching} />}
-			toolbar={
-				<div className='flex w-full items-end justify-between gap-4 pb-2'>
+			filters={
+				<>
 					<select
+						aria-label='Site'
 						value={selected ?? ''}
 						onChange={event => setHostname(event.target.value)}
-						className='h-7 rounded-sm border bg-transparent px-2 text-body'
+						className='w-auto'
 					>
 						{tracked.map(domain => (
 							<option key={domain.id} value={domain.hostname}>
@@ -77,23 +78,13 @@ function AnalyticsPage() {
 							</option>
 						))}
 					</select>
-					<div className='flex gap-1'>
-						{ranges.map(option => (
-							<Button
-								key={option.value}
-								variant={option.value === range ? 'default' : 'ghost'}
-								onClick={() => setRange(option.value)}
-							>
-								{option.label}
-							</Button>
-						))}
-					</div>
-				</div>
+					<Segmented value={range} onChange={setRange} options={ranges} />
+				</>
 			}
 		>
 			<ErrorText error={analytics.error} />
 
-			<Cells className='mb-7'>
+			<Cells className='mb-10'>
 				<MetricCard
 					label='Unique visitors'
 					value={traffic?.visitors ?? '-'}
@@ -173,17 +164,6 @@ function AnalyticsPage() {
 				</p>
 			</Section>
 		</Page>
-	)
-}
-
-/** A reading in the Cells grid that has no series behind it. */
-function Cell({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
-	return (
-		<div className='px-3 py-2.5'>
-			<div className='text-meta tracking-wide text-muted-foreground uppercase'>{label}</div>
-			<div className='mt-1 font-mono text-reading tabular-nums'>{value}</div>
-			<div className='mt-0.5 text-meta text-muted-foreground'>{hint ?? ' '}</div>
-		</div>
 	)
 }
 

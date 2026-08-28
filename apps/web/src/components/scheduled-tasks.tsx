@@ -66,9 +66,8 @@ function taskColumns({
 		cell: ({ row }) => (
 			<>
 				<Link
-					to='/projects/$projectId/services/$serviceId'
+					to='/projects/$projectId/services/$serviceId/tasks'
 					params={{ projectId: row.original.project_id, serviceId: row.original.service_id }}
-					search={{ tab: 'tasks' }}
 					className='hover:underline'
 				>
 					{row.original.service_name}

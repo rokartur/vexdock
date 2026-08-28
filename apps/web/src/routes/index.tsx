@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Cells, Fact, Facts, Page, Refresh, Section, Status } from '../components/primitives'
+import { Cell, Cells, Fact, Facts, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type Certificate, type Domain, type HostPoint, type HostStats, type Project } from '../lib/api'
 import { bytes, duration, percent, since, until } from '../lib/format'
 import { useEventSource } from '../lib/sse'
@@ -207,23 +207,19 @@ function DashboardPage() {
 						hint={`of ${bytes(current?.memory_total ?? host?.memory_total)}`}
 					/>
 					{/* Disk moves in hours, so a line would be flat; the bar says more. */}
-					<div className='px-3 py-2.5'>
-						<div className='text-meta tracking-wide text-muted-foreground uppercase'>Disk</div>
-						<div className='mt-1 font-mono text-reading tabular-nums'>
-							{current ? bytes(current.disk_used) : '-'}
-						</div>
-						<div className='mt-0.5 text-meta text-muted-foreground'>
-							of {bytes(current?.disk_total)} · {percent(diskUsed * 100)}
-						</div>
+					<Cell
+						label='Disk'
+						value={current ? bytes(current.disk_used) : '-'}
+						hint={`of ${bytes(current?.disk_total)} · ${percent(diskUsed * 100)}`}
+					>
 						<div className='mt-2.5 h-0.5 rounded-full bg-muted'>
 							<div
 								className='h-full rounded-full bg-foreground'
 								style={{ width: percent(diskUsed * 100) }}
 							/>
 						</div>
-					</div>
-					<div className='px-3 py-2.5'>
-						<div className='text-meta tracking-wide text-muted-foreground uppercase'>Platform</div>
+					</Cell>
+					<Cell label='Platform'>
 						{/* Inside a cell, so the cell is the box: no second border. */}
 						<Facts className='mt-1.5 gap-x-3 border-0 px-0'>
 							<Fact
@@ -244,7 +240,7 @@ function DashboardPage() {
 								}
 							/>
 						</Facts>
-					</div>
+					</Cell>
 				</Cells>
 			</Section>
 

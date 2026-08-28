@@ -1,4 +1,5 @@
 import { type PointerEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Cell } from './primitives'
 
 /** How much history a chart shows. Matches the default metrics window. */
 const WINDOW_MS = 30 * 60 * 1000
@@ -112,11 +113,11 @@ export function MetricCard({
 	}
 
 	return (
-		// Borderless: the enclosing Cells grid owns the hairlines.
-		<div className='px-3 py-2.5'>
-			<div className='text-meta tracking-wide text-muted-foreground uppercase'>{label}</div>
-			<div className='mt-1 truncate font-mono text-reading tabular-nums'>
-				{index === null || !format ? (
+		<Cell
+			label={label}
+			hint={hint}
+			value={
+				index === null || !format ? (
 					value
 				) : (
 					<>
@@ -126,9 +127,9 @@ export function MetricCard({
 							{ago(span.end - (hoveredAt ?? span.end))}
 						</span>
 					</>
-				)}
-			</div>
-			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
+				)
+			}
+		>
 			{/* Hover only dates values that are already shown live, so there is
 			    nothing here a keyboard user cannot already read. */}
 			<div className='mt-1.5' onPointerMove={track} onPointerLeave={() => setHovered(null)}>
@@ -167,7 +168,7 @@ export function MetricCard({
 					)}
 				</svg>
 			</div>
-		</div>
+		</Cell>
 	)
 }
 

@@ -36,7 +36,7 @@ export function Button({
 			type={type}
 			size='sm'
 			variant={buttonVariants[variant]}
-			className={cn('h-7 px-2.5 text-xs', variant === 'ghost' && 'text-muted-foreground hover:text-foreground')}
+			className={cn('h-8 px-3 text-xs', variant === 'ghost' && 'text-muted-foreground hover:text-foreground')}
 			{...props}
 		/>
 	)
@@ -81,7 +81,7 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 			title='Refresh'
 			onClick={onClick}
 			disabled={busy}
-			className='flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
+			className='flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
 		>
 			<IconRefresh className='size-4' />
 		</button>
@@ -104,11 +104,15 @@ export function Page({
 	labels,
 	actions,
 	toolbar,
+	filters,
 	children,
 }: {
 	labels?: Record<string, ReactNode>
 	actions?: ReactNode
+	/** Sub-navigation, on the left of the row under the header. */
 	toolbar?: ReactNode
+	/** What narrows the page, on the right of that same row. */
+	filters?: ReactNode
 	children: ReactNode
 }) {
 	const router = useRouter()
@@ -119,7 +123,7 @@ export function Page({
 
 	return (
 		<>
-			<header className='flex h-11 shrink-0 items-center justify-between gap-3 border-b px-5'>
+			<header className='flex h-12 shrink-0 items-center justify-between gap-3 border-b px-6'>
 				<div className='flex min-w-0 items-center gap-2'>
 					{trail.map(({ segment, to, linkable }, index) => {
 						const label = labels?.[segment]
@@ -154,12 +158,29 @@ export function Page({
 				</div>
 				{actions ? <div className='flex shrink-0 items-center gap-2'>{actions}</div> : null}
 			</header>
-			{/* Bottom-aligned so a tab's own underline meets the row's border. */}
-			{toolbar ? <div className='flex h-10 shrink-0 items-end gap-4 border-b px-5'>{toolbar}</div> : null}
-			<div className='min-h-0 flex-1 overflow-y-auto px-5 py-4'>{children}</div>
+			{toolbar || filters ? (
+				<div className='flex h-11 shrink-0 items-center gap-4 border-b px-6'>
+					{toolbar}
+					<div className='ml-auto flex items-center gap-2'>{filters}</div>
+				</div>
+			) : null}
+			<div className='min-h-0 flex-1 overflow-y-auto px-6 py-5'>{children}</div>
 		</>
 	)
 }
+
+/**
+ * The one switch shape in the app: a bordered strip whose active item is a
+ * filled pill. `Tabs` drives it off the URL, `Segmented` off a value, and both
+ * belong in a Page's `toolbar`.
+ */
+const segmentStrip = 'inline-flex h-8 shrink-0 items-center rounded-md border p-0.5'
+
+const segmentItem = (active: boolean) =>
+	cn(
+		'inline-flex h-full items-center rounded-sm px-2.5 text-body whitespace-nowrap transition-colors',
+		active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
+	)
 
 /**
  * Sub-navigation for a Page's `toolbar`. A tab links to `base + suffix`; the
@@ -169,7 +190,7 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	const pathname = useRouterState({ select: state => state.location.pathname })
 
 	return (
-		<>
+		<nav className={segmentStrip}>
 			{tabs.map(tab => {
 				const to = base + tab.suffix
 				const active =
@@ -178,18 +199,41 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 					<Link
 						key={tab.label}
 						to={to}
-						className={cn(
-							'-mb-px border-b px-0.5 pb-1.5 text-body',
-							active
-								? 'border-foreground text-foreground'
-								: 'border-transparent text-muted-foreground hover:text-foreground',
-						)}
+						aria-current={active ? 'page' : undefined}
+						className={segmentItem(active)}
 					>
 						{tab.label}
 					</Link>
 				)
 			})}
-		</>
+		</nav>
+	)
+}
+
+/** The same strip, switching a value instead of the URL: ranges, filters, modes. */
+export function Segmented<TValue extends string>({
+	value,
+	options,
+	onChange,
+}: {
+	value: TValue
+	options: { value: TValue; label: string }[]
+	onChange: (value: TValue) => void
+}) {
+	return (
+		<div className={segmentStrip}>
+			{options.map(option => (
+				<button
+					key={option.value}
+					type='button'
+					aria-pressed={option.value === value}
+					onClick={() => onChange(option.value)}
+					className={segmentItem(option.value === value)}
+				>
+					{option.label}
+				</button>
+			))}
+		</div>
 	)
 }
 
@@ -220,8 +264,8 @@ export function Section({
 	}
 
 	return (
-		<section className={cn('mb-7', className)} onKeyDown={onKeyDown}>
-			<header className='mb-2 flex h-7 items-center justify-between gap-4'>
+		<section className={cn('mb-10', className)} onKeyDown={onKeyDown}>
+			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-3'>
 					<h2 className='text-meta tracking-wider text-muted-foreground uppercase'>{title}</h2>
 					{description ? <span className='text-meta text-muted-foreground/70'>{description}</span> : null}
@@ -246,6 +290,35 @@ export function Cells({ children, className }: { children: ReactNode; className?
 				className,
 			)}
 		>
+			{children}
+		</div>
+	)
+}
+
+/**
+ * One reading in a `Cells` grid: a label, the number, an optional line under it.
+ * `children` is for whatever the reading draws below itself, like a sparkline or
+ * a fill bar. Borderless, because the grid owns the hairlines.
+ */
+export function Cell({
+	label,
+	value,
+	hint,
+	children,
+}: {
+	label: string
+	/** Left out by a cell whose body is its content, e.g. a list of facts. */
+	value?: ReactNode
+	hint?: ReactNode
+	children?: ReactNode
+}) {
+	return (
+		<div className='px-3 py-2.5'>
+			<div className='text-meta tracking-wide text-muted-foreground uppercase'>{label}</div>
+			{value === undefined ? null : (
+				<div className='mt-1 truncate font-mono text-reading tabular-nums'>{value}</div>
+			)}
+			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
 			{children}
 		</div>
 	)
