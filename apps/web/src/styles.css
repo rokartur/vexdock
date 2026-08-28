@@ -273,14 +273,15 @@ html[data-popover-open] main [data-scroll-lock] {
 	/*
 	 * Plain form elements inherit the Input look, so pages can use a bare
 	 * <input> and still match the design system. The utilities are copied from
-	 * components/ui/input.tsx: keep them in sync when the preset changes.
+	 * components/ui/input.tsx, except for the radius: rounded-md is what the
+	 * buttons and the segmented strip use, and these sit next to them.
 	 * Elements rendered by a ui component carry data-slot (or cmdk's own
 	 * attributes) and are left alone, otherwise they would be styled twice.
 	 */
 	input:not([type='checkbox'], [type='radio'], [data-slot], [cmdk-input]),
 	select:not([data-slot]),
 	textarea:not([data-slot]) {
-		@apply h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
+		@apply h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
 		color: inherit;
 	}
 

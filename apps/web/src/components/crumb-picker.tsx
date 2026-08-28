@@ -121,9 +121,9 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
  * changes a search param rather than the path, so the current tab stays open.
  */
 export function EnvironmentCrumb({ projectId }: { projectId: string }) {
-	// `from` only types the search shape here; leaving `to` off is what keeps the
-	// current tab open while the environment underneath it changes.
-	const navigate = useNavigate({ from: '/projects/$projectId' })
+	// `to: '.'` is what keeps the current page open while the environment
+	// underneath it changes, on a project page and on a service page alike.
+	const navigate = useNavigate()
 	const selected = useEnvironmentId()
 	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
 	// No selection means the default one, which is also what the manager assumes.
@@ -139,7 +139,7 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 						data-checked={env.id === current?.id}
 						onSelect={() => {
 							close()
-							void navigate({ search: prev => ({ ...prev, env: env.id }) })
+							void navigate({ to: '.', search: prev => ({ ...prev, env: env.id }) })
 						}}
 					>
 						<span className='truncate'>{env.name}</span>
@@ -161,14 +161,10 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 		queryKey: ['services', projectId, environmentId],
 		queryFn: () => api.services(projectId, environmentId),
 	})
-	// The name and state come from the service's own query, which the page already
-	// polls and every action invalidates, so the crumb survives a failure of the
-	// sibling list and does not poll it a second time.
-	const current = useQuery({
-		queryKey: ['service', serviceId],
-		queryFn: () => api.service(serviceId),
-		refetchInterval: 5000,
-	})
+	// The name and state come from the service's own query, which the page around
+	// this crumb polls and every action invalidates, so the crumb survives a
+	// failure of the sibling list without a second poll of its own.
+	const current = useQuery({ queryKey: ['service', serviceId], queryFn: () => api.service(serviceId) })
 
 	return (
 		<CrumbPicker

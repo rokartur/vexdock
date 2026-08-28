@@ -86,8 +86,8 @@ export function DataTable<TData extends RowData>({
 		if (!container) return
 		const fit = () => {
 			const row = container.querySelector('tbody tr')
-			const rowHeight = row instanceof HTMLElement && row.offsetHeight > 0 ? row.offsetHeight : 33
-			const headerHeight = container.querySelector('thead')?.getBoundingClientRect().height ?? 28
+			const rowHeight = row instanceof HTMLElement && row.offsetHeight > 0 ? row.offsetHeight : 36
+			const headerHeight = container.querySelector('thead')?.getBoundingClientRect().height ?? 32
 			setFittedPageSize(Math.max(1, Math.floor((container.clientHeight - headerHeight) / rowHeight)))
 		}
 		fit()
@@ -132,7 +132,7 @@ export function DataTable<TData extends RowData>({
 												// The hairline lives on the th (inset shadow), not the tr border: collapsed
 												// tr borders do not travel with sticky cells, which reads as a gap when rows
 												// scroll underneath.
-												'sticky top-0 z-10 h-7 bg-background pr-3 pl-0 text-meta tracking-wide text-muted-foreground uppercase shadow-[inset_0_-1px_0_0_var(--border)]',
+												'sticky top-0 z-10 h-8 bg-background pr-3 pl-0 text-meta tracking-wide text-muted-foreground uppercase shadow-[inset_0_-1px_0_0_var(--border)]',
 												header.column.columnDef.meta?.align === 'right' && 'text-right',
 											)}
 										>
@@ -174,7 +174,7 @@ export function DataTable<TData extends RowData>({
 										<TableCell
 											key={cell.id}
 											className={cn(
-												'py-1.5 pr-3 pl-0',
+												'py-2 pr-3 pl-0',
 												cell.column.columnDef.meta?.align === 'right' && 'text-right',
 												cell.column.columnDef.meta?.mono && 'font-mono',
 											)}
@@ -244,7 +244,7 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
 			{Array.from({ length: rows }, (_row, index) => (
 				<TableRow key={index} className='hover:bg-transparent'>
 					{Array.from({ length: columns }, (_cell, cell) => (
-						<TableCell key={cell} className='py-1.5 pr-3 pl-0'>
+						<TableCell key={cell} className='py-2 pr-3 pl-0'>
 							<div className='h-3 w-24 rounded-sm bg-muted' />
 						</TableCell>
 					))}

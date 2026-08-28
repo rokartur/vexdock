@@ -1,20 +1,15 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Outlet, retainSearchParams, useNavigate, useParams } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
+import { EnvironmentCrumb, ProjectCrumb } from '../components/crumb-picker'
 import { Button, ErrorText, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
+import { environmentSearch } from '../lib/environment'
 
 export const Route = createFileRoute('/projects/$projectId')({
 	component: ProjectLayout,
-	// Every page below this one acts on one environment, so it belongs in the
-	// URL rather than in a store: a pasted link lands on the same environment it
-	// was copied from. Retaining it keeps the tabs from silently falling back to
-	// the default one on every click.
-	validateSearch: (search: Record<string, unknown>): { env?: string } =>
-		typeof search.env === 'string' ? { env: search.env } : {},
-	search: { middlewares: [retainSearchParams(['env'])] },
+	...environmentSearch,
 })
 
 const tabs = [
@@ -27,9 +22,6 @@ const tabs = [
 
 function ProjectLayout() {
 	const { projectId } = Route.useParams()
-	// Only the service route has one, and it owns the deepest crumb, which this
-	// layout's Page is the one that renders.
-	const { serviceId } = useParams({ strict: false })
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const [confirmDelete, setConfirmDelete] = useState(false)
@@ -54,8 +46,6 @@ function ProjectLayout() {
 						<EnvironmentCrumb projectId={projectId} />
 					</>
 				),
-				services: null,
-				...(serviceId ? { [serviceId]: <ServiceCrumb projectId={projectId} serviceId={serviceId} /> } : {}),
 			}}
 			actions={
 				confirmDelete ? (
