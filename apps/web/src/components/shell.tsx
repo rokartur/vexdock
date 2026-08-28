@@ -32,7 +32,7 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
-import { api } from '../lib/api'
+import { api, updateActive } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
 import { CommandPalette } from './command-palette'
 import { NavigationSidebar } from './navigation-sidebar'
@@ -81,7 +81,7 @@ const storedHidden = () => typeof localStorage !== 'undefined' && localStorage.g
 const linkClass =
 	'group flex h-7 items-center gap-2.5 rounded-md px-2 text-body text-muted-foreground hover:bg-accent hover:text-foreground data-[status=active]:bg-sidebar-accent data-[status=active]:text-foreground'
 
-function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?: boolean }) {
+function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?: string }) {
 	return (
 		<Link draggable={false} to={to} activeOptions={{ exact: exact ?? false }} className={linkClass}>
 			<Icon
@@ -89,7 +89,7 @@ function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?:
 				className='size-4 shrink-0 text-muted-foreground group-hover:text-foreground group-data-[status=active]:text-foreground'
 			/>
 			<span className='truncate'>{label}</span>
-			{dot ? <span className='ml-auto size-1.5 shrink-0 rounded-full bg-emerald-400' aria-hidden /> : null}
+			{dot ? <span className={cn('ml-auto size-1.5 shrink-0 rounded-full', dot)} aria-hidden /> : null}
 		</Link>
 	)
 }
@@ -104,6 +104,31 @@ export function Shell({ children }: { children: ReactNode }) {
 
 	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
 	const updateAvailable = version.data?.update_available ?? false
+	// The update state is a tiny file read; polling it keeps the rail honest
+	// about an update started on another page (or by another session).
+	const updateState = useQuery({
+		queryKey: ['update-state'],
+		queryFn: api.updateState,
+		retry: false,
+		refetchInterval: 10_000,
+	})
+	// A failing fetch while the last known phase was active is the manager
+	// being swapped, not an error.
+	const updating = updateActive(updateState.data?.phase)
+	const restarting = updating && updateState.isError
+
+	let settingsDot: string | undefined
+	let footerText = version.data?.current ?? 'dev'
+	let footerClass = 'text-muted-foreground hover:text-muted-foreground'
+	if (updating) {
+		settingsDot = 'bg-amber-400'
+		footerText = restarting ? 'restarting…' : `updating → ${updateState.data?.target}`
+		footerClass = 'text-amber-400 hover:text-amber-300'
+	} else if (updateAvailable) {
+		settingsDot = 'bg-emerald-400'
+		footerText = `${version.data?.current} → ${version.data?.latest}`
+		footerClass = 'text-emerald-400 hover:text-emerald-300'
+	}
 	const session = useSession()
 
 	const logout = useMutation({
@@ -218,7 +243,7 @@ export function Shell({ children }: { children: ReactNode }) {
 									<NavigationLink
 										key={item.to}
 										{...item}
-										dot={updateAvailable && item.to === '/system/settings'}
+										dot={item.to === '/system/settings' ? settingsDot : undefined}
 									/>
 								))}
 							</div>
@@ -243,17 +268,8 @@ export function Shell({ children }: { children: ReactNode }) {
 						</div>
 						<IconSettings className='size-3.5 shrink-0 text-muted-foreground group-hover:text-muted-foreground' />
 					</Link>
-					<Link
-						to='/system/settings/about'
-						className={cn(
-							'text-center font-mono text-meta',
-							updateAvailable
-								? 'text-emerald-400 hover:text-emerald-300'
-								: 'text-muted-foreground hover:text-muted-foreground',
-						)}
-					>
-						{version.data?.current ?? 'dev'}
-						{updateAvailable ? ` → ${version.data?.latest}` : ''}
+					<Link to='/system/settings/about' className={cn('text-center font-mono text-meta', footerClass)}>
+						{footerText}
 					</Link>
 				</div>
 			</NavigationSidebar>

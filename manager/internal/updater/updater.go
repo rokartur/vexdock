@@ -64,6 +64,7 @@ type Service struct {
 	latest           string
 	latestAt         time.Time
 	cachedPrerelease bool
+	repo             string
 	releaseAPI       string
 	rawBase          string
 }
@@ -72,7 +73,7 @@ type Service struct {
 // this platform: releases are read from it and the compose file for the target
 // version is downloaded from it. An empty slug disables update checks.
 func New(cfg *config.Config, backups *backup.Service, repo string) *Service {
-	s := &Service{cfg: cfg, backups: backups}
+	s := &Service{cfg: cfg, backups: backups, repo: repo}
 	if repo != "" {
 		// /releases/latest ignores prereleases, so read the list endpoint, which
 		// includes them. It is not ordered by version, hence per_page=100 and the
@@ -103,6 +104,9 @@ type Status struct {
 	UpdateAvailable bool   `json:"update_available"`
 	Beta            bool   `json:"beta"`
 	CheckedAt       string `json:"checked_at"`
+	// ReleaseURL points at the latest release's notes on GitHub; empty when no
+	// release is known or no repo is configured.
+	ReleaseURL string `json:"release_url"`
 
 	// CleanupOldImages is filled in by the API from system_settings; the
 	// updater itself only receives it as an argument to Start.
@@ -112,9 +116,14 @@ type Status struct {
 // Status reports the installed version and the newest release on the chosen track.
 func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
 	latest := s.latestVersion(ctx, includePrerelease)
+	releaseURL := ""
+	if latest != "" && s.repo != "" {
+		releaseURL = "https://github.com/" + s.repo + "/releases/tag/" + latest
+	}
 	return Status{
-		Current: s.cfg.Version,
-		Latest:  latest,
+		Current:    s.cfg.Version,
+		Latest:     latest,
+		ReleaseURL: releaseURL,
 		// Strictly newer, never merely different: the release list is not ordered
 		// by version, so a plain inequality would happily offer a downgrade.
 		UpdateAvailable: latest != "" && semver.Compare(semverTag(latest), semverTag(s.cfg.Version)) > 0,
@@ -185,14 +194,21 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease, 
 	if !versionPattern.MatchString(version) {
 		return fmt.Errorf("invalid target version %q", version)
 	}
+	// From here the panel renders progress from the state file, so every error
+	// path before the container launches must reset it to idle.
+	s.writeState(State{Phase: PhaseBackup, Target: version, Previous: s.cfg.Version})
+	fail := func(err error) error {
+		s.writeState(State{Phase: PhaseIdle})
+		return err
+	}
 	// Platform state only: an update replaces images, it does not touch
 	// application volumes, and archiving them here would stall every update.
 	if _, err := s.backups.Create(ctx, false); err != nil {
-		return fmt.Errorf("pre-update backup failed: %w", err)
+		return fail(fmt.Errorf("pre-update backup failed: %w", err))
 	}
 	scriptPath, err := s.writeScript()
 	if err != nil {
-		return err
+		return fail(err)
 	}
 	// Each argument is passed separately; nothing is concatenated into a shell
 	// command line.
@@ -213,9 +229,22 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease, 
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("start updater: %s", strings.TrimSpace(string(out)))
+		return fail(fmt.Errorf("start updater: %s", strings.TrimSpace(string(out))))
 	}
 	return nil
+}
+
+// LogTail returns the last lines of the updater container's output. A failed
+// update keeps its container behind precisely so this can explain it; a
+// missing container reads as no log.
+func (s *Service) LogTail(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "logs", "--tail", "15", "vexdock-updater").CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // writeScript materialises the embedded update script into the shared root so

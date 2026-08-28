@@ -86,6 +86,8 @@ State lives in `/opt/vexdock`:
 ├── nginx/generated/     one .conf per domain, written by the manager
 ├── certificates/        Let's Encrypt certificates and the account key
 ├── secrets/master.key   AES key protecting secrets in the database (0600)
+├── system/              update script, previous compose.yml and
+│                     update-state.json, the update progress the panel polls
 └── backups/<stamp>/     both databases, master key, proxy config,
                          certificates, volumes/
 ```

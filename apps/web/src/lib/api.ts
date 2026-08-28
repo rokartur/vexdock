@@ -384,7 +384,30 @@ export type VersionStatus = {
 	latest: string
 	update_available: boolean
 	checked_at: string
+	/** GitHub release notes for `latest`; empty when no release is known. */
+	release_url: string
 } & VersionSettings
+
+export type UpdatePhase = 'idle' | 'backup' | 'pulling' | 'restarting' | 'done' | 'rolled-back'
+
+/**
+ * Progress of an in-place update, written to disk by the updater so it
+ * survives the manager restart the update itself causes.
+ */
+export type UpdateState = {
+	phase: UpdatePhase
+	target: string
+	previous: string
+	error: string
+	/** Unix seconds of the last phase write. */
+	at: number
+	/** Updater container log tail, present after a rollback. */
+	log?: string
+}
+
+/** Phases where the updater is still moving; done, rolled-back and idle are settled. */
+export const updateActive = (phase: UpdatePhase | undefined) =>
+	phase === 'backup' || phase === 'pulling' || phase === 'restarting'
 
 /** Update preferences, stored server-side so they survive a reload. */
 export type VersionSettings = {
@@ -785,5 +808,11 @@ export const api = {
 			method: 'POST',
 			body: { version: version ?? '' },
 		}),
-	health: () => request<HealthReport>('/api/health'),
+	updateState: () => request<UpdateState>('/api/system/update/status'),
+	// Not request(): an unhealthy platform answers 503 and the checks in that
+	// body are exactly what the caller wants to render.
+	health: async (): Promise<HealthReport> => {
+		const response = await fetch('/api/health', { credentials: 'same-origin' })
+		return (await response.json()) as HealthReport
+	},
 }

@@ -172,6 +172,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/system/backups", s.protected(s.handleListBackups))
 	mux.Handle("PUT /api/system/version", s.protected(s.handlePutVersionSettings))
 	mux.Handle("POST /api/system/update", s.protected(s.handleUpdate))
+	mux.Handle("GET /api/system/update/status", s.protected(s.handleUpdateStatus))
 
 	return s.recoverPanics(s.requestLogger(mux))
 }
