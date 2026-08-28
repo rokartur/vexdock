@@ -277,15 +277,34 @@ connection does not cancel it.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `cleanup_old_images`, `update_available` (public) |
+| `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `cleanup_old_images`, `update_available`, `release_url` (public) |
 | `PUT /api/system/version` | `{"beta", "cleanup_old_images"}` — both update preferences, sent together; returns the same payload |
 | `POST /api/system/update` | Start an in-place upgrade to `{"version"}` or to latest on the track |
+| `GET /api/system/update/status` | Progress of the running or last update |
 
 `cleanup_old_images` defaults to `false`. It only targets images referenced by
 the previous system compose file; application images are not included.
 
 `beta` defaults from the installed tag (a prerelease stays on prereleases) until
 the operator sets it explicitly. Draft GitHub releases are never offered.
+`release_url` points at the latest release's notes on GitHub, empty when no
+release is known.
+
+`POST /api/system/update` refuses with `409 UNHEALTHY` while any `/api/health`
+check fails, naming the failing checks in the message and carrying the full
+`checks` map in `details` — recreating the stack on a platform that is already
+broken is how an update becomes an outage.
+
+`update/status` reads `system/update-state.json`, which the manager writes when
+an update starts and the updater script rewrites as it moves:
+`{"phase", "target", "previous", "error", "at"}`. `phase` walks
+`backup → pulling → restarting` and settles on `done` or `rolled-back`
+(`error` says why); `idle` means no update was ever started, and an active
+phase older than 30 minutes also reads as `idle` — an updater that died
+without finishing. After a rollback the payload adds `log`, the tail of the
+kept updater container. The manager is recreated during `restarting`, so the
+panel treats a failing poll in an active phase as that step, not as an error,
+and keeps polling until the manager returns.
 
 ## System
 

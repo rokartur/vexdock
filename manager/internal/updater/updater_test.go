@@ -2,6 +2,7 @@ package updater
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,48 @@ import (
 
 	"github.com/vexdock/platform/manager/internal/config"
 )
+
+func TestStateReadsIdleForMissingMalformedOrStale(t *testing.T) {
+	s := &Service{cfg: &config.Config{SystemDir: filepath.Join(t.TempDir(), "system")}}
+
+	if st := s.State(); st.Phase != PhaseIdle {
+		t.Fatalf("missing file: phase = %q, want idle", st.Phase)
+	}
+
+	s.writeState(State{Phase: PhasePulling, Target: "v1.1.0"})
+	if st := s.State(); st.Phase != PhasePulling || st.Target != "v1.1.0" {
+		t.Fatalf("fresh active state = %+v", st)
+	}
+
+	write := func(st State) {
+		data, err := json.Marshal(st)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(s.statePath(), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	old := time.Now().Add(-time.Hour).Unix()
+	write(State{Phase: PhasePulling, Target: "v1.1.0", At: old})
+	if st := s.State(); st.Phase != PhaseIdle {
+		t.Fatalf("stale active state: phase = %q, want idle", st.Phase)
+	}
+
+	// Terminal phases are results, not liveness claims; age must not erase them.
+	write(State{Phase: PhaseRolledBack, Target: "v1.1.0", Error: "pull failed", At: old})
+	if st := s.State(); st.Phase != PhaseRolledBack || st.Error != "pull failed" {
+		t.Fatalf("old terminal state = %+v", st)
+	}
+
+	if err := os.WriteFile(s.statePath(), []byte("not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if st := s.State(); st.Phase != PhaseIdle {
+		t.Fatalf("malformed file: phase = %q, want idle", st.Phase)
+	}
+}
 
 func TestIncludePrerelease(t *testing.T) {
 	cases := []struct {
@@ -222,6 +265,13 @@ esac
 
 			if _, err := os.Stat(filepath.Join(root, "self-removed")); err != nil {
 				t.Fatalf("successful update did not remove its own container: %v", err)
+			}
+
+			// The script's state() helper must write JSON the Go State reader
+			// understands, ending in phase done on success.
+			stateService := &Service{cfg: &config.Config{SystemDir: filepath.Join(root, "system")}}
+			if st := stateService.State(); st.Phase != PhaseDone || st.Target != "v1.1.0" {
+				t.Fatalf("state after successful update = %+v", st)
 			}
 
 			removed, err := os.ReadFile(removedPath)

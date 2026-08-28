@@ -232,9 +232,17 @@ The manager cannot replace its own container from inside itself without being
 killed mid-swap. Instead it takes a backup and launches a detached updater
 container that pulls the new images, recreates the stack, waits for the manager's
 own health check and rolls back to the previous version if it never turns
-healthy. An opt-in cleanup records the previous compose image references before
-the swap and removes only those no longer used by the new compose file, after
-the health check succeeds.
+healthy. An update is refused while the platform is unhealthy: the same checks
+that back `/api/health` gate `POST /api/system/update`. An opt-in cleanup
+records the previous compose image references before the swap and removes only
+those no longer used by the new compose file, after the health check succeeds.
+
+Progress crosses the manager's own restart through a file: the manager writes
+`system/update-state.json` when an update starts and the updater script
+rewrites the phase as it moves (`backup → pulling → restarting → done` or
+`rolled-back`). The manager only serves the file back over
+`GET /api/system/update/status`; while it is being recreated the panel treats
+the failing poll as the restart step and waits for it to return.
 
 Update checks read the GitHub releases list (not `/latest`, which skips
 prereleases). Stable track is the default; a beta install stays on the beta

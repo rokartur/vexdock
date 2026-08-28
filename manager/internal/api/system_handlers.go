@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,18 +24,19 @@ import (
 	"github.com/vexdock/platform/manager/internal/updater"
 )
 
-// handleHealth is the unauthenticated liveness/readiness probe used by the
-// installer, the updater and Docker's own healthcheck.
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+// healthChecks runs the readiness probes and reports whether the platform is
+// healthy overall. Shared by the public health endpoint and the update
+// preflight, so both refuse or pass on identical grounds.
+func (s *Server) healthChecks(ctx context.Context) (map[string]string, bool) {
 	checks := map[string]string{}
 	healthy := true
 
-	if err := s.DB.PingContext(r.Context()); err != nil {
+	if err := s.DB.PingContext(ctx); err != nil {
 		checks["database"], healthy = err.Error(), false
 	} else {
 		checks["database"] = "ok"
 	}
-	if err := s.Docker.Ping(r.Context()); err != nil {
+	if err := s.Docker.Ping(ctx); err != nil {
 		checks["docker"], healthy = err.Error(), false
 	} else {
 		checks["docker"] = "ok"
@@ -50,14 +52,20 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	} else {
 		checks["disk"] = "ok"
 	}
-	if _, err := s.Nginx.Test(r.Context()); err != nil {
+	if _, err := s.Nginx.Test(ctx); err != nil {
 		// A failing proxy is reported but does not make the manager unhealthy:
 		// the panel must stay reachable precisely so it can be fixed.
 		checks["nginx"] = err.Error()
 	} else {
 		checks["nginx"] = "ok"
 	}
+	return checks, healthy
+}
 
+// handleHealth is the unauthenticated liveness/readiness probe used by the
+// installer, the updater and Docker's own healthcheck.
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	checks, healthy := s.healthChecks(r.Context())
 	status := "healthy"
 	code := http.StatusOK
 	if !healthy {
@@ -347,6 +355,22 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	// An update recreates the whole stack; starting one on a platform that is
+	// already failing turns a bad day into an unbootable one. The panel shows
+	// the same checks, this is the enforcement.
+	if checks, healthy := s.healthChecks(ctx); !healthy {
+		failing := make([]string, 0, len(checks))
+		for name, result := range checks {
+			if result != "ok" {
+				failing = append(failing, name+": "+result)
+			}
+		}
+		sort.Strings(failing)
+		writeError(w, http.StatusConflict, "UNHEALTHY",
+			"not updating an unhealthy platform: "+strings.Join(failing, "; "),
+			map[string]any{"checks": checks})
+		return
+	}
 	if err := s.Updater.Start(ctx, req.Version, s.updateIncludesPrerelease(ctx), s.cleanupOldImages(ctx)); err != nil {
 		badRequest(w, err)
 		return
@@ -355,6 +379,22 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		"status":  "started",
 		"message": "The platform is updating. The dashboard will reconnect automatically.",
 	})
+}
+
+// handleUpdateStatus reports the state file the updater writes as it goes,
+// which is how the panel renders progress across the manager's own restart.
+func (s *Server) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	state := s.Updater.State()
+	resp := struct {
+		updater.State
+		// Log carries the updater container's tail after a rollback; the failed
+		// container is kept behind precisely so this can explain it.
+		Log string `json:"log,omitempty"`
+	}{State: state}
+	if state.Phase == updater.PhaseRolledBack {
+		resp.Log = s.Updater.LogTail(r.Context())
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleAudit lists recent state-changing calls.

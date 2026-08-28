@@ -17,8 +17,19 @@ COMPOSE_FILE="$ROOT/compose.yml"
 COMPOSE_BACKUP="$ROOT/system/compose.previous.yml"
 ENV_FILE="$ROOT/.env"
 MANAGER="vexdock-manager"
+STATE_FILE="$ROOT/system/update-state.json"
 
 log() { echo "[updater] $*"; }
+
+# Mirrors updater.State in Go; the manager serves this file to the panel so it
+# can render progress across the manager's own restart. VERSION is validated
+# against a strict version pattern before it reaches this script and the error
+# argument is always a fixed literal, so bare interpolation cannot break the
+# JSON.
+state() {
+    printf '{"phase":"%s","target":"%s","previous":"%s","error":"%s","at":%s}\n' \
+        "$1" "$VERSION" "$PREVIOUS" "${2:-}" "$(date +%s)" > "$STATE_FILE"
+}
 
 cd "$ROOT"
 
@@ -78,6 +89,7 @@ cleanup_old_images() {
 # otherwise `set -e` would abort with the new version recorded and the old
 # containers still running.
 rollback() {
+    state rolled-back "${1:-update failed}"
     log "rolling back to $PREVIOUS"
     set_version "$PREVIOUS"
     if [ -f "$COMPOSE_BACKUP" ]; then
@@ -100,6 +112,7 @@ fi
 
 # The new images may need a service or a variable the installed compose file has
 # never heard of, so the topology has to move with the version.
+state pulling
 cp "$COMPOSE_FILE" "$COMPOSE_BACKUP"
 set_version "$VERSION"
 if [ -n "${PLATFORM_RAW_BASE:-}" ]; then
@@ -108,29 +121,31 @@ if [ -n "${PLATFORM_RAW_BASE:-}" ]; then
         mv "$COMPOSE_FILE.new" "$COMPOSE_FILE"
         if ! compose config -q; then
             log "the downloaded compose.yml is not valid for this install"
-            rollback
+            rollback "downloaded compose.yml is not valid"
         fi
     else
         rm -f "$COMPOSE_FILE.new"
         log "could not download compose.yml for $VERSION"
-        rollback
+        rollback "compose.yml download failed"
     fi
 fi
 
 log "pulling images"
 if ! compose pull; then
     log "pull failed"
-    rollback
+    rollback "image pull failed"
 fi
 
 log "recreating stack"
+state restarting
 if ! compose up -d --remove-orphans; then
     log "recreate failed"
-    rollback
+    rollback "stack recreate failed"
 fi
 
 if wait_healthy; then
     cleanup_old_images
+    state "done"
     log "update to $VERSION completed"
     # Nobody reads the logs of an update that worked, so the container takes
     # itself out. This kills the script mid-command; a failed update never
@@ -140,4 +155,4 @@ if wait_healthy; then
 fi
 
 log "health check failed"
-rollback
+rollback "health check failed after recreate"
