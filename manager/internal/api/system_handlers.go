@@ -86,6 +86,14 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.versionStatus(r.Context(), s.updateIncludesPrerelease(r.Context())))
 }
 
+// handleVersionCheck forces a release lookup, bypassing the two-minute cache
+// behind the public version endpoint, and returns the fresh status. Protected:
+// an unauthenticated caller could otherwise spend the GitHub rate limit.
+func (s *Server) handleVersionCheck(w http.ResponseWriter, r *http.Request) {
+	s.Updater.Invalidate()
+	s.handleVersion(w, r)
+}
+
 // handlePutVersionSettings stores the update preferences: the beta
 // (prerelease) track and whether a successful update prunes the images it
 // replaced. Both are sent on every call, like the other settings screens.

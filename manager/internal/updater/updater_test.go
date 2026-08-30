@@ -123,6 +123,31 @@ func TestLatestVersionRefreshesAfterTwoMinutes(t *testing.T) {
 	}
 }
 
+// The panel's "check for updates" button exists so a release published inside
+// the cache window shows up now instead of in two minutes.
+func TestInvalidateForcesFreshLookup(t *testing.T) {
+	latest := "v0.1.0-beta.8"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`[{"tag_name":"` + latest + `","draft":false,"prerelease":true}]`))
+	}))
+	t.Cleanup(srv.Close)
+
+	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.8"}, releaseAPI: srv.URL}
+	if st := s.Status(context.Background(), true); st.CheckedAt == "" {
+		t.Fatalf("initial status = %+v, want a checked_at", st)
+	}
+
+	latest = "v0.1.0-beta.9"
+	if st := s.Status(context.Background(), true); st.Latest == latest {
+		t.Fatalf("cached status = %+v, want the stale tag", st)
+	}
+
+	s.Invalidate()
+	if st := s.Status(context.Background(), true); st.Latest != latest || !st.UpdateAvailable {
+		t.Fatalf("status after invalidate = %+v, want latest %q", st, latest)
+	}
+}
+
 func TestLatestVersionSkipsPrereleaseOnStableTrack(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`[

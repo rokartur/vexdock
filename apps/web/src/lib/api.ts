@@ -803,6 +803,8 @@ export const api = {
 	version: () => request<VersionStatus>('/api/system/version'),
 	setVersionSettings: (settings: VersionSettings) =>
 		request<VersionStatus>('/api/system/version', { method: 'PUT', body: settings }),
+	/** Forces a release lookup instead of reusing the manager's two-minute cache. */
+	checkVersion: () => request<VersionStatus>('/api/system/version/check', { method: 'POST' }),
 	update: (version: string | undefined) =>
 		request<{ status: string; message: string }>('/api/system/update', {
 			method: 'POST',

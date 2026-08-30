@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { cn } from '@/utils/cn'
 import { Button, Check, ErrorText, Section } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
+import { since } from '../lib/format'
 
 export const Route = createFileRoute('/system/settings/about')({ component: Version })
 
@@ -55,6 +56,13 @@ function Version() {
 		onSuccess: data => queryClient.setQueryData(['version'], data),
 	})
 
+	// The manager caches the release lookup for two minutes and the panel polls
+	// once a minute, so a fresh release can take that long to appear on its own.
+	const check = useMutation({
+		mutationFn: api.checkVersion,
+		onSuccess: data => queryClient.setQueryData(['version'], data),
+	})
+
 	const update = useMutation({
 		mutationFn: () => api.update(version.data?.latest),
 		// The state file already says "backup" by the time the POST returns, but
@@ -99,22 +107,33 @@ function Version() {
 							>
 								{version.data?.latest || 'unknown'}
 							</dd>
-							{version.data?.release_url ? (
-								<a
-									href={version.data.release_url}
-									target='_blank'
-									rel='noopener noreferrer'
-									className='text-label text-muted-foreground hover:text-foreground hover:underline'
-								>
-									release notes
-								</a>
-							) : null}
+							<div className='flex items-baseline gap-2 text-label text-muted-foreground'>
+								{version.data?.release_url ? (
+									<a
+										href={version.data.release_url}
+										target='_blank'
+										rel='noopener noreferrer'
+										className='hover:text-foreground hover:underline'
+									>
+										release notes
+									</a>
+								) : null}
+								<span>
+									{check.isPending ? 'checking…' : `checked ${since(version.data?.checked_at)}`}
+								</span>
+							</div>
 						</div>
 					</dl>
-					<Button variant='primary' onClick={() => update.mutate()} disabled={!canUpdate}>
-						{busy && 'Updating…'}
-						{!busy && (version.data?.update_available ? `Update to ${version.data.latest}` : 'Up to date')}
-					</Button>
+					<div className='flex items-center gap-2'>
+						<Button onClick={() => check.mutate()} disabled={check.isPending || busy}>
+							Check for updates
+						</Button>
+						<Button variant='primary' onClick={() => update.mutate()} disabled={!canUpdate}>
+							{busy && 'Updating…'}
+							{!busy &&
+								(version.data?.update_available ? `Update to ${version.data.latest}` : 'Up to date')}
+						</Button>
+					</div>
 				</div>
 
 				{busy ? (
@@ -181,7 +200,7 @@ function Version() {
 						onChange={cleanup_old_images => save({ cleanup_old_images })}
 					/>
 				</div>
-				<ErrorText error={update.error ?? setSettings.error} />
+				<ErrorText error={update.error ?? setSettings.error ?? check.error} />
 			</div>
 		</Section>
 	)

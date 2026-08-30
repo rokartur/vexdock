@@ -279,6 +279,7 @@ connection does not cancel it.
 |---|---|
 | `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `cleanup_old_images`, `update_available`, `release_url` (public) |
 | `PUT /api/system/version` | `{"beta", "cleanup_old_images"}` — both update preferences, sent together; returns the same payload |
+| `POST /api/system/version/check` | Same payload, but queries GitHub instead of the cache |
 | `POST /api/system/update` | Start an in-place upgrade to `{"version"}` or to latest on the track |
 | `GET /api/system/update/status` | Progress of the running or last update |
 
@@ -289,6 +290,13 @@ the previous system compose file; application images are not included.
 the operator sets it explicitly. Draft GitHub releases are never offered.
 `release_url` points at the latest release's notes on GitHub, empty when no
 release is known.
+
+The release lookup is cached for two minutes per track, so `GET` can answer
+with a result up to that old; `checked_at` is when that answer was fetched, and
+is empty when no lookup has ever succeeded. `POST /api/system/version/check`
+drops the cache and asks GitHub again. It is authenticated while the `GET` is
+public, because it turns a request into an outbound one against a rate-limited
+API.
 
 `POST /api/system/update` refuses with `409 UNHEALTHY` while any `/api/health`
 check fails, naming the failing checks in the message and carrying the full

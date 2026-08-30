@@ -115,7 +115,13 @@ type Status struct {
 
 // Status reports the installed version and the newest release on the chosen track.
 func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
-	latest := s.latestVersion(ctx, includePrerelease)
+	latest, checkedAt := s.latestVersion(ctx, includePrerelease)
+	// Zero means no lookup ever succeeded; the panel says "never" rather than
+	// rendering year 1.
+	checked := ""
+	if !checkedAt.IsZero() {
+		checked = checkedAt.UTC().Format(time.RFC3339)
+	}
 	releaseURL := ""
 	if latest != "" && s.repo != "" {
 		releaseURL = "https://github.com/" + s.repo + "/releases/tag/" + latest
@@ -128,35 +134,45 @@ func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
 		// by version, so a plain inequality would happily offer a downgrade.
 		UpdateAvailable: latest != "" && semver.Compare(semverTag(latest), semverTag(s.cfg.Version)) > 0,
 		Beta:            includePrerelease,
-		CheckedAt:       time.Now().UTC().Format(time.RFC3339),
+		CheckedAt:       checked,
 	}
 }
 
-// latestVersion queries the release API at most once every 2 minutes per track.
-func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) string {
+// Invalidate drops the cached lookup so the next Status queries GitHub again,
+// which is what the panel's manual check does. Callers must be authenticated:
+// this turns a request into an outbound one against a rate-limited API.
+func (s *Service) Invalidate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.latestAt = time.Time{}
+}
+
+// latestVersion queries the release API at most once every 2 minutes per track
+// and reports when the returned answer was actually fetched.
+func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (string, time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.latestAt.IsZero() && time.Since(s.latestAt) < 2*time.Minute && s.cachedPrerelease == includePrerelease {
-		return s.latest
+		return s.latest, s.latestAt
 	}
 	if s.releaseAPI == "" {
-		return ""
+		return "", s.latestAt
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.releaseAPI, nil)
 	if err != nil {
-		return s.latest
+		return s.latest, s.latestAt
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "vexdock-updater")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return s.latest
+		return s.latest, s.latestAt
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return s.latest
+		return s.latest, s.latestAt
 	}
 	var payload []struct {
 		TagName    string `json:"tag_name"`
@@ -164,7 +180,7 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) str
 		Prerelease bool   `json:"prerelease"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return s.latest
+		return s.latest, s.latestAt
 	}
 	// GitHub orders this list by tag name, which sorts beta.10 below beta.2, so
 	// take the highest version on the track rather than the first entry. When
@@ -183,13 +199,13 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) str
 		}
 	}
 	s.latest, s.latestAt, s.cachedPrerelease = latest, time.Now(), includePrerelease
-	return latest
+	return latest, s.latestAt
 }
 
 // Start backs up the platform and launches the detached updater container.
 func (s *Service) Start(ctx context.Context, version string, includePrerelease, cleanupOldImages bool) error {
 	if version == "" {
-		version = s.latestVersion(ctx, includePrerelease)
+		version, _ = s.latestVersion(ctx, includePrerelease)
 	}
 	if !versionPattern.MatchString(version) {
 		return fmt.Errorf("invalid target version %q", version)
