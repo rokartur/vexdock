@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since, until } from '../lib/format'
 import { type Columns, DataTable, columnsFor } from './data-table'
+import { LogViewer } from './log-viewer'
 import { Button, Check, ErrorText, Field, Section } from './primitives'
 
 /** A task being written. `id` is null while it is still a new one. */
@@ -480,9 +481,16 @@ function TaskRuns({ task }: { task: ScheduledTask }) {
 				<p className='text-body text-muted-foreground'>This task has not run yet.</p>
 			)}
 			{shown ? (
-				<pre className='mt-3 max-h-96 overflow-auto rounded-lg border border-border p-2 font-mono text-body whitespace-pre-wrap'>
-					{shown.output || 'No output.'}
-				</pre>
+				<div className='mt-3'>
+					<LogViewer
+						key={shown.id}
+						lines={shown.output
+							.split('\n')
+							.filter(Boolean)
+							.map(text => ({ stream: 'stdout', text }))}
+						className='h-64'
+					/>
+				</div>
 			) : null}
 		</div>
 	)

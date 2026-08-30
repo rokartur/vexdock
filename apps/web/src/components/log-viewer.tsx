@@ -4,7 +4,7 @@ import { bytes, parseAccessLine, parseLogLine } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 import { Button } from './primitives'
 
-type Line = { stream: string; text: string }
+export type Line = { stream: string; text: string }
 
 const MAX_LINES = 5000
 
@@ -33,11 +33,19 @@ const levelColor: Record<string, string> = {
 }
 
 /**
- * Live container log tail with client-side search and pause. Logs are streamed
- * from the Docker engine and never stored, so the buffer is capped here.
+ * The console every log in the panel is read in: search, follow, colouring by
+ * level or HTTP status, download.
+ *
+ * `url` tails an SSE endpoint — streamed logs are never stored, so the buffer is
+ * capped here. `lines` renders output someone else already has (a deployment's
+ * own event stream, a task run's recorded output).
  */
-export function LogViewer({ url }: { url: string }) {
-	const [lines, setLines] = useState<Line[]>([])
+export function LogViewer({
+	url,
+	lines: given,
+	className,
+}: { className?: string } & ({ url: string; lines?: never } | { lines: Line[]; url?: never })) {
+	const [streamed, setStreamed] = useState<Line[]>([])
 	const [paused, setPaused] = useState(false)
 	const [filter, setFilter] = useState('')
 	const [follow, setFollow] = useState(true)
@@ -45,12 +53,12 @@ export function LogViewer({ url }: { url: string }) {
 	const bottomRef = useRef<HTMLDivElement>(null)
 
 	const connected = useEventSource(
-		url,
+		url ?? null,
 		{
 			log: data => {
 				if (paused) return
 				const line = data as Line
-				setLines(current => {
+				setStreamed(current => {
 					const next = [...current, line]
 					return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next
 				})
@@ -59,6 +67,7 @@ export function LogViewer({ url }: { url: string }) {
 		!paused,
 	)
 
+	const lines = given ?? streamed
 	const visible = filter ? lines.filter(line => line.text.toLowerCase().includes(filter.toLowerCase())) : lines
 
 	useEffect(() => {
@@ -74,18 +83,28 @@ export function LogViewer({ url }: { url: string }) {
 					onChange={event => setFilter(event.target.value)}
 					className='!w-56 text-body'
 				/>
-				<Button onClick={() => setPaused(value => !value)}>{paused ? 'Resume' : 'Pause'}</Button>
-				<Button onClick={() => setFollow(value => !value)}>{follow ? 'Unfollow' : 'Follow'}</Button>
+				{url ? (
+					<>
+						<Button onClick={() => setPaused(value => !value)}>{paused ? 'Resume' : 'Pause'}</Button>
+						<Button onClick={() => setFollow(value => !value)}>{follow ? 'Unfollow' : 'Follow'}</Button>
+					</>
+				) : null}
 				<Button onClick={() => setPlain(value => !value)}>{plain ? 'Formatted' : 'Plain text'}</Button>
-				<Button onClick={() => setLines([])}>Clear</Button>
+				{url ? <Button onClick={() => setStreamed([])}>Clear</Button> : null}
 				<Button onClick={() => download(visible)}>Download</Button>
 				<span className='text-label text-muted-foreground'>
-					{connected ? 'streaming' : 'disconnected'} · {visible.length} lines
+					{url ? `${connected ? 'streaming' : 'disconnected'} · ` : ''}
+					{visible.length} lines
 				</span>
 			</div>
-			<div className='h-[60vh] overflow-auto rounded-lg border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground'>
+			<div
+				className={cn(
+					'h-[60vh] overflow-auto rounded-lg border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground',
+					className,
+				)}
+			>
 				{visible.length === 0 ? (
-					<p className='text-console-muted'>Waiting for output…</p>
+					<p className='text-console-muted'>{url ? 'Waiting for output…' : 'No output.'}</p>
 				) : (
 					visible.map((line, index) =>
 						plain ? (
@@ -106,7 +125,7 @@ export function LogViewer({ url }: { url: string }) {
 function LogLine({ line }: { line: Line }) {
 	const { time, timestamp, body, level } = parseLogLine(line.text)
 	const request = parseAccessLine(body)
-	const tone = line.stream === 'stderr' ? 'text-console-stderr' : level ? levelColor[level] : undefined
+	const tone = line.stream === 'stderr' ? 'text-console-stderr' : levelColor[level ?? '']
 
 	return (
 		<div className='flex gap-3'>
