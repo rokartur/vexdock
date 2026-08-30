@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { type Line, LogViewer } from '../components/log-viewer'
 import { Button, ErrorText, Page, Section, Status } from '../components/primitives'
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
-import { clock, duration, shortSha } from '../lib/format'
+import { duration, shortSha } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
 export const Route = createFileRoute('/deployments/$deploymentId')({ component: DeploymentPage })
@@ -18,7 +19,6 @@ function DeploymentPage() {
 	const [steps, setSteps] = useState<DeploymentStep[]>([])
 	const [lines, setLines] = useState<LogLine[]>([])
 	const [live, setLive] = useState(true)
-	const bottomRef = useRef<HTMLDivElement>(null)
 
 	const initial = useQuery({
 		queryKey: ['deployment', deploymentId],
@@ -55,9 +55,21 @@ function DeploymentPage() {
 		live,
 	)
 
-	useEffect(() => {
-		bottomRef.current?.scrollIntoView({ block: 'end' })
-	}, [lines.length])
+	// The console reads the engine's RFC3339 stamp out of the line itself. A
+	// deployment opened after it finished has no stream left, only what each step
+	// recorded.
+	const logLines: Line[] = useMemo(
+		() =>
+			lines.length > 0
+				? lines.map(line => ({ stream: 'stdout', text: `${line.at} ${line.text}` }))
+				: steps.flatMap(step =>
+						(step.output ?? '')
+							.split('\n')
+							.filter(Boolean)
+							.map(text => ({ stream: 'stdout', text })),
+					),
+		[lines, steps],
+	)
 
 	const cancel = useMutation({ mutationFn: () => api.cancelDeployment(deploymentId) })
 	const rollback = useMutation({ mutationFn: () => api.rollback(deploymentId) })
@@ -116,26 +128,7 @@ function DeploymentPage() {
 			</Section>
 
 			<Section title='Log' description={live ? 'streaming' : 'finished'}>
-				<div className='h-[50vh] overflow-auto rounded-lg border border-console-border bg-console p-2 font-mono text-body leading-[1.45] text-console-foreground'>
-					{lines.length === 0 ? (
-						<p className='text-console-muted'>
-							{steps.some(step => step.output)
-								? steps
-										.map(step => step.output)
-										.filter(Boolean)
-										.join('\n')
-								: 'No output yet.'}
-						</p>
-					) : (
-						lines.map((line, index) => (
-							<div key={index} className='flex gap-3'>
-								<span className='shrink-0 text-console-muted'>{clock(line.at)}</span>
-								<span className='break-all whitespace-pre-wrap'>{line.text}</span>
-							</div>
-						))
-					)}
-					<div ref={bottomRef} />
-				</div>
+				<LogViewer lines={logLines} className='h-[50vh]' />
 			</Section>
 		</Page>
 	)
