@@ -81,7 +81,7 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 			title='Refresh'
 			onClick={onClick}
 			disabled={busy}
-			className='flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-50'
+			className='flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-foreground/20 hover:text-foreground active:scale-[0.95] disabled:cursor-default disabled:opacity-50 motion-reduce:active:scale-100'
 		>
 			<IconRefresh className='size-4' />
 		</button>
@@ -170,16 +170,17 @@ export function Page({
 }
 
 /**
- * The one switch shape in the app: a bordered strip whose active item is a
- * filled pill. `Tabs` drives it off the URL, `Segmented` off a value, and both
- * belong in a Page's `toolbar`.
+ * The one switch shape in the app, datafa.st's dashboard tabs: a sunken strip
+ * whose active item is a raised card-coloured pill. `Tabs` drives it off the
+ * URL, `Segmented` off a value, and both belong in a Page's `toolbar`.
  */
-const segmentStrip = 'inline-flex h-8 shrink-0 items-center rounded-md border p-0.5'
+const segmentStrip =
+	'inline-flex h-8 shrink-0 items-center rounded-[0.875rem] bg-sidebar/70 p-0.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
 
 const segmentItem = (active: boolean) =>
 	cn(
-		'inline-flex h-full items-center rounded-sm px-2.5 text-body whitespace-nowrap transition-colors',
-		active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
+		'inline-flex h-full items-center rounded-[0.625rem] px-2.5 text-body font-medium whitespace-nowrap transition-[color,background-color,scale] active:scale-[0.96] motion-reduce:active:scale-100',
+		active ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground/60 hover:text-foreground',
 	)
 
 /**
@@ -267,8 +268,8 @@ export function Section({
 		<section className={cn('mb-10', className)} onKeyDown={onKeyDown}>
 			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-3'>
-					<h2 className='text-meta tracking-wider text-muted-foreground uppercase'>{title}</h2>
-					{description ? <span className='text-meta text-muted-foreground/70'>{description}</span> : null}
+					<h2 className='text-title font-bold'>{title}</h2>
+					{description ? <span className='text-label text-muted-foreground'>{description}</span> : null}
 				</div>
 				{actions ? <div className='flex items-center gap-2'>{actions}</div> : null}
 			</header>
@@ -278,15 +279,15 @@ export function Section({
 }
 
 /**
- * A row of readings sharing hairlines, the way the panel shows any set of
- * numbers: no gaps, no per-card chrome, one border around the whole block.
- * Children supply their own padding and must not draw their own border.
+ * A row of readings sharing hairlines: a card whose cells split it into equal
+ * readings, one ring shadow around the whole block. Children supply their own
+ * padding and must not draw their own border.
  */
 export function Cells({ children, className }: { children: ReactNode; className?: string }) {
 	return (
 		<div
 			className={cn(
-				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-lg border bg-border [&>*]:bg-background',
+				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-xl bg-border shadow-card [&>*]:bg-card',
 				className,
 			)}
 		>
@@ -316,7 +317,7 @@ export function Cell({
 		<div className='px-3 py-2.5'>
 			<div className='text-meta tracking-wide text-muted-foreground uppercase'>{label}</div>
 			{value === undefined ? null : (
-				<div className='mt-1 truncate font-mono text-reading tabular-nums'>{value}</div>
+				<div className='mt-1 truncate text-reading font-bold tabular-nums'>{value}</div>
 			)}
 			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
 			{children}
@@ -335,7 +336,7 @@ export function Facts({ children, className }: { children: ReactNode; className?
 	return (
 		<dl
 			className={cn(
-				'grid grid-cols-[max-content_1fr] gap-x-6 rounded-lg border px-3 py-0.5 text-body [&>*:nth-child(-n+2)]:border-t-0',
+				'grid grid-cols-[max-content_1fr] gap-x-6 rounded-xl bg-card px-3 py-0.5 text-body shadow-card [&>*:nth-child(-n+2)]:border-t-0',
 				className,
 			)}
 		>

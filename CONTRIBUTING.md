@@ -73,22 +73,26 @@ therefore not hand-edited without reason. Pages never import them directly:
 (Page, Tabs, Section, Cell, Field, Button, Status), so a design change happens
 in one file. Tables are the exception: `DataTable` in `components/data-table.tsx`
 is its own primitive and pages import it directly.
-Near-black background, dense tables, no decorative chrome, and no continuously
-repainting animation: the panel is often left open.
+The visual language is datafa.st's dashboard: layered warm grays that get
+lighter as surfaces come forward (canvas, panel, card), the brand orange as the
+one accent, dense tables, and no continuously repainting animation: the panel
+is often left open.
 
 Every page is a `Page`: the breadcrumb and that page's actions in the header,
 its sub-navigation and its filters in the toolbar row under it, content below.
-A switch is always the same bordered strip with a filled pill on the active
-item, `Tabs` when it moves through the URL and `Segmented` when it moves a
-value. One reading is a `Cell`, never a hand-built box.
+A switch is always the same sunken strip with a raised card-coloured pill on
+the active item, `Tabs` when it moves through the URL and `Segmented` when it
+moves a value. One reading is a `Cell`, never a hand-built box.
 
 The look is carried by tokens in `src/styles.css`, not by classes on pages:
-the palette, `--radius`, the type scale and `--font-sans` (Inter; `--font-mono`
-stays for machine output: console, code, ids) are set once there, so reskinning
-is a token edit and never a sweep over pages. Borders are single hairlines (`--border`), never boxes around content:
-tables separate rows with them, readings sit in a `Cells` grid that owns the
-hairlines its children must not redraw, and attributes are read as a `Facts`
-list: label left, value right, a rule between rows.
+the palette, `--radius`, the type scale, the shadows and `--font-sans` (DM
+Sans; `--font-mono` stays for machine output: console, code, ids) are set once
+there, so reskinning is a token edit and never a sweep over pages. A card draws
+its edge as a one-pixel ring shadow (`shadow-card`), never a border; inside it,
+rows are separated by single hairlines (`--border`): tables separate rows with
+them, readings sit in a `Cells` grid that owns the hairlines its children must
+not redraw, and attributes are read as a `Facts` list: label left, value right,
+a rule between rows.
 
 ## Tests
 

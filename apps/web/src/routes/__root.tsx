@@ -71,7 +71,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 			</head>
 			{/* The inline colours paint before the stylesheet arrives, so booting
           the SPA never flashes white. They match --sidebar, the page surface. */}
-			<body style={{ background: '#080809', color: '#f3f3f4' }}>
+			<body style={{ background: '#1f1f1f', color: '#dedcda' }}>
 				<div id='root'>{children}</div>
 				<Scripts />
 			</body>
