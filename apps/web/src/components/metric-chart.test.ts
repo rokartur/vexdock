@@ -1,5 +1,12 @@
 import { expect, test } from 'bun:test'
-import { joinSeries, ratesOf } from './metric-chart'
+import { indexOf, joinSeries, ratesOf } from './metric-chart'
+
+test('reads the hovered index recharts hands back as a string', () => {
+	expect(indexOf('3')).toBe(3)
+	expect(indexOf(0)).toBe(0)
+	expect(indexOf(null)).toBeNull()
+	expect(indexOf()).toBeNull()
+})
 
 const total = (sample: { at: number; total: number }) => sample.total
 

@@ -152,9 +152,7 @@ export function MetricCard({
 					<AreaChart
 						data={rows}
 						margin={{ top: 2, right: 0, bottom: 1, left: 0 }}
-						onMouseMove={state =>
-							setHovered(typeof state.activeTooltipIndex === 'number' ? state.activeTooltipIndex : null)
-						}
+						onMouseMove={state => setHovered(indexOf(state.activeTooltipIndex))}
 						onMouseLeave={() => setHovered(null)}
 					>
 						<defs>
@@ -194,6 +192,15 @@ export function MetricCard({
 
 /** The card already shows the hovered reading in its value line; the cursor is enough. */
 const noTooltip = () => null
+
+/**
+ * Recharts stringifies the active index (`String(clampedIndex)`), even on the
+ * numerically indexed charts, so reading it as a number gives back nothing.
+ */
+export function indexOf(active?: number | string | null) {
+	const index = Number(active ?? Number.NaN)
+	return Number.isInteger(index) ? index : null
+}
 
 function ago(milliseconds: number) {
 	const seconds = Math.round(milliseconds / 1000)
