@@ -87,7 +87,10 @@ moves a value. One reading is a `Cell`, never a hand-built box.
 The look is carried by tokens in `src/styles.css`, not by classes on pages:
 the palette, `--radius`, the type scale, the shadows and `--font-sans` (DM
 Sans; `--font-mono` stays for machine output: console, code, ids) are set once
-there, so reskinning is a token edit and never a sweep over pages. A card draws
+there, so reskinning is a token edit and never a sweep over pages. Every corner
+in the app comes off `--radius`: the whole `--radius-*` ladder is derived from
+it two pixels a rung, `md`/`lg` for anything clickable and `xl` upwards for
+boxes, so no component ever writes a radius of its own. A card draws
 its edge as a one-pixel ring shadow (`shadow-card`), never a border; inside it,
 rows are separated by single hairlines (`--border`): tables separate rows with
 them, readings sit in a `Cells` grid that owns the hairlines its children must

@@ -99,7 +99,7 @@ export function LogViewer({
 			</div>
 			<div
 				className={cn(
-					'h-[60vh] overflow-auto rounded-lg border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground',
+					'h-[60vh] overflow-auto rounded-xl border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground',
 					className,
 				)}
 			>

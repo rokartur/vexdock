@@ -1,4 +1,4 @@
-import { type PointerEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type PointerEvent, type ReactNode, useEffect, useId, useMemo, useState } from 'react'
 import { Cell } from './primitives'
 
 /** How much history a chart shows. Matches the default metrics window. */
@@ -7,6 +7,9 @@ const WINDOW_MS = 30 * 60 * 1000
 /** Cap on buffered live samples, so a tab left open overnight stays bounded. */
 const LIVE_LIMIT = 1200
 
+/* The plotting grid. It is only a coordinate space: the svg stretches to the
+ * card's width and to whatever `height` the card asks for, so these numbers
+ * decide the curve's resolution, never its size on screen. */
 const VIEW_WIDTH = 160
 const VIEW_HEIGHT = 32
 
@@ -83,6 +86,8 @@ type MetricCardProps = {
 	hint?: ReactNode
 	/** How much history the series covers, for the chart's accessible name. */
 	windowLabel?: string
+	/** Drawn height in px. The default is the sparkline; the dashboard goes big. */
+	height?: number
 }
 
 /** Compact metric: label, current value, and the recorded window as a sparkline. */
@@ -94,6 +99,7 @@ export function MetricCard({
 	format,
 	hint,
 	windowLabel = 'last 30 minutes',
+	height = VIEW_HEIGHT,
 }: MetricCardProps) {
 	const ceiling = max ?? Math.max(...series.flatMap(points => points.map(point => point.value)), 0)
 	const filled = series.length === 1
@@ -136,7 +142,7 @@ export function MetricCard({
 				<svg
 					viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
 					width='100%'
-					height={VIEW_HEIGHT}
+					height={height}
 					preserveAspectRatio='none'
 					role='img'
 					aria-label={`${label}, ${windowLabel}`}
@@ -283,6 +289,7 @@ function Sparkline({
 }) {
 	// The lead series draws in the brand orange, the way datafa.st charts do.
 	const color = muted ? 'text-muted-foreground' : 'text-primary'
+	const fade = useId()
 
 	// A single sample cannot be a line yet, so the chart rests on its baseline.
 	if (points.length < 2) {
@@ -307,24 +314,29 @@ function Sparkline({
 	const marker = hovered === null ? undefined : coordinates[hovered]
 
 	return (
-		<>
+		// The group carries the colour so the gradient's currentColor stops resolve
+		// to the series colour rather than the svg's inherited text colour.
+		<g className={color}>
 			{filled ? (
-				<path
-					d={`${path} L${VIEW_WIDTH},${VIEW_HEIGHT} L0,${VIEW_HEIGHT} Z`}
-					fill='currentColor'
-					fillOpacity={0.12}
-					className={color}
-				/>
+				<>
+					<defs>
+						<linearGradient id={fade} x1='0' y1='0' x2='0' y2='1'>
+							<stop offset='0%' stopColor='currentColor' stopOpacity={0.3} />
+							<stop offset='100%' stopColor='currentColor' stopOpacity={0} />
+						</linearGradient>
+					</defs>
+					<path d={`${path} L${VIEW_WIDTH},${VIEW_HEIGHT} L0,${VIEW_HEIGHT} Z`} fill={`url(#${fade})`} />
+				</>
 			) : null}
 			<path
 				d={path}
 				fill='none'
 				stroke='currentColor'
-				strokeWidth={1.25}
+				strokeWidth={1.5}
+				strokeLinecap='round'
 				vectorEffect='non-scaling-stroke'
-				className={color}
 			/>
-			{marker ? <circle cx={marker.x} cy={marker.y} r={1.5} fill='currentColor' className={color} /> : null}
-		</>
+			{marker ? <circle cx={marker.x} cy={marker.y} r={1.5} fill='currentColor' /> : null}
+		</g>
 	)
 }

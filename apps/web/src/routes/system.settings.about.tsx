@@ -179,7 +179,7 @@ function Version() {
 							{state.data.error ? `: ${state.data.error}` : ''}. Still on {state.data.previous}.
 						</p>
 						{state.data.log ? (
-							<pre className='overflow-x-auto rounded-lg border px-3 py-2 font-mono text-label text-muted-foreground'>
+							<pre className='overflow-x-auto rounded-xl border px-3 py-2 font-mono text-label text-muted-foreground'>
 								{state.data.log}
 							</pre>
 						) : null}

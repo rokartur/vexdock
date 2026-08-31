@@ -175,11 +175,11 @@ export function Page({
  * URL, `Segmented` off a value, and both belong in a Page's `toolbar`.
  */
 const segmentStrip =
-	'inline-flex h-8 shrink-0 items-center rounded-[0.875rem] bg-sidebar/70 p-0.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
+	'inline-flex h-8 shrink-0 items-center rounded-xl bg-sidebar/70 p-0.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
 
 const segmentItem = (active: boolean) =>
 	cn(
-		'inline-flex h-full items-center rounded-[0.625rem] px-2.5 text-body font-medium whitespace-nowrap transition-[color,background-color,scale] active:scale-[0.96] motion-reduce:active:scale-100',
+		'inline-flex h-full items-center rounded-lg px-2.5 text-body font-medium whitespace-nowrap transition-[color,background-color,scale] active:scale-[0.96] motion-reduce:active:scale-100',
 		active ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground/60 hover:text-foreground',
 	)
 
