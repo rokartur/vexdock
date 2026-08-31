@@ -1,4 +1,5 @@
-import { type PointerEvent, type ReactNode, useEffect, useId, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Cell } from './primitives'
 
 /** How much history a chart shows. Matches the default metrics window. */
@@ -7,11 +8,8 @@ const WINDOW_MS = 30 * 60 * 1000
 /** Cap on buffered live samples, so a tab left open overnight stays bounded. */
 const LIVE_LIMIT = 1200
 
-/* The plotting grid. It is only a coordinate space: the svg stretches to the
- * card's width and to whatever `height` the card asks for, so these numbers
- * decide the curve's resolution, never its size on screen. */
-const VIEW_WIDTH = 160
-const VIEW_HEIGHT = 32
+/** Default sparkline height in px. */
+const SPARK_HEIGHT = 32
 
 /** A sample carries its own clock: recorded and live readings arrive at different rates. */
 export type Stamped = { at: number }
@@ -72,6 +70,28 @@ export function seriesOf<TSample extends Stamped>(history: TSample[], value: (sa
 	return history.map(sample => ({ at: sample.at, value: value(sample) }))
 }
 
+/** One row of the recharts dataset: a timestamp plus one column per series. */
+type Row = { at: number; [series: string]: number }
+
+const columnOf = (index: number) => `s${index}`
+
+/**
+ * Series are separate arrays but recharts plots one row set, so they are joined
+ * on the timestamp. Series that skip a stamp leave a hole, which `connectNulls`
+ * bridges rather than breaking the line.
+ */
+export function joinSeries(series: Point[][]): Row[] {
+	const rows = new Map<number, Row>()
+	for (const [index, points] of series.entries()) {
+		for (const point of points) {
+			const row = rows.get(point.at) ?? { at: point.at }
+			row[columnOf(index)] = point.value
+			rows.set(point.at, row)
+		}
+	}
+	return [...rows.values()].sort((left, right) => left.at - right.at)
+}
+
 type MetricCardProps = {
 	label: string
 	/** Current reading, rendered as text so the chart never has to be precise. */
@@ -99,38 +119,27 @@ export function MetricCard({
 	format,
 	hint,
 	windowLabel = 'last 30 minutes',
-	height = VIEW_HEIGHT,
+	height = SPARK_HEIGHT,
 }: MetricCardProps) {
-	const ceiling = max ?? Math.max(...series.flatMap(points => points.map(point => point.value)), 0)
-	const filled = series.length === 1
-	const [primary = []] = series
-	const span = rangeOf(series)
+	const fade = useId()
+	const rows = useMemo(() => joinSeries(series), [series])
 	const [hovered, setHovered] = useState<number | null>(null)
-	const index = hovered !== null && hovered < primary.length ? hovered : null
-	const hoveredAt = index === null ? undefined : primary[index]?.at
-
-	const track = (event: PointerEvent<HTMLDivElement>) => {
-		if (!format || primary.length < 2 || span.width <= 0) {
-			return
-		}
-		const { left, width } = event.currentTarget.getBoundingClientRect()
-		const time = span.start + ((event.clientX - left) / width) * span.width
-		setHovered(nearest(primary, time))
-	}
+	const row = hovered === null ? undefined : rows[hovered]
+	const filled = series.length === 1
 
 	return (
 		<Cell
 			label={label}
 			hint={hint}
 			value={
-				index === null || !format ? (
+				row === undefined || !format ? (
 					value
 				) : (
 					<>
-						{format(series.map(points => points[index]?.value ?? 0))}
+						{format(series.map((_, index) => row[columnOf(index)] ?? 0))}
 						<span className='text-label text-muted-foreground'>
 							{' '}
-							{ago(span.end - (hoveredAt ?? span.end))}
+							{ago((rows.at(-1)?.at ?? row.at) - row.at)}
 						</span>
 					</>
 				)
@@ -138,76 +147,53 @@ export function MetricCard({
 		>
 			{/* Hover only dates values that are already shown live, so there is
 			    nothing here a keyboard user cannot already read. */}
-			<div className='mt-1.5' onPointerMove={track} onPointerLeave={() => setHovered(null)}>
-				<svg
-					viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
-					width='100%'
-					height={height}
-					preserveAspectRatio='none'
-					role='img'
-					aria-label={`${label}, ${windowLabel}`}
-					className='block'
-				>
-					{series.map((points, position) => (
-						<Sparkline
-							// Series order is the identity here: the array is rebuilt whole.
-							key={position}
-							points={points}
-							ceiling={ceiling}
-							span={span}
-							filled={filled}
-							muted={position > 0}
-							hovered={index}
-						/>
-					))}
-					{index === null || hoveredAt === undefined ? null : (
-						<line
-							x1={xOf(hoveredAt, span)}
-							y1={0}
-							x2={xOf(hoveredAt, span)}
-							y2={VIEW_HEIGHT}
-							stroke='currentColor'
-							strokeWidth={1}
-							vectorEffect='non-scaling-stroke'
-							className='text-border'
-						/>
-					)}
-				</svg>
+			<div className='mt-1.5' style={{ height }} role='img' aria-label={`${label}, ${windowLabel}`}>
+				<ResponsiveContainer width='100%' height='100%'>
+					<AreaChart
+						data={rows}
+						margin={{ top: 2, right: 0, bottom: 1, left: 0 }}
+						onMouseMove={state =>
+							setHovered(typeof state.activeTooltipIndex === 'number' ? state.activeTooltipIndex : null)
+						}
+						onMouseLeave={() => setHovered(null)}
+					>
+						<defs>
+							<linearGradient id={fade} x1='0' y1='0' x2='0' y2='1'>
+								<stop offset='0%' stopColor='var(--primary)' stopOpacity={0.3} />
+								<stop offset='100%' stopColor='var(--primary)' stopOpacity={0} />
+							</linearGradient>
+						</defs>
+						<XAxis dataKey='at' type='number' domain={['dataMin', 'dataMax']} hide />
+						<YAxis type='number' domain={[0, max ?? 'dataMax']} hide />
+						<Tooltip content={noTooltip} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
+						{series.map((_, index) => {
+							// The lead series draws in the brand orange, the way datafa.st charts do.
+							const color = index > 0 ? 'var(--muted-foreground)' : 'var(--primary)'
+							return (
+								<Area
+									// Series order is the identity here: the array is rebuilt whole.
+									key={index}
+									dataKey={columnOf(index)}
+									type='monotone'
+									stroke={color}
+									strokeWidth={1.5}
+									fill={filled ? `url(#${fade})` : 'none'}
+									dot={false}
+									activeDot={{ r: 1.5, fill: color, stroke: 'none' }}
+									connectNulls
+									isAnimationActive={false}
+								/>
+							)
+						})}
+					</AreaChart>
+				</ResponsiveContainer>
 			</div>
 		</Cell>
 	)
 }
 
-type Span = { start: number; end: number; width: number }
-
-/** The time range every series in one card shares. */
-function rangeOf(series: Point[][]): Span {
-	const times = series.flatMap(points => points.map(point => point.at))
-	if (times.length === 0) {
-		return { start: 0, end: 0, width: 0 }
-	}
-	const start = Math.min(...times)
-	const end = Math.max(...times)
-	return { start, end, width: end - start }
-}
-
-function xOf(at: number, span: Span) {
-	return span.width > 0 ? ((at - span.start) / span.width) * VIEW_WIDTH : VIEW_WIDTH
-}
-
-/** Index of the sample closest to `time`; the x axis is time, not sample count. */
-function nearest(points: Point[], time: number) {
-	let best = 0
-	let distance = Number.POSITIVE_INFINITY
-	for (const [index, point] of points.entries()) {
-		const gap = Math.abs(point.at - time)
-		if (gap < distance) {
-			best = index
-			distance = gap
-		}
-	}
-	return best
-}
+/** The card already shows the hovered reading in its value line; the cursor is enough. */
+const noTooltip = () => null
 
 function ago(milliseconds: number) {
 	const seconds = Math.round(milliseconds / 1000)
@@ -223,120 +209,4 @@ function ago(milliseconds: number) {
 	}
 	const hours = Math.round(minutes / 60)
 	return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`
-}
-
-type Coordinate = { x: number; y: number }
-
-/**
- * A Catmull-Rom spline through every sample, as SVG cubic segments. Control
- * points are clamped to each segment's own range, so a spike bulges into a
- * curve instead of overshooting past zero or the ceiling.
- */
-export function curveThrough(points: Coordinate[]) {
-	const [head] = points
-	if (!head) {
-		return ''
-	}
-	let path = `M${round(head.x)},${round(head.y)}`
-	let before = head
-	let start = head
-
-	for (const [index, end] of points.entries()) {
-		if (index === 0) {
-			continue
-		}
-		const after = points[index + 1] ?? end
-		const low = Math.min(start.y, end.y)
-		const high = Math.max(start.y, end.y)
-		const first = {
-			x: start.x + (end.x - before.x) / 6,
-			y: clamp(start.y + (end.y - before.y) / 6, low, high),
-		}
-		const second = {
-			x: end.x - (after.x - start.x) / 6,
-			y: clamp(end.y - (after.y - start.y) / 6, low, high),
-		}
-		path += ` C${round(first.x)},${round(first.y)} ${round(second.x)},${round(second.y)} ${round(end.x)},${round(end.y)}`
-		before = start
-		start = end
-	}
-
-	return path
-}
-
-function clamp(value: number, low: number, high: number) {
-	return Math.min(Math.max(value, low), high)
-}
-
-function round(value: number) {
-	return Math.round(value * 10) / 10
-}
-
-function Sparkline({
-	points,
-	ceiling,
-	span,
-	filled,
-	muted,
-	hovered,
-}: {
-	points: Point[]
-	ceiling: number
-	span: Span
-	filled: boolean
-	muted: boolean
-	hovered: number | null
-}) {
-	// The lead series draws in the brand orange, the way datafa.st charts do.
-	const color = muted ? 'text-muted-foreground' : 'text-primary'
-	const fade = useId()
-
-	// A single sample cannot be a line yet, so the chart rests on its baseline.
-	if (points.length < 2) {
-		return (
-			<line
-				x1={0}
-				y1={VIEW_HEIGHT - 1}
-				x2={VIEW_WIDTH}
-				y2={VIEW_HEIGHT - 1}
-				stroke='currentColor'
-				strokeWidth={1}
-				className='text-border'
-			/>
-		)
-	}
-
-	const coordinates = points.map(point => {
-		const height = ceiling > 0 ? Math.min(point.value / ceiling, 1) : 0
-		return { x: xOf(point.at, span), y: VIEW_HEIGHT - 1 - height * (VIEW_HEIGHT - 2) }
-	})
-	const path = curveThrough(coordinates)
-	const marker = hovered === null ? undefined : coordinates[hovered]
-
-	return (
-		// The group carries the colour so the gradient's currentColor stops resolve
-		// to the series colour rather than the svg's inherited text colour.
-		<g className={color}>
-			{filled ? (
-				<>
-					<defs>
-						<linearGradient id={fade} x1='0' y1='0' x2='0' y2='1'>
-							<stop offset='0%' stopColor='currentColor' stopOpacity={0.3} />
-							<stop offset='100%' stopColor='currentColor' stopOpacity={0} />
-						</linearGradient>
-					</defs>
-					<path d={`${path} L${VIEW_WIDTH},${VIEW_HEIGHT} L0,${VIEW_HEIGHT} Z`} fill={`url(#${fade})`} />
-				</>
-			) : null}
-			<path
-				d={path}
-				fill='none'
-				stroke='currentColor'
-				strokeWidth={1.5}
-				strokeLinecap='round'
-				vectorEffect='non-scaling-stroke'
-			/>
-			{marker ? <circle cx={marker.x} cy={marker.y} r={1.5} fill='currentColor' /> : null}
-		</g>
-	)
 }

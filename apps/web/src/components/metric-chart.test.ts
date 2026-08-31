@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { curveThrough, ratesOf } from './metric-chart'
+import { joinSeries, ratesOf } from './metric-chart'
 
 const total = (sample: { at: number; total: number }) => sample.total
 
@@ -16,18 +16,17 @@ test('turns a cumulative counter into per-second rates', () => {
 	])
 })
 
-test('smooths a spike without curving outside the samples', () => {
-	const spike = [
-		{ x: 0, y: 30 },
-		{ x: 10, y: 30 },
-		{ x: 20, y: 0 },
-		{ x: 30, y: 30 },
+test('joins series on the timestamp, in time order', () => {
+	const received = [
+		{ at: 2000, value: 1 },
+		{ at: 1000, value: 3 },
 	]
-	const ys = [...curveThrough(spike).matchAll(/[\d.]+,(?<y>[\d.]+)/gu)].map(match => Number(match.groups?.y))
+	const sent = [{ at: 1000, value: 7 }]
 
-	expect(Math.min(...ys)).toBeGreaterThanOrEqual(0)
-	expect(Math.max(...ys)).toBeLessThanOrEqual(30)
-	expect(curveThrough(spike)).toContain('C')
+	expect(joinSeries([received, sent])).toEqual([
+		{ at: 1000, s0: 3, s1: 7 },
+		{ at: 2000, s0: 1 },
+	])
 })
 
 test('never reports a negative rate or divides by a zero interval', () => {

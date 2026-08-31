@@ -1,7 +1,20 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { curveThrough, MetricCard, type Point } from '../components/metric-chart'
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	Cell as PieSlice,
+	Pie,
+	PieChart,
+	ResponsiveContainer,
+	Tooltip,
+	type TooltipContentProps,
+	XAxis,
+	YAxis,
+} from 'recharts'
+import { MetricCard, type Point } from '../components/metric-chart'
 import { Button, Cell, Cells, ErrorText, Page, Refresh, Section, Segmented } from '../components/primitives'
 import { type AnalyticsRange, api, type Breakdown, type Traffic, type TrafficPoint } from '../lib/api'
 import { delta, dense, WEEKDAYS, weekdayHours } from '../lib/traffic'
@@ -167,13 +180,7 @@ function AnalyticsPage() {
 	)
 }
 
-const CHART_WIDTH = 1000
-const CHART_HEIGHT = 180
-
-/**
- * Views filled, unique visitors on top, one hoverable band per bucket. Same SVG
- * vocabulary as the metric sparklines, so no charting dependency.
- */
+/** Views filled, unique visitors dashed on top, one tooltip per bucket. */
 function TrafficChart({ traffic, range }: { traffic: Traffic; range: AnalyticsRange }) {
 	const points = dense(traffic.series, traffic.bucket)
 	if (points.length < 2) {
@@ -181,11 +188,6 @@ function TrafficChart({ traffic, range }: { traffic: Traffic; range: AnalyticsRa
 	}
 
 	const peak = Math.max(1, ...points.flatMap(point => [point.views, point.visitors]))
-	const x = (index: number) => (index / (points.length - 1)) * CHART_WIDTH
-	const y = (value: number) => CHART_HEIGHT - 1 - (value / peak) * (CHART_HEIGHT - 2)
-	const views = curveThrough(points.map((point, index) => ({ x: x(index), y: y(point.views) })))
-	const visitors = curveThrough(points.map((point, index) => ({ x: x(index), y: y(point.visitors) })))
-	const band = CHART_WIDTH / points.length
 
 	return (
 		<div>
@@ -198,69 +200,66 @@ function TrafficChart({ traffic, range }: { traffic: Traffic; range: AnalyticsRa
 					peak {peak} per {step(traffic.bucket)}
 				</span>
 			</div>
-			<svg
-				viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-				width='100%'
-				height={160}
-				preserveAspectRatio='none'
+			<div
+				className='mt-1 h-45'
 				role='img'
 				aria-label={`Page views and unique visitors, last ${ranges.find(option => option.value === range)?.label}`}
-				className='mt-1 block'
 			>
-				{[0.25, 0.5, 0.75].map(fraction => (
-					<line
-						key={fraction}
-						x1={0}
-						y1={CHART_HEIGHT * fraction}
-						x2={CHART_WIDTH}
-						y2={CHART_HEIGHT * fraction}
-						stroke='currentColor'
-						strokeWidth={1}
-						vectorEffect='non-scaling-stroke'
-						className='text-border'
-					/>
-				))}
-				<path
-					d={`${views} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`}
-					fill='currentColor'
-					fillOpacity={0.08}
-					className='text-foreground'
-				/>
-				<path
-					d={views}
-					fill='none'
-					stroke='currentColor'
-					strokeWidth={1.25}
-					vectorEffect='non-scaling-stroke'
-					className='text-foreground'
-				/>
-				<path
-					d={visitors}
-					fill='none'
-					stroke='currentColor'
-					strokeWidth={1.25}
-					strokeDasharray='3 3'
-					vectorEffect='non-scaling-stroke'
-					className='text-muted-foreground'
-				/>
-				{/* Native tooltips: the numbers are already in the page, this only dates them. */}
-				{points.map((point, index) => (
-					<rect
-						key={point.at}
-						x={x(index) - band / 2}
-						y={0}
-						width={band}
-						height={CHART_HEIGHT}
-						className='fill-transparent hover:fill-foreground/8'
-					>
-						<title>{`${new Date(point.at * 1000).toLocaleString()} · ${point.views} views · ${point.visitors} visitors`}</title>
-					</rect>
-				))}
-			</svg>
-			<div className='flex justify-between text-meta text-muted-foreground'>
-				{axis(points, range).map((tick, index) => (
-					<span key={`${tick.at}-${index}`}>{tick.label}</span>
-				))}
+				<ResponsiveContainer width='100%' height='100%'>
+					<AreaChart data={points} margin={{ top: 1, right: 0, bottom: 0, left: 0 }}>
+						<CartesianGrid vertical={false} stroke='var(--border)' />
+						<XAxis
+							dataKey='at'
+							type='number'
+							domain={['dataMin', 'dataMax']}
+							ticks={ticksOf(points)}
+							tickFormatter={at => tickLabel(at, range)}
+							axisLine={false}
+							tickLine={false}
+							tickMargin={6}
+							tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+						/>
+						<YAxis type='number' domain={[0, peak]} hide />
+						<Tooltip content={TrafficTooltip} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
+						<Area
+							dataKey='views'
+							type='monotone'
+							stroke='var(--foreground)'
+							strokeWidth={1.25}
+							fill='var(--foreground)'
+							fillOpacity={0.08}
+							dot={false}
+							activeDot={{ r: 2, fill: 'var(--foreground)', stroke: 'none' }}
+							isAnimationActive={false}
+						/>
+						<Area
+							dataKey='visitors'
+							type='monotone'
+							stroke='var(--muted-foreground)'
+							strokeWidth={1.25}
+							strokeDasharray='3 3'
+							fill='none'
+							dot={false}
+							activeDot={{ r: 2, fill: 'var(--muted-foreground)', stroke: 'none' }}
+							isAnimationActive={false}
+						/>
+					</AreaChart>
+				</ResponsiveContainer>
+			</div>
+		</div>
+	)
+}
+
+function TrafficTooltip({ active, label, payload }: TooltipContentProps) {
+	if (!(active && payload.length)) {
+		return null
+	}
+	const read = (key: string) => payload.find(entry => entry.dataKey === key)?.value ?? 0
+	return (
+		<div className='rounded-md border border-border bg-popover px-2 py-1 text-meta'>
+			<div className='text-muted-foreground'>{new Date(Number(label) * 1000).toLocaleString()}</div>
+			<div>
+				{read('views')} views · {read('visitors')} visitors
 			</div>
 		</div>
 	)
@@ -279,15 +278,16 @@ function step(bucket: number) {
 }
 
 /** Five evenly spaced times under the chart, in whatever the range makes readable. */
-function axis(points: TrafficPoint[], range: AnalyticsRange) {
-	const format = (at: number) =>
-		range === '24h'
-			? new Date(at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-			: new Date(at * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })
+function ticksOf(points: TrafficPoint[]) {
 	return [0, 0.25, 0.5, 0.75, 1]
-		.map(fraction => points[Math.round(fraction * (points.length - 1))])
-		.filter(point => point !== undefined)
-		.map(point => ({ at: point.at, label: format(point.at) }))
+		.map(fraction => points[Math.round(fraction * (points.length - 1))]?.at)
+		.filter(at => at !== undefined)
+}
+
+function tickLabel(at: number, range: AnalyticsRange) {
+	return range === '24h'
+		? new Date(at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+		: new Date(at * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
 /** Devices are a handful of buckets that add up to the whole, so: a ring. */
@@ -297,33 +297,29 @@ function Donut({ rows }: { rows: Breakdown[] }) {
 		return <p className='text-body text-muted-foreground'>Nothing yet.</p>
 	}
 
-	const circumference = 2 * Math.PI * 40
-	let offset = 0
 	return (
 		<div className='flex items-center gap-4'>
-			<svg viewBox='0 0 100 100' className='size-22 shrink-0' role='img' aria-label='Visitors by device'>
-				{rows.map((row, index) => {
-					const length = (row.visitors / total) * circumference
-					const dash = offset
-					offset += length
-					return (
-						<circle
-							key={row.name}
-							cx={50}
-							cy={50}
-							r={40}
-							fill='none'
-							stroke='currentColor'
-							strokeOpacity={shade(index)}
-							strokeWidth={14}
-							strokeDasharray={`${length} ${circumference - length}`}
-							strokeDashoffset={-dash}
-							transform='rotate(-90 50 50)'
-							className='text-foreground'
-						/>
-					)
-				})}
-			</svg>
+			<div className='size-22 shrink-0' role='img' aria-label='Visitors by device'>
+				<ResponsiveContainer width='100%' height='100%'>
+					<PieChart>
+						<Pie
+							data={rows}
+							dataKey='visitors'
+							nameKey='name'
+							innerRadius='72%'
+							outerRadius='100%'
+							startAngle={90}
+							endAngle={-270}
+							stroke='none'
+							isAnimationActive={false}
+						>
+							{rows.map((row, index) => (
+								<PieSlice key={row.name} fill='var(--foreground)' fillOpacity={shade(index)} />
+							))}
+						</Pie>
+					</PieChart>
+				</ResponsiveContainer>
+			</div>
 			<ul className='min-w-0 flex-1 text-body'>
 				{rows.map((row, index) => (
 					<li key={row.name} className='flex items-center gap-2 py-0.5'>
