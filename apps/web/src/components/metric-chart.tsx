@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, ResponsiveContainer, Tooltip, type TooltipContentProps, XAxis, YAxis } from 'recharts'
 import { Cell } from './primitives'
 
 /** How much history a chart shows. Matches the default metrics window. */
@@ -123,38 +123,15 @@ export function MetricCard({
 }: MetricCardProps) {
 	const fade = useId()
 	const rows = useMemo(() => joinSeries(series), [series])
-	const [hovered, setHovered] = useState<number | null>(null)
-	const row = hovered === null ? undefined : rows[hovered]
 	const filled = series.length === 1
 
 	return (
-		<Cell
-			label={label}
-			hint={hint}
-			value={
-				row === undefined || !format ? (
-					value
-				) : (
-					<>
-						{format(series.map((_, index) => row[columnOf(index)] ?? 0))}
-						<span className='text-label text-muted-foreground'>
-							{' '}
-							{ago((rows.at(-1)?.at ?? row.at) - row.at)}
-						</span>
-					</>
-				)
-			}
-		>
-			{/* Hover only dates values that are already shown live, so there is
+		<Cell label={label} hint={hint} value={value}>
+			{/* The tooltip only dates values that are already shown live, so there is
 			    nothing here a keyboard user cannot already read. */}
 			<div className='mt-1.5' style={{ height }} role='img' aria-label={`${label}, ${windowLabel}`}>
 				<ResponsiveContainer width='100%' height='100%'>
-					<AreaChart
-						data={rows}
-						margin={{ top: 2, right: 0, bottom: 1, left: 0 }}
-						onMouseMove={state => setHovered(indexOf(state.activeTooltipIndex))}
-						onMouseLeave={() => setHovered(null)}
-					>
+					<AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 1, left: 0 }}>
 						<defs>
 							<linearGradient id={fade} x1='0' y1='0' x2='0' y2='1'>
 								<stop offset='0%' stopColor='var(--primary)' stopOpacity={0.3} />
@@ -163,7 +140,14 @@ export function MetricCard({
 						</defs>
 						<XAxis dataKey='at' type='number' domain={['dataMin', 'dataMax']} hide />
 						<YAxis type='number' domain={[0, max ?? 'dataMax']} hide />
-						<Tooltip content={noTooltip} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
+						<Tooltip
+							content={<MetricTooltip count={series.length} format={format} />}
+							cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
+							// Kept inside the chart box on purpose: the cells grid clips its
+							// overflow, so a tooltip that escaped would be cut at the edge.
+							allowEscapeViewBox={{ x: false, y: false }}
+							isAnimationActive={false}
+						/>
 						{series.map((_, index) => {
 							// The lead series draws in the brand orange, the way datafa.st charts do.
 							const color = index > 0 ? 'var(--muted-foreground)' : 'var(--primary)'
@@ -190,30 +174,29 @@ export function MetricCard({
 	)
 }
 
-/** The card already shows the hovered reading in its value line; the cursor is enough. */
-const noTooltip = () => null
-
 /**
- * Recharts stringifies the active index (`String(clampedIndex)`), even on the
- * numerically indexed charts, so reading it as a number gives back nothing.
+ * The reading under the cursor: when it was taken, and what it was. Recharts
+ * clones this element with the hover state, so `format` rides along as a prop.
  */
-export function indexOf(active?: number | string | null) {
-	const index = Number(active ?? Number.NaN)
-	return Number.isInteger(index) ? index : null
-}
-
-function ago(milliseconds: number) {
-	const seconds = Math.round(milliseconds / 1000)
-	if (seconds <= 1) {
-		return 'now'
+function MetricTooltip({
+	active,
+	label,
+	payload,
+	count,
+	format,
+}: Partial<TooltipContentProps<number, string>> & { count: number; format?: MetricCardProps['format'] }) {
+	if (!(active && payload?.length && format)) {
+		return null
 	}
-	if (seconds < 60) {
-		return `${seconds}s ago`
-	}
-	const minutes = Math.round(seconds / 60)
-	if (minutes < 60) {
-		return `${minutes}m ago`
-	}
-	const hours = Math.round(minutes / 60)
-	return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`
+	// Read by key, not by position: recharts drops null entries from the payload,
+	// which would slide a two-series card's values apart wherever one has a gap.
+	const values = Array.from({ length: count }, (_, index) =>
+		Number(payload.find(entry => entry.dataKey === columnOf(index))?.value ?? 0),
+	)
+	return (
+		<div className='rounded-md border border-border bg-popover px-2 py-1 text-meta'>
+			<span className='text-muted-foreground'>{new Date(Number(label)).toLocaleTimeString()}</span>{' '}
+			{format(values)}
+		</div>
+	)
 }
