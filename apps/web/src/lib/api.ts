@@ -123,6 +123,10 @@ export type Project = {
 	updated_at: string
 	service_count: number
 	running_count: number
+	/** Containers Docker gave up on or keeps restarting; the rest is idle. */
+	errored_count: number
+	database_count: number
+	compose_count: number
 	domains: Domain[]
 	latest_deployment: Deployment | null
 	webhook_url: string
@@ -319,7 +323,13 @@ export type SystemInfo = {
 	containers_running: number
 	containers_stopped: number
 	images: number
-	recent_deployments: { deployment: Deployment; project_name: string; environment_name: string }[]
+	recent_deployments: {
+		deployment: Deployment
+		project_name: string
+		environment_name: string
+		/** Services a project-wide deployment covered; empty for an imported compose. */
+		environment_services: string[]
+	}[]
 	version: string
 }
 

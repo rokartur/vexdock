@@ -26,11 +26,13 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 			header: 'Status',
 			cell: ({ row }) => <Status value={row.original.deployment.status} />,
 		}),
-		cell.accessor(({ deployment }) => deployment.service_name || 'all', {
-			id: 'service',
-			header: 'Service',
-			meta: { mono: true },
-		}),
+		// An unscoped deploy covers every service in the environment, so name them
+		// rather than printing "all".
+		cell.accessor(
+			({ deployment, environment_services }) =>
+				deployment.service_name || environment_services.join(', ') || 'all',
+			{ id: 'service', header: 'Service', meta: { mono: true } },
+		),
 		cell.accessor(({ deployment, project_name }) => project_name || deployment.project_id, {
 			id: 'project',
 			header: 'Project',
@@ -65,6 +67,8 @@ function DashboardPage() {
 	const recorded = useQuery({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
 	// Same key the shell uses, so this rides its cache instead of re-fetching.
 	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
+	// Same key the projects page uses.
+	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects, refetchInterval: 15_000 })
 	const [stats, setStats] = useState<HostSample | null>(null)
 
 	useEventSource('/api/system/stats', {
@@ -79,6 +83,26 @@ function DashboardPage() {
 	const current = stats ?? history.at(-1)
 	const diskUsed = current && current.disk_total > 0 ? current.disk_used / current.disk_total : 0
 	const host = info.data?.host
+
+	// Every card already carries its own counts, so the fleet totals are a sum.
+	const services = useMemo(() => {
+		const totals = { total: 0, running: 0, errored: 0, db: 0, compose: 0 }
+		for (const project of projects.data ?? []) {
+			totals.total += project.service_count
+			totals.running += project.running_count
+			totals.errored += project.errored_count
+			totals.db += project.database_count
+			totals.compose += project.compose_count
+		}
+		return {
+			...totals,
+			// What Docker is neither running nor failing on is idle: stopped,
+			// paused, or never deployed. What is neither a database nor declared by
+			// a compose file is an application.
+			idle: Math.max(totals.total - totals.running - totals.errored, 0),
+			apps: Math.max(totals.total - totals.db - totals.compose, 0),
+		}
+	}, [projects.data])
 
 	// The API already returns these newest-first, capped.
 	const deployments = info.data?.recent_deployments ?? []
@@ -141,6 +165,17 @@ function DashboardPage() {
 						label='Containers'
 						value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
 						hint='running / total'
+					/>
+					<Cell label='Projects' value={projects.data?.length ?? 0} hint='on this host' />
+					<Cell
+						label='Services'
+						value={services.total}
+						hint={`${services.apps} apps · ${services.compose} compose · ${services.db} db`}
+					/>
+					<Cell
+						label='Running'
+						value={`${services.running} / ${services.total}`}
+						hint={`${services.errored} errored · ${services.idle} idle`}
 					/>
 					<Cell label='Images' value={info.data?.images ?? 0} hint='on this host' />
 					<Cell

@@ -20,12 +20,20 @@ type projectView struct {
 	database.Project
 	// Environments ships with the project so the dashboard's picker does not
 	// need a second request per card.
-	Environments     []database.Environment `json:"environments"`
-	ServiceCount     int                    `json:"service_count"`
-	RunningCount     int                    `json:"running_count"`
-	Domains          []database.Domain      `json:"domains"`
-	LatestDeployment *database.Deployment   `json:"latest_deployment"`
-	WebhookURL       string                 `json:"webhook_url"`
+	Environments []database.Environment `json:"environments"`
+	ServiceCount int                    `json:"service_count"`
+	RunningCount int                    `json:"running_count"`
+	// ErroredCount is containers Docker gave up on or keeps restarting. What is
+	// neither running nor errored is idle: created, paused, or never deployed.
+	ErroredCount int `json:"errored_count"`
+	// DatabaseCount and ComposeCount split ServiceCount by what the service is:
+	// a curated database image, a service the project's own compose file
+	// declares, and by subtraction the applications vexdock builds or pulls.
+	DatabaseCount    int                  `json:"database_count"`
+	ComposeCount     int                  `json:"compose_count"`
+	Domains          []database.Domain    `json:"domains"`
+	LatestDeployment *database.Deployment `json:"latest_deployment"`
+	WebhookURL       string               `json:"webhook_url"`
 	// WebhookSecretSet reports whether HMAC verification is on; the secret
 	// itself is never returned.
 	WebhookSecretSet bool `json:"webhook_secret_set"`
@@ -72,14 +80,25 @@ func (s *Server) projectView(ctx context.Context, p *database.Project) (*project
 		WebhookURL:       s.Projects.WebhookURL(p),
 		WebhookSecretSet: s.setting(ctx, webhookSecretKey(p.ID)) != "",
 	}
+	for _, svc := range services {
+		switch {
+		case svc.Type == database.ServiceDatabase:
+			view.DatabaseCount++
+		case svc.SourceType == database.ServiceCompose || svc.SourceType == database.ServiceDerived:
+			view.ComposeCount++
+		}
+	}
 	for _, env := range envs {
 		containers, err := s.Docker.ListContainers(ctx, env.ComposeProjectName)
 		if err != nil {
 			continue
 		}
 		for _, c := range containers {
-			if c.State == "running" {
+			switch c.State {
+			case "running":
 				view.RunningCount++
+			case "exited", "dead", "restarting":
+				view.ErroredCount++
 			}
 		}
 	}
