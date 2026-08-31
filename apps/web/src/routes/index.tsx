@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Cell, Cells, Fact, Facts, Page, Refresh, Section, Status } from '../components/primitives'
+import { Cell, Cells, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type Certificate, type Domain, type HostPoint, type HostStats, type Project } from '../lib/api'
 import { bytes, duration, percent, since, until } from '../lib/format'
 import { useEventSource } from '../lib/sse'
@@ -189,7 +189,9 @@ function DashboardPage() {
 			}
 		>
 			<Section title='Host' description='live, 30m history'>
-				<Cells>
+				{/* A host is judged on cpu and memory, so on the fleet page those two get
+				    a row to themselves and a chart big enough to read a trend off. */}
+				<Cells className='mb-2'>
 					<MetricCard
 						label='CPU'
 						value={current ? percent(current.cpu_percent) : '-'}
@@ -197,6 +199,7 @@ function DashboardPage() {
 						max={100}
 						format={([cpu]) => percent(cpu)}
 						hint={stats?.load_average === undefined ? undefined : `load ${stats.load_average.toFixed(2)}`}
+						height={96}
 					/>
 					<MetricCard
 						label='Memory'
@@ -205,7 +208,10 @@ function DashboardPage() {
 						max={current?.memory_total}
 						format={([used]) => bytes(used)}
 						hint={`of ${bytes(current?.memory_total ?? host?.memory_total)}`}
+						height={96}
 					/>
+				</Cells>
+				<Cells>
 					{/* Disk moves in hours, so a line would be flat; the bar says more. */}
 					<Cell
 						label='Disk'
@@ -219,28 +225,25 @@ function DashboardPage() {
 							/>
 						</div>
 					</Cell>
-					<Cell label='Platform'>
-						{/* Inside a cell, so the cell is the box: no second border. */}
-						<Facts className='mt-1.5 gap-x-3 border-0 px-0'>
-							<Fact
-								label='Containers'
-								value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
-							/>
-							<Fact label='Images' value={info.data?.images ?? 0} />
-							<Fact
-								label='Version'
-								value={
-									version.data?.update_available ? (
-										<Link to='/system/settings/about' className='text-amber-400 hover:underline'>
-											{info.data?.version} · update
-										</Link>
-									) : (
-										(info.data?.version ?? '-')
-									)
-								}
-							/>
-						</Facts>
-					</Cell>
+					<Cell
+						label='Containers'
+						value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
+						hint='running / total'
+					/>
+					<Cell label='Images' value={info.data?.images ?? 0} hint='on this host' />
+					<Cell
+						label='Version'
+						value={
+							version.data?.update_available ? (
+								<Link to='/system/settings/about' className='text-amber-400 hover:underline'>
+									{info.data?.version} · update
+								</Link>
+							) : (
+								(info.data?.version ?? '-')
+							)
+						}
+						hint={version.data?.update_available ? 'update available' : 'up to date'}
+					/>
 				</Cells>
 			</Section>
 
@@ -287,11 +290,11 @@ function DashboardPage() {
 					}
 				>
 					{feed.length === 0 ? (
-						<div className='rounded-lg border px-3 py-8 text-center text-body text-muted-foreground'>
+						<div className='rounded-xl border px-3 py-8 text-center text-body text-muted-foreground'>
 							No activity yet.
 						</div>
 					) : (
-						<div className='divide-y rounded-lg border px-3'>
+						<div className='divide-y rounded-xl border px-3'>
 							{feed.map(item => (
 								<div key={item.id} className='flex items-baseline gap-3 py-1.5 text-body'>
 									<span className='w-16 shrink-0 font-mono text-label text-muted-foreground'>

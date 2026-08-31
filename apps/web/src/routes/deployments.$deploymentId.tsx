@@ -107,7 +107,7 @@ function DeploymentPage() {
 			{deployment?.error ? <p className='mb-3 text-body text-destructive'>{deployment.error}</p> : null}
 
 			<Section title='Pipeline'>
-				<ol className='rounded-lg border border-border px-3'>
+				<ol className='rounded-xl border border-border px-3'>
 					{steps.length === 0 ? (
 						<li className='py-3 text-body text-muted-foreground'>Waiting for the runner…</li>
 					) : (

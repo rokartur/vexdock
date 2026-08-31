@@ -178,7 +178,7 @@ export function ImportServicesForm({
 					<p className='mb-2 text-label text-muted-foreground'>
 						{parsed.services.length} service{parsed.services.length === 1 ? '' : 's'} from {parsed.project}
 					</p>
-					<div className='rounded-lg border border-border px-3'>
+					<div className='rounded-xl border border-border px-3'>
 						{parsed.services.map(service => {
 							const collides = taken.has(service.name)
 							const on = !collides && !skipped.includes(service.name)
