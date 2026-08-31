@@ -11,7 +11,7 @@ import (
 
 // exportVersion is the shape of the blob, not the shape of vexdock. Bump it
 // only when an older manager would misread a newer export.
-const exportVersion = 1
+const exportVersion = 2
 
 // PortableService is one service stripped of everything that only means
 // something in the project it came from: no ids, no timestamps, no container
@@ -22,7 +22,7 @@ const exportVersion = 1
 // reason: creating a service takes no display name.
 type PortableService struct {
 	Name            string           `json:"name"`
-	SourceType      string           `json:"source_type"`
+	Provider        string           `json:"provider"`
 	RepositoryURL   string           `json:"repository_url,omitempty"`
 	Branch          string           `json:"branch,omitempty"`
 	BuildPath       string           `json:"build_path,omitempty"`
@@ -49,10 +49,8 @@ type Export struct {
 	Services []PortableService `json:"services"`
 }
 
-// ExportServices renders one environment's manager-owned services as a base64
-// blob to paste into another environment's import. Services derived from the
-// project's own compose file are left out, because they already travel inside
-// that file.
+// ExportServices renders one environment's services as a base64 blob to paste
+// into another environment's import.
 //
 // With secrets=false every secret exports as its key and an empty value, so the
 // import lands with the shape intact and the values to be refilled. Base64 is
@@ -64,9 +62,6 @@ func (s *Service) ExportServices(ctx context.Context, p *database.Project, env *
 	}
 	out := Export{Version: exportVersion, Project: p.Name, Services: []PortableService{}}
 	for _, svc := range all {
-		if !svc.Managed() {
-			continue
-		}
 		vars, err := s.ServiceVariables(ctx, svc.ID)
 		if err != nil {
 			return "", err
@@ -81,7 +76,7 @@ func (s *Service) ExportServices(ctx context.Context, p *database.Project, env *
 		}
 		out.Services = append(out.Services, PortableService{
 			Name:            svc.ComposeServiceName,
-			SourceType:      svc.SourceType,
+			Provider:        svc.Provider,
 			RepositoryURL:   svc.RepositoryURL,
 			Branch:          svc.Branch,
 			BuildPath:       svc.BuildPath,

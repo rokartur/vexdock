@@ -21,7 +21,7 @@ func taskService(t *testing.T, db *DB, slug string) *Service {
 	env := defaultEnv(t, db, project.ID)
 	service := &Service{
 		ID: NewID(), ProjectID: project.ID, EnvironmentID: env.ID,
-		ComposeServiceName: "app", DisplayName: "App", Type: "application", SourceType: SourceGit,
+		ComposeServiceName: "app", DisplayName: "App", Type: "application", Provider: ProviderGitHub,
 	}
 	if err := db.CreateService(context.Background(), service); err != nil {
 		t.Fatalf("create service: %v", err)

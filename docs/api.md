@@ -114,20 +114,21 @@ carries the project's own id and namespace, so nothing on disk moved.
 Both sets land in the same `.env`, with the environment's own winning on a
 collision. The default environment cannot be deleted; `DELETE` answers `400`.
 
-An environment's `branch` overrides the project's for its own deploys. Empty
-means it follows the project. A push to a branch triggers every environment
-that is on it, so one webhook can deploy staging and production separately.
+An environment's `branch` overrides every git service's for its own deploys.
+Empty means each service follows the branch it names itself. A push triggers
+every environment with a service on that repository and branch, so one webhook
+can deploy staging and production separately.
 
-These take `?environment={id}`: `deploy`, `stop`, `compose`, `services`,
+These take `?environment={id}`: `deploy`, `stop`, `services`,
 `services/export` and `deployments`. `POST /api/domains` takes an
 `environment_id` in its body for the same reason.
 
 ## Services
 
-A project's services are listed by `GET /api/projects/{id}/services`. The ones
-the project's own compose file declares are read-only; the ones the platform
-owns can be created, changed and removed. A service belongs to one environment,
-and a name is free again in each of them.
+A project's services are listed by `GET /api/projects/{id}/services`. A project
+is a grouping and nothing more: where code comes from is answered one service at
+a time. A service belongs to one environment, and a name is free again in each
+of them.
 
 Each listed service carries its live container alongside the stored record:
 `state`, `status`, `health`, `running_image`, `restart_count`, `created_unix`,
@@ -137,9 +138,9 @@ last three minutes, so the list never shows a dead container's last numbers.
 
 | Endpoint | Does |
 |---|---|
-| `POST /api/projects/{id}/services` | Adds a managed service |
-| `GET /api/projects/{id}/services/export` | The project's managed services as a base64 blob |
-| `PATCH /api/services/{id}` | Changes its source, image or fragment |
+| `POST /api/projects/{id}/services` | Adds a service |
+| `GET /api/projects/{id}/services/export` | The project's services as a base64 blob |
+| `PATCH /api/services/{id}` | Changes its provider, repository, image or fragment |
 | `DELETE /api/services/{id}` | Removes it; its named volume is kept, its generated password is not |
 | `GET /api/services/{id}/database` | Connection details, database services only |
 | `GET \| PUT /api/services/{id}/variables` | Its own variables |
@@ -147,16 +148,21 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
 | `GET \| POST /api/services/{id}/tasks` | Its [scheduled tasks](#scheduled-tasks) |
 
-`source_type` is `unconfigured`, `git`, `image` or `compose`. Sending a
-`database` object instead picks the engine catalogue: the image, the volume and
-the credentials are generated for you, and `source_type` is ignored.
+`provider` is `unconfigured`, one of the five git providers (`github`, `gitlab`,
+`bitbucket`, `gitea`, `git`), `image`, or `raw` for a pasted compose fragment.
+The git providers clone the same way and differ only in webhook dialect and
+label. A git service carries its own `repository_url`, `branch`, `build_path`
+and credentials: `credential_kind` is `none`, `token` or `ssh_key`, and
+`credential_secret` is write-only, encrypted at rest and never returned. Sending
+a `database` object instead picks the engine catalogue: the image, the volume
+and the credentials are generated for you, and `provider` is forced to `image`.
 
 `unconfigured` is an application that is so far only a name. It is skipped when
-the overlay is written, so it neither deploys nor breaks the deploy of its
-siblings. `PATCH` with a `source_type` of `git` or `image` settles it, and the
-same request must carry the `repository_url` or `image` that goes with it. That
-is a one-way edit: a service whose source is already set answers `400`, because
-its checkout, volume and env file all hang off what it already is.
+the compose file is written, so it neither deploys nor breaks the deploy of its
+siblings. `PATCH` with a `provider` settles it, and the same request must carry
+the `repository_url`, `image` or `compose_fragment` that goes with it. An
+application may change provider later; a database answers `400`, because its
+volume and credentials were rendered from the engine it was created with.
 
 The catalogue itself is readable, which is what the dashboard's engine and
 version pickers use:
@@ -202,14 +208,14 @@ Deploy all, which it offers while a project has no services yet).
 
 `GET /api/projects/{id}/services/export` returns
 `{"payload": "<base64>", "secrets": false}`. Decoded, the payload is
-`{"version": 1, "project": "...", "services": [...]}`. Each service is flat:
-`name`, `source_type`, `repository_url`, `branch`, `build_path`, `image`,
+`{"version": 2, "project": "...", "services": [...]}`. Each service is flat:
+`name`, `provider`, `repository_url`, `branch`, `build_path`, `image`,
 `engine`, `data_path`, `compose_fragment` and `env` all sit at the top level.
 That is the blob's own shape, not a request body: `POST .../services` nests
 `engine`, `image` and `data_path` under `database`, takes no `env`, and rejects
 unknown fields outright, so a client has to map the two rather than forward one
-as the other. Services the project's own compose file declares are left out;
-they already travel inside that file.
+as the other. Credentials are never exported: a git service arrives at its new
+project with `credential_kind` of `none` and has to be given its secret again.
 
 Secret values are withheld unless `?secrets=true` is passed, and are exported as
 their keys with empty values otherwise. Base64 is encoding, not encryption: a
@@ -479,12 +485,13 @@ Each Git project exposes an auto-deploy URL containing a random token, shown in
 token is the only credential: no session or bearer token is involved. Point your
 provider at it and enable auto deploy.
 
-- The pushed branch is matched against every environment of the project: one
-  that overrides the branch is deployed when the push is on its own branch, the
-  rest when it is on the project's. The response carries a `deployment_ids`
-  array, one entry per environment that matched.
-- A push no environment is on is answered `202 ignored` so the provider does
-  not disable the hook.
+- The push is matched against every git service of every environment: both the
+  repository it came from and the branch have to be the service's, so a push to
+  one repository never redeploys a service built from another. An environment
+  with its own branch matches on that instead of the service's. The response
+  carries a `deployment_ids` array, one entry per environment that matched.
+- A push no service follows is answered `202 ignored` so the provider does not
+  disable the hook.
 - GitHub `ping` events are answered `202 pong`.
 - When a webhook secret is configured, `X-Hub-Signature-256` is verified before
   anything else happens.

@@ -52,25 +52,22 @@ function serviceColumns({ projectId, hostnames, deploy, act }: RowActions): Colu
 				</span>
 			),
 		}),
-		cell.accessor(service => (service.source_type === 'unconfigured' ? '' : service.state || 'stopped'), {
+		cell.accessor(service => (service.provider === 'unconfigured' ? '' : service.state || 'stopped'), {
 			id: 'state',
 			header: 'State',
 			cell: ({ row: { original } }) =>
-				original.source_type === 'unconfigured' ? (
-					<span className='text-muted-foreground'>needs a source</span>
+				original.provider === 'unconfigured' ? (
+					<span className='text-muted-foreground'>needs a provider</span>
 				) : (
 					<Status value={original.state || 'stopped'} />
 				),
 		}),
-		cell.accessor(
-			service => (service.source_type === 'unconfigured' ? '' : service.image || service.running_image),
-			{
-				id: 'image',
-				header: 'Image',
-				meta: { mono: true },
-				cell: ({ getValue }) => getValue() || '-',
-			},
-		),
+		cell.accessor(service => (service.provider === 'unconfigured' ? '' : service.image || service.running_image), {
+			id: 'image',
+			header: 'Image',
+			meta: { mono: true },
+			cell: ({ getValue }) => getValue() || '-',
+		}),
 		cell.accessor(service => hostnames.get(service.id)?.[0] ?? '', {
 			id: 'domain',
 			header: 'Domain',
@@ -137,7 +134,7 @@ function serviceColumns({ projectId, hostnames, deploy, act }: RowActions): Colu
 						<Button
 							variant='ghost'
 							onClick={() => deploy(original.id)}
-							disabled={original.source_type === 'unconfigured'}
+							disabled={original.provider === 'unconfigured'}
 						>
 							deploy
 						</Button>

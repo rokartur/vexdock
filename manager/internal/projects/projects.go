@@ -28,34 +28,30 @@ func New(db *database.DB, cfg *config.Config, cipher *security.Cipher) *Service 
 	return &Service{db: db, cfg: cfg, cipher: cipher}
 }
 
-// CreateInput is the validated payload of the New Project wizard.
+// CreateInput is the validated payload of the New Project wizard. A project is
+// a grouping, so this is a name and its labels; what gets deployed is decided
+// per service.
 type CreateInput struct {
-	Name          string
-	SourceType    string
-	RepositoryURL string
-	Branch        string
-	ComposePath   string
-	// ComposeContent is used when SourceType is "compose": the raw file the
-	// user pasted, written into the project's repository directory.
-	ComposeContent   string
-	AutoDeploy       bool
-	Tags             []string
-	CredentialKind   string
-	CredentialSecret string
+	Name       string
+	AutoDeploy bool
+	Tags       []string
 }
 
 // ServiceInput is the create form of one service inside a project. Which
-// fields matter is decided by SourceType, and Database is set only when the
+// fields matter is decided by Provider, and Database is set only when the
 // service is a catalog database.
 type ServiceInput struct {
 	Name          string
-	SourceType    string
+	Provider      string
 	RepositoryURL string
 	Branch        string
 	BuildPath     string
-	// Image is the reference an image-sourced service runs.
+	// CredentialKind and CredentialSecret authenticate a private clone.
+	CredentialKind   string
+	CredentialSecret string
+	// Image is the reference an image service runs.
 	Image string
-	// ComposeFragment is the YAML body of a hand-written service.
+	// ComposeFragment is the YAML body of a raw service.
 	ComposeFragment string
 	Database        *DatabaseInput
 }
@@ -77,10 +73,6 @@ type DatabaseInput struct {
 // MaxTags caps how many labels one project can carry; the list is stored in a
 // single column and displayed inline, so a long tail helps nobody.
 const MaxTags = 20
-
-// StarterCompose is what a project created from nothing but a name contains
-// until its source is configured. It is deliberately not deployable.
-const StarterCompose = "# Add your services here, or switch this project to a\n# git repository in Settings.\nservices: {}\n"
 
 // NormalizeTags slugifies free-form labels, which keeps them comma-free for
 // storage, makes them compare case-insensitively and drops duplicates.
@@ -130,43 +122,15 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 		return nil, err
 	}
 
-	if in.SourceType == "" {
-		in.SourceType = database.SourceCompose
-	}
-
 	p := &database.Project{
-		ID:                database.NewID(),
-		Name:              name,
-		Slug:              slug,
-		SourceType:        in.SourceType,
-		Branch:            "main",
-		ComposePath:       "compose.yml",
-		AutoDeploy:        in.AutoDeploy,
-		Tags:              in.Tags,
-		WebhookToken:      security.RandomToken(24),
-		GitCredentialKind: database.GitCredentialNone,
+		ID:           database.NewID(),
+		Name:         name,
+		Slug:         slug,
+		AutoDeploy:   in.AutoDeploy,
+		Tags:         in.Tags,
+		WebhookToken: security.RandomToken(24),
 	}
 	p.ComposeProjectName = ComposeProjectName(p.ID)
-
-	switch in.SourceType {
-	case database.SourceGit:
-		p.RepositoryURL = in.RepositoryURL
-		if in.Branch != "" {
-			p.Branch = in.Branch
-		}
-		if in.ComposePath != "" {
-			p.ComposePath = in.ComposePath
-		}
-		if err := s.setCredential(p, in.CredentialKind, in.CredentialSecret); err != nil {
-			return nil, err
-		}
-	case database.SourceCompose:
-		if strings.TrimSpace(in.ComposeContent) == "" {
-			in.ComposeContent = StarterCompose
-		}
-	default:
-		return nil, fmt.Errorf("unknown source type %q", in.SourceType)
-	}
 
 	if err := s.Validate(p); err != nil {
 		return nil, err
@@ -197,12 +161,6 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 		_ = s.db.DeleteProject(ctx, p.ID)
 		return nil, err
 	}
-	if in.SourceType == database.SourceCompose {
-		if err := s.WriteComposeFile(p, env, in.ComposeContent); err != nil {
-			_ = s.db.DeleteProject(ctx, p.ID)
-			return nil, err
-		}
-	}
 	return p, nil
 }
 
@@ -211,8 +169,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 func ComposeProjectName(id string) string { return "p_" + strings.ToLower(id) }
 
 // Validate normalises and checks a project's mutable fields. Creation and every
-// update run through it, so a compose path can never escape the project
-// directory and a repository URL can never use a dangerous git transport.
+// update run through it.
 func (s *Service) Validate(p *database.Project) error {
 	p.Tags = NormalizeTags(p.Tags)
 	p.Name = strings.TrimSpace(p.Name)
@@ -222,66 +179,7 @@ func (s *Service) Validate(p *database.Project) error {
 	if p.Slug == "" {
 		p.Slug = Slugify(p.Name)
 	}
-	if err := security.ValidateSlug(p.Slug); err != nil {
-		return err
-	}
-
-	p.ComposePath = filepath.ToSlash(strings.TrimPrefix(strings.TrimSpace(p.ComposePath), "./"))
-	if p.ComposePath == "" {
-		p.ComposePath = "compose.yml"
-	}
-	if _, err := security.ResolveInside(s.repositoryDir(p.ID), p.ComposePath); err != nil {
-		return err
-	}
-
-	switch p.SourceType {
-	case database.SourceGit:
-		url, err := security.ValidateGitURL(p.RepositoryURL)
-		if err != nil {
-			return err
-		}
-		p.RepositoryURL = url
-		ref, err := security.ValidateGitRef(p.Branch)
-		if err != nil {
-			return err
-		}
-		p.Branch = ref
-	case database.SourceCompose:
-	default:
-		return fmt.Errorf("unknown source type %q", p.SourceType)
-	}
-	return nil
-}
-
-// ResetCheckout empties the checkout of every environment and seeds the starter
-// file when the project is compose. It runs when the source type changes: git
-// clone refuses a directory that already holds files, and a leftover checkout
-// would shadow a hand-written compose file. Everything under those directories
-// is reproducible from the source, so nothing unrecoverable is thrown away.
-//
-// The source type belongs to the project, so changing it invalidates the
-// checkout of every environment, not only the one the request came from.
-func (s *Service) ResetCheckout(ctx context.Context, p *database.Project) error {
-	envs, err := s.db.ListEnvironments(ctx, p.ID)
-	if err != nil {
-		return err
-	}
-	for i := range envs {
-		env := &envs[i]
-		dir := s.repositoryDir(env.ID)
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
-		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return err
-		}
-		if p.SourceType == database.SourceCompose {
-			if err := s.WriteComposeFile(p, env, StarterCompose); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return security.ValidateSlug(p.Slug)
 }
 
 func (s *Service) prepareDirs(env *database.Environment) error {
@@ -297,9 +195,9 @@ func (s *Service) repositoryDir(id string) string {
 	return filepath.Join(s.cfg.ProjectDir(id), "repository")
 }
 
-// RepositoryDir is the checkout root of one environment. The default
-// environment carries its project's id, so an install that predates
-// environments finds its checkout exactly where it left it.
+// RepositoryDir is the working directory compose runs in for one environment.
+// The default environment carries its project's id, so an install that predates
+// environments finds its directory exactly where it left it.
 func (s *Service) RepositoryDir(env *database.Environment) string { return s.repositoryDir(env.ID) }
 
 // EnvFilePath is the generated .env consumed by docker compose.
@@ -307,61 +205,26 @@ func (s *Service) EnvFilePath(env *database.Environment) string {
 	return filepath.Join(s.cfg.ProjectDir(env.ID), ".env")
 }
 
-// WriteComposeFile stores a pasted compose file inside the environment's repository.
-func (s *Service) WriteComposeFile(p *database.Project, env *database.Environment, content string) error {
-	target, err := security.ResolveInside(s.repositoryDir(env.ID), p.ComposePath)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
-		return err
-	}
-	return os.WriteFile(target, []byte(content), 0o640)
-}
-
-// ReadComposeFile returns the compose file currently on disk, if any.
-func (s *Service) ReadComposeFile(p *database.Project, env *database.Environment) (string, error) {
-	target, err := security.ResolveInside(s.repositoryDir(env.ID), p.ComposePath)
-	if err != nil {
-		return "", err
-	}
-	body, err := os.ReadFile(target)
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return string(body), nil
-}
-
-// ComposeProject builds the compose invocation for a project, writing the .env
-// file first so compose and the containers see the same values.
+// ComposeProject builds the compose invocation for an environment, writing the
+// .env file first so compose and the containers see the same values. Every
+// service the environment owns is rendered into one generated file; nothing
+// else is read from disk.
 func (s *Service) ComposeProject(ctx context.Context, p *database.Project, env *database.Environment) (compose.Project, error) {
-	repoDir := s.repositoryDir(env.ID)
-	file, err := security.ResolveInside(repoDir, p.ComposePath)
-	if err != nil {
-		return compose.Project{}, err
-	}
 	envFile, err := s.WriteEnvFile(ctx, p, env)
 	if err != nil {
 		return compose.Project{}, err
 	}
-	// Services the dashboard owns arrive as a second file layered over the
-	// project's own, which is why an imported compose keeps working untouched
-	// and can still gain a database next to it.
 	overlay, err := s.WriteOverlay(ctx, env)
 	if err != nil {
 		return compose.Project{}, err
 	}
-	files := []string{file}
-	if overlay != "" {
-		files = append(files, overlay)
+	if overlay == "" {
+		return compose.Project{}, fmt.Errorf("environment %s has no configured service to deploy", env.Slug)
 	}
 	return compose.Project{
 		Name:    env.ComposeProjectName,
-		Dir:     repoDir,
-		Files:   files,
+		Dir:     s.repositoryDir(env.ID),
+		Files:   []string{overlay},
 		EnvFile: envFile,
 	}, nil
 }
@@ -537,35 +400,28 @@ func (s *Service) setVariables(ctx context.Context, scope database.SecretScope, 
 	return nil
 }
 
-// Credential decrypts the git credential attached to a project.
-func (s *Service) Credential(p *database.Project) (git.Credential, error) {
-	if p.GitCredentialKind == "" || p.GitCredentialKind == database.GitCredentialNone || p.GitCredentialEnc == "" {
+// Credential decrypts the git credential attached to a service.
+func (s *Service) Credential(svc *database.Service) (git.Credential, error) {
+	if svc.CredentialKind == "" || svc.CredentialKind == database.GitCredentialNone || svc.CredentialEnc == "" {
 		return git.Credential{Kind: git.KindNone}, nil
 	}
-	value, err := s.cipher.Decrypt(p.GitCredentialEnc)
+	value, err := s.cipher.Decrypt(svc.CredentialEnc)
 	if err != nil {
 		return git.Credential{}, err
 	}
-	return git.Credential{Kind: p.GitCredentialKind, Value: value}, nil
+	return git.Credential{Kind: svc.CredentialKind, Value: value}, nil
 }
 
-// SetCredential encrypts and attaches a git credential to a project.
-func (s *Service) SetCredential(ctx context.Context, p *database.Project, kind, secret string) error {
-	if err := s.setCredential(p, kind, secret); err != nil {
-		return err
-	}
-	return s.db.UpdateProject(ctx, p)
-}
-
-func (s *Service) setCredential(p *database.Project, kind, secret string) error {
+// SetCredential encrypts a git credential onto a service. An empty secret with
+// a credential already stored means "keep current".
+func (s *Service) SetCredential(svc *database.Service, kind, secret string) error {
 	switch kind {
 	case "", database.GitCredentialNone:
-		p.GitCredentialKind, p.GitCredentialEnc = database.GitCredentialNone, ""
+		svc.CredentialKind, svc.CredentialEnc = database.GitCredentialNone, ""
 		return nil
 	case database.GitCredentialToken, database.GitCredentialSSH:
 		if strings.TrimSpace(secret) == "" {
-			// Empty secret with an existing credential means "keep current".
-			if p.GitCredentialEnc != "" && p.GitCredentialKind == kind {
+			if svc.CredentialEnc != "" && svc.CredentialKind == kind {
 				return nil
 			}
 			return fmt.Errorf("a credential value is required for %s", kind)
@@ -574,7 +430,7 @@ func (s *Service) setCredential(p *database.Project, kind, secret string) error 
 		if err != nil {
 			return err
 		}
-		p.GitCredentialKind, p.GitCredentialEnc = kind, enc
+		svc.CredentialKind, svc.CredentialEnc = kind, enc
 		return nil
 	default:
 		return fmt.Errorf("unknown credential kind %q", kind)

@@ -12,7 +12,6 @@ export type User = {
 	name: string
 }
 
-export type SourceType = 'git' | 'compose'
 export type CredentialKind = 'none' | 'token' | 'ssh_key'
 
 export type DeploymentStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
@@ -110,15 +109,10 @@ export type Project = {
 	id: string
 	name: string
 	slug: string
-	source_type: SourceType
-	repository_url: string
-	branch: string
-	compose_path: string
 	compose_project_name: string
 	auto_deploy: boolean
 	/** Free-form labels, slugified by the manager. */
 	tags: string[]
-	git_credential_kind: CredentialKind
 	created_at: string
 	updated_at: string
 	service_count: number
@@ -147,7 +141,7 @@ export type Environment = {
 	project_id: string
 	name: string
 	slug: string
-	/** Empty means the environment deploys whatever branch the project does. */
+	/** Empty means every git service deploys the branch it names itself. */
 	branch: string
 	compose_project_name: string
 	is_default: boolean
@@ -159,13 +153,18 @@ export type Environment = {
 export type ServiceType = 'application' | 'database'
 
 /**
- * Where a service's compose definition comes from. 'derived' is read-only: the
- * service exists because the project's own compose file declares it, so the
- * dashboard describes it but never rewrites it. 'unconfigured' is an
- * application that is still only a name, and deploys to nothing until its
- * settings answer where it comes from.
+ * Where a service comes from. The five git providers clone the same way and
+ * differ only in webhook dialect and label. 'image' pulls a tag, 'raw' is a
+ * pasted compose fragment, and 'unconfigured' is still only a name, deploying
+ * to nothing until its settings answer where it comes from.
  */
-export type ServiceSource = 'derived' | 'unconfigured' | 'git' | 'image' | 'compose'
+export type ServiceProvider = 'unconfigured' | 'github' | 'gitlab' | 'bitbucket' | 'gitea' | 'git' | 'image' | 'raw'
+
+export const GIT_PROVIDERS = ['github', 'gitlab', 'bitbucket', 'gitea', 'git'] as const
+
+export function isGitProvider(provider: ServiceProvider) {
+	return (GIT_PROVIDERS as readonly string[]).includes(provider)
+}
 
 export type Service = {
 	id: string
@@ -173,10 +172,11 @@ export type Service = {
 	compose_service_name: string
 	display_name: string
 	type: ServiceType
-	source_type: ServiceSource
+	provider: ServiceProvider
 	repository_url: string
 	branch: string
 	build_path: string
+	credential_kind: CredentialKind
 	/** What the service is configured to run, which is set before it ever deploys. */
 	image: string
 	engine: string
@@ -586,31 +586,14 @@ export const api = {
 
 	projects: () => request<Project[]>('/api/projects'),
 	project: (id: string) => request<Project>(`/api/projects/${id}`),
-	createProject: (body: {
-		name: string
-		source_type: SourceType
-		repository_url?: string
-		branch?: string
-		compose_path?: string
-		compose_content?: string
-		auto_deploy?: boolean
-		tags?: string[]
-		credential_kind?: CredentialKind
-		credential_secret?: string
-	}) => request<Project>('/api/projects', { method: 'POST', body }),
+	createProject: (body: { name: string; auto_deploy?: boolean; tags?: string[] }) =>
+		request<Project>('/api/projects', { method: 'POST', body }),
 	updateProject: (
 		id: string,
 		body: Partial<{
 			name: string
-			/** Switching this empties the project's checkout. */
-			source_type: SourceType
-			branch: string
-			compose_path: string
-			repository_url: string
 			auto_deploy: boolean
 			tags: string[]
-			credential_kind: CredentialKind
-			credential_secret: string
 			webhook_secret: string
 		}>,
 	) => request<Project>(`/api/projects/${id}`, { method: 'PATCH', body }),
@@ -621,13 +604,6 @@ export const api = {
 	/** Full-stack stop. Prefer serviceAction('stop') for one service. */
 	stopProject: (id: string, environmentId?: string) =>
 		request<{ ok: boolean }>(`/api/projects/${id}/stop${environmentQuery(environmentId)}`, { method: 'POST' }),
-	compose: (id: string, environmentId?: string) =>
-		request<{ content: string; path: string }>(`/api/projects/${id}/compose${environmentQuery(environmentId)}`),
-	saveCompose: (id: string, content: string, environmentId?: string) =>
-		request<{ ok: boolean }>(`/api/projects/${id}/compose${environmentQuery(environmentId)}`, {
-			method: 'PUT',
-			body: { content },
-		}),
 	/** The variables every environment of the project shares. */
 	projectVariables: (id: string) => request<EnvVar[]>(`/api/projects/${id}/variables`),
 	saveProjectVariables: (id: string, variables: EnvVar[]) =>
@@ -654,10 +630,12 @@ export const api = {
 		projectId: string,
 		body: {
 			name: string
-			source_type: Exclude<ServiceSource, 'derived'>
+			provider: ServiceProvider
 			repository_url?: string
 			branch?: string
 			build_path?: string
+			credential_kind?: CredentialKind
+			credential_secret?: string
 			image?: string
 			compose_fragment?: string
 			database?: {
@@ -694,11 +672,13 @@ export const api = {
 		id: string,
 		body: Partial<{
 			display_name: string
-			/** Only ever unconfigured -> git | image; a settled source is settled. */
-			source_type: 'git' | 'image'
+			/** An application may switch freely; a database's provider is fixed. */
+			provider: ServiceProvider
 			repository_url: string
 			branch: string
 			build_path: string
+			credential_kind: CredentialKind
+			credential_secret: string
 			/** For a database this is the version switch: set it, then redeploy. */
 			image: string
 			compose_fragment: string

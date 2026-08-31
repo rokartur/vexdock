@@ -7,7 +7,7 @@ const encode = (value: unknown) => btoa(String.fromCharCode(...new TextEncoder()
 
 const service = (env: { key: string; value: string; is_secret: boolean }[]) => ({
 	name: 'db',
-	source_type: 'image' as const,
+	provider: 'image' as const,
 	env,
 })
 
@@ -20,21 +20,21 @@ describe('decodeExport', () => {
 		const services = [
 			{
 				name: 'api',
-				source_type: 'git' as const,
+				provider: 'github' as const,
 				env: [{ key: 'GREETING', value: 'cześć → 你好', is_secret: false }],
 			},
 		]
-		const decoded = decodeExport(encode({ version: 1, project: 'usagefleet', services }))
-		expect(decoded).toEqual({ version: 1, project: 'usagefleet', services })
+		const decoded = decodeExport(encode({ version: 2, project: 'usagefleet', services }))
+		expect(decoded).toEqual({ version: 2, project: 'usagefleet', services })
 	})
 
-	test('rejects a payload whose services claim a source that cannot be created', () => {
-		const decoded = decodeExport(encode({ version: 1, services: [{ name: 'web', source_type: 'derived' }] }))
+	test('rejects a payload whose services claim a provider that cannot be created', () => {
+		const decoded = decodeExport(encode({ version: 2, services: [{ name: 'web', provider: 'derived' }] }))
 		expect(decoded).toBeInstanceOf(Error)
 	})
 
 	test('names the version rather than the paste when it is one it cannot read', () => {
-		const decoded = decodeExport(encode({ version: 2, services: [{ name: 'api', source_type: 'git' }] }))
+		const decoded = decodeExport(encode({ version: 1, services: [{ name: 'api', provider: 'github' }] }))
 		expect((decoded as Error).message).toContain('version 2')
 	})
 

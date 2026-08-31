@@ -53,30 +53,43 @@ func (s *Service) CreateEnvironment(ctx context.Context, p *database.Project, na
 		_ = s.db.DeleteEnvironment(ctx, env.ID)
 		return nil, err
 	}
-	if p.SourceType == database.SourceCompose {
-		if err := s.seedComposeFile(ctx, p, env); err != nil {
-			_ = s.db.DeleteEnvironment(ctx, env.ID)
-			return nil, err
-		}
+	if err := s.seedServices(ctx, p, env); err != nil {
+		_ = s.db.DeleteEnvironment(ctx, env.ID)
+		return nil, err
 	}
 	return env, nil
 }
 
-// seedComposeFile copies the default environment's compose file into a new one.
-// A project whose compose lives in git has nothing to copy: the deploy clones it.
-func (s *Service) seedComposeFile(ctx context.Context, p *database.Project, env *database.Environment) error {
+// seedServices copies the default environment's services into a new one, so a
+// staging environment starts as a copy of production rather than as nothing.
+// Variables come along: a database without its credentials cannot start.
+func (s *Service) seedServices(ctx context.Context, p *database.Project, env *database.Environment) error {
 	source, err := s.db.DefaultEnvironment(ctx, p.ID)
 	if err != nil {
 		return err
 	}
-	content, err := s.ReadComposeFile(p, source)
+	if source.ID == env.ID {
+		return nil
+	}
+	services, err := s.db.ListServices(ctx, source.ID)
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(content) == "" {
-		content = StarterCompose
+	for _, svc := range services {
+		vars, err := s.ServiceVariables(ctx, svc.ID)
+		if err != nil {
+			return err
+		}
+		svc.ID, svc.EnvironmentID = database.NewID(), env.ID
+		if err := s.db.CreateService(ctx, &svc); err != nil {
+			return err
+		}
+		if err := s.SetServiceVariables(ctx, svc.ID, vars); err != nil {
+			return err
+		}
 	}
-	return s.WriteComposeFile(p, env, content)
+	_, err = s.WriteOverlay(ctx, env)
+	return err
 }
 
 // UpdateEnvironment renames an environment or repoints its branch. The slug and

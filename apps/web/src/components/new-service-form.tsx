@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { api, type Service } from '../lib/api'
+import { api, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { Button, ErrorText, Field } from './primitives'
 
@@ -15,6 +15,12 @@ const titles: Record<ServiceKind, string> = {
 	application: 'New application',
 	database: 'New database',
 	compose: 'New compose service',
+}
+
+const providers: Record<ServiceKind, ServiceProvider> = {
+	application: 'unconfigured',
+	database: 'image',
+	compose: 'raw',
 }
 
 export function newServiceTitle(kind: ServiceKind) {
@@ -66,7 +72,7 @@ export function NewServiceForm({
 				projectId,
 				{
 					name,
-					source_type: kind === 'database' ? 'image' : kind === 'compose' ? 'compose' : 'unconfigured',
+					provider: providers[kind],
 					...(kind === 'compose' ? { compose_fragment: fragment } : {}),
 					...(kind === 'database'
 						? {

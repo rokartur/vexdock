@@ -11,6 +11,27 @@ import (
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
+// applyGit validates and stores the repository fields of a git service.
+func (s *Service) applyGit(svc *database.Service, in ServiceInput) error {
+	url, err := security.ValidateGitURL(in.RepositoryURL)
+	if err != nil {
+		return err
+	}
+	branch := in.Branch
+	if branch == "" {
+		branch = "main"
+	}
+	if branch, err = security.ValidateGitRef(branch); err != nil {
+		return err
+	}
+	buildPath, err := security.ValidateSubPath(in.BuildPath)
+	if err != nil {
+		return err
+	}
+	svc.RepositoryURL, svc.Branch, svc.BuildPath = url, branch, buildPath
+	return s.SetCredential(svc, in.CredentialKind, in.CredentialSecret)
+}
+
 // CreateService adds a service the manager owns to a project. A database is
 // rendered from the catalog before the row is written, so an invalid engine or
 // version fails without leaving a half-created service behind.
@@ -29,31 +50,20 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 		EnvironmentID:      env.ID,
 		ComposeServiceName: name,
 		Type:               database.ServiceApplication,
-		SourceType:         in.SourceType,
+		Provider:           in.Provider,
+		CredentialKind:     database.GitCredentialNone,
 	}
 	var seed []engines.Variable
 
-	switch in.SourceType {
-	case database.ServiceUnconfigured:
+	switch {
+	case in.Provider == database.ProviderUnconfigured:
 		// An application is created as a bare name. Where its image comes from
 		// is answered later, in the service's own settings.
-	case database.ServiceGit:
-		url, err := security.ValidateGitURL(in.RepositoryURL)
-		if err != nil {
+	case database.GitProvider(in.Provider):
+		if err := s.applyGit(svc, in); err != nil {
 			return nil, err
 		}
-		branch := in.Branch
-		if branch == "" {
-			branch = "main"
-		}
-		if branch, err = security.ValidateGitRef(branch); err != nil {
-			return nil, err
-		}
-		svc.RepositoryURL, svc.Branch = url, branch
-		if svc.BuildPath, err = security.ValidateSubPath(in.BuildPath); err != nil {
-			return nil, err
-		}
-	case database.ServiceImage:
+	case in.Provider == database.ProviderImage:
 		if in.Database == nil {
 			image, err := engines.ValidateImage(in.Image)
 			if err != nil {
@@ -85,13 +95,13 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 		// knows it for curated engines.
 		svc.DataPath = strings.TrimSpace(in.Database.DataPath)
 		seed = rendered.Env
-	case database.ServiceCompose:
+	case in.Provider == database.ProviderRaw:
 		if strings.TrimSpace(in.ComposeFragment) == "" {
 			return nil, fmt.Errorf("a compose fragment is required")
 		}
 		svc.ComposeFragment = in.ComposeFragment
 	default:
-		return nil, fmt.Errorf("unknown service source %q", in.SourceType)
+		return nil, fmt.Errorf("unknown service provider %q", in.Provider)
 	}
 
 	if err := s.db.CreateService(ctx, svc); err != nil {
@@ -124,9 +134,6 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 // the delete even though the data does. Read it from the database endpoint
 // first if the volume is ever meant to be reattached.
 func (s *Service) DeleteService(ctx context.Context, svc *database.Service, env *database.Environment) error {
-	if !svc.Managed() {
-		return fmt.Errorf("this service is declared by the project's own compose file; remove it there")
-	}
 	if err := s.db.DeleteService(ctx, svc.ID); err != nil {
 		return err
 	}

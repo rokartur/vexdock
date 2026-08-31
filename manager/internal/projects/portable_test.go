@@ -22,13 +22,13 @@ func TestOverlaySkipsAnUnconfiguredApplication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{Name: "web", SourceType: database.ServiceUnconfigured}); err != nil {
+	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{Name: "web", Provider: database.ProviderUnconfigured}); err != nil {
 		t.Fatalf("create unconfigured service: %v", err)
 	}
 	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
-		Name:       "db",
-		SourceType: database.ServiceImage,
-		Database:   &DatabaseInput{Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: "s3cret"},
+		Name:     "db",
+		Provider: database.ProviderImage,
+		Database: &DatabaseInput{Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: "s3cret"},
 	}); err != nil {
 		t.Fatalf("create database: %v", err)
 	}
@@ -62,9 +62,9 @@ func TestExportServicesWithholdsSecretsUnlessAsked(t *testing.T) {
 		t.Fatalf("create project: %v", err)
 	}
 	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
-		Name:       "db",
-		SourceType: database.ServiceImage,
-		Database:   &DatabaseInput{Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: "s3cret"},
+		Name:     "db",
+		Provider: database.ProviderImage,
+		Database: &DatabaseInput{Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: "s3cret"},
 	}); err != nil {
 		t.Fatalf("create database: %v", err)
 	}

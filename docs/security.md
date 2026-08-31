@@ -87,8 +87,6 @@ Values that reach a command line are validated first:
   read host files or execute a command during clone. Secrets in the URL are
   rejected too.
 - **Git refs** reject anything starting with `-` and any shell metacharacter.
-- **Compose paths** are resolved against the project directory and rejected if
-  the result escapes it.
 - **Build paths** must stay inside the checkout: `..`, backslashes and anything
   a path clean would rewrite are rejected, on create and on edit alike, so a
   build context cannot be aimed at an arbitrary host directory.
@@ -115,6 +113,10 @@ unencrypted, so a command that echoes a secret leaves it in the run history.
   A fresh nonce per value means two identical secrets are not linkable.
 - The master key is a 0600 file under `/opt/vexdock/secrets`, never in the
   database it protects.
+- Git credentials belong to a service, not to a project: each one is encrypted
+  with the same AES-256-GCM key and only ever decrypted for that service's own
+  clone. The secret is write-only over the API and never read back, so an export
+  or a project move arrives without it.
 - Git credentials never reach the command line. Tokens go through `GIT_ASKPASS`
   and SSH keys through a 0600 temporary file removed when the clone finishes.
 - The variable editors (`/variables` on a project, an environment or a service)

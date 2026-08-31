@@ -24,19 +24,6 @@ const projectTableColumns: Columns<Project> = (() => {
 			header: 'Tags',
 			cell: ({ row }) => <span className='text-muted-foreground'>{tagsOf(row.original).join(' ') || '-'}</span>,
 		}),
-		cell.accessor(sourceLabel, {
-			id: 'source',
-			header: 'Source',
-			meta: { mono: true },
-			cell: ({ row: { original } }) => (
-				<>
-					{sourceLabel(original)}
-					{original.source_type === 'git' ? (
-						<span className='text-muted-foreground'> @{original.branch}</span>
-					) : null}
-				</>
-			),
-		}),
 		cell.accessor(project => project.running_count, {
 			id: 'services',
 			header: 'Services',
@@ -115,19 +102,11 @@ function ProjectsPage() {
 					columns={projectTableColumns}
 					loading={projects.isLoading}
 					getRowId={project => project.id}
-					empty='No projects yet. Create one, then point it at a repository or a compose file in its settings.'
+					empty='No projects yet. Create one, then add services to it.'
 				/>
 			</Section>
 		</Page>
 	)
-}
-
-function shortRepo(url: string): string {
-	return url.replace(/^https?:\/\//u, '').replace(/\.git$/u, '')
-}
-
-function sourceLabel(project: Project): string {
-	return project.source_type === 'git' ? shortRepo(project.repository_url) : 'compose'
 }
 
 /** Managers older than the tags column answer without the field. */
@@ -137,8 +116,7 @@ function tagsOf(project: Project): string[] {
 
 /**
  * A project is the folder its services live in. What it runs is decided one
- * service at a time inside it, so this form only needs a name and, when the
- * whole project builds from one repository, where that code is.
+ * service at a time inside it, so this form only needs a name.
  */
 function NewProjectForm({ knownTags, onDone }: { knownTags: string[]; onDone: () => void }) {
 	const navigate = useNavigate()
@@ -146,17 +124,9 @@ function NewProjectForm({ knownTags, onDone }: { knownTags: string[]; onDone: ()
 
 	const [name, setName] = useState('')
 	const [tags, setTags] = useState<string[]>([])
-	const [repositoryUrl, setRepositoryUrl] = useState('')
-	const [branch, setBranch] = useState('main')
 
 	const create = useMutation({
-		mutationFn: () =>
-			api.createProject({
-				name,
-				tags,
-				source_type: repositoryUrl ? 'git' : 'compose',
-				...(repositoryUrl ? { repository_url: repositoryUrl, branch } : {}),
-			}),
+		mutationFn: () => api.createProject({ name, tags }),
 		onSuccess: async project => {
 			await queryClient.invalidateQueries({ queryKey: ['projects'] })
 			onDone()
@@ -179,19 +149,6 @@ function NewProjectForm({ knownTags, onDone }: { knownTags: string[]; onDone: ()
 				<Field label='Tags (optional)' hint='Enter adds one, click a tag to drop it.'>
 					<TagInput value={tags} onChange={setTags} suggestions={knownTags} />
 				</Field>
-
-				<Field label='Repository (optional)' hint='Leave empty and add services one at a time instead.'>
-					<input
-						value={repositoryUrl}
-						onChange={event => setRepositoryUrl(event.target.value)}
-						placeholder='https://github.com/you/app'
-					/>
-				</Field>
-				{repositoryUrl ? (
-					<Field label='Branch'>
-						<input required value={branch} onChange={event => setBranch(event.target.value)} />
-					</Field>
-				) : null}
 			</div>
 
 			<ErrorText error={create.error} />

@@ -16,26 +16,16 @@ func NewID() string {
 // Accounts and sessions belong to the better-auth service and its own database;
 // this package does not model them.
 
-// SourceType enumerates where a project's compose file comes from.
-const (
-	SourceGit     = "git"
-	SourceCompose = "compose"
-)
-
+// Project groups environments, services and domains under one name. It owns no
+// source of its own: where code comes from is a per service decision.
 type Project struct {
 	ID                 string   `json:"id"`
 	Name               string   `json:"name"`
 	Slug               string   `json:"slug"`
-	SourceType         string   `json:"source_type"`
-	RepositoryURL      string   `json:"repository_url"`
-	Branch             string   `json:"branch"`
-	ComposePath        string   `json:"compose_path"`
 	ComposeProjectName string   `json:"compose_project_name"`
 	AutoDeploy         bool     `json:"auto_deploy"`
 	Tags               []string `json:"tags"`
 	WebhookToken       string   `json:"-"`
-	GitCredentialKind  string   `json:"git_credential_kind"`
-	GitCredentialEnc   string   `json:"-"`
 	CreatedAt          string   `json:"created_at"`
 	UpdatedAt          string   `json:"updated_at"`
 }
@@ -67,19 +57,31 @@ const (
 	ServiceDatabase    = "database"
 )
 
-// ServiceSource enumerates where a service's compose definition comes from.
-// Derived is the read-only case: the service exists because the project's own
-// compose file declares it, so the dashboard describes it but never writes it.
-// Unconfigured is the opposite end: an application that is so far only a name,
-// created before anyone decided whether it builds from a repository or runs a
-// published image. It renders into nothing until that is settled.
+// Provider enumerates where a service's compose definition comes from. The five
+// git values all clone over the same code path; which one is set decides how a
+// webhook from that host is read and how the repository is labelled. Raw is a
+// compose fragment pasted by hand, image is a published reference, and
+// unconfigured is a service that is so far only a name and renders into
+// nothing until someone settles the question.
 const (
-	ServiceDerived      = "derived"
-	ServiceUnconfigured = "unconfigured"
-	ServiceGit          = "git"
-	ServiceImage        = "image"
-	ServiceCompose      = "compose"
+	ProviderUnconfigured = "unconfigured"
+	ProviderGitHub       = "github"
+	ProviderGitLab       = "gitlab"
+	ProviderBitbucket    = "bitbucket"
+	ProviderGitea        = "gitea"
+	ProviderGit          = "git"
+	ProviderImage        = "image"
+	ProviderRaw          = "raw"
 )
+
+// GitProvider reports whether a provider is cloned from a repository.
+func GitProvider(provider string) bool {
+	switch provider {
+	case ProviderGitHub, ProviderGitLab, ProviderBitbucket, ProviderGitea, ProviderGit:
+		return true
+	}
+	return false
+}
 
 type Service struct {
 	ID        string `json:"id"`
@@ -90,10 +92,14 @@ type Service struct {
 	ComposeServiceName string `json:"compose_service_name"`
 	DisplayName        string `json:"display_name"`
 	Type               string `json:"type"`
-	SourceType         string `json:"source_type"`
+	Provider           string `json:"provider"`
 	RepositoryURL      string `json:"repository_url"`
 	Branch             string `json:"branch"`
 	BuildPath          string `json:"build_path"`
+	// CredentialKind and CredentialEnc authenticate the clone of a private
+	// repository. The plaintext never leaves the manager.
+	CredentialKind string `json:"credential_kind"`
+	CredentialEnc  string `json:"-"`
 	// Image is the reference an image-sourced service runs and the one a
 	// database service was created with. Changing the version is an edit of
 	// this field followed by a redeploy, which is why it is stored rather than
@@ -104,16 +110,12 @@ type Service struct {
 	// DataPath is where a custom database engine's volume mounts. Curated
 	// engines carry it in their catalog fragment, so it stays empty for them.
 	DataPath string `json:"data_path"`
-	// ComposeFragment is the YAML body a compose-sourced service contributes,
+	// ComposeFragment is the YAML body a raw service contributes,
 	// indented to sit under its own key in the overlay.
 	ComposeFragment string `json:"compose_fragment"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
 }
-
-// Managed reports whether the manager owns this service's compose definition.
-// A derived service is the project's own YAML and is never rewritten.
-func (s Service) Managed() bool { return s.SourceType != ServiceDerived && s.SourceType != "" }
 
 type Domain struct {
 	ID            string `json:"id"`
@@ -217,7 +219,8 @@ type Environment struct {
 	ProjectID string `json:"project_id"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
-	// Branch overrides the project's branch. Empty means inherit it.
+	// Branch overrides the branch of every git service in this environment.
+	// Empty means each service deploys its own.
 	Branch             string `json:"branch"`
 	ComposeProjectName string `json:"compose_project_name"`
 	IsDefault          bool   `json:"is_default"`

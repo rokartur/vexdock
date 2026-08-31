@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # End-to-end smoke test against a running stack.
 #
-# Exercises the path a real user takes: first-run setup, create a project from a
-# compose file, deploy it, attach a domain, and reach the app through the proxy.
+# Exercises the path a real user takes: first-run setup, create a project, add a
+# service to it, deploy it, attach a domain, and reach the app through the proxy.
 #
 #   make dev-up && ./scripts/smoke-test.sh
 set -euo pipefail
@@ -64,7 +64,7 @@ auth_post() { curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -H 'Content-Type: app
 
 step 'cross-origin protection'
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIES" -X POST -H 'Origin: https://evil.example.com' \
-    -H 'Content-Type: application/json' -d '{"name":"x","source_type":"compose"}' "$API/projects")
+    -H 'Content-Type: application/json' -d '{"name":"x"}' "$API/projects")
 [ "$code" = "403" ] || fail "a cross-origin mutation returned $code, expected 403"
 pass 'cross-origin mutations are rejected'
 
@@ -84,9 +84,14 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json
 pass 'only one administrator can be created'
 
 step 'project'
-project=$(auth_post -d '{"name":"Smoke Test","source_type":"compose","compose_content":"services:\n  web:\n    image: nginx:alpine\n"}' "$API/projects")
+project=$(auth_post -d '{"name":"Smoke Test"}' "$API/projects")
 PROJECT_ID=$(echo "$project" | json "d['id']")
 pass "project created: $PROJECT_ID"
+
+# A project is a grouping; what runs is one service with its own provider.
+auth_post -d '{"name":"web","provider":"image","image":"nginx:alpine"}' \
+    "$API/projects/$PROJECT_ID/services" >/dev/null
+pass 'image service added'
 
 step 'deployment'
 deployment=$(auth_post -X POST "$API/projects/$PROJECT_ID/deploy")
@@ -152,12 +157,13 @@ namespace=$(curl -fsS -b "$COOKIES" "$API/environments/$ENVIRONMENT_ID" | json "
     fail 'the new environment shares the default one'\''s compose project'
 pass "staging has its own namespace: $namespace"
 
-# The default environment keeps its service; the new one starts empty.
-staging_services=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services?environment=$ENVIRONMENT_ID" | json 'len(d)')
-[ "$staging_services" = "0" ] || fail "staging inherited $staging_services services"
-default_services=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services" | json 'len(d)')
-[ "$default_services" != "0" ] || fail 'the default environment lost its services'
-pass 'services are scoped to their environment'
+# A new environment starts as a copy of the default one, but the copies are its
+# own rows: deploying staging must never touch production's containers.
+staging_service=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services?environment=$ENVIRONMENT_ID" | json "d[0]['id']")
+default_service=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services" | json "d[0]['id']")
+[ -n "$staging_service" ] || fail 'staging inherited no services'
+[ "$staging_service" != "$default_service" ] || fail 'staging shares the default environment'\''s service row'
+pass 'services are copied into the new environment and scoped to it'
 
 curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/environments/$ENVIRONMENT_ID?volumes=true" >/dev/null
 pass 'environment removed'

@@ -85,14 +85,16 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name            string `json:"name"`
-		SourceType      string `json:"source_type"`
-		RepositoryURL   string `json:"repository_url"`
-		Branch          string `json:"branch"`
-		BuildPath       string `json:"build_path"`
-		Image           string `json:"image"`
-		ComposeFragment string `json:"compose_fragment"`
-		Database        *struct {
+		Name             string `json:"name"`
+		Provider         string `json:"provider"`
+		RepositoryURL    string `json:"repository_url"`
+		Branch           string `json:"branch"`
+		BuildPath        string `json:"build_path"`
+		CredentialKind   string `json:"credential_kind"`
+		CredentialSecret string `json:"credential_secret"`
+		Image            string `json:"image"`
+		ComposeFragment  string `json:"compose_fragment"`
+		Database         *struct {
 			Engine   string `json:"engine"`
 			Version  string `json:"version"`
 			Name     string `json:"name"`
@@ -107,16 +109,18 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := projects.ServiceInput{
-		Name:            req.Name,
-		SourceType:      req.SourceType,
-		RepositoryURL:   req.RepositoryURL,
-		Branch:          req.Branch,
-		BuildPath:       req.BuildPath,
-		Image:           req.Image,
-		ComposeFragment: req.ComposeFragment,
+		Name:             req.Name,
+		Provider:         req.Provider,
+		RepositoryURL:    req.RepositoryURL,
+		Branch:           req.Branch,
+		BuildPath:        req.BuildPath,
+		CredentialKind:   req.CredentialKind,
+		CredentialSecret: req.CredentialSecret,
+		Image:            req.Image,
+		ComposeFragment:  req.ComposeFragment,
 	}
 	if req.Database != nil {
-		in.SourceType = database.ServiceImage
+		in.Provider = database.ProviderImage
 		in.Database = &projects.DatabaseInput{
 			Engine:   req.Database.Engine,
 			Version:  req.Database.Version,
@@ -135,63 +139,63 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, service)
 }
 
-// adoptSource settles the source of an application created as a bare name.
-// Answering the question once is an edit; changing the answer afterwards is
-// not, because the checkout, the volume and the env file already hang off it.
-func adoptSource(service *database.Service, want *string) error {
-	if want == nil || *want == service.SourceType {
+// adoptProvider changes where an application comes from. A database is not
+// negotiable: its volume and its credentials were rendered from the engine it
+// was created with, so a switch would orphan the data it is holding.
+func adoptProvider(service *database.Service, want *string) error {
+	if want == nil || *want == service.Provider {
 		return nil
 	}
-	if service.SourceType != database.ServiceUnconfigured {
-		return errors.New("this service already has a source; delete it and create it again to change where it comes from")
+	if service.Type != database.ServiceApplication {
+		return errors.New("a database cannot change provider; delete it and create it again")
 	}
-	if *want != database.ServiceGit && *want != database.ServiceImage {
-		return fmt.Errorf("an application is built from %q or run from %q, not %q", database.ServiceGit, database.ServiceImage, *want)
+	switch {
+	case database.GitProvider(*want), *want == database.ProviderImage, *want == database.ProviderRaw:
+	default:
+		return fmt.Errorf("unknown provider %q", *want)
 	}
-	service.SourceType = *want
-	if *want == database.ServiceGit && service.Branch == "" {
+	service.Provider = *want
+	if database.GitProvider(*want) && service.Branch == "" {
 		service.Branch = "main"
 	}
 	return nil
 }
 
-// requireCompleteSource rejects an edit that would leave a service claiming a
-// source it has no address for, which reaches docker as an empty build.
-func requireCompleteSource(service *database.Service) error {
+// requireCompleteProvider rejects an edit that would leave a service claiming a
+// provider it has no address for, which reaches docker as an empty build.
+func requireCompleteProvider(service *database.Service) error {
 	switch {
-	case service.SourceType == database.ServiceGit && service.RepositoryURL == "":
+	case database.GitProvider(service.Provider) && service.RepositoryURL == "":
 		return errors.New("a repository URL is required")
-	case service.SourceType == database.ServiceImage && service.Image == "":
+	case service.Provider == database.ProviderImage && service.Image == "":
 		return errors.New("an image is required")
+	case service.Provider == database.ProviderRaw && strings.TrimSpace(service.ComposeFragment) == "":
+		return errors.New("a compose fragment is required")
 	}
 	return nil
 }
 
-// handleUpdateService edits a managed service. A derived service is the
-// project's own YAML, so it is described but never rewritten here.
 func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 	service, _, env, err := s.lookupService(r)
 	if handleLookupError(w, err) {
 		return
 	}
-	if !service.Managed() {
-		badRequest(w, errors.New("this service is declared by the project's own compose file; edit it there"))
-		return
-	}
 	var req struct {
-		DisplayName     *string `json:"display_name"`
-		SourceType      *string `json:"source_type"`
-		RepositoryURL   *string `json:"repository_url"`
-		Branch          *string `json:"branch"`
-		BuildPath       *string `json:"build_path"`
-		Image           *string `json:"image"`
-		ComposeFragment *string `json:"compose_fragment"`
+		DisplayName      *string `json:"display_name"`
+		Provider         *string `json:"provider"`
+		RepositoryURL    *string `json:"repository_url"`
+		Branch           *string `json:"branch"`
+		BuildPath        *string `json:"build_path"`
+		CredentialKind   *string `json:"credential_kind"`
+		CredentialSecret *string `json:"credential_secret"`
+		Image            *string `json:"image"`
+		ComposeFragment  *string `json:"compose_fragment"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
 		return
 	}
-	if err := adoptSource(service, req.SourceType); err != nil {
+	if err := adoptProvider(service, req.Provider); err != nil {
 		badRequest(w, err)
 		return
 	}
@@ -208,7 +212,17 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := requireCompleteSource(service); err != nil {
+	if req.CredentialKind != nil {
+		secret := ""
+		if req.CredentialSecret != nil {
+			secret = *req.CredentialSecret
+		}
+		if err := s.Projects.SetCredential(service, *req.CredentialKind, secret); err != nil {
+			badRequest(w, err)
+			return
+		}
+	}
+	if err := requireCompleteProvider(service); err != nil {
 		badRequest(w, err)
 		return
 	}
@@ -305,8 +319,8 @@ func (s *Server) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	if handleLookupError(w, err) {
 		return
 	}
-	if service.SourceType == database.ServiceUnconfigured {
-		badRequest(w, errors.New("this service has no source yet"))
+	if service.Provider == database.ProviderUnconfigured {
+		badRequest(w, errors.New("this service has no provider yet"))
 		return
 	}
 	user, _ := auth.UserFrom(r.Context())

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -84,7 +83,7 @@ func (s *Server) projectView(ctx context.Context, p *database.Project) (*project
 		switch {
 		case svc.Type == database.ServiceDatabase:
 			view.DatabaseCount++
-		case svc.SourceType == database.ServiceCompose || svc.SourceType == database.ServiceDerived:
+		case svc.Provider == database.ProviderRaw:
 			view.ComposeCount++
 		}
 	}
@@ -109,16 +108,9 @@ func (s *Server) projectView(ctx context.Context, p *database.Project) (*project
 }
 
 type createProjectRequest struct {
-	Name             string   `json:"name"`
-	SourceType       string   `json:"source_type"`
-	RepositoryURL    string   `json:"repository_url"`
-	Branch           string   `json:"branch"`
-	ComposePath      string   `json:"compose_path"`
-	ComposeContent   string   `json:"compose_content"`
-	AutoDeploy       bool     `json:"auto_deploy"`
-	Tags             []string `json:"tags"`
-	CredentialKind   string   `json:"credential_kind"`
-	CredentialSecret string   `json:"credential_secret"`
+	Name       string   `json:"name"`
+	AutoDeploy bool     `json:"auto_deploy"`
+	Tags       []string `json:"tags"`
 }
 
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
@@ -128,16 +120,9 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	project, err := s.Projects.Create(r.Context(), projects.CreateInput{
-		Name:             req.Name,
-		SourceType:       req.SourceType,
-		RepositoryURL:    req.RepositoryURL,
-		Branch:           req.Branch,
-		ComposePath:      req.ComposePath,
-		ComposeContent:   req.ComposeContent,
-		AutoDeploy:       req.AutoDeploy,
-		Tags:             req.Tags,
-		CredentialKind:   req.CredentialKind,
-		CredentialSecret: req.CredentialSecret,
+		Name:       req.Name,
+		AutoDeploy: req.AutoDeploy,
+		Tags:       req.Tags,
 	})
 	if err != nil {
 		badRequest(w, err)
@@ -170,15 +155,9 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name             *string   `json:"name"`
-		SourceType       *string   `json:"source_type"`
-		Branch           *string   `json:"branch"`
-		ComposePath      *string   `json:"compose_path"`
-		RepositoryURL    *string   `json:"repository_url"`
-		AutoDeploy       *bool     `json:"auto_deploy"`
-		Tags             *[]string `json:"tags"`
-		CredentialKind   *string   `json:"credential_kind"`
-		CredentialSecret *string   `json:"credential_secret"`
+		Name       *string   `json:"name"`
+		AutoDeploy *bool     `json:"auto_deploy"`
+		Tags       *[]string `json:"tags"`
 		// WebhookSecret enables HMAC verification of incoming webhooks.
 		// An empty string turns verification off again.
 		WebhookSecret *string `json:"webhook_secret"`
@@ -187,22 +166,9 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	previousSource := project.SourceType
 	if req.Name != nil {
 		project.Name = *req.Name
 		project.Slug = projects.Slugify(*req.Name)
-	}
-	if req.SourceType != nil && *req.SourceType != project.SourceType {
-		project.SourceType = *req.SourceType
-	}
-	if req.Branch != nil {
-		project.Branch = *req.Branch
-	}
-	if req.ComposePath != nil {
-		project.ComposePath = *req.ComposePath
-	}
-	if req.RepositoryURL != nil {
-		project.RepositoryURL = *req.RepositoryURL
 	}
 	if req.Tags != nil {
 		project.Tags = *req.Tags
@@ -214,14 +180,6 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	// Only once the new source validates, so a rejected switch leaves the
-	// current checkout untouched.
-	if project.SourceType != previousSource {
-		if err := s.Projects.ResetCheckout(r.Context(), project); err != nil {
-			serverError(w, err)
-			return
-		}
-	}
 	if req.WebhookSecret != nil {
 		// Trimming makes a whitespace-only value mean "turn verification off",
 		// which is the only way to clear it from a password field.
@@ -231,16 +189,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.CredentialKind != nil {
-		secret := ""
-		if req.CredentialSecret != nil {
-			secret = *req.CredentialSecret
-		}
-		if err := s.Projects.SetCredential(r.Context(), project, *req.CredentialKind, secret); err != nil {
-			badRequest(w, err)
-			return
-		}
-	} else if err := s.DB.UpdateProject(r.Context(), project); err != nil {
+	if err := s.DB.UpdateProject(r.Context(), project); err != nil {
 		serverError(w, err)
 		return
 	}
@@ -352,44 +301,6 @@ func (s *Server) handleExportServices(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warn("exported services with secret values", "project", project.Name)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"payload": payload, "secrets": secrets})
-}
-
-func (s *Server) handleGetCompose(w http.ResponseWriter, r *http.Request) {
-	project, env, ok := s.projectEnv(w, r)
-	if !ok {
-		return
-	}
-	content, err := s.Projects.ReadComposeFile(project, env)
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"content": content, "path": project.ComposePath})
-}
-
-// handlePutCompose only applies to projects whose source is a pasted compose
-// file; a git-backed file would be overwritten by the next deployment.
-func (s *Server) handlePutCompose(w http.ResponseWriter, r *http.Request) {
-	project, env, ok := s.projectEnv(w, r)
-	if !ok {
-		return
-	}
-	if project.SourceType != database.SourceCompose {
-		badRequest(w, errors.New("this project's compose file comes from git and is not editable here"))
-		return
-	}
-	var req struct {
-		Content string `json:"content"`
-	}
-	if err := decode(r, &req); err != nil {
-		badRequest(w, err)
-		return
-	}
-	if err := s.Projects.WriteComposeFile(project, env, req.Content); err != nil {
-		badRequest(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // handleGetProjectVariables returns the set shared by every environment.

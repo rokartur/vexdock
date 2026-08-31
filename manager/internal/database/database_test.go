@@ -35,9 +35,7 @@ func defaultEnv(t *testing.T, db *DB, projectID string) *Environment {
 func newProject(t *testing.T, db *DB, slug string) *Project {
 	t.Helper()
 	p := &Project{
-		ID: NewID(), Name: slug, Slug: slug, SourceType: SourceGit,
-		RepositoryURL: "https://github.com/user/app", Branch: "main",
-		ComposePath: "compose.yml", WebhookToken: "tok-" + NewID(),
+		ID: NewID(), Name: slug, Slug: slug, WebhookToken: "tok-" + NewID(),
 	}
 	p.ComposeProjectName = "p_" + p.ID
 	if err := db.CreateProject(context.Background(), p); err != nil {
@@ -132,46 +130,16 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 	}
 }
 
-func TestServiceUpsertAndPrune(t *testing.T) {
-	ctx := context.Background()
-	db := open(t)
-	project := newProject(t, db, "app")
-
-	first, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "web")
-	if err != nil {
-		t.Fatalf("upsert: %v", err)
-	}
-	again, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "web")
-	if err != nil {
-		t.Fatalf("upsert twice: %v", err)
-	}
-	if first.ID != again.ID {
-		t.Fatal("upsert created a duplicate service row")
-	}
-	if _, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "worker"); err != nil {
-		t.Fatalf("upsert worker: %v", err)
-	}
-
-	// A service removed from the compose file must disappear from the panel.
-	if err := db.PruneServices(ctx, project.ID, []string{"web"}); err != nil {
-		t.Fatalf("prune: %v", err)
-	}
-	services, err := db.ListServices(ctx, defaultEnv(t, db, project.ID).ID)
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(services) != 1 || services[0].ComposeServiceName != "web" {
-		t.Fatalf("prune left %+v", services)
-	}
-}
-
 func TestDeletingAProjectCascades(t *testing.T) {
 	ctx := context.Background()
 	db := open(t)
 	project := newProject(t, db, "app")
-	service, err := db.UpsertService(ctx, project.ID, defaultEnv(t, db, project.ID).ID, "web")
-	if err != nil {
-		t.Fatalf("upsert service: %v", err)
+	service := &Service{
+		ID: NewID(), ProjectID: project.ID, EnvironmentID: defaultEnv(t, db, project.ID).ID,
+		ComposeServiceName: "web", Type: ServiceApplication, Provider: ProviderImage, Image: "nginx",
+	}
+	if err := db.CreateService(ctx, service); err != nil {
+		t.Fatalf("create service: %v", err)
 	}
 	domain := &Domain{ID: NewID(), ProjectID: project.ID, ServiceID: service.ID, Hostname: "a.example.com", ContainerPort: 3000}
 	if err := db.CreateDomain(ctx, domain); err != nil {
@@ -274,14 +242,13 @@ func TestUpgradingToEnvironmentsKeepsData(t *testing.T) {
 
 	// Everything here is raw SQL: the pre-0010 schema has no environment column,
 	// so the helpers that write these rows today cannot describe it.
-	project := &Project{
-		ID: NewID(), Name: "app", Slug: "app", SourceType: SourceGit,
-		RepositoryURL: "https://github.com/user/app", Branch: "main",
-		ComposePath: "compose.yml", WebhookToken: "tok-" + NewID(),
-	}
+	project := &Project{ID: NewID(), Name: "app", Slug: "app"}
 	project.ComposeProjectName = "p_" + project.ID
-	if err := db.CreateProject(ctx, project); err != nil {
-		t.Fatalf("create project: %v", err)
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO projects (id, name, slug, source_type, compose_project_name, created_at, updated_at)
+		 VALUES (?, ?, ?, 'git', ?, ?, ?)`,
+		project.ID, project.Name, project.Slug, project.ComposeProjectName, Now(), Now()); err != nil {
+		t.Fatalf("insert project: %v", err)
 	}
 	serviceID := NewID()
 	if _, err := db.ExecContext(ctx,
