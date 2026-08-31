@@ -114,9 +114,14 @@ export function DataTable<TData extends RowData>({
 	const columnCount = table.getAllLeafColumns().length
 
 	return (
-		/* The box owns the outer edge; rows inside it are separated by their own hairlines.
+		/* The table is a card: ring shadow for the outer edge, rows separated by their own hairlines.
 		   overflow-hidden clips the edge-to-edge sticky header background at the rounded corners. */
-		<div className={cn('overflow-hidden rounded-lg border', fillHeight && 'flex min-h-0 flex-1 flex-col')}>
+		<div
+			className={cn(
+				'overflow-hidden rounded-xl bg-card shadow-card',
+				fillHeight && 'flex min-h-0 flex-1 flex-col',
+			)}
+		>
 			{/* Rows and hairlines run edge to edge; the gutter lives in each row's first and last cell. */}
 			<div ref={scrollRef} className={cn('overflow-auto', fillHeight ? 'min-h-0 flex-1' : 'max-h-[70vh]')}>
 				<ShadcnTable className='text-body [&_td:first-child]:pl-3 [&_th:first-child]:pl-3'>
@@ -132,7 +137,7 @@ export function DataTable<TData extends RowData>({
 												// The hairline lives on the th (inset shadow), not the tr border: collapsed
 												// tr borders do not travel with sticky cells, which reads as a gap when rows
 												// scroll underneath.
-												'sticky top-0 z-10 h-8 bg-background pr-3 pl-0 text-meta tracking-wide text-muted-foreground uppercase shadow-[inset_0_-1px_0_0_var(--border)]',
+												'sticky top-0 z-10 h-8 bg-card pr-3 pl-0 text-meta tracking-wide text-muted-foreground uppercase shadow-[inset_0_-1px_0_0_var(--border)]',
 												header.column.columnDef.meta?.align === 'right' && 'text-right',
 											)}
 										>
@@ -231,7 +236,7 @@ function PagerButton({
 			aria-label={label}
 			disabled={disabled}
 			onClick={onClick}
-			className='flex size-6 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
+			className='flex size-6 cursor-pointer items-center justify-center rounded-md transition-[color,background-color,scale] hover:bg-accent hover:text-foreground active:not-disabled:scale-[0.95] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground motion-reduce:active:scale-100'
 		>
 			{children}
 		</button>

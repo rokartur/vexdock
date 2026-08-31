@@ -216,7 +216,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<button
 							type='button'
 							onClick={() => setPaletteOpen(true)}
-							className='flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground'
+							className='flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-accent hover:text-foreground active:scale-[0.95] motion-reduce:active:scale-100'
 							aria-label='Search'
 						>
 							<IconSearch className='size-4' />
@@ -224,7 +224,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						<button
 							type='button'
 							onClick={toggleHidden}
-							className='flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground'
+							className='flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-accent hover:text-foreground active:scale-[0.95] motion-reduce:active:scale-100'
 							aria-label={isHidden ? 'Show sidebar' : 'Hide sidebar'}
 						>
 							<IconLayoutSidebar className='size-4' />

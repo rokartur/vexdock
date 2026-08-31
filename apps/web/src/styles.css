@@ -1,15 +1,41 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/dm-sans';
 @import '@xterm/xterm/css/xterm.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-	/* Inter Variable is the self-hosted build of the preset's family. Mono is
-	 * kept for the surfaces that are literally machine output: console, code, ids. */
+	/* DM Sans Variable is datafa.st's family, self-hosted. Mono is kept for the
+	 * surfaces that are literally machine output: console, code, ids. */
 	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+	/* datafa.st's chrome, dark variants. Cards draw a 1px white ring as a shadow
+	 * instead of a border; solid buttons layer an inset lip under a soft drop. */
+	--shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.08);
+	--shadow-btn:
+		inset 0 -1px 2px 0 rgba(40, 40, 40, 0.64), 0 1px 1px 0 rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(40, 40, 40, 0.06),
+		0 8px 16px -8px rgba(40, 40, 40, 0.318);
+	--shadow-btn-primary:
+		inset 0 -1px 2px 0 rgba(114, 36, 13, 0.64), 0 1px 1px 0 rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(225, 101, 64, 0.06),
+		0 8px 16px -8px rgba(225, 101, 64, 0.318);
+
+	/* datafa.st's button press: releasing a pressed button pops it past rest
+	 * before settling. The press itself is active:scale-[0.95] on the button. */
+	--animate-btn-pop: btn-pop 0.25s ease-out;
+
+	@keyframes btn-pop {
+		0% {
+			scale: 0.95;
+		}
+		40% {
+			scale: 1.02;
+		}
+		to {
+			scale: 1;
+		}
+	}
 
 	/* The app's type scale. Font size only: line-height stays inherited, which is
 	 * why these exist instead of Tailwind's text-xs/text-sm. */
@@ -25,9 +51,10 @@
  * is no theme toggle, so the light palette shadcn ships would never render.
  * Only theme-independent tokens live here; every colour is in .dark below. */
 :root {
-	/* Every rounded-* utility derives from this token, so the preset's corner
-	 * radius is set once here. */
-	--radius: 0.625rem;
+	/* datafa.st's two radii: 0.5rem on anything clickable (their rounded-btn),
+	 * 1rem on boxes (rounded-box). The small one is the base token; the box
+	 * sizes are pinned in the @theme inline block below. */
+	--radius: 0.5rem;
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.145 0 0);
 	--card: oklch(1 0 0);
@@ -62,58 +89,63 @@
 }
 
 .dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	/* Lifted well off pure red so danger text clears 4.5:1 on its own 20% tint,
-	 * which is the only way this app renders destructive: tint plus red text. */
-	--destructive: oklch(0.704 0.191 22.216);
+	/* datafa.st's dark theme (DaisyUI): warm near-white text on layered neutral
+	 * grays. The canvas (sidebar) is their base-300, the content panel base-200,
+	 * every card base-100 — surfaces get lighter as they come forward. */
+	--background: oklch(0.2478 0 0);
+	--foreground: oklch(0.898 0.0017 67.8);
+	--card: oklch(0.2686 0 0);
+	--card-foreground: oklch(0.898 0.0017 67.8);
+	--popover: oklch(0.2686 0 0);
+	--popover-foreground: oklch(0.898 0.0017 67.8);
+	/* The brand orange, #e16540. */
+	--primary: oklch(0.6531 0.1637 37.22);
+	--primary-foreground: oklch(1 0 0);
+	--secondary: oklch(0.4202 0 0);
+	--secondary-foreground: oklch(1 0 0);
+	--muted: oklch(0.32 0 0);
+	--muted-foreground: #aba8a7;
+	--accent: oklch(0.32 0 0);
+	--accent-foreground: oklch(0.898 0.0017 67.8);
+	/* Their error hue; bright enough that danger text clears 4.5:1 on its own
+	 * 20% tint, which is the only way this app renders destructive. */
+	--destructive: oklch(0.7176 0.221 22.18);
 	--destructive-foreground: #ffffff;
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
+	--border: oklch(0.898 0.0017 67.8 / 10%);
+	--input: oklch(0.898 0.0017 67.8 / 15%);
 	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
+	/* Their chart order: brand orange first, then secondary blue, accent teal,
+	 * success green, warning yellow. */
+	--chart-1: oklch(0.6531 0.1637 37.22);
+	--chart-2: oklch(0.8236 0.0962 242.82);
+	--chart-3: oklch(0.7451 0.167 183.61);
+	--chart-4: oklch(0.648 0.15 160);
+	--chart-5: oklch(0.8471 0.199 83.87);
+	--sidebar: oklch(0.2393 0 0);
+	--sidebar-foreground: oklch(0.898 0.0017 67.8);
+	--sidebar-primary: oklch(0.6531 0.1637 37.22);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.32 0 0);
+	--sidebar-accent-foreground: oklch(0.898 0.0017 67.8);
+	--sidebar-border: oklch(0.898 0.0017 67.8 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
-	--info: var(--color-blue-500);
+	--info: oklch(0.7206 0.191 231.6);
 	--info-foreground: var(--color-blue-400);
-	--success: var(--color-emerald-500);
+	--success: oklch(0.648 0.15 160);
 	--success-foreground: var(--color-emerald-400);
-	--warning: var(--color-amber-500);
+	--warning: oklch(0.8471 0.199 83.87);
 	--warning-foreground: var(--color-amber-400);
 	--code: color-mix(in srgb, var(--background) 98%, var(--color-white));
 	--code-foreground: var(--foreground);
 	--code-highlight: --alpha(var(--color-white) / 4%);
 
-	/* Console surfaces (log tail, container shell). Streamed engine output shares
-	 * the canvas and is set apart by its hairline frame and dimmer foreground
-	 * rather than by a surface of its own. */
-	--console: var(--background);
+	/* Console surfaces (log tail, container shell). datafa.st's terminal card:
+	 * near-black glass sitting darker than every other surface, framed white/10. */
+	--console: #101010;
 	--console-foreground: #d4d4d4;
 	--console-muted: #8a8a8a;
 	--console-stderr: #ff8a80;
-	--console-border: #1f1f1f;
+	--console-border: oklch(1 0 0 / 10%);
 }
 
 @theme inline {
@@ -154,14 +186,16 @@
 	--color-console-stderr: var(--console-stderr);
 	--color-console-border: var(--console-border);
 	--font-heading: var(--font-sans);
-	--font-sans: 'Inter Variable', sans-serif;
-	--radius-sm: calc(var(--radius) * 0.6);
-	--radius-md: calc(var(--radius) * 0.8);
+	--font-sans: 'DM Sans Variable', sans-serif;
+	/* sm..lg are the clickable radius; xl is the box, 2xl their nested frame,
+	 * 4xl their badge pill. */
+	--radius-sm: 0.375rem;
+	--radius-md: var(--radius);
 	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) * 1.4);
-	--radius-2xl: calc(var(--radius) * 1.8);
-	--radius-3xl: calc(var(--radius) * 2.2);
-	--radius-4xl: calc(var(--radius) * 2.6);
+	--radius-xl: 1.3rem;
+	--radius-2xl: 1.6rem;
+	--radius-3xl: 1.9rem;
+	--radius-4xl: 2.2rem;
 }
 
 @layer base {
@@ -172,6 +206,20 @@
 	::file-selector-button {
 		@apply box-border;
 		@apply border-border outline-ring/50;
+	}
+
+	/* datafa.st's scrollbars: thumbs are the text colour at low opacity and
+	 * wake up while the element is hovered. */
+	* {
+		scrollbar-color: color-mix(in oklch, currentColor 35%, transparent) transparent;
+	}
+
+	:hover {
+		scrollbar-color: color-mix(in oklch, currentColor 60%, transparent) transparent;
+	}
+
+	html {
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	code,

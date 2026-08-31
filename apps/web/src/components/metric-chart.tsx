@@ -281,7 +281,8 @@ function Sparkline({
 	muted: boolean
 	hovered: number | null
 }) {
-	const color = muted ? 'text-muted-foreground' : 'text-foreground'
+	// The lead series draws in the brand orange, the way datafa.st charts do.
+	const color = muted ? 'text-muted-foreground' : 'text-primary'
 
 	// A single sample cannot be a line yet, so the chart rests on its baseline.
 	if (points.length < 2) {
@@ -311,7 +312,7 @@ function Sparkline({
 				<path
 					d={`${path} L${VIEW_WIDTH},${VIEW_HEIGHT} L0,${VIEW_HEIGHT} Z`}
 					fill='currentColor'
-					fillOpacity={0.08}
+					fillOpacity={0.12}
 					className={color}
 				/>
 			) : null}
