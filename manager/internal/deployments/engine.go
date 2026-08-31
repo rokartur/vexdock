@@ -24,17 +24,16 @@ import (
 
 // Step names, in pipeline order.
 const (
-	StepClone    = "clone"
-	StepCheckout = "checkout"
-	// Only emitted when the project has git-sourced managed services.
-	StepServiceCheckout = "service-checkout"
-	StepValidate        = "validate"
-	StepPull            = "pull"
-	StepBuild           = "build"
-	StepStart           = "start"
-	StepHealthcheck     = "healthcheck"
-	StepProxy           = "proxy"
-	StepFinish          = "finish"
+	// Only emitted when the environment has services cloned from a repository.
+	StepClone       = "clone"
+	StepCheckout    = "checkout"
+	StepValidate    = "validate"
+	StepPull        = "pull"
+	StepBuild       = "build"
+	StepStart       = "start"
+	StepHealthcheck = "healthcheck"
+	StepProxy       = "proxy"
+	StepFinish      = "finish"
 )
 
 // Triggers recorded on a deployment.
@@ -107,12 +106,9 @@ type Options struct {
 // Trigger enqueues a deployment and returns immediately; the pipeline runs in
 // the background so the HTTP request is never held open by a build.
 func (e *Engine) Trigger(ctx context.Context, project *database.Project, env *database.Environment, opts Options) (*database.Deployment, error) {
-	// An environment can pin a branch of its own; staging deploying main is the
-	// default, not a rule.
-	ref := project.Branch
-	if env.Branch != "" {
-		ref = env.Branch
-	}
+	// An environment can pin a branch of its own, overriding what each service
+	// asks for; staging deploying main is the default, not a rule.
+	ref := env.Branch
 	if opts.CommitSHA != "" {
 		ref = opts.CommitSHA
 	}
@@ -228,18 +224,8 @@ func (p *pipeline) execute(ctx context.Context) error {
 	}
 	p.publish("deployment.started", p.deployment)
 
-	if p.project.SourceType == database.SourceGit {
-		if err := p.gitSteps(ctx); err != nil {
-			return err
-		}
-	} else {
-		p.begin(StepClone)
-		p.printf("Using the compose file stored in the project")
-		p.complete()
-	}
-	// Services the dashboard owns can each build from their own repository, so
-	// their checkouts have to exist before compose resolves the build contexts
-	// the overlay points at.
+	// Each service can build from its own repository, so the checkouts have to
+	// exist before compose resolves the build contexts the compose file points at.
 	if err := p.serviceCheckouts(ctx); err != nil {
 		return err
 	}
@@ -261,20 +247,8 @@ func (p *pipeline) execute(ctx context.Context) error {
 			return p.fail(fmt.Errorf("compose has no service %q", p.target))
 		}
 		p.printf("Compose is valid; deploying service %s", p.target)
-		if _, err := p.e.db.UpsertService(ctx, p.project.ID, p.environment.ID, p.target); err != nil {
-			return p.fail(err)
-		}
-		// Never prune siblings on a scoped deploy — they are simply not in scope.
 	} else {
 		p.printf("Compose is valid: %d service(s) - %s", len(names), strings.Join(names, ", "))
-		for _, name := range names {
-			if _, err := p.e.db.UpsertService(ctx, p.project.ID, p.environment.ID, name); err != nil {
-				return p.fail(err)
-			}
-		}
-		if err := p.e.db.PruneServices(ctx, p.environment.ID, names); err != nil {
-			return p.fail(err)
-		}
 	}
 	p.complete()
 
@@ -328,51 +302,22 @@ func (p *pipeline) serviceArgs() []string {
 	return []string{p.target}
 }
 
-func (p *pipeline) gitSteps(ctx context.Context) error {
-	p.begin(StepClone)
-	cred, err := p.e.projects.Credential(p.project)
-	if err != nil {
-		return p.fail(err)
-	}
-	repo := git.Repo{
-		URL:  p.project.RepositoryURL,
-		Ref:  p.ref,
-		Dir:  p.e.projects.RepositoryDir(p.environment),
-		Cred: cred,
-	}
-	p.printf("Fetching %s @ %s", p.project.RepositoryURL, p.ref)
-	sha, err := repo.Sync(ctx, p)
-	if err != nil {
-		return p.fail(err)
-	}
-	p.complete()
-
-	p.begin(StepCheckout)
-	p.printf("Checked out %s", short(sha))
-	p.deployment.CommitSHA = sha
-	if err := p.e.db.UpdateDeployment(ctx, p.deployment); err != nil {
-		return p.fail(err)
-	}
-	p.complete()
-	return nil
-}
-
-// serviceCheckouts syncs the repository of every git-sourced managed service.
-// They share the project's credential: one project is one trust boundary, and
-// a second private repository is a per-service credential away.
+// serviceCheckouts syncs the repository of every git service in scope, each
+// with its own credential. The steps are skipped entirely when nothing in the
+// environment comes from a repository.
 //
-// It opens its own step: the project's checkout step is already closed by the
-// time this runs, and p.fail on a closed step records nothing, which would turn
-// a failed service clone into a deployment that fails with an empty log.
+// The commit is recorded on the deployment only when exactly one repository was
+// fetched. Two services from two repositories have no single commit between
+// them, and picking one of them would be a lie on the deployment page.
 func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 	services, err := p.e.db.ListServices(ctx, p.environment.ID)
 	if err != nil {
-		p.begin(StepServiceCheckout)
+		p.begin(StepClone)
 		return p.fail(err)
 	}
 	sourced := make([]database.Service, 0, len(services))
 	for _, svc := range services {
-		if !svc.Managed() || svc.SourceType != database.ServiceGit {
+		if !database.GitProvider(svc.Provider) {
 			continue
 		}
 		if p.target != "" && svc.ComposeServiceName != p.target {
@@ -384,20 +329,39 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 		return nil
 	}
 
-	p.begin(StepServiceCheckout)
-	cred, err := p.e.projects.Credential(p.project)
-	if err != nil {
-		return p.fail(err)
-	}
+	p.begin(StepClone)
+	shas := make([]string, 0, len(sourced))
 	for _, svc := range sourced {
+		cred, err := p.e.projects.Credential(&svc)
+		if err != nil {
+			return p.fail(err)
+		}
+		ref := svc.Branch
+		if p.ref != "" {
+			ref = p.ref
+		}
 		repo := git.Repo{
 			URL:  svc.RepositoryURL,
-			Ref:  svc.Branch,
+			Ref:  ref,
 			Dir:  filepath.Join(p.e.projects.ServiceDir(p.environment, svc.ComposeServiceName), "repository"),
 			Cred: cred,
 		}
-		p.printf("Fetching %s @ %s for service %s", svc.RepositoryURL, svc.Branch, svc.ComposeServiceName)
-		if _, err := repo.Sync(ctx, p); err != nil {
+		p.printf("Fetching %s @ %s for service %s", svc.RepositoryURL, ref, svc.ComposeServiceName)
+		sha, err := repo.Sync(ctx, p)
+		if err != nil {
+			return p.fail(err)
+		}
+		shas = append(shas, sha)
+	}
+	p.complete()
+
+	p.begin(StepCheckout)
+	for i, svc := range sourced {
+		p.printf("%s checked out at %s", svc.ComposeServiceName, short(shas[i]))
+	}
+	if len(shas) == 1 {
+		p.deployment.CommitSHA = shas[0]
+		if err := p.e.db.UpdateDeployment(ctx, p.deployment); err != nil {
 			return p.fail(err)
 		}
 	}

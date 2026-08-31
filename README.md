@@ -80,8 +80,8 @@ State lives in `/opt/vexdock`:
 ├── .env                 version, options, session secret, setup token (0600)
 ├── data/app.db          SQLite: projects, domains, deployments
 ├── data/auth.db         SQLite: accounts and sessions (better-auth)
-├── projects/<id>/       one directory per environment (repository, .env,
-│                     managed.yml and services/ for managed services);
+├── projects/<id>/       one directory per environment (.env, managed.yml and
+│                     services/ with a checkout and an env file per service);
 │                     a project's default environment uses the project's id
 ├── nginx/generated/     one .conf per domain, written by the manager
 ├── certificates/        Let's Encrypt certificates and the account key

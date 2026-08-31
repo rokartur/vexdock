@@ -64,13 +64,8 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 	const navigate = useNavigate()
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 	// Shared with the project's own pages, so the name is usually already cached
-	// even when the list is still in flight. The poll keeps the deploy status in
-	// the crumb honest, since this is the only place it shows on every tab.
-	const current = useQuery({
-		queryKey: ['project', projectId],
-		queryFn: () => api.project(projectId),
-		refetchInterval: 10_000,
-	})
+	// even when the list is still in flight.
+	const current = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
 
 	return (
 		<CrumbPicker

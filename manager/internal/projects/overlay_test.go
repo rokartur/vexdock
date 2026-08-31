@@ -21,8 +21,8 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 		t.Fatalf("create project: %v", err)
 	}
 	db, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
-		Name:       "usagefleet-db",
-		SourceType: database.ServiceImage,
+		Name:     "usagefleet-db",
+		Provider: database.ProviderImage,
 		Database: &DatabaseInput{
 			Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: "s3cret",
 		},
@@ -88,8 +88,8 @@ func TestOverlayReRendersFromTheStoredRow(t *testing.T) {
 		t.Fatalf("create project: %v", err)
 	}
 	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
-		Name:       "pinned",
-		SourceType: database.ServiceImage,
+		Name:     "pinned",
+		Provider: database.ProviderImage,
 		Database: &DatabaseInput{
 			Engine: "postgres", Version: "15-alpine", Name: "app", User: "app", Password: "s3cret",
 		},
@@ -97,8 +97,8 @@ func TestOverlayReRendersFromTheStoredRow(t *testing.T) {
 		t.Fatalf("create pinned service: %v", err)
 	}
 	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
-		Name:       "byo",
-		SourceType: database.ServiceImage,
+		Name:     "byo",
+		Provider: database.ProviderImage,
 		Database: &DatabaseInput{
 			Engine: "custom", Image: "valkey/valkey:8", DataPath: "/data", Password: "s3cret",
 		},
@@ -146,8 +146,8 @@ func TestOverlayScopesCredentialsPerService(t *testing.T) {
 	}
 	for _, name := range []string{"primary", "secondary"} {
 		if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
-			Name:       name,
-			SourceType: database.ServiceImage,
+			Name:     name,
+			Provider: database.ProviderImage,
 			Database: &DatabaseInput{
 				Engine: "postgres", Version: "17-alpine", Name: "app", User: "app", Password: name + "-pw",
 			},
@@ -191,7 +191,7 @@ expose:
   - 80`
 	if _, err := svc.CreateService(ctx, defaultEnv(t, svc, p), ServiceInput{
 		Name:            "vaultwarden",
-		SourceType:      database.ServiceCompose,
+		Provider:        database.ProviderRaw,
 		ComposeFragment: fragment,
 	}); err != nil {
 		t.Fatalf("create service: %v", err)

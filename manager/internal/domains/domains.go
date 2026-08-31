@@ -91,9 +91,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 	if err != nil {
 		return nil, err
 	}
-	service, err := s.db.UpsertService(ctx, project.ID, env.ID, in.ServiceName)
+	service, err := s.db.ServiceByName(ctx, env.ID, in.ServiceName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("environment %s has no service named %q", env.Slug, in.ServiceName)
 	}
 
 	source, err := normaliseSource(in.CertificateSource)

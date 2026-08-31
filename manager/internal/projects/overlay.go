@@ -14,32 +14,30 @@ import (
 )
 
 // overlayFileName is the compose file the manager writes from the service rows
-// the dashboard owns. It is layered over the project's own compose file with a
-// second --file flag, so an imported compose keeps working untouched and can
-// still gain a database next to it.
+// of one environment. It is the only file compose is given: every service is a
+// row, so there is nothing else on disk to merge with.
 const overlayFileName = "managed.yml"
 
-// servicesDirName holds one checkout and one env file per managed service.
+// servicesDirName holds one checkout and one env file per service.
 const servicesDirName = "services"
 
-// ServiceDir is where a managed service keeps its own state, currently its git
-// checkout. Kept separate from the project-level repository/ so two services
-// can build from two different repositories.
+// ServiceDir is where a service keeps its own state, currently its git
+// checkout. One directory per service, because two services of the same
+// environment can build from two different repositories.
 func (s *Service) ServiceDir(env *database.Environment, name string) string {
 	return filepath.Join(s.cfg.ProjectDir(env.ID), servicesDirName, name)
 }
 
-// ServiceEnvFilePath is the env file a managed service hands to its container.
+// ServiceEnvFilePath is the env file a service hands to its container.
 // Per service rather than per project so two Postgres services in one project
 // can each define POSTGRES_PASSWORD.
 func (s *Service) ServiceEnvFilePath(env *database.Environment, name string) string {
 	return filepath.Join(s.cfg.ProjectDir(env.ID), servicesDirName, name+".env")
 }
 
-// WriteOverlay renders every managed service of a project into the overlay
+// WriteOverlay renders every configured service of an environment into its
 // compose file and writes each service's env file alongside it. It returns the
-// overlay path, or an empty string when the project has no managed services and
-// the project's own compose file is the whole story.
+// compose file path, or an empty string when there is nothing to deploy.
 func (s *Service) WriteOverlay(ctx context.Context, env *database.Environment) (string, error) {
 	all, err := s.db.ListServices(ctx, env.ID)
 	if err != nil {
@@ -49,7 +47,7 @@ func (s *Service) WriteOverlay(ctx context.Context, env *database.Environment) (
 	for _, svc := range all {
 		// An application whose source is still unanswered has nothing to render,
 		// and emitting an empty service would fail the whole project's deploy.
-		if svc.Managed() && svc.SourceType != database.ServiceUnconfigured {
+		if svc.Provider != database.ProviderUnconfigured && svc.Provider != "" {
 			managed = append(managed, svc)
 		}
 	}
@@ -113,9 +111,9 @@ func (s *Service) WriteOverlay(ctx context.Context, env *database.Environment) (
 // renderService turns one service row into its compose body, indented four
 // spaces, plus the named volumes it needs declared at the top level.
 func (s *Service) renderService(env *database.Environment, svc database.Service) (string, []string, error) {
-	switch svc.SourceType {
-	case database.ServiceImage, database.ServiceGit:
-	case database.ServiceCompose:
+	switch {
+	case svc.Provider == database.ProviderImage, database.GitProvider(svc.Provider):
+	case svc.Provider == database.ProviderRaw:
 		vols, err := namedVolumes(svc.ComposeFragment)
 		if err != nil {
 			return "", nil, err
@@ -123,7 +121,7 @@ func (s *Service) renderService(env *database.Environment, svc database.Service)
 		fragment := retargetDotEnv(svc.ComposeFragment, s.EnvFilePath(env))
 		return indent(fragment, 4), vols, nil
 	default:
-		return "", nil, fmt.Errorf("unknown source %q", svc.SourceType)
+		return "", nil, fmt.Errorf("unknown provider %q", svc.Provider)
 	}
 
 	if svc.Type == database.ServiceDatabase {
@@ -148,14 +146,14 @@ func (s *Service) renderService(env *database.Environment, svc database.Service)
 	}
 
 	var b strings.Builder
-	switch svc.SourceType {
-	case database.ServiceImage:
+	switch {
+	case svc.Provider == database.ProviderImage:
 		image, err := engines.ValidateImage(svc.Image)
 		if err != nil {
 			return "", nil, err
 		}
 		fmt.Fprintf(&b, "    image: %s\n", image)
-	case database.ServiceGit:
+	case database.GitProvider(svc.Provider):
 		// Quoted like env_file below: build_path may legally hold a space or a
 		// '#', either of which changes which directory compose reads.
 		buildContext := filepath.Join(s.ServiceDir(env, svc.ComposeServiceName), "repository", svc.BuildPath)

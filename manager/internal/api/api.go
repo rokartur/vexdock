@@ -82,8 +82,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/projects/{id}/deploy", s.protected(s.handleDeploy))
 	mux.Handle("POST /api/projects/{id}/redeploy", s.protected(s.handleDeploy))
 	mux.Handle("POST /api/projects/{id}/stop", s.protected(s.handleStopProject))
-	mux.Handle("GET /api/projects/{id}/compose", s.protected(s.handleGetCompose))
-	mux.Handle("PUT /api/projects/{id}/compose", s.protected(s.handlePutCompose))
 	mux.Handle("GET /api/projects/{id}/variables", s.protected(s.handleGetProjectVariables))
 	mux.Handle("PUT /api/projects/{id}/variables", s.protected(s.handlePutProjectVariables))
 	mux.Handle("GET /api/projects/{id}/environments", s.protected(s.handleListEnvironments))

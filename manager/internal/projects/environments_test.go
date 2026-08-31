@@ -40,18 +40,26 @@ func TestEnvironmentsAreIsolated(t *testing.T) {
 
 	// A service name is free in each environment separately.
 	for _, env := range []*database.Environment{production, staging} {
-		if _, err := svc.CreateService(ctx, env, ServiceInput{Name: "web", SourceType: database.ServiceUnconfigured}); err != nil {
+		if _, err := svc.CreateService(ctx, env, ServiceInput{Name: "web", Provider: database.ProviderUnconfigured}); err != nil {
 			t.Fatalf("create web in %s: %v", env.Slug, err)
 		}
 	}
-	if _, err := svc.CreateService(ctx, staging, ServiceInput{Name: "web", SourceType: database.ServiceUnconfigured}); err == nil {
+	if _, err := svc.CreateService(ctx, staging, ServiceInput{Name: "web", Provider: database.ProviderUnconfigured}); err == nil {
 		t.Fatal("the same name was accepted twice inside one environment")
 	}
 
-	// A new environment starts from the project's compose file rather than empty.
-	content, err := svc.ReadComposeFile(p, staging)
-	if err != nil || strings.TrimSpace(content) == "" {
-		t.Fatalf("staging has no compose file to deploy: %q (%v)", content, err)
+	// A new environment starts from the default one's services rather than empty,
+	// so it has something to deploy the moment it exists.
+	preview, err := svc.CreateEnvironment(ctx, p, "Preview", "")
+	if err != nil {
+		t.Fatalf("create preview: %v", err)
+	}
+	copied, err := svc.db.ListServices(ctx, preview.ID)
+	if err != nil {
+		t.Fatalf("list preview services: %v", err)
+	}
+	if len(copied) != 1 || copied[0].ComposeServiceName != "web" {
+		t.Fatalf("preview did not inherit the default environment's services: %+v", copied)
 	}
 }
 

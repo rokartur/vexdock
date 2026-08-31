@@ -71,10 +71,9 @@ func TestEscapeEnvValue(t *testing.T) {
 	}
 }
 
-// A project created from nothing but a name has to be complete enough to open:
-// a compose source, a starter file on disk, and a checkout that a later switch
-// to git can clone into.
-func TestCreateWithoutSourceStartsAsCompose(t *testing.T) {
+// A project is a grouping, so creating one takes nothing but a name: the
+// question of where code comes from belongs to its services.
+func TestCreateTakesNothingButAName(t *testing.T) {
 	svc := testService(t)
 	ctx := context.Background()
 
@@ -82,30 +81,14 @@ func TestCreateWithoutSourceStartsAsCompose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if p.SourceType != database.SourceCompose {
-		t.Fatalf("source type %q, want compose", p.SourceType)
+	if p.Slug != "my-app" {
+		t.Fatalf("slug %q, want my-app", p.Slug)
 	}
 	if got := strings.Join(p.Tags, "|"); got != "staging" {
 		t.Fatalf("tags %v, want [staging]", p.Tags)
 	}
-	if content, err := svc.ReadComposeFile(p, defaultEnv(t, svc, p)); err != nil || content != StarterCompose {
-		t.Fatalf("compose file %q, err %v", content, err)
-	}
-
-	p.SourceType = database.SourceGit
-	p.RepositoryURL = "https://github.com/user/app"
-	if err := svc.Validate(p); err != nil {
-		t.Fatalf("validate git: %v", err)
-	}
-	if err := svc.ResetCheckout(context.Background(), p); err != nil {
-		t.Fatalf("reset checkout: %v", err)
-	}
-	entries, err := os.ReadDir(svc.RepositoryDir(defaultEnv(t, svc, p)))
-	if err != nil {
-		t.Fatalf("read checkout: %v", err)
-	}
-	if len(entries) != 0 {
-		t.Fatalf("checkout still holds %d entries, git clone needs it empty", len(entries))
+	if _, err := os.ReadDir(svc.RepositoryDir(defaultEnv(t, svc, p))); err != nil {
+		t.Fatalf("checkout directory: %v", err)
 	}
 }
 

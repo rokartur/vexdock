@@ -163,8 +163,8 @@ func (s *Server) deploymentEnvironments(ctx context.Context, recent []database.D
 			return out
 		}
 		for _, svc := range services {
-			// The same set the compose overlay writes: what a deploy can bring up.
-			if svc.Managed() && svc.SourceType != database.ServiceUnconfigured {
+			// The same set the compose file gets: what a deploy can bring up.
+			if svc.Provider != database.ProviderUnconfigured {
 				label.services = append(label.services, svc.ComposeServiceName)
 			}
 		}

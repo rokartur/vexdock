@@ -110,11 +110,7 @@ function ContainersPage() {
 	const [logsFor, setLogsFor] = useState<string | null>(null)
 	const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
-	const containers = useQuery({
-		queryKey: ['containers'],
-		queryFn: api.containers,
-		refetchInterval: 5000,
-	})
+	const containers = useQuery({ queryKey: ['containers'], queryFn: api.containers })
 
 	const act = useMutation({
 		mutationFn: ({ id, action }: { id: string; action: ContainerAction }) => api.containerAction(id, action),

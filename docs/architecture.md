@@ -58,25 +58,26 @@ redeployed.
 Variables come from two places and land in one `.env`: the project's, which
 every environment gets, and the environment's own, which win on a collision.
 
-## Services the platform owns
+## Services
 
-An environment holds services. Most of them are *derived*: the project's own
-compose file declares them and the platform only reads them back. The rest are
-*managed* — a database from the engine catalogue, an image, a repository of its
-own, or a fragment of YAML you wrote in the dashboard.
+An environment holds services, and each one answers where it comes from on its
+own: a `provider` of `github`, `gitlab`, `bitbucket`, `gitea` or plain `git`
+clones a repository, `image` runs a published image (which is what the engine
+catalogue's databases are), `raw` is a fragment of YAML you pasted, and
+`unconfigured` is an application that is still only a name. A project is a
+grouping; it has no source of its own.
 
-Managed services are not merged into your compose file. They are rendered into
-a second one, `managed.yml`, and compose is invoked with both:
+Every configured service is rendered into one generated compose file,
+`managed.yml`, and that is the only file compose is given:
 
 ```
-docker compose --file <yours> --file managed.yml ...
+docker compose --file managed.yml ...
 ```
 
-Compose merges the two itself, so an imported project keeps its file byte for
-byte and can still gain a database. Nothing has to know which "kind" a project
-is, because there is no kind.
+An `unconfigured` service is skipped, so a half-finished service neither deploys
+nor breaks the deploy of its siblings.
 
-Each managed service gets its own env file, `services/<name>.env` (0600),
+Each service gets its own env file, `services/<name>.env` (0600),
 referenced from the fragment with `env_file:`. Compose interpolates `${VAR}`
 from the single project `--env-file`, which two Postgres services in one project
 would collide over; an `env_file` is per service, so they do not. Rendered
@@ -91,12 +92,10 @@ gets that volume declared at the top of the overlay. `env_file: .env` in a
 fragment is rewritten to the project env file, which is what the Environment
 tab writes.
 
-A rendered fragment declares no `networks:`, so a managed service joins the
-project's default network and is reachable from its siblings at its own service
-name. If your compose file puts its services on an explicit named network
-instead, they are not on that default network and cannot resolve the database.
-Put the managed service's name on the same network from your own file, or leave
-your services on the default one.
+A rendered service declares no `networks:`, so it joins the environment's
+default network and is reachable from its siblings at its own service name. A
+pasted `raw` fragment that names an explicit network opts out of that, and then
+nothing else in the environment can resolve it.
 
 ## Networking
 
@@ -120,7 +119,7 @@ serving a dead IP after a redeploy.
 ## Deployment pipeline
 
 ```
-clone → checkout → service-checkout → validate → pull → build → start → healthcheck → proxy → finish
+clone → checkout → validate → pull → build → start → healthcheck → proxy → finish
 ```
 
 Each step is persisted and streamed to the browser over SSE. One project deploys
@@ -128,11 +127,12 @@ at a time, enforced by a per-project lock; a second request queues behind it. A
 deployment interrupted by a manager restart is marked failed on the next boot,
 so the UI never shows a pipeline that nothing is running.
 
-`service-checkout` syncs any managed service that builds from a repository of
-its own, into `services/<name>/repository`, reusing the project's credential. It
-only appears when the project has one, and it is its own step so that a failed
-service clone reads as a failed clone rather than as an unexplained deploy
-failure.
+`clone` and `checkout` sync every git service in scope into
+`services/<name>/repository`, each with its own credential. They are skipped
+entirely when nothing in the environment comes from a repository. The commit is
+recorded on the deployment only when exactly one repository was fetched: two
+services from two repositories have no single commit between them, and picking
+one would be a lie on the deployment page.
 
 A deployment may target one compose service (`service_name` on the row). Pull,
 build, up and the health wait then name that service only; proxy reconcile still
@@ -150,6 +150,14 @@ Docker events and a two-minute sweep both trigger the same reconcile pass:
 re-attach every domain's container to the proxy network under its alias, render
 the complete set of vhosts, validate, reload. Reconciliation is a full
 convergence rather than an incremental patch, so a missed event self-heals.
+
+The same Docker events, plus the deployment engine's own, go onto the in-process
+bus and out of `/api/system/events`. The dashboard holds one subscription for
+the whole authenticated shell and invalidates its query cache when something
+moves, so no page polls for state the server can announce.
+What no event can describe stays on a timer: the live visitor count, a cron
+task's countdown to its next run, the upstream release check, and the update
+phase, whose whole job is to notice the manager going away.
 
 ## State
 

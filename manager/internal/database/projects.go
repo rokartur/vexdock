@@ -7,15 +7,15 @@ import (
 	"strings"
 )
 
-const projectColumns = `id, name, slug, source_type, repository_url, branch, compose_path, compose_project_name,
-	auto_deploy, webhook_token, git_credential_kind, git_credential_enc, created_at, updated_at, tags`
+const projectColumns = `id, name, slug, compose_project_name,
+	auto_deploy, webhook_token, created_at, updated_at, tags`
 
 func (db *DB) CreateProject(ctx context.Context, p *Project) error {
 	p.CreatedAt, p.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, p.Name, p.Slug, p.SourceType, p.RepositoryURL, p.Branch, p.ComposePath, p.ComposeProjectName,
-		boolToInt(p.AutoDeploy), p.WebhookToken, p.GitCredentialKind, p.GitCredentialEnc, p.CreatedAt, p.UpdatedAt,
+		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.Name, p.Slug, p.ComposeProjectName,
+		boolToInt(p.AutoDeploy), p.WebhookToken, p.CreatedAt, p.UpdatedAt,
 		strings.Join(p.Tags, ","))
 	return err
 }
@@ -23,10 +23,8 @@ func (db *DB) CreateProject(ctx context.Context, p *Project) error {
 func (db *DB) UpdateProject(ctx context.Context, p *Project) error {
 	p.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
-		`UPDATE projects SET name=?, slug=?, source_type=?, repository_url=?, branch=?, compose_path=?,
-		 auto_deploy=?, git_credential_kind=?, git_credential_enc=?, updated_at=?, tags=? WHERE id=?`,
-		p.Name, p.Slug, p.SourceType, p.RepositoryURL, p.Branch, p.ComposePath,
-		boolToInt(p.AutoDeploy), p.GitCredentialKind, p.GitCredentialEnc, p.UpdatedAt, strings.Join(p.Tags, ","), p.ID)
+		`UPDATE projects SET name=?, slug=?, auto_deploy=?, updated_at=?, tags=? WHERE id=?`,
+		p.Name, p.Slug, boolToInt(p.AutoDeploy), p.UpdatedAt, strings.Join(p.Tags, ","), p.ID)
 	return err
 }
 
@@ -69,8 +67,8 @@ func scanProject(row scanner) (*Project, error) {
 	var p Project
 	var autoDeploy int
 	var tags string
-	err := row.Scan(&p.ID, &p.Name, &p.Slug, &p.SourceType, &p.RepositoryURL, &p.Branch, &p.ComposePath,
-		&p.ComposeProjectName, &autoDeploy, &p.WebhookToken, &p.GitCredentialKind, &p.GitCredentialEnc,
+	err := row.Scan(&p.ID, &p.Name, &p.Slug,
+		&p.ComposeProjectName, &autoDeploy, &p.WebhookToken,
 		&p.CreatedAt, &p.UpdatedAt, &tags)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -144,44 +142,31 @@ func (db *DB) ListSecrets(ctx context.Context, sc SecretScope, ownerID string) (
 	return out, rows.Err()
 }
 
-// UpsertService records a compose service discovered during deployment. The
-// container id is deliberately not stored: it changes on every recreate.
-const serviceColumns = `id, project_id, environment_id, compose_service_name, display_name, type, source_type,
-	repository_url, branch, build_path, image, engine, data_path, compose_fragment, created_at, updated_at`
-
-// UpsertService records a service a deployment found in the project's own
-// compose file. It never touches a row that already exists, so a service the
-// dashboard created and then saw in the compose output keeps its own source.
-func (db *DB) UpsertService(ctx context.Context, projectID, environmentID, composeServiceName string) (*Service, error) {
-	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (id, project_id, environment_id, compose_service_name, display_name, type, source_type, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?) ON CONFLICT (environment_id, compose_service_name) DO NOTHING`,
-		NewID(), projectID, environmentID, composeServiceName, ServiceApplication, ServiceDerived, Now(), Now())
-	if err != nil {
-		return nil, err
-	}
-	return db.ServiceByName(ctx, environmentID, composeServiceName)
-}
+// The container id is deliberately not stored: it changes on every recreate.
+const serviceColumns = `id, project_id, environment_id, compose_service_name, display_name, type, provider,
+	repository_url, branch, build_path, credential_kind, credential_enc, image, engine, data_path,
+	compose_fragment, created_at, updated_at`
 
 // CreateService records a service the dashboard owns. Its definition is
-// rendered into the project's overlay compose file rather than read out of one.
+// rendered into the environment's compose file rather than read out of one.
 func (db *DB) CreateService(ctx context.Context, s *Service) error {
 	s.CreatedAt, s.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.DisplayName, s.Type, s.SourceType,
-		s.RepositoryURL, s.Branch, s.BuildPath, s.Image, s.Engine, s.DataPath, s.ComposeFragment,
-		s.CreatedAt, s.UpdatedAt)
+		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.DisplayName, s.Type, s.Provider,
+		s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind, s.CredentialEnc, s.Image, s.Engine, s.DataPath,
+		s.ComposeFragment, s.CreatedAt, s.UpdatedAt)
 	return err
 }
 
 func (db *DB) UpdateService(ctx context.Context, s *Service) error {
 	s.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
-		`UPDATE services SET display_name = ?, type = ?, source_type = ?, repository_url = ?, branch = ?,
-		 build_path = ?, image = ?, engine = ?, data_path = ?, compose_fragment = ?, updated_at = ? WHERE id = ?`,
-		s.DisplayName, s.Type, s.SourceType, s.RepositoryURL, s.Branch, s.BuildPath, s.Image,
-		s.Engine, s.DataPath, s.ComposeFragment, s.UpdatedAt, s.ID)
+		`UPDATE services SET display_name = ?, type = ?, provider = ?, repository_url = ?, branch = ?,
+		 build_path = ?, credential_kind = ?, credential_enc = ?, image = ?, engine = ?, data_path = ?,
+		 compose_fragment = ?, updated_at = ? WHERE id = ?`,
+		s.DisplayName, s.Type, s.Provider, s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind,
+		s.CredentialEnc, s.Image, s.Engine, s.DataPath, s.ComposeFragment, s.UpdatedAt, s.ID)
 	return err
 }
 
@@ -202,9 +187,9 @@ func (db *DB) ServiceByID(ctx context.Context, id string) (*Service, error) {
 
 func scanService(row scanner) (*Service, error) {
 	var s Service
-	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.DisplayName, &s.Type, &s.SourceType,
-		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.Image, &s.Engine, &s.DataPath, &s.ComposeFragment,
-		&s.CreatedAt, &s.UpdatedAt)
+	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.DisplayName, &s.Type, &s.Provider,
+		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.CredentialKind, &s.CredentialEnc, &s.Image, &s.Engine,
+		&s.DataPath, &s.ComposeFragment, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -247,29 +232,6 @@ func (db *DB) services(ctx context.Context, where string, args ...any) ([]Servic
 		out = append(out, *s)
 	}
 	return out, rows.Err()
-}
-
-// PruneServices drops derived services that disappeared from the compose file.
-// Managed services survive: they are the reason the overlay exists, and a
-// deploy that failed before rendering it must not delete them.
-func (db *DB) PruneServices(ctx context.Context, environmentID string, keep []string) error {
-	existing, err := db.ListServices(ctx, environmentID)
-	if err != nil {
-		return err
-	}
-	kept := make(map[string]bool, len(keep))
-	for _, k := range keep {
-		kept[k] = true
-	}
-	for _, s := range existing {
-		if kept[s.ComposeServiceName] || s.Managed() {
-			continue
-		}
-		if _, err := db.ExecContext(ctx, `DELETE FROM services WHERE id = ?`, s.ID); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func boolToInt(b bool) int {

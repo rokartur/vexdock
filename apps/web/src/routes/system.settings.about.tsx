@@ -24,8 +24,9 @@ const RESULT_TTL_SECONDS = 3600
 
 function Version() {
 	const queryClient = useQueryClient()
-	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
-	const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 15_000 })
+	// The shell already polls this key for the release check; this rides its cache.
+	const version = useQuery({ queryKey: ['version'], queryFn: api.version })
+	const health = useQuery({ queryKey: ['health'], queryFn: api.health })
 	const state = useQuery({
 		queryKey: ['update-state'],
 		queryFn: api.updateState,

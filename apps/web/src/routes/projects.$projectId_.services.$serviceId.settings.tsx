@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Button, ErrorText, Field, Section } from '../components/primitives'
-import { api, type Service } from '../lib/api'
+import { api, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/settings')({
@@ -28,26 +28,42 @@ function ServiceSettings({ projectId, service }: { projectId: string; service: S
 	const [branch, setBranch] = useState(service.branch)
 	const [buildPath, setBuildPath] = useState(service.build_path)
 	const [fragment, setFragment] = useState(service.compose_fragment)
+	const [credentialKind, setCredentialKind] = useState<CredentialKind>(service.credential_kind || 'none')
+	const [credentialSecret, setCredentialSecret] = useState('')
 	const [confirmDelete, setConfirmDelete] = useState(false)
 
-	// An application arrives here as a bare name, so this page is where its
-	// source gets answered. Once saved the answer sticks and the select goes
-	// away: the checkout and the env file already hang off it.
-	const pending = service.source_type === 'unconfigured'
-	const [source, setSource] = useState<'git' | 'image'>('git')
-	const showing = pending ? source : service.source_type
+	// An application arrives here as a bare name, so this page is where it gets
+	// answered, and it can be answered again later. A database's provider is
+	// fixed: its volume and credentials were rendered from the engine.
+	const [provider, setProvider] = useState<ServiceProvider>(
+		service.provider === 'unconfigured' ? 'github' : service.provider,
+	)
+	const editable = service.type === 'application'
+	const showing = editable ? provider : service.provider
+	const git = isGitProvider(showing)
 
 	const save = useMutation({
 		mutationFn: () =>
 			api.updateService(service.id, {
-				...(pending ? { source_type: source } : {}),
-				...(showing === 'git'
-					? { repository_url: repositoryUrl, branch: branch || 'main', build_path: buildPath }
+				...(editable ? { provider } : {}),
+				...(git
+					? {
+							repository_url: repositoryUrl,
+							branch: branch || 'main',
+							build_path: buildPath,
+							credential_kind: credentialKind,
+							// An empty secret keeps the stored one; the manager only
+							// re-encrypts what it is actually given.
+							...(credentialSecret === '' ? {} : { credential_secret: credentialSecret }),
+						}
 					: {}),
 				...(showing === 'image' ? { image } : {}),
-				...(showing === 'compose' ? { compose_fragment: fragment } : {}),
+				...(showing === 'raw' ? { compose_fragment: fragment } : {}),
 			}),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
+		onSuccess: () => {
+			setCredentialSecret('')
+			void queryClient.invalidateQueries({ queryKey: ['service', service.id] })
+		},
 	})
 
 	const remove = useMutation({
@@ -71,18 +87,23 @@ function ServiceSettings({ projectId, service }: { projectId: string; service: S
 				}
 			>
 				<div className='grid gap-x-6 md:grid-cols-2'>
-					{pending ? (
-						<Field label='Source' hint='Set once. To change it later, delete the service and add it again.'>
+					{editable ? (
+						<Field label='Provider'>
 							<select
-								value={source}
-								onChange={event => setSource(event.target.value === 'image' ? 'image' : 'git')}
+								value={provider}
+								onChange={event => setProvider(event.target.value as ServiceProvider)}
 							>
-								<option value='git'>Git repository</option>
+								<option value='github'>GitHub</option>
+								<option value='gitlab'>GitLab</option>
+								<option value='bitbucket'>Bitbucket</option>
+								<option value='gitea'>Gitea</option>
+								<option value='git'>Any git URL</option>
 								<option value='image'>Docker image</option>
+								<option value='raw'>Compose file</option>
 							</select>
 						</Field>
 					) : null}
-					{showing === 'git' ? (
+					{git ? (
 						<>
 							<Field label='Repository'>
 								<input value={repositoryUrl} onChange={event => setRepositoryUrl(event.target.value)} />
@@ -93,6 +114,29 @@ function ServiceSettings({ projectId, service }: { projectId: string; service: S
 							<Field label='Build path'>
 								<input value={buildPath} onChange={event => setBuildPath(event.target.value)} />
 							</Field>
+							<Field label='Credentials'>
+								<select
+									value={credentialKind}
+									onChange={event => setCredentialKind(event.target.value as CredentialKind)}
+								>
+									<option value='none'>Public repository</option>
+									<option value='token'>Access token</option>
+									<option value='ssh_key'>SSH private key</option>
+								</select>
+							</Field>
+							{credentialKind === 'none' ? null : (
+								<Field
+									label={credentialKind === 'token' ? 'Token' : 'Private key'}
+									hint='Leave empty to keep the stored value.'
+								>
+									<textarea
+										rows={credentialKind === 'token' ? 1 : 5}
+										value={credentialSecret}
+										onChange={event => setCredentialSecret(event.target.value)}
+										className='font-mono text-body'
+									/>
+								</Field>
+							)}
 						</>
 					) : null}
 					{showing === 'image' ? (
@@ -108,7 +152,7 @@ function ServiceSettings({ projectId, service }: { projectId: string; service: S
 						</Field>
 					) : null}
 				</div>
-				{showing === 'compose' ? (
+				{showing === 'raw' ? (
 					<Field label='Compose fragment'>
 						<textarea
 							rows={10}

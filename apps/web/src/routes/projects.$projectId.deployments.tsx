@@ -95,7 +95,6 @@ function ProjectDeployments() {
 	const deployments = useQuery({
 		queryKey: ['deployments', projectId, environmentId],
 		queryFn: () => api.deployments(projectId, environmentId),
-		refetchInterval: 5000,
 	})
 
 	const rollback = useMutation({

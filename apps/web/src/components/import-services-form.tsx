@@ -1,18 +1,15 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { api, type EnvVar } from '../lib/api'
+import { api, type EnvVar, GIT_PROVIDERS, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { Button, Check, ErrorText, Field } from './primitives'
 
-/** The sources a service can be created with. A derived service is the project's
- * own compose file talking, so it never travels on its own. */
-const importableSources = ['unconfigured', 'git', 'image', 'compose'] as const
-type ImportableSource = (typeof importableSources)[number]
+const providers = ['unconfigured', ...GIT_PROVIDERS, 'image', 'raw'] as readonly string[]
 
 /** One service as it travels between projects. Mirrors projects.PortableService. */
 type PortableService = {
 	name: string
-	source_type: ImportableSource
+	provider: ServiceProvider
 	repository_url?: string
 	branch?: string
 	build_path?: string
@@ -47,14 +44,14 @@ export function decodeExport(pasted: string): Export | Error {
 		const candidate = parsed as Partial<Export>
 		if (
 			!Array.isArray(candidate.services) ||
-			candidate.services.some(service => !service?.name || !importableSources.includes(service.source_type))
+			candidate.services.some(service => !service?.name || !providers.includes(service.provider))
 		) {
 			throw new Error('no services')
 		}
-		if (candidate.version !== 1) {
-			return new Error(`this export is version ${String(candidate.version)}; this vexdock reads version 1`)
+		if (candidate.version !== 2) {
+			return new Error(`this export is version ${String(candidate.version)}; this vexdock reads version 2`)
 		}
-		return { version: 1, project: candidate.project ?? 'unknown', services: candidate.services }
+		return { version: 2, project: candidate.project ?? 'unknown', services: candidate.services }
 	} catch {
 		return new Error('That is not a vexdock export. Copy it from a project\u2019s settings, unedited.')
 	}
@@ -126,7 +123,7 @@ export function ImportServicesForm({
 						projectId,
 						{
 							name: service.name,
-							source_type: service.source_type,
+							provider: service.provider,
 							repository_url: service.repository_url,
 							branch: service.branch,
 							build_path: service.build_path,
@@ -200,7 +197,7 @@ export function ImportServicesForm({
 										}
 									/>
 									<span className='truncate font-mono text-label text-muted-foreground'>
-										{service.image || service.repository_url || service.source_type}
+										{service.image || service.repository_url || service.provider}
 									</span>
 									<span className='ml-auto shrink-0 text-label text-muted-foreground'>
 										{collides ? 'name taken' : `${(service.env ?? []).length} vars`}
