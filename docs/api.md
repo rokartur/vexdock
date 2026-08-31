@@ -85,6 +85,13 @@ Realtime data is Server-Sent Events, except the terminal which is a WebSocket.
 | `GET /api/system/events` | `container.*`, `deployment.*` |
 | `GET /api/services/{id}/terminal` | WebSocket, `{type:"input"}` / `{type:"resize"}` |
 
+`/api/system/events` is what keeps the dashboard current instead of polling, so
+its event names are a contract: `deployment.queued`, `deployment.success`,
+`deployment.failed`, `deployment.cancelled`, `container.start`, `container.die`,
+`container.stop`, `container.destroy` and `container.health_status: healthy` /
+`unhealthy`. `EventSource` has no wildcard, so a new name has to be added to
+`systemEvents` in `apps/web/src/lib/sse.ts` to reach the panel.
+
 ## Environments
 
 A project deploys into an environment. Every environment has its own compose

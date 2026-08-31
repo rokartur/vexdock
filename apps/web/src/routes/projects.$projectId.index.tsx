@@ -174,7 +174,6 @@ function ProjectServices() {
 	const services = useQuery({
 		queryKey: ['services', projectId, environmentId],
 		queryFn: () => api.services(projectId, environmentId),
-		refetchInterval: 5000,
 	})
 	const deployments = useQuery({
 		queryKey: ['deployments', projectId, environmentId],

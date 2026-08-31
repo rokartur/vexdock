@@ -83,7 +83,7 @@ export const Route = createFileRoute('/projects/')({ component: ProjectsPage })
 
 function ProjectsPage() {
 	const [creating, setCreating] = useState(false)
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects, refetchInterval: 10_000 })
+	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
 	const data = projects.data ?? []
 	const knownTags = [...new Set(data.flatMap(tagsOf))]

@@ -29,7 +29,7 @@ export const Route = createFileRoute('/system/')({ component: SystemOverview })
 
 function SystemOverview() {
 	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo })
-	const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 30_000 })
+	const health = useQuery({ queryKey: ['health'], queryFn: api.health })
 
 	const healthRows = useMemo<HealthRow[]>(
 		() => Object.entries(health.data?.checks ?? {}).map(([name, result]) => ({ name, result })),

@@ -151,6 +151,14 @@ re-attach every domain's container to the proxy network under its alias, render
 the complete set of vhosts, validate, reload. Reconciliation is a full
 convergence rather than an incremental patch, so a missed event self-heals.
 
+The same Docker events, plus the deployment engine's own, go onto the in-process
+bus and out of `/api/system/events`. The dashboard holds one subscription for
+the whole authenticated shell and invalidates its query cache when something
+moves, so no page polls for state the server can announce.
+What no event can describe stays on a timer: the live visitor count, a cron
+task's countdown to its next run, the upstream release check, and the update
+phase, whose whole job is to notice the manager going away.
+
 ## State
 
 SQLite in WAL mode with a single writer connection, which removes lock

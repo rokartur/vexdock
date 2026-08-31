@@ -63,12 +63,12 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 export const Route = createFileRoute('/')({ component: DashboardPage })
 
 function DashboardPage() {
-	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo, refetchInterval: 15_000 })
+	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo })
 	const recorded = useQuery({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
 	// Same key the shell uses, so this rides its cache instead of re-fetching.
-	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
+	const version = useQuery({ queryKey: ['version'], queryFn: api.version })
 	// Same key the projects page uses.
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects, refetchInterval: 15_000 })
+	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 	const [stats, setStats] = useState<HostSample | null>(null)
 
 	useEventSource('/api/system/stats', {

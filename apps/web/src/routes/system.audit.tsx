@@ -28,7 +28,7 @@ const auditTableColumns: Columns<AuditEntry> = (() => {
 export const Route = createFileRoute('/system/audit')({ component: Audit })
 
 function Audit() {
-	const auditLog = useQuery({ queryKey: ['audit'], queryFn: api.audit, refetchInterval: 30_000 })
+	const auditLog = useQuery({ queryKey: ['audit'], queryFn: api.audit })
 	const data = auditLog.data ?? []
 
 	return (

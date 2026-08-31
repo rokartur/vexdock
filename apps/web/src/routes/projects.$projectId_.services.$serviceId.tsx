@@ -14,13 +14,9 @@ export const Route = createFileRoute('/projects/$projectId_/services/$serviceId'
 	...environmentSearch,
 })
 
-/** The service a section is about: one cache entry, polled while the page is open. */
+/** The service a section is about: one cache entry, refreshed on container events. */
 export function useService(serviceId: string) {
-	return useQuery({
-		queryKey: ['service', serviceId],
-		queryFn: () => api.service(serviceId),
-		refetchInterval: 5000,
-	})
+	return useQuery({ queryKey: ['service', serviceId], queryFn: () => api.service(serviceId) })
 }
 
 const allTabs = [
