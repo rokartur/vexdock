@@ -17,9 +17,12 @@
 	--shadow-btn:
 		inset 0 -1px 2px 0 rgba(40, 40, 40, 0.64), 0 1px 1px 0 rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(40, 40, 40, 0.06),
 		0 8px 16px -8px rgba(40, 40, 40, 0.318);
+	/* Derived from --brand so a custom accent carries its own lip and glow
+	 * instead of keeping the shipped orange's. */
 	--shadow-btn-primary:
-		inset 0 -1px 2px 0 rgba(114, 36, 13, 0.64), 0 1px 1px 0 rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(225, 101, 64, 0.06),
-		0 8px 16px -8px rgba(225, 101, 64, 0.318);
+		inset 0 -1px 2px 0 color-mix(in oklab, var(--brand) 30%, rgba(0, 0, 0, 0.64)), 0 1px 1px 0 rgba(0, 0, 0, 0.06),
+		0 0 0 1px color-mix(in oklab, var(--brand) 6%, transparent),
+		0 8px 16px -8px color-mix(in oklab, var(--brand) 32%, transparent);
 
 	/* datafa.st's button press: releasing a pressed button pops it past rest
 	 * before settling. The press itself is active:scale-[0.95] on the button. */
@@ -97,8 +100,10 @@
 	--card-foreground: oklch(0.898 0.0017 67.8);
 	--popover: oklch(0.205 0 0);
 	--popover-foreground: oklch(0.898 0.0017 67.8);
-	/* The brand orange, #e16540. */
-	--primary: oklch(0.6531 0.1637 37.22);
+	/* The one accent knob. Settings overrides --brand inline on <html>, so every
+	 * token below it follows without the panel touching them one by one. */
+	--brand: oklch(0.6531 0.1637 37.22); /* the shipped orange, #e16540 */
+	--primary: var(--brand);
 	--primary-foreground: oklch(1 0 0);
 	--secondary: oklch(0.37 0 0);
 	--secondary-foreground: oklch(1 0 0);
@@ -113,16 +118,16 @@
 	--border: oklch(0.898 0.0017 67.8 / 10%);
 	--input: oklch(0.898 0.0017 67.8 / 15%);
 	--ring: oklch(0.556 0 0);
-	/* Their chart order: brand orange first, then secondary blue, accent teal,
+	/* Their chart order: the brand accent first, then secondary blue, accent teal,
 	 * success green, warning yellow. */
-	--chart-1: oklch(0.6531 0.1637 37.22);
+	--chart-1: var(--brand);
 	--chart-2: oklch(0.8236 0.0962 242.82);
 	--chart-3: oklch(0.7451 0.167 183.61);
 	--chart-4: oklch(0.648 0.15 160);
 	--chart-5: oklch(0.8471 0.199 83.87);
 	--sidebar: oklch(0 0 0);
 	--sidebar-foreground: oklch(0.898 0.0017 67.8);
-	--sidebar-primary: oklch(0.6531 0.1637 37.22);
+	--sidebar-primary: var(--brand);
 	--sidebar-primary-foreground: oklch(1 0 0);
 	--sidebar-accent: oklch(0.21 0 0);
 	--sidebar-accent-foreground: oklch(0.898 0.0017 67.8);

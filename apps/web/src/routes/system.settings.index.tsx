@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Button, Check, ErrorText, Field, Section } from '../components/primitives'
 import { api } from '../lib/api'
+import { DEFAULT_BRAND } from '../lib/brand'
 
 export const Route = createFileRoute('/system/settings/')({ component: GeneralSettings })
 
@@ -14,7 +15,7 @@ export const Route = createFileRoute('/system/settings/')({ component: GeneralSe
 function GeneralSettings() {
 	const queryClient = useQueryClient()
 	const settings = useQuery({ queryKey: ['settings'], queryFn: api.settings })
-	const [draft, setDraft] = useState({ domain: '', https: true, webhook: '', token: '' })
+	const [draft, setDraft] = useState({ domain: '', https: true, webhook: '', token: '', brand: '' })
 
 	useEffect(() => {
 		const loaded = settings.data
@@ -24,6 +25,7 @@ function GeneralSettings() {
 			https: loaded.dashboard_https,
 			webhook: loaded.notify_webhook_url,
 			token: '',
+			brand: loaded.brand_color,
 		})
 	}, [settings.data])
 
@@ -37,6 +39,7 @@ function GeneralSettings() {
 						dashboard_domain: draft.domain,
 						dashboard_https: draft.https,
 						notify_webhook_url: draft.webhook,
+						brand_color: draft.brand,
 						cloudflare_api_token: cloudflareToken,
 					})
 				: Promise.reject(new Error('settings not loaded yet')),
@@ -72,6 +75,32 @@ function GeneralSettings() {
 						/>
 					</div>
 				</div>
+			</Section>
+
+			<Section title='Brand colour' description='the accent used across the panel' onSave={apply}>
+				<Field
+					label='Accent'
+					hint='Buttons, links, charts and the active sidebar row. Reset to keep the shipped orange.'
+				>
+					<div className='flex items-center gap-2'>
+						<input
+							type='color'
+							aria-label='Accent colour'
+							value={draft.brand || DEFAULT_BRAND}
+							onChange={event => setDraft({ ...draft, brand: event.target.value })}
+							className='size-8 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-1'
+						/>
+						<input
+							value={draft.brand}
+							placeholder={DEFAULT_BRAND}
+							pattern='#[0-9a-fA-F]{6}'
+							onChange={event => setDraft({ ...draft, brand: event.target.value })}
+						/>
+						<Button variant='ghost' onClick={() => setDraft({ ...draft, brand: '' })}>
+							Reset
+						</Button>
+					</div>
+				</Field>
 			</Section>
 
 			<Section

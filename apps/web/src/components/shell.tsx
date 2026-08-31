@@ -34,6 +34,7 @@ import {
 import { cn } from '@/utils/cn'
 import { api, updateActive } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
+import { useBrandColor } from '../lib/brand'
 import { CommandPalette } from './command-palette'
 import { NavigationSidebar } from './navigation-sidebar'
 
@@ -102,6 +103,7 @@ export function Shell({ children }: { children: ReactNode }) {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 
+	useBrandColor()
 	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
 	const updateAvailable = version.data?.update_available ?? false
 	// The update state is a tiny file read; polling it keeps the rail honest

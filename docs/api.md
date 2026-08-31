@@ -320,7 +320,7 @@ and keeps polling until the manager returns.
 |---|---|
 | `GET /api/system/info` | Host and Docker facts, project and container counts, the ten most recent deployments |
 | `GET /api/system/metrics` | Recorded host usage over `?window=`, which seeds the charts before live samples arrive |
-| `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, notification webhook, Cloudflare token |
+| `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, notification webhook, brand colour, Cloudflare token |
 | `GET /api/system/certificates` | Every issued certificate |
 | `GET /api/system/audit` | The hundred most recent state-changing calls |
 | `POST /api/system/backup` | Takes a snapshot; `?volumes=true` includes volume archives. `201` |

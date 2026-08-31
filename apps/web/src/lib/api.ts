@@ -468,6 +468,8 @@ export type Settings = {
 	dashboard_https: boolean
 	acme_email: string
 	notify_webhook_url: string
+	/** Dashboard accent as `#rrggbb`, or '' to keep the shipped orange. */
+	brand_color: string
 	/** True when a Cloudflare token is stored. The token itself is never read back. */
 	cloudflare_token_set: boolean
 }
