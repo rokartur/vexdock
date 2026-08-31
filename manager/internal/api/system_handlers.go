@@ -137,6 +137,42 @@ func (s *Server) cleanupOldImages(ctx context.Context) bool {
 }
 
 // handleSystemInfo powers the dashboard summary.
+// deploymentEnvironment labels a deployment row: the environment it ran in and
+// the services it covered when it was not scoped to one.
+type deploymentEnvironment struct {
+	name     string
+	services []string
+}
+
+// deploymentEnvironments resolves those labels once per distinct environment.
+// The service list is today's, so a service added after the deployment ran is
+// still listed; naming a two-service environment beats printing "all".
+func (s *Server) deploymentEnvironments(ctx context.Context, recent []database.Deployment) map[string]deploymentEnvironment {
+	out := map[string]deploymentEnvironment{}
+	for _, d := range recent {
+		if _, seen := out[d.EnvironmentID]; seen || d.EnvironmentID == "" {
+			continue
+		}
+		env, err := s.DB.EnvironmentByID(ctx, d.EnvironmentID)
+		if err != nil {
+			continue
+		}
+		label := deploymentEnvironment{name: env.Name, services: []string{}}
+		services, err := s.DB.ListServices(ctx, env.ID)
+		if err != nil {
+			return out
+		}
+		for _, svc := range services {
+			// The same set the compose overlay writes: what a deploy can bring up.
+			if svc.Managed() && svc.SourceType != database.ServiceUnconfigured {
+				label.services = append(label.services, svc.ComposeServiceName)
+			}
+		}
+		out[d.EnvironmentID] = label
+	}
+	return out
+}
+
 func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	info, err := s.Docker.Info(r.Context())
 	if err != nil {
@@ -157,19 +193,15 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	for _, p := range projects {
 		names[p.ID] = p.Name
 	}
-	environments := map[string]string{}
+	environments := s.deploymentEnvironments(r.Context(), recent)
 	activity := make([]map[string]any, 0, len(recent))
 	for _, d := range recent {
-		// One lookup per distinct environment, over a list ten rows long.
-		if _, seen := environments[d.EnvironmentID]; !seen && d.EnvironmentID != "" {
-			if env, err := s.DB.EnvironmentByID(r.Context(), d.EnvironmentID); err == nil {
-				environments[d.EnvironmentID] = env.Name
-			}
-		}
+		env := environments[d.EnvironmentID]
 		activity = append(activity, map[string]any{
-			"deployment":       d,
-			"project_name":     names[d.ProjectID],
-			"environment_name": environments[d.EnvironmentID],
+			"deployment":           d,
+			"project_name":         names[d.ProjectID],
+			"environment_name":     env.name,
+			"environment_services": env.services,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

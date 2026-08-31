@@ -10,18 +10,18 @@ const buttonVariants = cva(
 	{
 		variants: {
 			// datafa.st's variants: solid fills darken on hover by mixing in 10%
-			// black instead of fading opacity, the solid and simple buttons carry the
-			// layered shadow chrome, and the error button is solid with black text.
+			// black instead of fading opacity, and the error button is solid with
+			// black text. No shadows; the fill and the border carry the button.
 			variant: {
 				default:
-					'bg-primary text-primary-foreground shadow-btn-primary hover:bg-[color-mix(in_oklab,var(--color-primary)_90%,#000)]',
+					'bg-primary text-primary-foreground hover:bg-[color-mix(in_oklab,var(--color-primary)_90%,#000)]',
 				outline:
-					'border-border bg-card shadow-btn hover:bg-[color-mix(in_oklab,var(--color-card)_90%,#000)] hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
+					'border-border bg-card hover:bg-[color-mix(in_oklab,var(--color-card)_90%,#000)] hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
 				secondary:
-					'bg-secondary text-secondary-foreground shadow-btn hover:bg-[color-mix(in_oklab,var(--color-secondary)_90%,#000)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
+					'bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklab,var(--color-secondary)_90%,#000)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
 				ghost: 'hover:bg-foreground/20 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
 				destructive:
-					'bg-destructive text-black shadow-btn hover:bg-[color-mix(in_oklab,var(--color-destructive)_90%,#000)] focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
+					'bg-destructive text-black hover:bg-[color-mix(in_oklab,var(--color-destructive)_90%,#000)] focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
 				link: 'text-primary underline-offset-4 hover:underline',
 			},
 			size: {

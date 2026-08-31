@@ -11,18 +11,8 @@
 	 * surfaces that are literally machine output: console, code, ids. */
 	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
-	/* datafa.st's chrome, dark variants. Cards draw a 1px white ring as a shadow
-	 * instead of a border; solid buttons layer an inset lip under a soft drop. */
+	/* Cards draw a 1px white ring as a shadow instead of a border. */
 	--shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.08);
-	--shadow-btn:
-		inset 0 -1px 2px 0 rgba(40, 40, 40, 0.64), 0 1px 1px 0 rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(40, 40, 40, 0.06),
-		0 8px 16px -8px rgba(40, 40, 40, 0.318);
-	/* Derived from --brand so a custom accent carries its own lip and glow
-	 * instead of keeping the shipped orange's. */
-	--shadow-btn-primary:
-		inset 0 -1px 2px 0 color-mix(in oklab, var(--brand) 30%, rgba(0, 0, 0, 0.64)), 0 1px 1px 0 rgba(0, 0, 0, 0.06),
-		0 0 0 1px color-mix(in oklab, var(--brand) 6%, transparent),
-		0 8px 16px -8px color-mix(in oklab, var(--brand) 32%, transparent);
 
 	/* datafa.st's button press: releasing a pressed button pops it past rest
 	 * before settling. The press itself is active:scale-[0.95] on the button. */

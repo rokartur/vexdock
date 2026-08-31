@@ -1,13 +1,7 @@
 import { expect, test } from 'bun:test'
 import { labelOf, trailOf } from './breadcrumb'
 
-const routes = [
-	'/',
-	'/projects/',
-	'/projects/$projectId',
-	'/projects/$projectId/settings',
-	'/docker/containers',
-]
+const routes = ['/', '/projects/', '/projects/$projectId', '/projects/$projectId/settings', '/docker/containers']
 
 test('links every ancestor a route serves, never the current page', () => {
 	expect(trailOf('/projects/abc/settings', routes)).toEqual([
