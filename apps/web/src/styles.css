@@ -89,23 +89,23 @@
 }
 
 .dark {
-	/* datafa.st's dark theme (DaisyUI): warm near-white text on layered neutral
-	 * grays. The canvas (sidebar) is their base-300, the content panel base-200,
-	 * every card base-100 — surfaces get lighter as they come forward. */
-	--background: oklch(0.2478 0 0);
+	/* datafa.st's dark theme (DaisyUI) pulled down to a true-black canvas: warm
+	 * near-white text on layered neutral grays, surfaces getting lighter as they
+	 * come forward — black canvas (sidebar), lifted content panel, lighter cards. */
+	--background: oklch(0.185 0 0);
 	--foreground: oklch(0.898 0.0017 67.8);
-	--card: oklch(0.2686 0 0);
+	--card: oklch(0.205 0 0);
 	--card-foreground: oklch(0.898 0.0017 67.8);
-	--popover: oklch(0.2686 0 0);
+	--popover: oklch(0.205 0 0);
 	--popover-foreground: oklch(0.898 0.0017 67.8);
 	/* The brand orange, #e16540. */
 	--primary: oklch(0.6531 0.1637 37.22);
 	--primary-foreground: oklch(1 0 0);
-	--secondary: oklch(0.4202 0 0);
+	--secondary: oklch(0.37 0 0);
 	--secondary-foreground: oklch(1 0 0);
-	--muted: oklch(0.32 0 0);
+	--muted: oklch(0.26 0 0);
 	--muted-foreground: #aba8a7;
-	--accent: oklch(0.32 0 0);
+	--accent: oklch(0.26 0 0);
 	--accent-foreground: oklch(0.898 0.0017 67.8);
 	/* Their error hue; bright enough that danger text clears 4.5:1 on its own
 	 * 20% tint, which is the only way this app renders destructive. */
@@ -121,11 +121,11 @@
 	--chart-3: oklch(0.7451 0.167 183.61);
 	--chart-4: oklch(0.648 0.15 160);
 	--chart-5: oklch(0.8471 0.199 83.87);
-	--sidebar: oklch(0.2393 0 0);
+	--sidebar: oklch(0 0 0);
 	--sidebar-foreground: oklch(0.898 0.0017 67.8);
 	--sidebar-primary: oklch(0.6531 0.1637 37.22);
 	--sidebar-primary-foreground: oklch(1 0 0);
-	--sidebar-accent: oklch(0.32 0 0);
+	--sidebar-accent: oklch(0.21 0 0);
 	--sidebar-accent-foreground: oklch(0.898 0.0017 67.8);
 	--sidebar-border: oklch(0.898 0.0017 67.8 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
