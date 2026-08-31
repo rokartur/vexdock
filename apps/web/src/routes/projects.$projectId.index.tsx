@@ -8,6 +8,7 @@ import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
 import { Button, Cell, Cells, ErrorText, Refresh, Section, Status } from '../components/primitives'
 import { api, type Domain, type Service } from '../lib/api'
+import { deploymentLink } from '../lib/deployment-link'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent, since } from '../lib/format'
 
@@ -188,13 +189,12 @@ function ProjectServices() {
 		mutationFn: () => api.deploy(projectId, environmentId),
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
-			await navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } })
+			await navigate(deploymentLink(projectId, deployment.id))
 		},
 	})
 	const deployOne = useMutation({
 		mutationFn: (serviceId: string) => api.deployService(serviceId),
-		onSuccess: deployment =>
-			navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } }),
+		onSuccess: deployment => navigate(deploymentLink(projectId, deployment.id)),
 	})
 	const act = useMutation({
 		mutationFn: ({ serviceId, action }: { serviceId: string; action: 'start' | 'restart' }) =>
@@ -229,11 +229,7 @@ function ProjectServices() {
 					label='Last deploy'
 					value={
 						latest ? (
-							<Link
-								to='/deployments/$deploymentId'
-								params={{ deploymentId: latest.id }}
-								className='hover:underline'
-							>
+							<Link {...deploymentLink(projectId, latest.id)} className='hover:underline'>
 								#{latest.number}
 							</Link>
 						) : (

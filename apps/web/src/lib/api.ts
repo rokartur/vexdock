@@ -319,7 +319,7 @@ export type SystemInfo = {
 	containers_running: number
 	containers_stopped: number
 	images: number
-	recent_deployments: { deployment: Deployment; project_name: string }[]
+	recent_deployments: { deployment: Deployment; project_name: string; environment_name: string }[]
 	version: string
 }
 

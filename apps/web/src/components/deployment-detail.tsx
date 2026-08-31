@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
 import { type Line, LogViewer } from '../components/log-viewer'
-import { Button, ErrorText, Page, Section, Status } from '../components/primitives'
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
-import { duration, shortSha } from '../lib/format'
+import { duration } from '../lib/format'
 import { useEventSource } from '../lib/sse'
-
-export const Route = createFileRoute('/deployments/$deploymentId')({ component: DeploymentPage })
+import { Button, ErrorText, Status } from './primitives'
 
 type LogLine = { step: string; text: string; at: string }
 
-/** Live deployment pipeline: steps on the left, streamed log below. */
-function DeploymentPage() {
-	const { deploymentId } = Route.useParams()
+/**
+ * One deployment's pipeline and its log, streamed while it runs. Rendered
+ * inside the row that was opened on the project's deployments tab.
+ */
+export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 	const queryClient = useQueryClient()
 	const [deployment, setDeployment] = useState<Deployment | null>(null)
 	const [steps, setSteps] = useState<DeploymentStep[]>([])
@@ -50,6 +49,7 @@ function DeploymentPage() {
 			'deployment.closed': () => {
 				setLive(false)
 				void queryClient.invalidateQueries({ queryKey: ['projects'] })
+				void queryClient.invalidateQueries({ queryKey: ['deployments'] })
 			},
 		},
 		live,
@@ -72,65 +72,38 @@ function DeploymentPage() {
 	)
 
 	const cancel = useMutation({ mutationFn: () => api.cancelDeployment(deploymentId) })
-	const rollback = useMutation({ mutationFn: () => api.rollback(deploymentId) })
-
 	const isRunning = deployment?.status === 'running' || deployment?.status === 'queued'
 
 	return (
-		<Page
-			labels={{
-				[deploymentId]: (
-					<>
-						#{deployment?.number ?? ''}
-						{deployment ? <Status value={deployment.status} /> : null}
-						<span className='font-mono text-body text-muted-foreground'>
-							{deployment?.service_name || 'all'} · {deployment?.branch}{' '}
-							{shortSha(deployment?.commit_sha)}
+		<div className='flex flex-col gap-3 bg-background/40 px-3 py-3'>
+			<ErrorText error={cancel.error} />
+			{deployment?.error ? <p className='text-body text-destructive'>{deployment.error}</p> : null}
+
+			<div className='flex flex-wrap items-center gap-x-6 gap-y-2'>
+				{steps.length === 0 ? (
+					<span className='text-body text-muted-foreground'>Waiting for the runner…</span>
+				) : (
+					steps.map(step => (
+						<span key={step.id} className='flex items-center gap-2'>
+							<span className='font-mono text-body'>{step.name}</span>
+							<Status value={step.status} />
+							<span className='font-mono text-label text-muted-foreground'>
+								{duration(step.started_at, step.finished_at)}
+							</span>
 						</span>
-					</>
-				),
-			}}
-			actions={
-				<>
-					{isRunning ? (
+					))
+				)}
+				{isRunning ? (
+					<span className='ml-auto'>
 						<Button variant='danger' onClick={() => cancel.mutate()}>
 							Cancel
 						</Button>
-					) : null}
-					{!isRunning && deployment?.commit_sha ? (
-						<Button onClick={() => rollback.mutate()}>Redeploy this commit</Button>
-					) : null}
-				</>
-			}
-		>
-			<ErrorText error={cancel.error ?? rollback.error} />
-			{deployment?.error ? <p className='mb-3 text-body text-destructive'>{deployment.error}</p> : null}
+					</span>
+				) : null}
+			</div>
 
-			<Section title='Pipeline'>
-				<ol className='rounded-xl border border-border px-3'>
-					{steps.length === 0 ? (
-						<li className='py-3 text-body text-muted-foreground'>Waiting for the runner…</li>
-					) : (
-						steps.map(step => (
-							<li
-								key={step.id}
-								className='flex items-center gap-4 border-b border-border/50 py-1.5 last:border-b-0'
-							>
-								<span className='w-28 font-mono text-body'>{step.name}</span>
-								<Status value={step.status} />
-								<span className='font-mono text-label text-muted-foreground'>
-									{duration(step.started_at, step.finished_at)}
-								</span>
-							</li>
-						))
-					)}
-				</ol>
-			</Section>
-
-			<Section title='Log' description={live ? 'streaming' : 'finished'}>
-				<LogViewer lines={logLines} className='h-[50vh]' />
-			</Section>
-		</Page>
+			<LogViewer lines={logLines} className='h-80' />
+		</div>
 	)
 }
 

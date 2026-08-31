@@ -3,6 +3,7 @@ import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { Button, ErrorText, Page, Tabs } from '../components/primitives'
 import { api, type Service } from '../lib/api'
+import { deploymentLink } from '../lib/deployment-link'
 import { environmentSearch } from '../lib/environment'
 
 // A service is not one of the project's tabs, so it hangs off `$projectId_`:
@@ -58,7 +59,7 @@ function ServiceLayout() {
 		mutationFn: () => api.deployService(serviceId),
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
-			await navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } })
+			await navigate(deploymentLink(projectId, deployment.id))
 		},
 	})
 

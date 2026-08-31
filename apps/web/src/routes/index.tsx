@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
 import { Cell, Cells, Page, Refresh, Section, Status } from '../components/primitives'
-import { api, type HostPoint, type HostStats } from '../lib/api'
-import { bytes, duration, percent, shortSha, since } from '../lib/format'
+import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
+import { deploymentLink } from '../lib/deployment-link'
+import { bytes, percent, since } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
 /** The live stream carries a load average the recorded buckets do not. */
@@ -12,6 +14,49 @@ type HostSample = HostPoint & { load_average?: number }
 
 /** Recorded buckets are stamped in unix seconds; live samples use the browser clock. */
 const toMillis = (point: HostPoint): HostSample => ({ ...point, at: point.at * 1000 })
+
+type RecentDeployment = SystemInfo['recent_deployments'][number]
+
+// One machine runs everything, so the server column is the Docker host's name.
+function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
+	const cell = columnsFor<RecentDeployment>()
+	return [
+		cell.accessor(({ deployment }) => deployment.status, {
+			id: 'status',
+			header: 'Status',
+			cell: ({ row }) => <Status value={row.original.deployment.status} />,
+		}),
+		cell.accessor(({ deployment }) => deployment.service_name || 'all', {
+			id: 'service',
+			header: 'Service',
+			meta: { mono: true },
+		}),
+		cell.accessor(({ deployment, project_name }) => project_name || deployment.project_id, {
+			id: 'project',
+			header: 'Project',
+		}),
+		cell.accessor(({ environment_name }) => environment_name, { id: 'environment', header: 'Environment' }),
+		cell.display({ id: 'server', header: 'Server', meta: { mono: true }, cell: () => server }),
+		cell.accessor(({ deployment }) => deployment.created_at, {
+			id: 'when',
+			header: 'When',
+			cell: ({ row }) => since(row.original.deployment.created_at),
+		}),
+		cell.display({
+			id: 'logs',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row: { original } }) => (
+				<Link
+					{...deploymentLink(original.deployment.project_id, original.deployment.id)}
+					className='text-muted-foreground hover:underline'
+				>
+					logs
+				</Link>
+			),
+		}),
+	]
+}
 
 export const Route = createFileRoute('/')({ component: DashboardPage })
 
@@ -37,6 +82,7 @@ function DashboardPage() {
 
 	// The API already returns these newest-first, capped.
 	const deployments = info.data?.recent_deployments ?? []
+	const deploymentColumns = useMemo(() => recentDeploymentColumns(host?.name ?? ''), [host?.name])
 
 	return (
 		<Page
@@ -115,44 +161,16 @@ function DashboardPage() {
 
 			<Section
 				title='Deployments'
-				description='newest first, open one for its log'
+				description='newest first across every project'
 				actions={<Refresh onClick={() => info.refetch()} busy={info.isFetching} />}
 			>
-				{deployments.length === 0 ? (
-					<div className='rounded-xl border px-3 py-8 text-center text-body text-muted-foreground'>
-						No deployments yet.
-					</div>
-				) : (
-					<div className='divide-y rounded-xl border'>
-						{deployments.map(({ deployment, project_name }) => (
-							// The whole row opens the deployment page, which is where the
-							// pipeline and the streamed log live.
-							<Link
-								key={deployment.id}
-								to='/deployments/$deploymentId'
-								params={{ deploymentId: deployment.id }}
-								className='flex items-baseline gap-3 px-3 py-1.5 text-body first:rounded-t-xl last:rounded-b-xl hover:bg-muted/50'
-							>
-								<span className='w-16 shrink-0 font-mono text-label text-muted-foreground'>
-									{since(deployment.created_at)}
-								</span>
-								<span className='truncate'>{project_name || deployment.project_id}</span>
-								<span className='truncate font-mono text-muted-foreground'>
-									{deployment.service_name || 'all'} · {shortSha(deployment.commit_sha)}
-								</span>
-								<span className='ml-auto flex shrink-0 items-baseline gap-3'>
-									<Status value={deployment.status} />
-									<span className='font-mono text-label text-muted-foreground'>
-										{duration(deployment.started_at, deployment.finished_at)}
-									</span>
-									<span className='font-mono text-label text-muted-foreground'>
-										#{deployment.number}
-									</span>
-								</span>
-							</Link>
-						))}
-					</div>
-				)}
+				<DataTable
+					data={deployments}
+					columns={deploymentColumns}
+					loading={info.isLoading}
+					getRowId={({ deployment }) => deployment.id}
+					empty='No deployments yet.'
+				/>
 			</Section>
 		</Page>
 	)
