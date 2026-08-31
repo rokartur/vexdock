@@ -157,9 +157,20 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	for _, p := range projects {
 		names[p.ID] = p.Name
 	}
+	environments := map[string]string{}
 	activity := make([]map[string]any, 0, len(recent))
 	for _, d := range recent {
-		activity = append(activity, map[string]any{"deployment": d, "project_name": names[d.ProjectID]})
+		// One lookup per distinct environment, over a list ten rows long.
+		if _, seen := environments[d.EnvironmentID]; !seen && d.EnvironmentID != "" {
+			if env, err := s.DB.EnvironmentByID(r.Context(), d.EnvironmentID); err == nil {
+				environments[d.EnvironmentID] = env.Name
+			}
+		}
+		activity = append(activity, map[string]any{
+			"deployment":       d,
+			"project_name":     names[d.ProjectID],
+			"environment_name": environments[d.EnvironmentID],
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"host": map[string]any{

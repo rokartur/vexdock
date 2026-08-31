@@ -1,4 +1,4 @@
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import {
 	type ColumnDef,
@@ -60,6 +60,16 @@ type DataTableProps<TData extends RowData> = {
 	 * the page size from how many rows actually fit, instead of a fixed count.
 	 */
 	fillHeight?: boolean
+	/**
+	 * Makes rows expandable: clicking one renders `render` underneath it. Which
+	 * row is open belongs to the caller, so it can live in the URL. Needs
+	 * `getRowId`, and a cell with its own handler must stop propagation.
+	 */
+	detail?: {
+		openId: string | null
+		onOpenChange: (id: string | null) => void
+		render: (row: TData) => ReactNode
+	}
 }
 
 export function DataTable<TData extends RowData>({
@@ -70,6 +80,7 @@ export function DataTable<TData extends RowData>({
 	getRowId,
 	pageSize: fixedPageSize = 20,
 	fillHeight = false,
+	detail,
 }: DataTableProps<TData>) {
 	const [sorting, setSorting] = useState<SortingState>([])
 	const [pageIndex, setPageIndex] = useState(0)
@@ -173,22 +184,50 @@ export function DataTable<TData extends RowData>({
 								</TableCell>
 							</TableRow>
 						) : (
-							rows.map(row => (
-								<TableRow key={row.id}>
-									{row.getAllCells().map(cell => (
-										<TableCell
-											key={cell.id}
-											className={cn(
-												'py-2 pr-3 pl-0',
-												cell.column.columnDef.meta?.align === 'right' && 'text-right',
-												cell.column.columnDef.meta?.mono && 'font-mono',
-											)}
+							rows.map(row => {
+								const open = detail?.openId === row.id
+								return (
+									<Fragment key={row.id}>
+										{/* An expandable row is the control: focusable, and Enter or
+										    Space does what the click does. */}
+										<TableRow
+											data-state={open ? 'selected' : undefined}
+											className={cn(detail && 'cursor-pointer')}
+											tabIndex={detail ? 0 : undefined}
+											aria-expanded={detail ? open : undefined}
+											onClick={detail && (() => detail.onOpenChange(open ? null : row.id))}
+											onKeyDown={
+												detail &&
+												(event => {
+													if (event.key !== 'Enter' && event.key !== ' ') return
+													event.preventDefault()
+													detail.onOpenChange(open ? null : row.id)
+												})
+											}
 										>
-											<table.FlexRender cell={cell} />
-										</TableCell>
-									))}
-								</TableRow>
-							))
+											{row.getAllCells().map(cell => (
+												<TableCell
+													key={cell.id}
+													className={cn(
+														'py-2 pr-3 pl-0',
+														cell.column.columnDef.meta?.align === 'right' && 'text-right',
+														cell.column.columnDef.meta?.mono && 'font-mono',
+													)}
+												>
+													<table.FlexRender cell={cell} />
+												</TableCell>
+											))}
+										</TableRow>
+										{open && detail ? (
+											<TableRow className='hover:bg-transparent'>
+												<TableCell colSpan={columnCount} className='p-0'>
+													{detail.render(row.original)}
+												</TableCell>
+											</TableRow>
+										) : null}
+									</Fragment>
+								)
+							})
 						)}
 					</TableBody>
 				</ShadcnTable>

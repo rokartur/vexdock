@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { DeploymentDetail } from '../components/deployment-detail'
 import { Button, ErrorText, Refresh, Section, Status } from '../components/primitives'
 import { api, type Deployment } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
@@ -14,15 +15,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			id: 'number',
 			header: '#',
 			meta: { mono: true },
-			cell: ({ row }) => (
-				<Link
-					to='/deployments/$deploymentId'
-					params={{ deploymentId: row.original.id }}
-					className='hover:underline'
-				>
-					#{row.original.number}
-				</Link>
-			),
+			cell: ({ row }) => `#${row.original.number}`,
 		}),
 		cell.accessor(deployment => deployment.status, {
 			id: 'status',
@@ -59,7 +52,14 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			meta: { align: 'right' },
 			cell: ({ row: { original } }) =>
 				original.commit_sha && original.status === 'success' ? (
-					<Button variant='ghost' onClick={() => redeploy(original.id)} title='Redeploy this commit'>
+					<Button
+						variant='ghost'
+						onClick={event => {
+							event.stopPropagation()
+							redeploy(original.id)
+						}}
+						title='Redeploy this commit'
+					>
 						redeploy this
 					</Button>
 				) : null,
@@ -67,13 +67,30 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 	]
 }
 
-export const Route = createFileRoute('/projects/$projectId/deployments')({ component: ProjectDeployments })
+const renderDetail = (deployment: Deployment) => <DeploymentDetail deploymentId={deployment.id} />
+
+export const Route = createFileRoute('/projects/$projectId/deployments')({
+	component: ProjectDeployments,
+	// Which deployment is open lives in the URL, so anything that starts a deploy
+	// can link straight at its log.
+	validateSearch: (search: Record<string, unknown>): { deployment?: string } =>
+		typeof search.deployment === 'string' ? { deployment: search.deployment } : {},
+})
 
 function ProjectDeployments() {
 	const { projectId } = Route.useParams()
+	const { deployment: openId = null } = Route.useSearch()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const environmentId = useEnvironmentId()
+
+	const open = (id: string | null) => {
+		void navigate({
+			to: '.',
+			search: previous => ({ ...previous, deployment: id ?? undefined }),
+			replace: true,
+		})
+	}
 
 	const deployments = useQuery({
 		queryKey: ['deployments', projectId, environmentId],
@@ -85,7 +102,7 @@ function ProjectDeployments() {
 		mutationFn: (id: string) => api.rollback(id),
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['deployments', projectId] })
-			await navigate({ to: '/deployments/$deploymentId', params: { deploymentId: deployment.id } })
+			open(deployment.id)
 		},
 	})
 
@@ -106,6 +123,7 @@ function ProjectDeployments() {
 				loading={deployments.isLoading}
 				getRowId={deployment => deployment.id}
 				empty='No deployments yet.'
+				detail={{ openId, onOpenChange: open, render: renderDetail }}
 			/>
 		</Section>
 	)

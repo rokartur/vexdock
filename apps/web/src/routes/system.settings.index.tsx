@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Button, Check, ErrorText, Field, Section } from '../components/primitives'
 import { api } from '../lib/api'
-import { DEFAULT_BRAND } from '../lib/brand'
+import { BRAND_COLORS, DEFAULT_BRAND } from '../lib/brand'
+import { cn } from '../utils/cn'
 
 export const Route = createFileRoute('/system/settings/')({ component: GeneralSettings })
 
@@ -78,27 +79,26 @@ function GeneralSettings() {
 			</Section>
 
 			<Section title='Brand colour' description='the accent used across the panel' onSave={apply}>
-				<Field
-					label='Accent'
-					hint='Buttons, links, charts and the active sidebar row. Reset to keep the shipped orange.'
-				>
-					<div className='flex items-center gap-2'>
-						<input
-							type='color'
-							aria-label='Accent colour'
-							value={draft.brand || DEFAULT_BRAND}
-							onChange={event => setDraft({ ...draft, brand: event.target.value })}
-							className='size-8 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-1'
-						/>
-						<input
-							value={draft.brand}
-							placeholder={DEFAULT_BRAND}
-							pattern='#[0-9a-fA-F]{6}'
-							onChange={event => setDraft({ ...draft, brand: event.target.value })}
-						/>
-						<Button variant='ghost' onClick={() => setDraft({ ...draft, brand: '' })}>
-							Reset
-						</Button>
+				<Field label='Accent' hint='Buttons, links, charts and the active sidebar row.'>
+					<div className='flex flex-wrap items-center gap-2'>
+						{BRAND_COLORS.map(color => {
+							// An empty setting means the shipped orange, so it selects that swatch.
+							const selected = (draft.brand || DEFAULT_BRAND).toLowerCase() === color
+							return (
+								<button
+									key={color}
+									type='button'
+									aria-label={color}
+									aria-pressed={selected}
+									onClick={() => setDraft({ ...draft, brand: color === DEFAULT_BRAND ? '' : color })}
+									style={{ background: color }}
+									className={cn(
+										'size-6 cursor-pointer rounded-full transition-[scale] active:scale-[0.95] motion-reduce:active:scale-100',
+										selected && 'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+									)}
+								/>
+							)
+						})}
 					</div>
 				</Field>
 			</Section>

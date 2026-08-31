@@ -7,7 +7,6 @@ const routes = [
 	'/projects/$projectId',
 	'/projects/$projectId/settings',
 	'/docker/containers',
-	'/deployments/$deploymentId',
 ]
 
 test('links every ancestor a route serves, never the current page', () => {
