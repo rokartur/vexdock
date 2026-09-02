@@ -1,5 +1,6 @@
 import { type ComponentProps, Fragment, type KeyboardEvent, type ReactNode } from 'react'
-import { IconRefresh } from '@tabler/icons-react'
+import { Select as SelectPrimitive } from '@base-ui/react/select'
+import { IconCheck, IconChevronDown, IconRefresh } from '@tabler/icons-react'
 import { Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { Button as ShadcnButton } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -390,6 +391,74 @@ export function Check({
 			<Checkbox checked={checked} disabled={disabled} onCheckedChange={onChange} />
 			{label}
 		</label>
+	)
+}
+
+/**
+ * The only picker shape in the app. The trigger wears the plain-input styling
+ * from styles.css, so a Select and an <input> next to it are the same control.
+ */
+export function Select<TValue extends string>({
+	value,
+	options,
+	onChange,
+	required,
+	disabled,
+	label,
+	className,
+}: {
+	value: TValue
+	/** NoInfer: the value type comes from `value` and `onChange`, never widened by the options. */
+	options: readonly { value: NoInfer<TValue>; label: string }[]
+	onChange: (value: TValue) => void
+	required?: boolean
+	disabled?: boolean
+	/** For a picker with no Field around it, like a page filter. */
+	label?: string
+	/** Layout only, e.g. a filter that sizes to its content. */
+	className?: string
+}) {
+	return (
+		<SelectPrimitive.Root
+			items={options}
+			value={value}
+			onValueChange={next => {
+				if (next !== null) onChange(next)
+			}}
+			required={required}
+			disabled={disabled}
+		>
+			<SelectPrimitive.Trigger
+				data-slot='select-trigger'
+				aria-label={label}
+				className={cn('flex cursor-pointer items-center justify-between gap-2 text-left', className)}
+			>
+				<SelectPrimitive.Value className='truncate' />
+				<IconChevronDown className='size-3.5 shrink-0 text-muted-foreground' />
+			</SelectPrimitive.Trigger>
+			<SelectPrimitive.Portal>
+				<SelectPrimitive.Positioner
+					className='isolate z-50 outline-none'
+					sideOffset={4}
+					alignItemWithTrigger={false}
+				>
+					<SelectPrimitive.Popup className='max-h-(--available-height) min-w-(--anchor-width) overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none'>
+						{options.map(option => (
+							<SelectPrimitive.Item
+								key={option.value}
+								value={option.value}
+								className='flex cursor-default items-center justify-between gap-3 rounded-md py-1 pr-1.5 pl-2 text-body outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground'
+							>
+								<SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+								<SelectPrimitive.ItemIndicator>
+									<IconCheck className='size-3.5' />
+								</SelectPrimitive.ItemIndicator>
+							</SelectPrimitive.Item>
+						))}
+					</SelectPrimitive.Popup>
+				</SelectPrimitive.Positioner>
+			</SelectPrimitive.Portal>
+		</SelectPrimitive.Root>
 	)
 }
 

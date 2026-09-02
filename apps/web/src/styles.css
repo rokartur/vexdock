@@ -320,9 +320,11 @@ html[data-popover-open] main [data-scroll-lock] {
 	 * buttons and the segmented strip use, and these sit next to them.
 	 * Elements rendered by a ui component carry data-slot (or cmdk's own
 	 * attributes) and are left alone, otherwise they would be styled twice.
+	 * The Select trigger opts in by name, so a picker matches the inputs it
+	 * sits next to.
 	 */
 	input:not([type='checkbox'], [type='radio'], [data-slot], [cmdk-input]),
-	select:not([data-slot]),
+	[data-slot='select-trigger'],
 	textarea:not([data-slot]) {
 		@apply h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
 		color: inherit;
@@ -331,11 +333,6 @@ html[data-popover-open] main [data-scroll-lock] {
 	/* Grows with its content instead of sitting on the input's fixed height. */
 	textarea:not([data-slot]) {
 		@apply h-auto resize-none py-2;
-	}
-
-	/* Room for the native disclosure arrow. */
-	select:not([data-slot]) {
-		@apply pr-1.5;
 	}
 }
 

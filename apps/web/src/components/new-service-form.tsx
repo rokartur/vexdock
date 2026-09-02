@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { api, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { Button, ErrorText, Field } from './primitives'
+import { Button, ErrorText, Field, Select } from './primitives'
 
 /**
  * What the menu asked for. An application is created as a bare name: whether it
@@ -112,19 +112,17 @@ export function NewServiceForm({
 				{kind === 'database' ? (
 					<>
 						<Field label='Engine'>
-							<select
+							<Select
 								value={engine}
-								onChange={event => {
-									setEngine(event.target.value)
+								onChange={next => {
+									setEngine(next)
 									setVersion('')
 								}}
-							>
-								{engines.data?.map(option => (
-									<option key={option.slug} value={option.slug}>
-										{option.name}
-									</option>
-								))}
-							</select>
+								options={(engines.data ?? []).map(option => ({
+									value: option.slug,
+									label: option.name,
+								}))}
+							/>
 						</Field>
 
 						{isCustom ? (
