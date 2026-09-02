@@ -8,6 +8,7 @@ import (
 
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
+	"github.com/vexdock/platform/manager/internal/git"
 	"github.com/vexdock/platform/manager/internal/security"
 
 	"strings"
@@ -118,4 +119,39 @@ func testService(t *testing.T) *Service {
 		t.Fatalf("cipher: %v", err)
 	}
 	return New(db, &config.Config{Root: root, ProjectsDir: filepath.Join(root, "projects")}, cipher)
+}
+
+// A connected account is what makes a picked repository clonable: the service
+// stores no credential of its own, so the token has to come from the account.
+func TestCredentialComesFromConnectedAccount(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+
+	enc, err := svc.cipher.Encrypt("ghp_secret")
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	account := &database.GitAccount{Provider: "github", Name: "acme", EncryptedTok: enc}
+	if err := svc.db.CreateGitAccount(ctx, account); err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+
+	service := &database.Service{CredentialKind: database.GitCredentialNone}
+	if err := svc.SetGitAccount(ctx, service, account.ID); err != nil {
+		t.Fatalf("set account: %v", err)
+	}
+	cred, err := svc.Credential(ctx, service)
+	if err != nil {
+		t.Fatalf("credential: %v", err)
+	}
+	if cred.Kind != git.KindToken || cred.Value != "ghp_secret" {
+		t.Fatalf("got %+v, want the account token", cred)
+	}
+
+	if err := svc.SetGitAccount(ctx, service, ""); err != nil {
+		t.Fatalf("clear account: %v", err)
+	}
+	if cred, err = svc.Credential(ctx, service); err != nil || cred.Kind != git.KindNone {
+		t.Fatalf("got %+v, %v, want no credential once the account is cleared", cred, err)
+	}
 }

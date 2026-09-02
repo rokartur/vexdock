@@ -5,6 +5,7 @@ export const Route = createFileRoute('/system/settings')({ component: SettingsLa
 
 const tabs = [
 	{ suffix: '', label: 'General' },
+	{ suffix: '/git', label: 'Git accounts' },
 	{ suffix: '/registries', label: 'Registries' },
 	{ suffix: '/tokens', label: 'API tokens' },
 	{ suffix: '/about', label: 'About' },

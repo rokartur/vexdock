@@ -34,6 +34,7 @@ import { Route as ProjectsProjectIdEnvironmentRouteImport } from './routes/proje
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects.$projectId.settings'
 import { Route as SystemSettingsIndexRouteImport } from './routes/system.settings.index'
 import { Route as SystemSettingsAboutRouteImport } from './routes/system.settings.about'
+import { Route as SystemSettingsGitRouteImport } from './routes/system.settings.git'
 import { Route as SystemSettingsRegistriesRouteImport } from './routes/system.settings.registries'
 import { Route as SystemSettingsTokensRouteImport } from './routes/system.settings.tokens'
 import { Route as ProjectsProjectIdServicesServiceIdRouteImport } from './routes/projects.$projectId_.services.$serviceId'
@@ -176,6 +177,11 @@ const SystemSettingsAboutRoute = SystemSettingsAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => SystemSettingsRoute,
 } as any)
+const SystemSettingsGitRoute = SystemSettingsGitRouteImport.update({
+  id: '/git',
+  path: '/git',
+  getParentRoute: () => SystemSettingsRoute,
+} as any)
 const SystemSettingsRegistriesRoute =
   SystemSettingsRegistriesRouteImport.update({
     id: '/registries',
@@ -272,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
+  '/system/settings/git': typeof SystemSettingsGitRoute
   '/system/settings/registries': typeof SystemSettingsRegistriesRoute
   '/system/settings/tokens': typeof SystemSettingsTokensRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
@@ -309,6 +316,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
+  '/system/settings/git': typeof SystemSettingsGitRoute
   '/system/settings/registries': typeof SystemSettingsRegistriesRoute
   '/system/settings/tokens': typeof SystemSettingsTokensRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
@@ -348,6 +356,7 @@ export interface FileRoutesById {
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
+  '/system/settings/git': typeof SystemSettingsGitRoute
   '/system/settings/registries': typeof SystemSettingsRegistriesRoute
   '/system/settings/tokens': typeof SystemSettingsTokensRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
@@ -389,6 +398,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
+    | '/system/settings/git'
     | '/system/settings/registries'
     | '/system/settings/tokens'
     | '/projects/$projectId/'
@@ -426,6 +436,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
+    | '/system/settings/git'
     | '/system/settings/registries'
     | '/system/settings/tokens'
     | '/projects/$projectId'
@@ -464,6 +475,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
+    | '/system/settings/git'
     | '/system/settings/registries'
     | '/system/settings/tokens'
     | '/projects/$projectId/'
@@ -679,6 +691,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SystemSettingsAboutRouteImport
       parentRoute: typeof SystemSettingsRoute
     }
+    '/system/settings/git': {
+      id: '/system/settings/git'
+      path: '/git'
+      fullPath: '/system/settings/git'
+      preLoaderRoute: typeof SystemSettingsGitRouteImport
+      parentRoute: typeof SystemSettingsRoute
+    }
     '/system/settings/registries': {
       id: '/system/settings/registries'
       path: '/registries'
@@ -787,6 +806,7 @@ const ProjectsProjectIdRouteWithChildren =
 
 interface SystemSettingsRouteChildren {
   SystemSettingsAboutRoute: typeof SystemSettingsAboutRoute
+  SystemSettingsGitRoute: typeof SystemSettingsGitRoute
   SystemSettingsRegistriesRoute: typeof SystemSettingsRegistriesRoute
   SystemSettingsTokensRoute: typeof SystemSettingsTokensRoute
   SystemSettingsIndexRoute: typeof SystemSettingsIndexRoute
@@ -794,6 +814,7 @@ interface SystemSettingsRouteChildren {
 
 const SystemSettingsRouteChildren: SystemSettingsRouteChildren = {
   SystemSettingsAboutRoute: SystemSettingsAboutRoute,
+  SystemSettingsGitRoute: SystemSettingsGitRoute,
   SystemSettingsRegistriesRoute: SystemSettingsRegistriesRoute,
   SystemSettingsTokensRoute: SystemSettingsTokensRoute,
   SystemSettingsIndexRoute: SystemSettingsIndexRoute,

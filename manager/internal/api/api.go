@@ -151,6 +151,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/registries", s.protected(s.handleCreateRegistry))
 	mux.Handle("DELETE /api/registries/{id}", s.protected(s.handleDeleteRegistry))
 
+	mux.Handle("GET /api/git-accounts", s.protected(s.handleListGitAccounts))
+	mux.Handle("POST /api/git-accounts", s.protected(s.handleCreateGitAccount))
+	mux.Handle("DELETE /api/git-accounts/{id}", s.protected(s.handleDeleteGitAccount))
+	mux.Handle("GET /api/git-accounts/{id}/repositories", s.protected(s.handleGitAccountRepositories))
+
 	mux.Handle("GET /api/tokens", s.protected(s.handleListTokens))
 	mux.Handle("POST /api/tokens", s.protected(s.handleCreateToken))
 	mux.Handle("DELETE /api/tokens/{id}", s.protected(s.handleDeleteToken))

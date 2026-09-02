@@ -100,6 +100,9 @@ type Service struct {
 	// repository. The plaintext never leaves the manager.
 	CredentialKind string `json:"credential_kind"`
 	CredentialEnc  string `json:"-"`
+	// GitAccountID points at a connected provider account whose token clones
+	// this service. When set it replaces CredentialKind and CredentialEnc.
+	GitAccountID string `json:"git_account_id"`
 	// Image is the reference an image-sourced service runs and the one a
 	// database service was created with. Changing the version is an edit of
 	// this field followed by a redeploy, which is why it is stored rather than
@@ -196,6 +199,20 @@ type DeploymentStep struct {
 	Output       string `json:"output"`
 	StartedAt    string `json:"started_at"`
 	FinishedAt   string `json:"finished_at"`
+}
+
+// GitAccount is a provider token connected once and reused by any service that
+// clones from that provider. It is what turns "paste a URL" into "pick a
+// repository": the same token lists the repositories and clones them.
+type GitAccount struct {
+	ID       string `json:"id"`
+	Provider string `json:"provider"`
+	Name     string `json:"name"`
+	// Host is the origin of a self-hosted GitLab or Gitea, empty for the
+	// hosted providers.
+	Host         string `json:"host"`
+	EncryptedTok string `json:"-"`
+	CreatedAt    string `json:"created_at"`
 }
 
 type Registry struct {

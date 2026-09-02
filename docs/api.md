@@ -154,7 +154,11 @@ last three minutes, so the list never shows a dead container's last numbers.
 The git providers clone the same way and differ only in webhook dialect and
 label. A git service carries its own `repository_url`, `branch`, `build_path`
 and credentials: `credential_kind` is `none`, `token` or `ssh_key`, and
-`credential_secret` is write-only, encrypted at rest and never returned. Sending
+`credential_secret` is write-only, encrypted at rest and never returned.
+`git_account_id` points at a [connected account](#git-accounts) instead, whose
+token then clones the service and whose repositories it is picked from; setting
+one clears the service's own credential, and clearing it (`""`) hands the
+credential fields back. Sending
 a `database` object instead picks the engine catalogue: the image, the volume
 and the credentials are generated for you, and `provider` is forced to `image`.
 
@@ -374,6 +378,27 @@ Nothing is pruned on a schedule. A cleanup answers
 `{"kind", "removed", "space_reclaimed"}`. `cleanup/volumes` wants `?confirm=true`
 just as the single delete does, because an unused volume is a stopped project's
 data rather than junk; the other kinds can be rebuilt and ask for nothing.
+
+## Git accounts
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/git-accounts` | Connected accounts; the token is never returned |
+| `POST /api/git-accounts` | `{"provider", "name", "host", "token"}`. `201` |
+| `DELETE /api/git-accounts/{id}` | Removes one |
+| `GET /api/git-accounts/{id}/repositories` | `[{"full_name", "clone_url", "default_branch"}]` |
+
+An account is one provider token stored encrypted and reused by every service
+that sets `git_account_id`, which is how a repository gets picked from a list
+instead of pasted as a URL. `provider` is `github`, `gitlab` or `gitea`; `host`
+is the https origin of a self-hosted instance, required for Gitea and empty for
+the hosted services. Creating an account lists repositories once with the token,
+so a token that cannot read them is rejected here rather than mid-deployment.
+
+The repository list is one page of a hundred, most recently active first, and
+entries whose clone URL would not pass the same validation as a hand-typed one
+are dropped. Deleting an account clears it off its services, which then have no
+credential and fail their next deployment rather than deploying a stale checkout.
 
 ## Registries
 

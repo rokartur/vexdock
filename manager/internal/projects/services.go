@@ -12,7 +12,7 @@ import (
 )
 
 // applyGit validates and stores the repository fields of a git service.
-func (s *Service) applyGit(svc *database.Service, in ServiceInput) error {
+func (s *Service) applyGit(ctx context.Context, svc *database.Service, in ServiceInput) error {
 	url, err := security.ValidateGitURL(in.RepositoryURL)
 	if err != nil {
 		return err
@@ -29,6 +29,9 @@ func (s *Service) applyGit(svc *database.Service, in ServiceInput) error {
 		return err
 	}
 	svc.RepositoryURL, svc.Branch, svc.BuildPath = url, branch, buildPath
+	if in.GitAccountID != "" {
+		return s.SetGitAccount(ctx, svc, in.GitAccountID)
+	}
 	return s.SetCredential(svc, in.CredentialKind, in.CredentialSecret)
 }
 
@@ -60,7 +63,7 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 		// An application is created as a bare name. Where its image comes from
 		// is answered later, in the service's own settings.
 	case database.GitProvider(in.Provider):
-		if err := s.applyGit(svc, in); err != nil {
+		if err := s.applyGit(ctx, svc, in); err != nil {
 			return nil, err
 		}
 	case in.Provider == database.ProviderImage:

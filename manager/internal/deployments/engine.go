@@ -338,7 +338,7 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 	p.begin(StepClone)
 	shas := make([]string, 0, len(sourced))
 	for _, svc := range sourced {
-		cred, err := p.e.projects.Credential(&svc)
+		cred, err := p.e.projects.Credential(ctx, &svc)
 		if err != nil {
 			return p.fail(err)
 		}
