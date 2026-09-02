@@ -1,6 +1,6 @@
 import { type ComponentProps, Fragment, type KeyboardEvent, type ReactNode } from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
-import { IconCheck, IconChevronDown, IconRefresh } from '@tabler/icons-react'
+import { IconCheck, IconChevronDown, IconRefresh, type Icon as TablerIcon } from '@tabler/icons-react'
 import { Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { Button as ShadcnButton } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -212,14 +212,18 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	)
 }
 
-/** The same strip, switching a value instead of the URL: ranges, filters, modes. */
+/**
+ * The same strip, switching a value instead of the URL: ranges, filters, modes.
+ * An option may carry an icon, which is how a row of sources (GitHub, GitLab,
+ * an image) reads as the brands it names rather than a list of words.
+ */
 export function Segmented<TValue extends string>({
 	value,
 	options,
 	onChange,
 }: {
 	value: TValue
-	options: { value: TValue; label: string }[]
+	options: readonly { value: NoInfer<TValue>; label: string; icon?: TablerIcon }[]
 	onChange: (value: TValue) => void
 }) {
 	return (
@@ -230,8 +234,9 @@ export function Segmented<TValue extends string>({
 					type='button'
 					aria-pressed={option.value === value}
 					onClick={() => onChange(option.value)}
-					className={segmentItem(option.value === value)}
+					className={cn(segmentItem(option.value === value), option.icon && 'gap-1.5')}
 				>
+					{option.icon ? <option.icon className='size-3.5' stroke={1.75} /> : null}
 					{option.label}
 				</button>
 			))}
@@ -240,9 +245,15 @@ export function Segmented<TValue extends string>({
 }
 
 /**
- * `onSave` binds Cmd+S (macOS) / Ctrl+S to this section while the caret is
- * inside it, so a page with several sections saves the one being edited.
+ * Cmd+S (macOS) / Ctrl+S saves the section the caret is inside, so a page with
+ * several sections saves the one being edited.
  */
+const saveShortcut = (onSave?: () => void) => (event: KeyboardEvent<HTMLElement>) => {
+	if (!onSave || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
+	event.preventDefault()
+	onSave()
+}
+
 export function Section({
 	title,
 	actions,
@@ -259,14 +270,8 @@ export function Section({
 	/** Layout only, e.g. letting a section fill the page for a full-height table. */
 	className?: string
 }) {
-	const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-		if (!onSave || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
-		event.preventDefault()
-		onSave()
-	}
-
 	return (
-		<section className={cn('mb-10', className)} onKeyDown={onKeyDown}>
+		<section className={cn('mb-10', className)} onKeyDown={saveShortcut(onSave)}>
 			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-3'>
 					<h2 className='text-title font-bold'>{title}</h2>
@@ -275,6 +280,41 @@ export function Section({
 				{actions ? <div className='flex items-center gap-2'>{actions}</div> : null}
 			</header>
 			{children}
+		</section>
+	)
+}
+
+/**
+ * One group of a settings page: what it is on the left, its controls on the
+ * right, a hairline between groups. Each group saves on its own, so its Save
+ * goes in `actions` and lands under the controls, never in a page-wide bar.
+ */
+export function FormSection({
+	title,
+	description,
+	actions,
+	onSave,
+	children,
+}: {
+	title: string
+	description?: string
+	actions?: ReactNode
+	onSave?: () => void
+	children: ReactNode
+}) {
+	return (
+		<section
+			className='grid gap-x-7 gap-y-3 border-t py-5 first:border-t-0 first:pt-1 lg:grid-cols-[200px_1fr]'
+			onKeyDown={saveShortcut(onSave)}
+		>
+			<div>
+				<h2 className='text-title font-bold'>{title}</h2>
+				{description ? <p className='mt-0.5 text-label text-muted-foreground'>{description}</p> : null}
+			</div>
+			<div className='min-w-0'>
+				{children}
+				{actions ? <div className='flex justify-end gap-2'>{actions}</div> : null}
+			</div>
 		</section>
 	)
 }

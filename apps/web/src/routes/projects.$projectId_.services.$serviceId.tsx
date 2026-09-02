@@ -3,7 +3,6 @@ import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { Button, ErrorText, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
-import { deploymentLink } from '../lib/deployment-link'
 import { environmentSearch } from '../lib/environment'
 
 // A service is not one of the project's tabs, so it hangs off `$projectId_`:
@@ -19,13 +18,17 @@ export function useService(serviceId: string) {
 	return useQuery({ queryKey: ['service', serviceId], queryFn: () => api.service(serviceId) })
 }
 
+// Dokploy's order: what you configure first, what you watch after.
 const tabs = [
-	{ suffix: '', label: 'Overview' },
+	{ suffix: '', label: 'General' },
 	{ suffix: '/environment', label: 'Environment' },
+	{ suffix: '/domains', label: 'Domains' },
+	{ suffix: '/deployments', label: 'Deployments' },
 	{ suffix: '/logs', label: 'Logs' },
 	{ suffix: '/terminal', label: 'Terminal' },
 	{ suffix: '/tasks', label: 'Tasks' },
-	{ suffix: '/settings', label: 'Settings' },
+	{ suffix: '/monitoring', label: 'Monitoring' },
+	{ suffix: '/advanced', label: 'Advanced' },
 ]
 
 function ServiceLayout() {
@@ -45,7 +48,12 @@ function ServiceLayout() {
 		mutationFn: () => api.deployService(serviceId),
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
-			await navigate(deploymentLink(projectId, deployment.id))
+			// The service's own deployments tab, so the log opens without leaving it.
+			await navigate({
+				to: '/projects/$projectId/services/$serviceId/deployments',
+				params: { projectId, serviceId },
+				search: previous => ({ ...previous, deployment: deployment.id }),
+			})
 		},
 	})
 
