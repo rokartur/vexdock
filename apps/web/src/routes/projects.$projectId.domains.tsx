@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, Check, ErrorText, Field, Refresh, Section, Status } from '../components/primitives'
+import { Button, Check, ErrorText, Field, Refresh, Section, Select, Status } from '../components/primitives'
 import { api, type Certificate, type CertificateSource, type Domain } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 
@@ -295,14 +295,18 @@ function ProjectDomains() {
 						/>
 					</Field>
 					<Field label='Service'>
-						<select required value={service} onChange={event => setService(event.target.value)}>
-							<option value=''>Select…</option>
-							{services.data?.map(item => (
-								<option key={item.id} value={item.compose_service_name}>
-									{item.compose_service_name}
-								</option>
-							))}
-						</select>
+						<Select
+							required
+							value={service}
+							onChange={setService}
+							options={[
+								{ value: '', label: 'Select…' },
+								...(services.data ?? []).map(item => ({
+									value: item.compose_service_name,
+									label: item.compose_service_name,
+								})),
+							]}
+						/>
 					</Field>
 					<Field label='Container port'>
 						<input

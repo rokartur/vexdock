@@ -6,7 +6,7 @@ import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since, until } from '../lib/format'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { LogViewer } from './log-viewer'
-import { Button, Check, ErrorText, Field, Section } from './primitives'
+import { Button, Check, ErrorText, Field, Section, Select } from './primitives'
 
 /** A task being written. `id` is null while it is still a new one. */
 type TaskForm = TaskInput & { id: string | null }
@@ -34,7 +34,12 @@ const cronPresets = [
 	{ label: 'First of the month', value: '0 0 1 * *' },
 ]
 
-const timezones = Intl.supportedValuesOf('timeZone')
+const scheduleOptions = [{ label: 'Custom', value: '' }, ...cronPresets]
+
+const timezoneOptions = ['UTC', ...Intl.supportedValuesOf('timeZone').filter(zone => zone !== 'UTC')].map(zone => ({
+	value: zone,
+	label: zone,
+}))
 
 type TaskActions = {
 	select: (id: string) => void
@@ -384,17 +389,11 @@ function TaskFormFields({
 			<Field label='Schedule' hint='cron, or @daily'>
 				{/* The preset writes the expression rather than replacing it, so the
 				    field stays the one source of truth. */}
-				<select
+				<Select
 					value={cronPresets.some(preset => preset.value === form.schedule) ? form.schedule : ''}
-					onChange={event => onChange({ ...form, schedule: event.target.value })}
-				>
-					<option value=''>Custom</option>
-					{cronPresets.map(preset => (
-						<option key={preset.value} value={preset.value}>
-							{preset.label}
-						</option>
-					))}
-				</select>
+					onChange={schedule => onChange({ ...form, schedule })}
+					options={scheduleOptions}
+				/>
 				<input
 					required
 					value={form.schedule}
@@ -404,26 +403,21 @@ function TaskFormFields({
 			</Field>
 			<div className='grid grid-cols-2 gap-3'>
 				<Field label='Timezone' hint='the zone those hours are read in'>
-					<select
+					<Select
 						value={form.timezone}
-						onChange={event => onChange({ ...form, timezone: event.target.value })}
-					>
-						<option value='UTC'>UTC</option>
-						{timezones.map(zone => (
-							<option key={zone} value={zone}>
-								{zone}
-							</option>
-						))}
-					</select>
+						onChange={timezone => onChange({ ...form, timezone })}
+						options={timezoneOptions}
+					/>
 				</Field>
 				<Field label='Shell' hint='sh is the one Alpine images have'>
-					<select
+					<Select
 						value={form.shell}
-						onChange={event => onChange({ ...form, shell: event.target.value === 'bash' ? 'bash' : 'sh' })}
-					>
-						<option value='sh'>sh</option>
-						<option value='bash'>bash</option>
-					</select>
+						onChange={shell => onChange({ ...form, shell })}
+						options={[
+							{ value: 'sh', label: 'sh' },
+							{ value: 'bash', label: 'bash' },
+						]}
+					/>
 				</Field>
 			</div>
 			<Field label='Command'>

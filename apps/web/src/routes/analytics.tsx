@@ -15,7 +15,7 @@ import {
 	YAxis,
 } from 'recharts'
 import { MetricCard, type Point } from '../components/metric-chart'
-import { Button, Cell, Cells, ErrorText, Page, Refresh, Section, Segmented } from '../components/primitives'
+import { Button, Cell, Cells, ErrorText, Page, Refresh, Section, Segmented, Select } from '../components/primitives'
 import { type AnalyticsRange, api, type Breakdown, type Traffic, type TrafficPoint } from '../lib/api'
 import { delta, dense, WEEKDAYS, weekdayHours } from '../lib/traffic'
 
@@ -79,18 +79,13 @@ function AnalyticsPage() {
 			actions={<Refresh onClick={() => analytics.refetch()} busy={analytics.isFetching} />}
 			filters={
 				<>
-					<select
-						aria-label='Site'
+					<Select
+						label='Site'
 						value={selected ?? ''}
-						onChange={event => setHostname(event.target.value)}
+						onChange={setHostname}
+						options={tracked.map(domain => ({ value: domain.hostname, label: domain.hostname }))}
 						className='w-auto'
-					>
-						{tracked.map(domain => (
-							<option key={domain.id} value={domain.hostname}>
-								{domain.hostname}
-							</option>
-						))}
-					</select>
+					/>
 					<Segmented value={range} onChange={setRange} options={ranges} />
 				</>
 			}

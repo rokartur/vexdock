@@ -1,13 +1,29 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Button, ErrorText, Field, Section } from '../components/primitives'
+import { Button, ErrorText, Field, Section, Select } from '../components/primitives'
 import { api, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/settings')({
 	component: ServiceSettingsRoute,
 })
+
+const providerOptions: { value: ServiceProvider; label: string }[] = [
+	{ value: 'github', label: 'GitHub' },
+	{ value: 'gitlab', label: 'GitLab' },
+	{ value: 'bitbucket', label: 'Bitbucket' },
+	{ value: 'gitea', label: 'Gitea' },
+	{ value: 'git', label: 'Any git URL' },
+	{ value: 'image', label: 'Docker image' },
+	{ value: 'raw', label: 'Compose file' },
+]
+
+const credentialOptions: { value: CredentialKind; label: string }[] = [
+	{ value: 'none', label: 'Public repository' },
+	{ value: 'token', label: 'Access token' },
+	{ value: 'ssh_key', label: 'SSH private key' },
+]
 
 function ServiceSettingsRoute() {
 	const { projectId, serviceId } = Route.useParams()
@@ -89,18 +105,7 @@ function ServiceSettings({ projectId, service }: { projectId: string; service: S
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					{editable ? (
 						<Field label='Provider'>
-							<select
-								value={provider}
-								onChange={event => setProvider(event.target.value as ServiceProvider)}
-							>
-								<option value='github'>GitHub</option>
-								<option value='gitlab'>GitLab</option>
-								<option value='bitbucket'>Bitbucket</option>
-								<option value='gitea'>Gitea</option>
-								<option value='git'>Any git URL</option>
-								<option value='image'>Docker image</option>
-								<option value='raw'>Compose file</option>
-							</select>
+							<Select value={provider} onChange={setProvider} options={providerOptions} />
 						</Field>
 					) : null}
 					{git ? (
@@ -115,14 +120,11 @@ function ServiceSettings({ projectId, service }: { projectId: string; service: S
 								<input value={buildPath} onChange={event => setBuildPath(event.target.value)} />
 							</Field>
 							<Field label='Credentials'>
-								<select
+								<Select
 									value={credentialKind}
-									onChange={event => setCredentialKind(event.target.value as CredentialKind)}
-								>
-									<option value='none'>Public repository</option>
-									<option value='token'>Access token</option>
-									<option value='ssh_key'>SSH private key</option>
-								</select>
+									onChange={setCredentialKind}
+									options={credentialOptions}
+								/>
 							</Field>
 							{credentialKind === 'none' ? null : (
 								<Field
