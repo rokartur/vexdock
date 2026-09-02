@@ -65,7 +65,9 @@ itself from the URL. A section of a page is a child route, never a `?tab=`:
 dashboard's vocabulary. `components/ui/*` is CLI output, so a design change
 lands in `primitives.tsx` alone. Sub-navigation and page filters belong in
 `Page`'s `toolbar`, actions in its header; both switches (`Tabs`, `Segmented`)
-are the same strip, so never hand-roll a third one.
+are the same strip, so never hand-roll a third one. A settings page is a stack
+of `FormSection`s, each with its own Save under its controls, the way a
+service's General tab does it.
 
 **Environment-scoped work.** The environment, not the project, owns the compose
 project name, the directory and the services. A project route takes

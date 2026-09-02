@@ -38,9 +38,12 @@ import { Route as SystemSettingsRegistriesRouteImport } from './routes/system.se
 import { Route as SystemSettingsTokensRouteImport } from './routes/system.settings.tokens'
 import { Route as ProjectsProjectIdServicesServiceIdRouteImport } from './routes/projects.$projectId_.services.$serviceId'
 import { Route as ProjectsProjectIdServicesServiceIdIndexRouteImport } from './routes/projects.$projectId_.services.$serviceId.index'
+import { Route as ProjectsProjectIdServicesServiceIdAdvancedRouteImport } from './routes/projects.$projectId_.services.$serviceId.advanced'
+import { Route as ProjectsProjectIdServicesServiceIdDeploymentsRouteImport } from './routes/projects.$projectId_.services.$serviceId.deployments'
+import { Route as ProjectsProjectIdServicesServiceIdDomainsRouteImport } from './routes/projects.$projectId_.services.$serviceId.domains'
 import { Route as ProjectsProjectIdServicesServiceIdEnvironmentRouteImport } from './routes/projects.$projectId_.services.$serviceId.environment'
 import { Route as ProjectsProjectIdServicesServiceIdLogsRouteImport } from './routes/projects.$projectId_.services.$serviceId.logs'
-import { Route as ProjectsProjectIdServicesServiceIdSettingsRouteImport } from './routes/projects.$projectId_.services.$serviceId.settings'
+import { Route as ProjectsProjectIdServicesServiceIdMonitoringRouteImport } from './routes/projects.$projectId_.services.$serviceId.monitoring'
 import { Route as ProjectsProjectIdServicesServiceIdTasksRouteImport } from './routes/projects.$projectId_.services.$serviceId.tasks'
 import { Route as ProjectsProjectIdServicesServiceIdTerminalRouteImport } from './routes/projects.$projectId_.services.$serviceId.terminal'
 
@@ -196,6 +199,24 @@ const ProjectsProjectIdServicesServiceIdIndexRoute =
     path: '/',
     getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
   } as any)
+const ProjectsProjectIdServicesServiceIdAdvancedRoute =
+  ProjectsProjectIdServicesServiceIdAdvancedRouteImport.update({
+    id: '/advanced',
+    path: '/advanced',
+    getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
+  } as any)
+const ProjectsProjectIdServicesServiceIdDeploymentsRoute =
+  ProjectsProjectIdServicesServiceIdDeploymentsRouteImport.update({
+    id: '/deployments',
+    path: '/deployments',
+    getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
+  } as any)
+const ProjectsProjectIdServicesServiceIdDomainsRoute =
+  ProjectsProjectIdServicesServiceIdDomainsRouteImport.update({
+    id: '/domains',
+    path: '/domains',
+    getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
+  } as any)
 const ProjectsProjectIdServicesServiceIdEnvironmentRoute =
   ProjectsProjectIdServicesServiceIdEnvironmentRouteImport.update({
     id: '/environment',
@@ -208,10 +229,10 @@ const ProjectsProjectIdServicesServiceIdLogsRoute =
     path: '/logs',
     getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
   } as any)
-const ProjectsProjectIdServicesServiceIdSettingsRoute =
-  ProjectsProjectIdServicesServiceIdSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
+const ProjectsProjectIdServicesServiceIdMonitoringRoute =
+  ProjectsProjectIdServicesServiceIdMonitoringRouteImport.update({
+    id: '/monitoring',
+    path: '/monitoring',
     getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
   } as any)
 const ProjectsProjectIdServicesServiceIdTasksRoute =
@@ -256,9 +277,12 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/system/settings/': typeof SystemSettingsIndexRoute
   '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRouteWithChildren
+  '/projects/$projectId/services/$serviceId/advanced': typeof ProjectsProjectIdServicesServiceIdAdvancedRoute
+  '/projects/$projectId/services/$serviceId/deployments': typeof ProjectsProjectIdServicesServiceIdDeploymentsRoute
+  '/projects/$projectId/services/$serviceId/domains': typeof ProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof ProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/projects/$projectId/services/$serviceId/logs': typeof ProjectsProjectIdServicesServiceIdLogsRoute
-  '/projects/$projectId/services/$serviceId/settings': typeof ProjectsProjectIdServicesServiceIdSettingsRoute
+  '/projects/$projectId/services/$serviceId/monitoring': typeof ProjectsProjectIdServicesServiceIdMonitoringRoute
   '/projects/$projectId/services/$serviceId/tasks': typeof ProjectsProjectIdServicesServiceIdTasksRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/services/$serviceId/': typeof ProjectsProjectIdServicesServiceIdIndexRoute
@@ -289,9 +313,12 @@ export interface FileRoutesByTo {
   '/system/settings/tokens': typeof SystemSettingsTokensRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/system/settings': typeof SystemSettingsIndexRoute
+  '/projects/$projectId/services/$serviceId/advanced': typeof ProjectsProjectIdServicesServiceIdAdvancedRoute
+  '/projects/$projectId/services/$serviceId/deployments': typeof ProjectsProjectIdServicesServiceIdDeploymentsRoute
+  '/projects/$projectId/services/$serviceId/domains': typeof ProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof ProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/projects/$projectId/services/$serviceId/logs': typeof ProjectsProjectIdServicesServiceIdLogsRoute
-  '/projects/$projectId/services/$serviceId/settings': typeof ProjectsProjectIdServicesServiceIdSettingsRoute
+  '/projects/$projectId/services/$serviceId/monitoring': typeof ProjectsProjectIdServicesServiceIdMonitoringRoute
   '/projects/$projectId/services/$serviceId/tasks': typeof ProjectsProjectIdServicesServiceIdTasksRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdIndexRoute
@@ -326,9 +353,12 @@ export interface FileRoutesById {
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/system/settings/': typeof SystemSettingsIndexRoute
   '/projects/$projectId_/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRouteWithChildren
+  '/projects/$projectId_/services/$serviceId/advanced': typeof ProjectsProjectIdServicesServiceIdAdvancedRoute
+  '/projects/$projectId_/services/$serviceId/deployments': typeof ProjectsProjectIdServicesServiceIdDeploymentsRoute
+  '/projects/$projectId_/services/$serviceId/domains': typeof ProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId_/services/$serviceId/environment': typeof ProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/projects/$projectId_/services/$serviceId/logs': typeof ProjectsProjectIdServicesServiceIdLogsRoute
-  '/projects/$projectId_/services/$serviceId/settings': typeof ProjectsProjectIdServicesServiceIdSettingsRoute
+  '/projects/$projectId_/services/$serviceId/monitoring': typeof ProjectsProjectIdServicesServiceIdMonitoringRoute
   '/projects/$projectId_/services/$serviceId/tasks': typeof ProjectsProjectIdServicesServiceIdTasksRoute
   '/projects/$projectId_/services/$serviceId/terminal': typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId_/services/$serviceId/': typeof ProjectsProjectIdServicesServiceIdIndexRoute
@@ -364,9 +394,12 @@ export interface FileRouteTypes {
     | '/projects/$projectId/'
     | '/system/settings/'
     | '/projects/$projectId/services/$serviceId'
+    | '/projects/$projectId/services/$serviceId/advanced'
+    | '/projects/$projectId/services/$serviceId/deployments'
+    | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
     | '/projects/$projectId/services/$serviceId/logs'
-    | '/projects/$projectId/services/$serviceId/settings'
+    | '/projects/$projectId/services/$serviceId/monitoring'
     | '/projects/$projectId/services/$serviceId/tasks'
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/services/$serviceId/'
@@ -397,9 +430,12 @@ export interface FileRouteTypes {
     | '/system/settings/tokens'
     | '/projects/$projectId'
     | '/system/settings'
+    | '/projects/$projectId/services/$serviceId/advanced'
+    | '/projects/$projectId/services/$serviceId/deployments'
+    | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
     | '/projects/$projectId/services/$serviceId/logs'
-    | '/projects/$projectId/services/$serviceId/settings'
+    | '/projects/$projectId/services/$serviceId/monitoring'
     | '/projects/$projectId/services/$serviceId/tasks'
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/services/$serviceId'
@@ -433,9 +469,12 @@ export interface FileRouteTypes {
     | '/projects/$projectId/'
     | '/system/settings/'
     | '/projects/$projectId_/services/$serviceId'
+    | '/projects/$projectId_/services/$serviceId/advanced'
+    | '/projects/$projectId_/services/$serviceId/deployments'
+    | '/projects/$projectId_/services/$serviceId/domains'
     | '/projects/$projectId_/services/$serviceId/environment'
     | '/projects/$projectId_/services/$serviceId/logs'
-    | '/projects/$projectId_/services/$serviceId/settings'
+    | '/projects/$projectId_/services/$serviceId/monitoring'
     | '/projects/$projectId_/services/$serviceId/tasks'
     | '/projects/$projectId_/services/$serviceId/terminal'
     | '/projects/$projectId_/services/$serviceId/'
@@ -668,6 +707,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdIndexRouteImport
       parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
     }
+    '/projects/$projectId_/services/$serviceId/advanced': {
+      id: '/projects/$projectId_/services/$serviceId/advanced'
+      path: '/advanced'
+      fullPath: '/projects/$projectId/services/$serviceId/advanced'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdAdvancedRouteImport
+      parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
+    }
+    '/projects/$projectId_/services/$serviceId/deployments': {
+      id: '/projects/$projectId_/services/$serviceId/deployments'
+      path: '/deployments'
+      fullPath: '/projects/$projectId/services/$serviceId/deployments'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdDeploymentsRouteImport
+      parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
+    }
+    '/projects/$projectId_/services/$serviceId/domains': {
+      id: '/projects/$projectId_/services/$serviceId/domains'
+      path: '/domains'
+      fullPath: '/projects/$projectId/services/$serviceId/domains'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdDomainsRouteImport
+      parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
+    }
     '/projects/$projectId_/services/$serviceId/environment': {
       id: '/projects/$projectId_/services/$serviceId/environment'
       path: '/environment'
@@ -682,11 +742,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdLogsRouteImport
       parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
     }
-    '/projects/$projectId_/services/$serviceId/settings': {
-      id: '/projects/$projectId_/services/$serviceId/settings'
-      path: '/settings'
-      fullPath: '/projects/$projectId/services/$serviceId/settings'
-      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdSettingsRouteImport
+    '/projects/$projectId_/services/$serviceId/monitoring': {
+      id: '/projects/$projectId_/services/$serviceId/monitoring'
+      path: '/monitoring'
+      fullPath: '/projects/$projectId/services/$serviceId/monitoring'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdMonitoringRouteImport
       parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
     }
     '/projects/$projectId_/services/$serviceId/tasks': {
@@ -744,9 +804,12 @@ const SystemSettingsRouteWithChildren = SystemSettingsRoute._addFileChildren(
 )
 
 interface ProjectsProjectIdServicesServiceIdRouteChildren {
+  ProjectsProjectIdServicesServiceIdAdvancedRoute: typeof ProjectsProjectIdServicesServiceIdAdvancedRoute
+  ProjectsProjectIdServicesServiceIdDeploymentsRoute: typeof ProjectsProjectIdServicesServiceIdDeploymentsRoute
+  ProjectsProjectIdServicesServiceIdDomainsRoute: typeof ProjectsProjectIdServicesServiceIdDomainsRoute
   ProjectsProjectIdServicesServiceIdEnvironmentRoute: typeof ProjectsProjectIdServicesServiceIdEnvironmentRoute
   ProjectsProjectIdServicesServiceIdLogsRoute: typeof ProjectsProjectIdServicesServiceIdLogsRoute
-  ProjectsProjectIdServicesServiceIdSettingsRoute: typeof ProjectsProjectIdServicesServiceIdSettingsRoute
+  ProjectsProjectIdServicesServiceIdMonitoringRoute: typeof ProjectsProjectIdServicesServiceIdMonitoringRoute
   ProjectsProjectIdServicesServiceIdTasksRoute: typeof ProjectsProjectIdServicesServiceIdTasksRoute
   ProjectsProjectIdServicesServiceIdTerminalRoute: typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   ProjectsProjectIdServicesServiceIdIndexRoute: typeof ProjectsProjectIdServicesServiceIdIndexRoute
@@ -754,12 +817,18 @@ interface ProjectsProjectIdServicesServiceIdRouteChildren {
 
 const ProjectsProjectIdServicesServiceIdRouteChildren: ProjectsProjectIdServicesServiceIdRouteChildren =
   {
+    ProjectsProjectIdServicesServiceIdAdvancedRoute:
+      ProjectsProjectIdServicesServiceIdAdvancedRoute,
+    ProjectsProjectIdServicesServiceIdDeploymentsRoute:
+      ProjectsProjectIdServicesServiceIdDeploymentsRoute,
+    ProjectsProjectIdServicesServiceIdDomainsRoute:
+      ProjectsProjectIdServicesServiceIdDomainsRoute,
     ProjectsProjectIdServicesServiceIdEnvironmentRoute:
       ProjectsProjectIdServicesServiceIdEnvironmentRoute,
     ProjectsProjectIdServicesServiceIdLogsRoute:
       ProjectsProjectIdServicesServiceIdLogsRoute,
-    ProjectsProjectIdServicesServiceIdSettingsRoute:
-      ProjectsProjectIdServicesServiceIdSettingsRoute,
+    ProjectsProjectIdServicesServiceIdMonitoringRoute:
+      ProjectsProjectIdServicesServiceIdMonitoringRoute,
     ProjectsProjectIdServicesServiceIdTasksRoute:
       ProjectsProjectIdServicesServiceIdTasksRoute,
     ProjectsProjectIdServicesServiceIdTerminalRoute:

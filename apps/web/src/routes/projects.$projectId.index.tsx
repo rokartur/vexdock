@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
 import { Button, Cell, Cells, ErrorText, Refresh, Section, Status } from '../components/primitives'
@@ -19,144 +18,95 @@ const creatable: { kind: ServiceKind; label: string }[] = [
 	{ kind: 'compose', label: 'Compose' },
 ]
 
-type RowActions = {
+/**
+ * One service, Dokploy's card with the facts you check before opening it:
+ * whether it is up, what it runs, where it answers, what it costs, how long it
+ * has been that way. A service whose source is still unanswered says so instead
+ * of reading as broken, and the image falls back to what the container was
+ * actually started from so a derived service still shows something.
+ */
+function ServiceCard({
+	projectId,
+	service,
+	hostnames,
+	deploy,
+	act,
+}: {
 	projectId: string
-	hostnames: Map<string, string[]>
+	service: Service
+	hostnames: string[]
 	deploy: (serviceId: string) => void
 	act: (serviceId: string, action: 'start' | 'restart') => void
-}
+}) {
+	const unconfigured = service.provider === 'unconfigured'
+	const running = service.state === 'running'
+	const [hostname, ...more] = hostnames
+	const noDomain = service.type === 'database' ? 'internal' : '-'
+	const params = { projectId, serviceId: service.id }
 
-/**
- * The columns are what you check before opening a service: whether it is up,
- * what it runs, where it answers, what it costs, how long it has been that way.
- * A service whose source is still unanswered says so instead of reading as
- * broken, and the image falls back to what the container was actually started
- * from so a derived service still shows something.
- */
-function serviceColumns({ projectId, hostnames, deploy, act }: RowActions): Columns<Service> {
-	const cell = columnsFor<Service>()
-	return [
-		cell.accessor(service => service.compose_service_name, {
-			id: 'name',
-			header: 'Name',
-			cell: ({ row: { original } }) => (
-				<span className='flex items-center gap-2'>
-					<TypeBadge type={original.type} />
+	return (
+		<div className='flex flex-col rounded-xl bg-card px-4 py-3 shadow-card'>
+			<div className='flex items-center justify-between gap-3'>
+				<span className='flex min-w-0 items-center gap-2 text-title font-semibold'>
+					<TypeBadge type={service.type} />
 					<Link
 						to='/projects/$projectId/services/$serviceId'
-						params={{ projectId, serviceId: original.id }}
-						className='hover:underline'
+						params={params}
+						className='truncate hover:underline'
 					>
-						{original.compose_service_name}
+						{service.compose_service_name}
 					</Link>
 				</span>
-			),
-		}),
-		cell.accessor(service => (service.provider === 'unconfigured' ? '' : service.state || 'stopped'), {
-			id: 'state',
-			header: 'State',
-			cell: ({ row: { original } }) =>
-				original.provider === 'unconfigured' ? (
-					<span className='text-muted-foreground'>needs a provider</span>
+				{unconfigured ? (
+					<span className='shrink-0 text-label text-muted-foreground'>needs a provider</span>
 				) : (
-					<Status value={original.state || 'stopped'} />
-				),
-		}),
-		cell.accessor(service => (service.provider === 'unconfigured' ? '' : service.image || service.running_image), {
-			id: 'image',
-			header: 'Image',
-			meta: { mono: true },
-			cell: ({ getValue }) => getValue() || '-',
-		}),
-		cell.accessor(service => hostnames.get(service.id)?.[0] ?? '', {
-			id: 'domain',
-			header: 'Domain',
-			meta: { mono: true },
-			cell: ({ row: { original } }) => {
-				const [first, ...rest] = hostnames.get(original.id) ?? []
-				if (!first) {
-					return (
-						<span className='text-muted-foreground'>{original.type === 'database' ? 'internal' : '-'}</span>
-					)
-				}
-				return (
-					<>
-						<a href={`https://${first}`} target='_blank' rel='noreferrer' className='hover:underline'>
-							{first}
-						</a>
-						{rest.length > 0 ? <span className='text-muted-foreground'> +{rest.length}</span> : null}
-					</>
-				)
-			},
-		}),
-		cell.accessor(service => service.cpu_percent, {
-			id: 'cpu',
-			header: 'CPU',
-			meta: { align: 'right', mono: true },
-			cell: ({ row: { original } }) =>
-				original.state === 'running' ? (
-					percent(original.cpu_percent)
-				) : (
-					<span className='text-muted-foreground'>-</span>
-				),
-		}),
-		cell.accessor(service => service.memory_usage, {
-			id: 'memory',
-			header: 'Memory',
-			meta: { align: 'right', mono: true },
-			cell: ({ row: { original } }) =>
-				original.state === 'running' ? (
-					bytes(original.memory_usage)
-				) : (
-					<span className='text-muted-foreground'>-</span>
-				),
-		}),
-		// The container is recreated on every deploy, so when it was created is
-		// when this service last shipped.
-		cell.accessor(service => service.created_unix, {
-			id: 'deployed',
-			header: 'Deployed',
-			cell: ({ row: { original } }) =>
-				original.created_unix ? (
-					since(original.created_unix)
-				) : (
-					<span className='text-muted-foreground'>never</span>
-				),
-		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row: { original } }) => {
-				const running = original.state === 'running'
-				return (
-					<span className='flex justify-end gap-1.5'>
-						<Button
-							variant='ghost'
-							onClick={() => deploy(original.id)}
-							disabled={original.provider === 'unconfigured'}
-						>
-							deploy
-						</Button>
-						<Button
-							variant='ghost'
-							render={
-								<Link
-									to='/projects/$projectId/services/$serviceId/logs'
-									params={{ projectId, serviceId: original.id }}
-								/>
-							}
-						>
-							logs
-						</Button>
-						<Button variant='ghost' onClick={() => act(original.id, running ? 'restart' : 'start')}>
-							{running ? 'restart' : 'start'}
-						</Button>
-					</span>
-				)
-			},
-		}),
-	]
+					<Status value={service.state || 'stopped'} />
+				)}
+			</div>
+			<dl className='mt-2 grid grid-cols-[max-content_1fr] gap-x-4 text-label [&>*]:border-t [&>*:nth-child(-n+2)]:border-t-0 [&>dd]:truncate [&>dd]:py-1 [&>dd]:text-right [&>dd]:font-mono [&>dd]:text-muted-foreground [&>dt]:py-1'>
+				<dt>Image</dt>
+				<dd>{unconfigured ? '-' : service.image || service.running_image || '-'}</dd>
+				<dt>Domain</dt>
+				<dd>
+					{hostname ? (
+						<>
+							<a
+								href={`https://${hostname}`}
+								target='_blank'
+								rel='noreferrer'
+								className='hover:underline'
+							>
+								{hostname}
+							</a>
+							{more.length > 0 ? ` +${more.length}` : null}
+						</>
+					) : (
+						noDomain
+					)}
+				</dd>
+				<dt>CPU · memory</dt>
+				<dd>{running ? `${percent(service.cpu_percent)} · ${bytes(service.memory_usage)}` : '-'}</dd>
+				{/* The container is recreated on every deploy, so when it was created
+				    is when this service last shipped. */}
+				<dt>Deployed</dt>
+				<dd>{service.created_unix ? since(service.created_unix) : 'never'}</dd>
+			</dl>
+			<div className='mt-2 flex gap-1.5'>
+				<Button variant='ghost' onClick={() => deploy(service.id)} disabled={unconfigured}>
+					deploy
+				</Button>
+				<Button
+					variant='ghost'
+					render={<Link to='/projects/$projectId/services/$serviceId/logs' params={params} />}
+				>
+					logs
+				</Button>
+				<Button variant='ghost' onClick={() => act(service.id, running ? 'restart' : 'start')}>
+					{running ? 'restart' : 'start'}
+				</Button>
+			</div>
+		</div>
+	)
 }
 
 export const Route = createFileRoute('/projects/$projectId/')({ component: ProjectServices })
@@ -204,18 +154,6 @@ function ProjectServices() {
 	const cpu = data.reduce((total, service) => total + service.cpu_percent, 0)
 	const memory = data.reduce((total, service) => total + service.memory_usage, 0)
 	const hostnames = useMemo(() => hostnamesByService(domains.data ?? []), [domains.data])
-	const { mutate: runDeploy } = deployOne
-	const { mutate: runAction } = act
-	const columns = useMemo(
-		() =>
-			serviceColumns({
-				projectId,
-				hostnames,
-				deploy: runDeploy,
-				act: (serviceId, action) => runAction({ serviceId, action }),
-			}),
-		[projectId, hostnames, runDeploy, runAction],
-	)
 
 	return (
 		<>
@@ -316,13 +254,24 @@ function ProjectServices() {
 					</DialogContent>
 				</Dialog>
 
-				<DataTable
-					data={data}
-					columns={columns}
-					loading={services.isLoading}
-					getRowId={service => service.id}
-					empty='No services yet. Add one, or Deploy all to pick up what the compose file declares.'
-				/>
+				{data.length === 0 && !services.isLoading ? (
+					<p className='text-body text-muted-foreground'>
+						No services yet. Add one, or Deploy all to pick up what the compose file declares.
+					</p>
+				) : (
+					<div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
+						{data.map(service => (
+							<ServiceCard
+								key={service.id}
+								projectId={projectId}
+								service={service}
+								hostnames={hostnames.get(service.id) ?? []}
+								deploy={deployOne.mutate}
+								act={(serviceId, action) => act.mutate({ serviceId, action })}
+							/>
+						))}
+					</div>
+				)}
 			</Section>
 		</>
 	)
