@@ -134,6 +134,51 @@ func (db *DB) ListCertificates(ctx context.Context) ([]Certificate, error) {
 	return out, rows.Err()
 }
 
+const gitAccountColumns = `id, provider, name, host, token_enc, created_at`
+
+func (db *DB) CreateGitAccount(ctx context.Context, a *GitAccount) error {
+	a.ID, a.CreatedAt = NewID(), Now()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO git_accounts (`+gitAccountColumns+`) VALUES (?, ?, ?, ?, ?, ?)`,
+		a.ID, a.Provider, a.Name, a.Host, a.EncryptedTok, a.CreatedAt)
+	return err
+}
+
+func (db *DB) DeleteGitAccount(ctx context.Context, id string) error {
+	if _, err := db.ExecContext(ctx, `UPDATE services SET git_account_id = '' WHERE git_account_id = ?`, id); err != nil {
+		return err
+	}
+	_, err := db.ExecContext(ctx, `DELETE FROM git_accounts WHERE id = ?`, id)
+	return err
+}
+
+func (db *DB) GitAccount(ctx context.Context, id string) (*GitAccount, error) {
+	var a GitAccount
+	err := db.QueryRowContext(ctx, `SELECT `+gitAccountColumns+` FROM git_accounts WHERE id = ?`, id).
+		Scan(&a.ID, &a.Provider, &a.Name, &a.Host, &a.EncryptedTok, &a.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &a, err
+}
+
+func (db *DB) ListGitAccounts(ctx context.Context) ([]GitAccount, error) {
+	rows, err := db.QueryContext(ctx, `SELECT `+gitAccountColumns+` FROM git_accounts ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []GitAccount{}
+	for rows.Next() {
+		var a GitAccount
+		if err := rows.Scan(&a.ID, &a.Provider, &a.Name, &a.Host, &a.EncryptedTok, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 func (db *DB) CreateRegistry(ctx context.Context, r *Registry) error {
 	r.ID, r.CreatedAt = NewID(), Now()
 	_, err := db.ExecContext(ctx,

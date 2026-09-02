@@ -187,6 +187,7 @@ function SourceSection({ service }: { service: Service }) {
 	const [fragment, setFragment] = useState(service.compose_fragment)
 	const [credentialKind, setCredentialKind] = useState<CredentialKind>(service.credential_kind || 'none')
 	const [credentialSecret, setCredentialSecret] = useState('')
+	const [accountId, setAccountId] = useState(service.git_account_id)
 
 	// An application arrives here as a bare name, so this page is where it gets
 	// answered, and it can be answered again later. A database's provider is
@@ -198,6 +199,30 @@ function SourceSection({ service }: { service: Service }) {
 	const showing = editable ? provider : service.provider
 	const git = isGitProvider(showing)
 
+	// A connected account replaces both the URL and the credential: it lists the
+	// repositories it can clone, and its token is what clones them.
+	const accounts = useQuery({ queryKey: ['git-accounts'], queryFn: api.gitAccounts, enabled: git })
+	const accountOptions = [
+		{ value: '', label: 'Repository URL' },
+		...(accounts.data ?? [])
+			.filter(account => account.provider === showing)
+			.map(account => ({ value: account.id, label: account.name })),
+	]
+	const repositories = useQuery({
+		queryKey: ['git-repositories', accountId],
+		queryFn: () => api.gitRepositories(accountId),
+		enabled: accountId !== '',
+	})
+	const listed = repositories.data ?? []
+	const repositoryOptions = [
+		...listed.map(repo => ({ value: repo.clone_url, label: repo.full_name })),
+		// A repository the token stopped listing stays visible rather than
+		// blanking a field the service still deploys from.
+		...(repositoryUrl && !listed.some(repo => repo.clone_url === repositoryUrl)
+			? [{ value: repositoryUrl, label: repositoryUrl }]
+			: []),
+	]
+
 	const save = useMutation({
 		mutationFn: () =>
 			api.updateService(service.id, {
@@ -207,10 +232,15 @@ function SourceSection({ service }: { service: Service }) {
 							repository_url: repositoryUrl,
 							branch: branch || 'main',
 							build_path: buildPath,
-							credential_kind: credentialKind,
-							// An empty secret keeps the stored one; the manager only
-							// re-encrypts what it is actually given.
-							...(credentialSecret === '' ? {} : { credential_secret: credentialSecret }),
+							git_account_id: accountId,
+							...(accountId === ''
+								? {
+										credential_kind: credentialKind,
+										// An empty secret keeps the stored one; the manager only
+										// re-encrypts what it is actually given.
+										...(credentialSecret === '' ? {} : { credential_secret: credentialSecret }),
+									}
+								: {}),
 						}
 					: {}),
 				...(showing === 'image' ? { image } : {}),
@@ -235,13 +265,51 @@ function SourceSection({ service }: { service: Service }) {
 		>
 			{editable ? (
 				<div className='mb-4'>
-					<Segmented value={provider} onChange={setProvider} options={providerOptions} />
+					<Segmented
+						value={provider}
+						onChange={next => {
+							setProvider(next)
+							// An account belongs to one provider, so it cannot survive the switch.
+							setAccountId('')
+						}}
+						options={providerOptions}
+					/>
 				</div>
 			) : null}
 			{git ? (
 				<>
-					<Field label='Repository'>
-						<input value={repositoryUrl} onChange={event => setRepositoryUrl(event.target.value)} />
+					{accountOptions.length > 1 || accountId !== '' ? (
+						<Field label='Account'>
+							<Select value={accountId} onChange={setAccountId} options={accountOptions} />
+						</Field>
+					) : null}
+					<Field
+						label='Repository'
+						hint={accountId === '' ? undefined : (repositories.error?.message ?? undefined)}
+					>
+						{accountId === '' ? (
+							<input value={repositoryUrl} onChange={event => setRepositoryUrl(event.target.value)} />
+						) : (
+							<Select
+								value={repositoryUrl}
+								disabled={repositories.isPending}
+								options={
+									repositoryOptions.length > 0
+										? repositoryOptions
+										: [
+												{
+													value: '',
+													label: repositories.isPending ? 'Loading…' : 'No repositories',
+												},
+											]
+								}
+								onChange={url => {
+									setRepositoryUrl(url)
+									const picked = listed.find(repo => repo.clone_url === url)
+									if (picked) setBranch(picked.default_branch)
+								}}
+							/>
+						)}
 					</Field>
 					<div className='grid gap-x-6 md:grid-cols-2'>
 						<Field label='Branch'>
@@ -250,10 +318,16 @@ function SourceSection({ service }: { service: Service }) {
 						<Field label='Build path'>
 							<input value={buildPath} onChange={event => setBuildPath(event.target.value)} />
 						</Field>
-						<Field label='Credentials'>
-							<Select value={credentialKind} onChange={setCredentialKind} options={credentialOptions} />
-						</Field>
-						{credentialKind === 'none' ? null : (
+						{accountId === '' ? (
+							<Field label='Credentials'>
+								<Select
+									value={credentialKind}
+									onChange={setCredentialKind}
+									options={credentialOptions}
+								/>
+							</Field>
+						) : null}
+						{accountId !== '' || credentialKind === 'none' ? null : (
 							<Field
 								label={credentialKind === 'token' ? 'Token' : 'Private key'}
 								hint='Leave empty to keep the stored value.'

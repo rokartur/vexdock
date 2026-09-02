@@ -177,6 +177,8 @@ export type Service = {
 	branch: string
 	build_path: string
 	credential_kind: CredentialKind
+	/** A connected account whose token clones this service, or empty for its own credential. */
+	git_account_id: string
 	/** What the service is configured to run, which is set before it ever deploys. */
 	image: string
 	engine: string
@@ -425,6 +427,22 @@ export type VersionSettings = {
 	cleanup_old_images: boolean
 }
 
+/** A provider token connected once, so repositories are picked instead of pasted. */
+export type GitAccount = {
+	id: string
+	provider: ServiceProvider
+	name: string
+	/** The origin of a self-hosted GitLab or Gitea; empty for the hosted ones. */
+	host: string
+	created_at: string
+}
+
+export type GitRepository = {
+	full_name: string
+	clone_url: string
+	default_branch: string
+}
+
 export type Registry = {
 	id: string
 	name: string
@@ -636,6 +654,7 @@ export const api = {
 			build_path?: string
 			credential_kind?: CredentialKind
 			credential_secret?: string
+			git_account_id?: string
 			image?: string
 			compose_fragment?: string
 			database?: {
@@ -679,6 +698,8 @@ export const api = {
 			build_path: string
 			credential_kind: CredentialKind
 			credential_secret: string
+			/** Empty hands the service back its own credential fields. */
+			git_account_id: string
 			/** For a database this is the version switch: set it, then redeploy. */
 			image: string
 			compose_fragment: string
@@ -769,6 +790,12 @@ export const api = {
 			`/api/docker/cleanup/${kind}${kind === 'volumes' ? '?confirm=true' : ''}`,
 			{ method: 'POST' },
 		),
+
+	gitAccounts: () => request<GitAccount[]>('/api/git-accounts'),
+	createGitAccount: (body: { provider: ServiceProvider; name: string; host?: string; token: string }) =>
+		request<GitAccount>('/api/git-accounts', { method: 'POST', body }),
+	deleteGitAccount: (id: string) => request<{ ok: boolean }>(`/api/git-accounts/${id}`, { method: 'DELETE' }),
+	gitRepositories: (id: string) => request<GitRepository[]>(`/api/git-accounts/${id}/repositories`),
 
 	registries: () => request<Registry[]>('/api/registries'),
 	createRegistry: (body: { name: string; url: string; username: string; password: string }) =>

@@ -91,6 +91,7 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		BuildPath        string `json:"build_path"`
 		CredentialKind   string `json:"credential_kind"`
 		CredentialSecret string `json:"credential_secret"`
+		GitAccountID     string `json:"git_account_id"`
 		Image            string `json:"image"`
 		ComposeFragment  string `json:"compose_fragment"`
 		Database         *struct {
@@ -115,6 +116,7 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		BuildPath:        req.BuildPath,
 		CredentialKind:   req.CredentialKind,
 		CredentialSecret: req.CredentialSecret,
+		GitAccountID:     req.GitAccountID,
 		Image:            req.Image,
 		ComposeFragment:  req.ComposeFragment,
 	}
@@ -187,6 +189,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		BuildPath        *string `json:"build_path"`
 		CredentialKind   *string `json:"credential_kind"`
 		CredentialSecret *string `json:"credential_secret"`
+		GitAccountID     *string `json:"git_account_id"`
 		Image            *string `json:"image"`
 		ComposeFragment  *string `json:"compose_fragment"`
 	}
@@ -211,7 +214,15 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.CredentialKind != nil {
+	if req.GitAccountID != nil {
+		if err := s.Projects.SetGitAccount(r.Context(), service, *req.GitAccountID); err != nil {
+			badRequest(w, err)
+			return
+		}
+	}
+	// A connected account is the credential, so an edit that sets one wins over
+	// credential fields the same request happened to carry.
+	if req.CredentialKind != nil && service.GitAccountID == "" {
 		secret := ""
 		if req.CredentialSecret != nil {
 			secret = *req.CredentialSecret

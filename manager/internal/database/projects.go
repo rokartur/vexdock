@@ -144,7 +144,7 @@ func (db *DB) ListSecrets(ctx context.Context, sc SecretScope, ownerID string) (
 
 // The container id is deliberately not stored: it changes on every recreate.
 const serviceColumns = `id, project_id, environment_id, compose_service_name, display_name, type, provider,
-	repository_url, branch, build_path, credential_kind, credential_enc, image, engine, data_path,
+	repository_url, branch, build_path, credential_kind, credential_enc, git_account_id, image, engine, data_path,
 	compose_fragment, created_at, updated_at`
 
 // CreateService records a service the dashboard owns. Its definition is
@@ -152,10 +152,10 @@ const serviceColumns = `id, project_id, environment_id, compose_service_name, di
 func (db *DB) CreateService(ctx context.Context, s *Service) error {
 	s.CreatedAt, s.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.DisplayName, s.Type, s.Provider,
-		s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind, s.CredentialEnc, s.Image, s.Engine, s.DataPath,
-		s.ComposeFragment, s.CreatedAt, s.UpdatedAt)
+		s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind, s.CredentialEnc, s.GitAccountID, s.Image, s.Engine,
+		s.DataPath, s.ComposeFragment, s.CreatedAt, s.UpdatedAt)
 	return err
 }
 
@@ -163,10 +163,10 @@ func (db *DB) UpdateService(ctx context.Context, s *Service) error {
 	s.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
 		`UPDATE services SET display_name = ?, type = ?, provider = ?, repository_url = ?, branch = ?,
-		 build_path = ?, credential_kind = ?, credential_enc = ?, image = ?, engine = ?, data_path = ?,
-		 compose_fragment = ?, updated_at = ? WHERE id = ?`,
+		 build_path = ?, credential_kind = ?, credential_enc = ?, git_account_id = ?, image = ?, engine = ?,
+		 data_path = ?, compose_fragment = ?, updated_at = ? WHERE id = ?`,
 		s.DisplayName, s.Type, s.Provider, s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind,
-		s.CredentialEnc, s.Image, s.Engine, s.DataPath, s.ComposeFragment, s.UpdatedAt, s.ID)
+		s.CredentialEnc, s.GitAccountID, s.Image, s.Engine, s.DataPath, s.ComposeFragment, s.UpdatedAt, s.ID)
 	return err
 }
 
@@ -188,8 +188,8 @@ func (db *DB) ServiceByID(ctx context.Context, id string) (*Service, error) {
 func scanService(row scanner) (*Service, error) {
 	var s Service
 	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.DisplayName, &s.Type, &s.Provider,
-		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.CredentialKind, &s.CredentialEnc, &s.Image, &s.Engine,
-		&s.DataPath, &s.ComposeFragment, &s.CreatedAt, &s.UpdatedAt)
+		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.CredentialKind, &s.CredentialEnc, &s.GitAccountID, &s.Image,
+		&s.Engine, &s.DataPath, &s.ComposeFragment, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -125,6 +125,14 @@ unencrypted, so a command that echoes a secret leaves it in the run history.
   and SSH keys through a 0600 temporary file removed when the clone finishes.
   SSH host keys are pinned on first use in `/opt/vexdock/secrets/known_hosts`,
   so a later clone from a host whose key changed fails instead of proceeding.
+- A connected git account is one provider token, encrypted with the same key and
+  decrypted for two things only: listing that account's repositories for the
+  source picker, and cloning a service that points at it. The token is write-only
+  over the API, the dashboard only ever receives repository names and clone URLs,
+  and a clone URL coming back from a provider is validated exactly like one typed
+  by hand before it can reach a `git clone`. A self-hosted host must be an https
+  origin, so a token is never sent in the clear, and the API path after that
+  origin is fixed by the manager.
 - Registry credentials are encrypted in the database and also handed to
   `docker login`, which writes them to `/opt/vexdock/system/docker/config.json`
   in Docker's own format. That directory is on the host so the login survives
