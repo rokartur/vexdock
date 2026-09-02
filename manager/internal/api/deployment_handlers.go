@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/deployments"
 	"github.com/vexdock/platform/manager/internal/events"
@@ -81,14 +80,9 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 	if handleLookupError(w, err) {
 		return
 	}
-	user, _ := auth.UserFrom(r.Context())
-	actor := ""
-	if user != nil {
-		actor = user.Email
-	}
 	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
 		Trigger:     deployments.TriggerRollback,
-		Actor:       actor,
+		Actor:       actor(r.Context()),
 		CommitSHA:   target.CommitSHA,
 		ServiceName: target.ServiceName,
 	})

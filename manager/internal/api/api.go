@@ -221,6 +221,15 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// actor names the authenticated caller for a deployment record, or "" when
+// the request carried no user.
+func actor(ctx context.Context) string {
+	if user, ok := auth.UserFrom(ctx); ok && user != nil {
+		return user.Email
+	}
+	return ""
+}
+
 // audit records a mutation. A failed write is logged and swallowed: losing an
 // audit line must never turn a successful action into an error for the user.
 func (s *Server) audit(r *http.Request, user *auth.User, status int, viaCookie bool) {

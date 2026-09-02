@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+
 	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/deployments"
@@ -45,8 +47,9 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]projectView, 0, len(list))
+	containers := s.hostContainers(r.Context())
 	for i := range list {
-		view, err := s.projectView(r.Context(), &list[i])
+		view, err := s.projectView(r.Context(), &list[i], containers)
 		if err != nil {
 			serverError(w, err)
 			return
@@ -56,9 +59,22 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// hostContainers is every container on the daemon, read once so the project
+// list costs one Docker call rather than one per environment. A failed read
+// leaves every count at zero rather than failing the page.
+func (s *Server) hostContainers(ctx context.Context) []container.Summary {
+	containers, err := s.Docker.ListContainers(ctx, "")
+	if err != nil {
+		s.Log.Warn("list containers", "error", err)
+		return nil
+	}
+	return containers
+}
+
 // projectView is the card on the projects list, so it counts across every
 // environment: a project with a running staging is not a stopped project.
-func (s *Server) projectView(ctx context.Context, p *database.Project) (*projectView, error) {
+// containers is the daemon's full list; the view picks its own out by label.
+func (s *Server) projectView(ctx context.Context, p *database.Project, containers []container.Summary) (*projectView, error) {
 	services, err := s.DB.ListProjectServices(ctx, p.ID)
 	if err != nil {
 		return nil, err
@@ -87,18 +103,19 @@ func (s *Server) projectView(ctx context.Context, p *database.Project) (*project
 			view.ComposeCount++
 		}
 	}
+	owned := make(map[string]bool, len(envs))
 	for _, env := range envs {
-		containers, err := s.Docker.ListContainers(ctx, env.ComposeProjectName)
-		if err != nil {
+		owned[env.ComposeProjectName] = true
+	}
+	for _, c := range containers {
+		if !owned[c.Labels[docker.ComposeProjectLabel]] {
 			continue
 		}
-		for _, c := range containers {
-			switch c.State {
-			case "running":
-				view.RunningCount++
-			case "exited", "dead", "restarting":
-				view.ErroredCount++
-			}
+		switch c.State {
+		case "running":
+			view.RunningCount++
+		case "exited", "dead", "restarting":
+			view.ErroredCount++
 		}
 	}
 	if recent, err := s.DB.ListProjectDeployments(ctx, p.ID, 1); err == nil && len(recent) > 0 {
@@ -128,7 +145,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	view, err := s.projectView(r.Context(), project)
+	view, err := s.projectView(r.Context(), project, s.hostContainers(r.Context()))
 	if err != nil {
 		serverError(w, err)
 		return
@@ -141,7 +158,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	if handleLookupError(w, err) {
 		return
 	}
-	view, err := s.projectView(r.Context(), project)
+	view, err := s.projectView(r.Context(), project, s.hostContainers(r.Context()))
 	if err != nil {
 		serverError(w, err)
 		return
@@ -193,7 +210,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	view, err := s.projectView(r.Context(), project)
+	view, err := s.projectView(r.Context(), project, s.hostContainers(r.Context()))
 	if err != nil {
 		serverError(w, err)
 		return
@@ -243,14 +260,9 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	user, _ := auth.UserFrom(r.Context())
-	actor := ""
-	if user != nil {
-		actor = user.Email
-	}
 	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
 		Trigger: deployments.TriggerManual,
-		Actor:   actor,
+		Actor:   actor(r.Context()),
 	})
 	if err != nil {
 		serverError(w, err)

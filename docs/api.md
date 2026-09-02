@@ -146,6 +146,7 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `GET \| PUT /api/services/{id}/variables` | Its own variables |
 | `POST /api/services/{id}/deploy` | Deploy this service only |
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
+| `GET /api/services/{id}/metrics` | Recorded usage over `?window=`, the same windows as `/api/system/metrics` |
 | `GET \| POST /api/services/{id}/tasks` | Its [scheduled tasks](#scheduled-tasks) |
 
 `provider` is `unconfigured`, one of the five git providers (`github`, `gitlab`,
@@ -387,6 +388,21 @@ caught here rather than in the middle of a deployment, and a registry whose
 login fails is not kept. The token is encrypted before storage and piped to
 `docker login` on stdin, so it never appears in a process listing.
 
+## Deployments
+
+| Endpoint | Does |
+|---|---|
+| `POST /api/projects/{id}/deploy` | Deploys every service of the environment. `202` with the deployment |
+| `POST /api/projects/{id}/redeploy` | The same call under the name the dashboard uses |
+| `POST /api/projects/{id}/stop` | `docker compose down` for the environment; volumes stay |
+| `GET /api/projects/{id}/deployments` | The environment's history, newest first, fifty deep |
+| `GET /api/deployments/{id}` | `{"deployment", "steps"}` |
+| `POST /api/deployments/{id}/cancel` | Withdraws a queued deployment or stops a running one; `400` once it has finished |
+| `POST /api/deployments/{id}/rollback` | Redeploys the commit that deployment recorded, scoped to the same service; `202`, or `400` when it recorded none |
+
+One environment deploys one pipeline at a time; a second request queues behind
+the first and can still be cancelled while it waits.
+
 ## Deploy from CI
 
 Whole project:
@@ -410,6 +426,26 @@ service deploy sets `service_name` on the deployment; a project deploy leaves it
 empty. Poll `GET /api/deployments/{id}` for the outcome, or subscribe to its
 event stream. Rollback of a service-scoped deployment redeploys that service
 only.
+
+## Domains
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/domains` | Every domain on the server |
+| `GET /api/projects/{id}/domains` | One project's, across its environments |
+| `POST /api/domains` | Adds one. `201` |
+| `PATCH /api/domains/{id}` | Changes any of the same fields |
+| `DELETE /api/domains/{id}` | Removes it, its certificate and its vhost |
+| `POST /api/domains/{id}/certificate` | Issues or renews its certificate now; answers the certificate, or `502 CERTIFICATE_FAILED` |
+
+A domain takes `project_id`, `service`, `hostname`, `container_port`,
+`https_enabled`, `redirect_https`, `analytics`, and optionally `environment_id`
+(the default environment when omitted) and `certificate_source`, which is
+`letsencrypt` or `custom`. A custom source takes `certificate_pem` and
+`private_key_pem` with it; the pair is validated against the hostname before
+anything is stored. Create and update both answer `{"domain"}`, and add a
+`warning` when the mapping was saved but the certificate could not be issued,
+so the domain serves over HTTP and TLS can be retried through `certificate`.
 
 ## Analytics
 

@@ -19,8 +19,6 @@ type Upstream struct {
 	RedirectHTTPS bool
 	// CertDir is the directory holding fullchain.pem and privkey.pem.
 	CertDir string
-	// Custom is optional user-supplied directives injected into location /.
-	Custom string
 	// Analytics serves the visit beacon from this hostname and injects it into
 	// HTML responses, so the deployed app needs no script tag of its own.
 	Analytics bool
@@ -68,7 +66,7 @@ func Render(u Upstream) string {
 		if u.Analytics {
 			b.WriteString(analyticsLocations())
 		}
-		b.WriteString(proxyLocation(target, u.Custom, u.Analytics))
+		b.WriteString(proxyLocation(target, u.Analytics))
 		b.WriteString("}\n")
 	}
 
@@ -89,7 +87,7 @@ func Render(u Upstream) string {
 	if u.Analytics {
 		b.WriteString(analyticsLocations())
 	}
-	b.WriteString(proxyLocation(target, u.Custom, u.Analytics))
+	b.WriteString(proxyLocation(target, u.Analytics))
 	b.WriteString("}\n")
 	return b.String()
 }
@@ -121,7 +119,7 @@ func analyticsLocations() string {
 	return b.String()
 }
 
-func proxyLocation(target, custom string, analytics bool) string {
+func proxyLocation(target string, analytics bool) string {
 	var b strings.Builder
 	b.WriteString("    location / {\n")
 	b.WriteString("        resolver 127.0.0.11 valid=10s ipv6=off;\n")
@@ -146,12 +144,6 @@ func proxyLocation(target, custom string, analytics bool) string {
 		b.WriteString("        sub_filter_types text/html;\n")
 		b.WriteString("        sub_filter_once on;\n")
 		fmt.Fprintf(&b, "        sub_filter '</head>' '<script defer src=\"%s\"></script></head>';\n", BeaconPath)
-	}
-	if strings.TrimSpace(custom) != "" {
-		b.WriteString("\n")
-		for _, line := range strings.Split(strings.TrimSpace(custom), "\n") {
-			fmt.Fprintf(&b, "        %s\n", strings.TrimSpace(line))
-		}
 	}
 	b.WriteString("    }\n")
 	return b.String()

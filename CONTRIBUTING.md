@@ -101,7 +101,7 @@ a rule between rows.
 
 Focused tests for logic that can break silently: the Nginx generator, the
 compose parser, validation, encryption, path confinement, webhook signatures and
-the deployment state machine. `scripts/smoke-test.sh` covers the real path
+the deployment's terminal states. `scripts/smoke-test.sh` covers the real path
 through a running stack. Please do not add tests that only restate the
 implementation.
 

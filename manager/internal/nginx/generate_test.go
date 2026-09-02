@@ -56,15 +56,6 @@ func TestRenderHTTPSWithoutRedirect(t *testing.T) {
 	}
 }
 
-func TestRenderCustomDirectives(t *testing.T) {
-	conf := Render(Upstream{
-		Hostname: "a.example.com", Alias: "a", Port: 80,
-		Custom: "client_max_body_size 100M;\nproxy_request_buffering off;",
-	})
-	mustContain(t, conf, "        client_max_body_size 100M;")
-	mustContain(t, conf, "        proxy_request_buffering off;")
-}
-
 func TestRenderAnalytics(t *testing.T) {
 	conf := Render(Upstream{
 		Hostname: "a.example.com", Alias: "a", Port: 80,

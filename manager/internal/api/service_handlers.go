@@ -12,7 +12,6 @@ import (
 
 	"github.com/docker/docker/pkg/stdcopy"
 
-	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/deployments"
 	"github.com/vexdock/platform/manager/internal/engines"
@@ -323,14 +322,9 @@ func (s *Server) handleDeployService(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, errors.New("this service has no provider yet"))
 		return
 	}
-	user, _ := auth.UserFrom(r.Context())
-	actor := ""
-	if user != nil {
-		actor = user.Email
-	}
 	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
 		Trigger:     deployments.TriggerManual,
-		Actor:       actor,
+		Actor:       actor(r.Context()),
 		ServiceName: service.ComposeServiceName,
 	})
 	if err != nil {
@@ -348,23 +342,7 @@ func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	action := lastPathSegment(r.URL.Path)
-	switch action {
-	case "start":
-		err = s.Docker.Start(r.Context(), containerID)
-	case "stop":
-		err = s.Docker.Stop(r.Context(), containerID)
-	case "restart":
-		err = s.Docker.Restart(r.Context(), containerID)
-	default:
-		badRequest(w, errors.New("unsupported action"))
-		return
-	}
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	s.containerAction(w, r, containerID, lastPathSegment(r.URL.Path))
 }
 
 func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {

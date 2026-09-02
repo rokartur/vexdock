@@ -195,11 +195,6 @@ func (s *Service) repositoryDir(id string) string {
 	return filepath.Join(s.cfg.ProjectDir(id), "repository")
 }
 
-// RepositoryDir is the working directory compose runs in for one environment.
-// The default environment carries its project's id, so an install that predates
-// environments finds its directory exactly where it left it.
-func (s *Service) RepositoryDir(env *database.Environment) string { return s.repositoryDir(env.ID) }
-
 // EnvFilePath is the generated .env consumed by docker compose.
 func (s *Service) EnvFilePath(env *database.Environment) string {
 	return filepath.Join(s.cfg.ProjectDir(env.ID), ".env")
@@ -379,7 +374,7 @@ func (s *Service) setVariables(ctx context.Context, scope database.SecretScope, 
 		}
 		incoming[key] = true
 		// A masked value means "unchanged": never overwrite a real secret with dots.
-		if v.Value == security.MaskSecret("x") {
+		if v.Value == security.MaskedValue {
 			continue
 		}
 		enc, err := s.cipher.Encrypt(v.Value)

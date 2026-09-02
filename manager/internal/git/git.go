@@ -13,8 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/vexdock/platform/manager/internal/security"
 )
 
 // Credential carries the secret for a private repository.
@@ -35,6 +33,9 @@ type Repo struct {
 	Ref  string
 	Dir  string
 	Cred Credential
+	// KnownHosts is the file SSH pins host keys in. It has to outlive one sync,
+	// or accept-new accepts a new key every time and pins nothing.
+	KnownHosts string
 }
 
 // Sync makes Dir contain the repository at Ref, cloning on first use and
@@ -138,7 +139,7 @@ func (r Repo) environment() ([]string, func(), error) {
 		}
 		env = append(env, fmt.Sprintf(
 			"GIT_SSH_COMMAND=ssh -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%s",
-			keyPath, filepath.Join(dir, "known_hosts")))
+			keyPath, r.KnownHosts))
 	default:
 		cleanup()
 		return nil, nil, fmt.Errorf("unknown git credential kind %q", r.Cred.Kind)
@@ -162,12 +163,4 @@ func run(ctx context.Context, log io.Writer, dir string, env []string, args ...s
 		return fmt.Errorf("git %s: %w", args[0], err)
 	}
 	return nil
-}
-
-// Redact removes a credential value from arbitrary text before it is logged.
-func Redact(text, secret string) string {
-	if secret == "" {
-		return text
-	}
-	return strings.ReplaceAll(text, secret, security.MaskSecret(secret))
 }

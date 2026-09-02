@@ -202,12 +202,8 @@ var Catalog = []Engine{
       retries: 5`,
 	},
 	{
-		Slug:        Custom,
-		Name:        "Other image",
-		DefaultTag:  "",
-		Port:        0,
-		Scheme:      "",
-		PasswordVar: "",
+		Slug: Custom,
+		Name: "Other image",
 		fragment: `    image: {{ .Image }}
     restart: unless-stopped
     env_file: ["{{ .EnvFile }}"]

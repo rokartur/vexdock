@@ -42,7 +42,7 @@ type TaskRun struct {
 
 const taskColumns = `id, service_id, name, description, schedule, timezone, command, shell, enabled, created_at, updated_at`
 
-func scanTask(row interface{ Scan(...any) error }) (*ScheduledTask, error) {
+func scanTask(row scanner) (*ScheduledTask, error) {
 	var t ScheduledTask
 	err := row.Scan(&t.ID, &t.ServiceID, &t.Name, &t.Description, &t.Schedule, &t.Timezone,
 		&t.Command, &t.Shell, &t.Enabled, &t.CreatedAt, &t.UpdatedAt)

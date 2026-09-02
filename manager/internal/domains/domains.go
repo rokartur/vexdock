@@ -5,7 +5,6 @@ package domains
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -292,7 +291,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 
 		// Attaching is best-effort: a stopped container must not block the rest
 		// of the configuration from being written.
-		if containerID, err := s.containerFor(ctx, env.ComposeProjectName, service.ComposeServiceName); err == nil {
+		if containerID, err := s.docker.ServiceContainer(ctx, env.ComposeProjectName, service.ComposeServiceName); err == nil {
 			if err := s.docker.ConnectWithAlias(ctx, s.cfg.ProxyNetwork, containerID, alias); err != nil {
 				s.log.Warn("proxy attach failed", "domain", d.Hostname, "error", err)
 			}
@@ -331,28 +330,6 @@ func (s *Service) dashboardVhost(ctx context.Context) (string, string, bool) {
 	https := s.certs.Exists(host)
 	body := nginx.RenderDashboard(host, nginx.ManagerUpstream, "/usr/share/nginx/html", https, "/certificates/"+host)
 	return body, nginx.FileName(host), true
-}
-
-// containerFor resolves the current container of a compose service.
-func (s *Service) containerFor(ctx context.Context, composeProject, serviceName string) (string, error) {
-	containers, err := s.docker.ListContainers(ctx, composeProject)
-	if err != nil {
-		return "", err
-	}
-	var fallback string
-	for _, c := range containers {
-		if c.Labels[docker.ComposeServiceLabel] != serviceName {
-			continue
-		}
-		if c.State == "running" {
-			return c.ID, nil
-		}
-		fallback = c.ID
-	}
-	if fallback != "" {
-		return fallback, nil
-	}
-	return "", errors.New("no container found for service")
 }
 
 // EnsureCertificate issues a certificate when one is missing or near expiry and

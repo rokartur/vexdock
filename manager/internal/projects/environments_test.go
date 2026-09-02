@@ -29,7 +29,7 @@ func TestEnvironmentsAreIsolated(t *testing.T) {
 	if staging.ComposeProjectName == production.ComposeProjectName {
 		t.Fatalf("both environments share the docker namespace %s", staging.ComposeProjectName)
 	}
-	if svc.RepositoryDir(staging) == svc.RepositoryDir(production) {
+	if svc.repositoryDir(staging.ID) == svc.repositoryDir(production.ID) {
 		t.Fatal("both environments build from the same directory")
 	}
 	// The default environment keeps the project's own id, which is what makes

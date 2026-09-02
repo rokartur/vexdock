@@ -81,10 +81,6 @@ func (c *Cipher) Decrypt(encoded string) (string, error) {
 	return string(plain), nil
 }
 
-// MaskSecret renders a value for UI/logs without leaking it.
-func MaskSecret(value string) string {
-	if value == "" {
-		return ""
-	}
-	return "••••••••••••"
-}
+// MaskedValue is what the dashboard shows in place of a secret. A variable
+// written back as exactly this means "unchanged".
+const MaskedValue = "••••••••••••"

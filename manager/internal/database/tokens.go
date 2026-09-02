@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 )
 
 // APIToken is a non-cookie credential for CI and the CLI. Only the hash and a
@@ -64,6 +65,12 @@ func (db *DB) APITokenByHash(ctx context.Context, tokenHash string) (*APIToken, 
 	}
 	if err != nil {
 		return nil, err
+	}
+	// A minute of resolution is all the tokens page shows; writing on every
+	// request would queue a CI run's calls behind one another on the single
+	// writer connection.
+	if time.Since(ParseTime(t.LastUsedAt)) < time.Minute {
+		return &t, nil
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, Now(), t.ID); err != nil {
 		return nil, err

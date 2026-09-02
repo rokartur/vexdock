@@ -87,7 +87,7 @@ func TestCreateTakesNothingButAName(t *testing.T) {
 	if got := strings.Join(p.Tags, "|"); got != "staging" {
 		t.Fatalf("tags %v, want [staging]", p.Tags)
 	}
-	if _, err := os.ReadDir(svc.RepositoryDir(defaultEnv(t, svc, p))); err != nil {
+	if _, err := os.ReadDir(svc.repositoryDir(defaultEnv(t, svc, p).ID)); err != nil {
 		t.Fatalf("checkout directory: %v", err)
 	}
 }

@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/vexdock/platform/manager/internal/auth"
 )
 
 // terminalMessage is the framing between xterm.js and the container exec.
@@ -29,10 +30,14 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// The dashboard is same-origin behind Nginx; anything else is rejected.
-		OriginPatterns: sameOriginPatterns(r.Host),
-	})
+	// A GET, so protected() did not run the CSRF check; a shell is worth more
+	// than any mutation, so it runs here. Accept then also insists the Origin
+	// host equal the request host, port included, which is what Nginx forwards.
+	if !auth.SameOrigin(r) {
+		writeError(w, http.StatusForbidden, "CROSS_ORIGIN", "Cross-origin request rejected", nil)
+		return
+	}
+	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		s.Log.Warn("terminal upgrade failed", "error", err)
 		return
@@ -99,23 +104,4 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 			resizeCancel()
 		}
 	}
-}
-
-// sameOriginPatterns accepts the request's own host with or without a port.
-// Reverse proxies differ on whether they forward the port in the Host header,
-// so comparing the raw values alone would reject legitimate same-origin
-// requests while still needing to reject genuinely foreign origins.
-func sameOriginPatterns(requestHost string) []string {
-	patterns := []string{requestHost}
-	host, _, err := net.SplitHostPort(requestHost)
-	if err != nil {
-		host = requestHost
-	}
-	if host != "" && host != requestHost {
-		patterns = append(patterns, host)
-	}
-	if host != "" {
-		patterns = append(patterns, host+":*")
-	}
-	return patterns
 }

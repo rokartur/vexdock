@@ -33,6 +33,9 @@ services:
       PLATFORM_ACME_EMAIL: ${ACME_EMAIL:-}
       PLATFORM_ACME_STAGING: ${ACME_STAGING:-false}
       PLATFORM_LOG_LEVEL: ${LOG_LEVEL:-info}
+      # `docker login` for a private registry writes here: on the host, so the
+      # credential survives the recreate every update does.
+      DOCKER_CONFIG: ${PLATFORM_ROOT:-/opt/vexdock}/system/docker
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

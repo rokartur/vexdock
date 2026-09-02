@@ -28,7 +28,9 @@ Everything in front of it is therefore treated as untrusted input.
   any of it, so this is the CSRF defence, on both the manager and the auth service.
   A request carrying no `Origin` at all is let through: a browser always sends
   one on a cross-site mutation, so its absence means the caller was not a
-  browser page and is authenticating with a token rather than a cookie.
+  browser page and is authenticating with a token rather than a cookie. The
+  terminal WebSocket is a `GET` and runs the same check before it upgrades: a
+  shell is worth more than any mutation.
 - Creating the first administrator additionally requires the setup token the
   installer generated and printed. Without it a panel that is publicly reachable
   before its owner reaches it would be claimed by whoever found it first.
@@ -94,8 +96,10 @@ Values that reach a command line are validated first:
   pattern before being written into the generated compose file. Both are user
   values that end up in YAML, where a space or a `#` is enough to change which
   image runs or where the volume lands.
-- **Hostnames** are validated per DNS label. A wildcard is accepted only with a
-  Cloudflare token configured, since HTTP-01 cannot validate one and DNS-01 can.
+- **Hostnames** are validated per DNS label. A single leading wildcard passes
+  validation and the domain is stored, but its certificate is refused until a
+  Cloudflare token is configured, since HTTP-01 cannot validate one and DNS-01
+  can.
 
 A [scheduled task](api.md#scheduled-tasks) is the one place a user's own shell
 line is executed. It is passed as a single argument to `/bin/sh -c`, or
@@ -119,6 +123,13 @@ unencrypted, so a command that echoes a secret leaves it in the run history.
   or a project move arrives without it.
 - Git credentials never reach the command line. Tokens go through `GIT_ASKPASS`
   and SSH keys through a 0600 temporary file removed when the clone finishes.
+  SSH host keys are pinned on first use in `/opt/vexdock/secrets/known_hosts`,
+  so a later clone from a host whose key changed fails instead of proceeding.
+- Registry credentials are encrypted in the database and also handed to
+  `docker login`, which writes them to `/opt/vexdock/system/docker/config.json`
+  in Docker's own format. That directory is on the host so the login survives
+  the manager being recreated on update; treat it as it is, a plaintext
+  credential store readable by root.
 - The variable editors (`/variables` on a project, an environment or a service)
   return stored values, because showing them is the point of the page. What
   protects a secret is the write side: a value that comes back as the mask means
