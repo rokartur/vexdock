@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"strings"
@@ -23,11 +22,6 @@ func RandomToken(n int) string {
 func HashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
-}
-
-// ConstantTimeEqual compares two secrets without leaking length-independent timing.
-func ConstantTimeEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 // VerifyGitHubSignature checks the X-Hub-Signature-256 header GitHub sends when

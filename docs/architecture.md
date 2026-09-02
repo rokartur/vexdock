@@ -123,7 +123,9 @@ clone → checkout → validate → pull → build → start → healthcheck →
 ```
 
 Each step is persisted and streamed to the browser over SSE. One project deploys
-at a time, enforced by a per-project lock; a second request queues behind it. A
+at a time, enforced by a per-environment lock; a second request for the same
+environment queues behind it, while production and staging of one project may
+deploy at once, since they share no directory and no container. A
 deployment interrupted by a manager restart is marked failed on the next boot,
 so the UI never shows a pipeline that nothing is running.
 

@@ -160,7 +160,10 @@ func (s *Server) deploymentEnvironments(ctx context.Context, recent []database.D
 		label := deploymentEnvironment{name: env.Name, services: []string{}}
 		services, err := s.DB.ListServices(ctx, env.ID)
 		if err != nil {
-			return out
+			// The name alone still labels the row; the rest of the list must not
+			// lose its labels over one failed read.
+			out[d.EnvironmentID] = label
+			continue
 		}
 		for _, svc := range services {
 			// The same set the compose file gets: what a deploy can bring up.

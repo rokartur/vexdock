@@ -21,12 +21,9 @@ import (
 	"github.com/docker/docker/client"
 )
 
-// Labels the platform stamps on everything it creates, so its own resources
-// are always distinguishable from foreign stacks on the same host.
 const (
-	LabelManaged   = "platform.managed"
-	LabelProjectID = "platform.project.id"
-	LabelService   = "platform.service"
+	// LabelManaged marks the proxy network as the platform's own.
+	LabelManaged = "platform.managed"
 
 	// Compose sets these itself; they are how we map containers back to projects.
 	ComposeProjectLabel = "com.docker.compose.project"
@@ -138,10 +135,6 @@ func (c *Client) ListImages(ctx context.Context) ([]image.Summary, error) {
 	return c.api.ImageList(ctx, image.ListOptions{All: false})
 }
 
-func (c *Client) InspectImage(ctx context.Context, id string) (image.InspectResponse, error) {
-	return c.api.ImageInspect(ctx, id)
-}
-
 // PullImage streams the pull progress; callers must drain and close the reader.
 func (c *Client) PullImage(ctx context.Context, ref string) (io.ReadCloser, error) {
 	return c.api.ImagePull(ctx, ref, image.PullOptions{})
@@ -154,10 +147,6 @@ func (c *Client) RemoveImage(ctx context.Context, id string, force bool) error {
 
 func (c *Client) ListVolumes(ctx context.Context) (volume.ListResponse, error) {
 	return c.api.VolumeList(ctx, volume.ListOptions{})
-}
-
-func (c *Client) InspectVolume(ctx context.Context, name string) (volume.Volume, error) {
-	return c.api.VolumeInspect(ctx, name)
 }
 
 func (c *Client) RemoveVolume(ctx context.Context, name string, force bool) error {

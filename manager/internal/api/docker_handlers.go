@@ -63,9 +63,15 @@ func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	s.containerAction(w, r, r.PathValue("id"), r.PathValue("action"))
+}
+
+// containerAction runs one lifecycle verb on a container and answers the
+// request. The service route only ever routes start, stop and restart; remove
+// is reachable through the raw container route alone.
+func (s *Server) containerAction(w http.ResponseWriter, r *http.Request, id, action string) {
 	var err error
-	switch r.PathValue("action") {
+	switch action {
 	case "start":
 		err = s.Docker.Start(r.Context(), id)
 	case "stop":

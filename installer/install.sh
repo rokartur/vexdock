@@ -185,9 +185,9 @@ resolve_version() {
 
 # The compose file must come from the same ref as the images it references, or a
 # pinned install runs new images against main's topology.
-# An update stops the stack before it gets here, so writing compose.yml in place
-# would let a dead transfer truncate the only file that can start the platform
-# again. Land it beside the live one and move it over once it is whole.
+# It lands beside the live file and is moved over by install_compose once it is
+# whole: an update downloads while the stack still runs and stops it only after
+# the download succeeded, so a dead transfer never leaves the platform down.
 fetch_compose() {
     if [ -n "${PLATFORM_LOCAL_COMPOSE:-}" ]; then
         cp "$PLATFORM_LOCAL_COMPOSE" "$ROOT/compose.yml.new" \
@@ -200,9 +200,12 @@ fetch_compose() {
     fi
     [ -s "$ROOT/compose.yml.new" ] \
         || { rm -f "$ROOT/compose.yml.new"; die "Downloaded compose.yml is empty"; }
+    ok "System compose downloaded"
+}
+
+install_compose() {
     mv "$ROOT/compose.yml.new" "$ROOT/compose.yml" \
         || { rm -f "$ROOT/compose.yml.new"; die "Could not replace $ROOT/compose.yml"; }
-    ok "System compose downloaded"
 }
 
 # env_set adds a key only when it is absent, so an update can introduce a new
@@ -299,6 +302,7 @@ do_install() {
     create_directories
     create_network
     fetch_compose
+    install_compose
     write_env
     # env_set only inserts missing keys, so a retry after a partial install
     # would keep the previous VERSION=latest and pull tags that do not exist.
@@ -323,6 +327,9 @@ do_update() {
     # First: an install made by an older version has none of the keys added
     # since, and every compose command below needs them to interpolate.
     write_env
+    # Downloaded before anything stops: a failed download must leave the
+    # platform running, not stopped with the old compose file and no new one.
+    fetch_compose
 
     info "Backing up configuration…"
     stamp="$(date -u +%Y-%m-%dT%H%M%S)"
@@ -346,7 +353,7 @@ do_update() {
         shift
     done
 
-    fetch_compose
+    install_compose
     if [ "$VERSION" != "latest" ]; then
         sed -i "s/^VERSION=.*/VERSION=$VERSION/" "$ROOT/.env"
     fi

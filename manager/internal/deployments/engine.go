@@ -132,14 +132,14 @@ func (e *Engine) Trigger(ctx context.Context, project *database.Project, env *da
 	return d, nil
 }
 
-// Cancel stops a running deployment. The pipeline observes the cancelled
-// context, so compose is killed rather than left orphaned.
+// Cancel stops a queued or running deployment. The pipeline observes the
+// cancelled context, so compose is killed rather than left orphaned.
 func (e *Engine) Cancel(deploymentID string) error {
 	e.mu.Lock()
 	cancel, ok := e.cancels[deploymentID]
 	e.mu.Unlock()
 	if !ok {
-		return errors.New("deployment is not running")
+		return errors.New("deployment is not queued or running")
 	}
 	cancel()
 	return nil
@@ -160,13 +160,9 @@ func (e *Engine) lockFor(environmentID string) *sync.Mutex {
 }
 
 func (e *Engine) run(environmentID, deploymentID, ref string) {
-	lock := e.lockFor(environmentID)
-	lock.Lock()
-	defer lock.Unlock()
-
-	// A wedged git clone or registry pull would otherwise hold the environment
-	// lock forever and leave the deployment reading "running" with nothing running.
-	ctx, cancel := context.WithTimeout(context.Background(), deployTimeout)
+	// Cancellable from the moment it is queued, so a deployment waiting on the
+	// lock can be withdrawn instead of running once the lock frees up.
+	queued, cancel := context.WithCancel(context.Background())
 	e.mu.Lock()
 	e.cancels[deploymentID] = cancel
 	e.mu.Unlock()
@@ -176,6 +172,16 @@ func (e *Engine) run(environmentID, deploymentID, ref string) {
 		delete(e.cancels, deploymentID)
 		e.mu.Unlock()
 	}()
+
+	lock := e.lockFor(environmentID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	// The clock starts once the pipeline owns the lock, not while it queues. A
+	// wedged git clone or registry pull would otherwise hold the environment
+	// lock forever and leave the deployment reading "running" with nothing running.
+	ctx, expire := context.WithTimeout(queued, deployTimeout)
+	defer expire()
 
 	p := newPipeline(e, deploymentID, ref)
 	err := p.execute(ctx)
@@ -341,10 +347,11 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 			ref = p.ref
 		}
 		repo := git.Repo{
-			URL:  svc.RepositoryURL,
-			Ref:  ref,
-			Dir:  filepath.Join(p.e.projects.ServiceDir(p.environment, svc.ComposeServiceName), "repository"),
-			Cred: cred,
+			URL:        svc.RepositoryURL,
+			Ref:        ref,
+			Dir:        filepath.Join(p.e.projects.ServiceDir(p.environment, svc.ComposeServiceName), "repository"),
+			Cred:       cred,
+			KnownHosts: filepath.Join(p.e.cfg.SecretsDir, "known_hosts"),
 		}
 		p.printf("Fetching %s @ %s for service %s", svc.RepositoryURL, ref, svc.ComposeServiceName)
 		sha, err := repo.Sync(ctx, p)
@@ -446,7 +453,14 @@ func (p *pipeline) finish(err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if p.deployment == nil {
-		return
+		// execute failed, or was cancelled, before it read the row. Without this
+		// the deployment stays "queued" until the next restart marks it failed.
+		loaded, lerr := p.e.db.DeploymentByID(ctx, p.deploymentID)
+		if lerr != nil {
+			p.e.log.Error("finish deployment", "deployment", p.deploymentID, "error", lerr)
+			return
+		}
+		p.deployment = loaded
 	}
 	p.deployment.FinishedAt = database.Now()
 	switch {

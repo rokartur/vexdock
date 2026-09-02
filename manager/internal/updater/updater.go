@@ -10,6 +10,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -209,6 +210,11 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease, 
 	}
 	if !versionPattern.MatchString(version) {
 		return fmt.Errorf("invalid target version %q", version)
+	}
+	// The launch below removes any updater container first, so a second start
+	// would kill one that is mid-recreate or mid-rollback.
+	if s.State().Active() {
+		return errors.New("an update is already running")
 	}
 	// From here the panel renders progress from the state file, so every error
 	// path before the container launches must reset it to idle.
