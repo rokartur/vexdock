@@ -11,25 +11,6 @@
 	 * surfaces that are literally machine output: console, code, ids. */
 	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
-	/* Cards draw a 1px white ring as a shadow instead of a border. */
-	--shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.08);
-
-	/* datafa.st's button press: releasing a pressed button pops it past rest
-	 * before settling. The press itself is active:scale-[0.95] on the button. */
-	--animate-btn-pop: btn-pop 0.25s ease-out;
-
-	@keyframes btn-pop {
-		0% {
-			scale: 0.95;
-		}
-		40% {
-			scale: 1.02;
-		}
-		to {
-			scale: 1;
-		}
-	}
-
 	/* The app's type scale. Font size only: line-height stays inherited, which is
 	 * why these exist instead of Tailwind's text-xs/text-sm. */
 	--text-meta: 11px;
@@ -45,8 +26,9 @@
  * Only theme-independent tokens live here; every colour is in .dark below. */
 :root {
 	/* The one radius knob. Every other step in the scale is derived from it in
-	 * the @theme inline block below, so corners stay in proportion. */
-	--radius: 0.5rem;
+	 * the @theme inline block below, so corners stay in proportion. Vercel's
+	 * 6px on controls, 8px on cards. */
+	--radius: 0.375rem;
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.145 0 0);
 	--card: oklch(1 0 0);
@@ -81,65 +63,52 @@
 }
 
 .dark {
-	/* datafa.st's dark theme (DaisyUI) pulled down to a true-black canvas: warm
-	 * near-white text on layered neutral grays, surfaces getting lighter as they
-	 * come forward — black canvas (sidebar), lifted content panel, lighter cards. */
-	--background: oklch(0.185 0 0);
-	--foreground: oklch(0.898 0.0017 67.8);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.898 0.0017 67.8);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.898 0.0017 67.8);
-	/* The one accent knob. Settings overrides --brand inline on <html>, so every
-	 * token below it follows without the panel touching them one by one. */
-	--brand: oklch(0.6531 0.1637 37.22); /* the shipped orange, #e16540 */
-	--primary: var(--brand);
-	--primary-foreground: oklch(1 0 0);
-	--secondary: oklch(0.37 0 0);
-	--secondary-foreground: oklch(1 0 0);
-	--muted: oklch(0.26 0 0);
-	--muted-foreground: #aba8a7;
-	--accent: oklch(0.26 0 0);
-	--accent-foreground: oklch(0.898 0.0017 67.8);
-	/* Their error hue; bright enough that danger text clears 4.5:1 on its own
-	 * 20% tint, which is the only way this app renders destructive. */
-	--destructive: oklch(0.7176 0.221 22.18);
+	/* Vercel's dark palette: one true-black canvas, cards a shade lighter, a
+	 * hairline border on everything instead of shadows, white on black for the
+	 * primary button. Grays are Geist's gray scale. */
+	--background: #000000;
+	--foreground: #ededed;
+	--card: #0a0a0a;
+	--card-foreground: #ededed;
+	--popover: #0a0a0a;
+	--popover-foreground: #ededed;
+	--primary: #ededed;
+	--primary-foreground: #0a0a0a;
+	--secondary: #1a1a1a;
+	--secondary-foreground: #ededed;
+	--muted: #1a1a1a;
+	--muted-foreground: #a1a1a1;
+	--accent: #1a1a1a;
+	--accent-foreground: #ededed;
+	--destructive: #e5484d;
 	--destructive-foreground: #ffffff;
-	--border: oklch(0.898 0.0017 67.8 / 10%);
-	--input: oklch(0.898 0.0017 67.8 / 15%);
-	--ring: oklch(0.556 0 0);
-	/* Their chart order: the brand accent first, then secondary blue, accent teal,
-	 * success green, warning yellow. */
+	--border: #2e2e2e;
+	--input: #2e2e2e;
+	--ring: #878787;
+	/* The one accent knob. Settings overrides --brand inline on <html>; it colours
+	 * the charts and nothing else, so the chrome stays monochrome. */
+	--brand: oklch(0.6531 0.1637 37.22); /* the shipped orange, #e16540 */
 	--chart-1: var(--brand);
-	--chart-2: oklch(0.8236 0.0962 242.82);
-	--chart-3: oklch(0.7451 0.167 183.61);
-	--chart-4: oklch(0.648 0.15 160);
-	--chart-5: oklch(0.8471 0.199 83.87);
-	--sidebar: oklch(0 0 0);
-	--sidebar-foreground: oklch(0.898 0.0017 67.8);
-	--sidebar-primary: var(--brand);
-	--sidebar-primary-foreground: oklch(1 0 0);
-	--sidebar-accent: oklch(0.21 0 0);
-	--sidebar-accent-foreground: oklch(0.898 0.0017 67.8);
-	--sidebar-border: oklch(0.898 0.0017 67.8 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
-	--info: oklch(0.7206 0.191 231.6);
-	--info-foreground: var(--color-blue-400);
-	--success: oklch(0.648 0.15 160);
-	--success-foreground: var(--color-emerald-400);
-	--warning: oklch(0.8471 0.199 83.87);
-	--warning-foreground: var(--color-amber-400);
-	--code: color-mix(in srgb, var(--background) 98%, var(--color-white));
-	--code-foreground: var(--foreground);
-	--code-highlight: --alpha(var(--color-white) / 4%);
+	--chart-2: #52a8ff;
+	--chart-3: #2eb9b9;
+	--chart-4: #46a758;
+	--chart-5: #ffb224;
+	--sidebar: #000000;
+	--sidebar-foreground: #ededed;
+	--sidebar-primary: #ededed;
+	--sidebar-primary-foreground: #0a0a0a;
+	--sidebar-accent: #1a1a1a;
+	--sidebar-accent-foreground: #ededed;
+	--sidebar-border: #2e2e2e;
+	--sidebar-ring: #878787;
 
-	/* Console surfaces (log tail, container shell). datafa.st's terminal card:
-	 * near-black glass sitting darker than every other surface, framed white/10. */
-	--console: #101010;
+	/* Console surfaces (log tail, container shell): darker than the cards
+	 * around them, framed by the same hairline. */
+	--console: #000000;
 	--console-foreground: #d4d4d4;
 	--console-muted: #8a8a8a;
 	--console-stderr: #ff8a80;
-	--console-border: oklch(1 0 0 / 10%);
+	--console-border: #2e2e2e;
 }
 
 @theme inline {
@@ -203,8 +172,8 @@
 		@apply border-border outline-ring/50;
 	}
 
-	/* datafa.st's scrollbars: thumbs are the text colour at low opacity and
-	 * wake up while the element is hovered. */
+	/* Scrollbar thumbs are the text colour at low opacity and wake up while the
+	 * element is hovered. */
 	* {
 		scrollbar-color: color-mix(in oklch, currentColor 35%, transparent) transparent;
 	}
@@ -291,48 +260,12 @@
 	}
 }
 
-/* Scroll lock — applied when a popover/select/dropdown is open. Popover content
- * renders in a Portal (sibling of <main>), so locking inside <main> never
- * affects the popover's own scroll. */
-html[data-popover-open] {
-	overflow: hidden;
-}
-html[data-popover-open] body {
-	overflow: hidden;
-}
-html[data-popover-open] main [data-slot='list-view-content'] > *,
-html[data-popover-open] main [data-scroll-lock] {
-	overflow: hidden !important;
-}
-
 /* Below here: vexdock-only, everything above matches rarv's assets/index.css. */
 
 @layer base {
 	::selection {
 		background: var(--foreground);
 		color: var(--background);
-	}
-
-	/*
-	 * Plain form elements inherit the Input look, so pages can use a bare
-	 * <input> and still match the design system. The utilities are copied from
-	 * components/ui/input.tsx, except for the radius: rounded-md is what the
-	 * buttons and the segmented strip use, and these sit next to them.
-	 * Elements rendered by a ui component carry data-slot (or cmdk's own
-	 * attributes) and are left alone, otherwise they would be styled twice.
-	 * The Select trigger opts in by name, so a picker matches the inputs it
-	 * sits next to.
-	 */
-	input:not([type='checkbox'], [type='radio'], [data-slot], [cmdk-input]),
-	[data-slot='select-trigger'],
-	textarea:not([data-slot]) {
-		@apply h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40;
-		color: inherit;
-	}
-
-	/* Grows with its content instead of sitting on the input's fixed height. */
-	textarea:not([data-slot]) {
-		@apply h-auto resize-none py-2;
 	}
 }
 

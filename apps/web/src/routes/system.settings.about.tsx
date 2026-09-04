@@ -1,8 +1,17 @@
 import { useEffect } from 'react'
+import {
+	IconAlertCircle,
+	IconCircleCheck,
+	IconDownload,
+	IconExternalLink,
+	IconRefresh,
+	IconTag,
+} from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/utils/cn'
-import { Button, Check, ErrorText, Section } from '../components/primitives'
+import { Button, Cell, Cells, ErrorText, FormSection, Switch } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
 import { since } from '../lib/format'
 
@@ -93,117 +102,134 @@ function Version() {
 	const busy = active || update.isPending
 
 	return (
-		<Section title='Version' description='a backup is taken before the swap and rolled back if health fails'>
-			<div className='flex max-w-2xl flex-col gap-5'>
-				<div className='flex items-center gap-10'>
-					<dl className='flex gap-10'>
-						<div>
-							<dt className='text-label tracking-wide text-muted-foreground uppercase'>Installed</dt>
-							<dd className='font-mono text-title'>{version.data?.current ?? '-'}</dd>
-						</div>
-						<div>
-							<dt className='text-label tracking-wide text-muted-foreground uppercase'>Latest</dt>
-							<dd
-								className={`font-mono text-title ${version.data?.update_available ? 'text-emerald-400' : ''}`}
+		<div className='max-w-3xl'>
+			<ErrorText error={update.error ?? setSettings.error ?? check.error} />
+			{showResult && state.data && phase === 'done' ? (
+				<Alert className='mb-4'>
+					<IconCircleCheck className='text-emerald-400' />
+					<AlertTitle>Updated to {state.data.target}.</AlertTitle>
+				</Alert>
+			) : null}
+			{showResult && state.data && phase === 'rolled-back' ? (
+				<Alert variant='destructive' className='mb-4'>
+					<IconAlertCircle />
+					<AlertTitle>
+						Update to {state.data.target} rolled back{state.data.error ? `: ${state.data.error}` : ''}.
+						Still on {state.data.previous}.
+					</AlertTitle>
+					{state.data.log ? (
+						<AlertDescription>
+							<pre className='max-w-full overflow-x-auto font-mono text-label'>{state.data.log}</pre>
+						</AlertDescription>
+					) : null}
+				</Alert>
+			) : null}
+
+			<FormSection
+				title='Version'
+				description='A backup is taken before the swap and rolled back if health fails.'
+				icon={IconTag}
+				hint={
+					<span className='flex items-center gap-3'>
+						{check.isPending ? 'checking…' : `checked ${since(version.data?.checked_at)}`}
+						{version.data?.release_url ? (
+							<a
+								href={version.data.release_url}
+								target='_blank'
+								rel='noopener noreferrer'
+								className='inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline'
 							>
-								{version.data?.latest || 'unknown'}
-							</dd>
-							<div className='flex items-baseline gap-2 text-label text-muted-foreground'>
-								{version.data?.release_url ? (
-									<a
-										href={version.data.release_url}
-										target='_blank'
-										rel='noopener noreferrer'
-										className='hover:text-foreground hover:underline'
-									>
-										release notes
-									</a>
-								) : null}
-								<span>
-									{check.isPending ? 'checking…' : `checked ${since(version.data?.checked_at)}`}
-								</span>
-							</div>
-						</div>
-					</dl>
-					<div className='flex items-center gap-2'>
+								release notes
+								<IconExternalLink className='size-3' />
+							</a>
+						) : null}
+					</span>
+				}
+				actions={
+					<>
 						<Button onClick={() => check.mutate()} disabled={check.isPending || busy}>
+							<IconRefresh />
 							Check for updates
 						</Button>
 						<Button variant='primary' onClick={() => update.mutate()} disabled={!canUpdate}>
+							<IconDownload />
 							{busy && 'Updating…'}
 							{!busy &&
 								(version.data?.update_available ? `Update to ${version.data.latest}` : 'Up to date')}
 						</Button>
-					</div>
-				</div>
-
-				{busy ? (
-					<UpdateTimeline phase={phase} target={state.data?.target || version.data?.latest || ''} />
-				) : (
-					<div className='flex flex-col gap-1.5'>
-						<span className='text-label tracking-wide text-muted-foreground uppercase'>Preflight</span>
-						{checks.length === 0 ? (
-							<span className='text-body text-muted-foreground'>
-								{health.isError ? 'health check unreachable' : 'checking…'}
+					</>
+				}
+			>
+				<Cells className='grid-cols-2'>
+					<Cell label='Installed' value={<span className='font-mono'>{version.data?.current ?? '-'}</span>} />
+					<Cell
+						label='Latest'
+						value={
+							<span className={cn('font-mono', version.data?.update_available && 'text-emerald-400')}>
+								{version.data?.latest || 'unknown'}
 							</span>
-						) : (
-							checks.map(([name, result]) => (
-								<div key={name} className='flex items-baseline gap-2 text-body'>
-									<span
-										className={cn(
-											'size-1.5 shrink-0 self-center rounded-full',
-											result === 'ok' ? 'bg-emerald-400' : 'bg-red-400',
-										)}
-									/>
-									<span className='w-20 text-muted-foreground'>{name}</span>
-									<span className={result === 'ok' ? 'text-muted-foreground' : 'text-red-400'}>
-										{result}
-									</span>
-								</div>
-							))
-						)}
-						{healthy || health.isLoading ? null : (
-							<p className='text-body text-red-400'>
-								Updates are blocked until the failing checks recover; the server refuses them too.
-							</p>
-						)}
-					</div>
-				)}
+						}
+						hint={version.data?.update_available ? 'update available' : 'up to date'}
+					/>
+				</Cells>
 
-				{showResult && state.data && phase === 'done' ? (
-					<p className='text-body text-emerald-400'>Updated to {state.data.target}.</p>
-				) : null}
-				{showResult && state.data && phase === 'rolled-back' ? (
-					<div className='flex flex-col gap-2'>
-						<p className='text-body text-red-400'>
-							Update to {state.data.target} rolled back
-							{state.data.error ? `: ${state.data.error}` : ''}. Still on {state.data.previous}.
-						</p>
-						{state.data.log ? (
-							<pre className='overflow-x-auto rounded-xl border px-3 py-2 font-mono text-label text-muted-foreground'>
-								{state.data.log}
-							</pre>
-						) : null}
-					</div>
-				) : null}
+				<div className='mt-4'>
+					{busy ? (
+						<UpdateTimeline phase={phase} target={state.data?.target || version.data?.latest || ''} />
+					) : (
+						<div className='flex flex-col gap-1.5'>
+							<span className='text-label text-muted-foreground'>Preflight</span>
+							{checks.length === 0 ? (
+								<span className='text-body text-muted-foreground'>
+									{health.isError ? 'health check unreachable' : 'checking…'}
+								</span>
+							) : (
+								checks.map(([name, result]) => (
+									<div key={name} className='flex items-baseline gap-2 text-body'>
+										<span
+											className={cn(
+												'size-1.5 shrink-0 self-center rounded-full',
+												result === 'ok' ? 'bg-emerald-400' : 'bg-red-400',
+											)}
+										/>
+										<span className='w-20 font-mono text-label text-muted-foreground'>{name}</span>
+										<span className={result === 'ok' ? 'text-muted-foreground' : 'text-red-400'}>
+											{result}
+										</span>
+									</div>
+								))
+							)}
+							{healthy || health.isLoading ? null : (
+								<p className='text-body text-red-400'>
+									Updates are blocked until the failing checks recover; the server refuses them too.
+								</p>
+							)}
+						</div>
+					)}
+				</div>
+			</FormSection>
 
+			<FormSection
+				title='Update preferences'
+				description='Applied to the next check and update.'
+				icon={IconDownload}
+			>
 				<div className='flex flex-col gap-4'>
-					<Check
+					<Switch
 						label='Include beta releases'
 						checked={version.data?.beta ?? false}
 						disabled={setSettings.isPending || version.isLoading || busy}
 						onChange={beta => save({ beta })}
 					/>
-					<Check
+					<Switch
 						label='Remove previous version images after a successful update'
 						checked={version.data?.cleanup_old_images ?? false}
 						disabled={setSettings.isPending || version.isLoading || busy}
 						onChange={cleanup_old_images => save({ cleanup_old_images })}
 					/>
 				</div>
-				<ErrorText error={update.error ?? setSettings.error ?? check.error} />
-			</div>
-		</Section>
+			</FormSection>
+		</div>
 	)
 }
 

@@ -1,3 +1,4 @@
+import { IconPlayerStop, IconRefresh, IconRocket } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
@@ -64,7 +65,7 @@ function ServiceLayout() {
 				[projectId]: (
 					<>
 						<ProjectCrumb projectId={projectId} />
-						<span className='text-muted-foreground'>/</span>
+						<span className='text-muted-foreground/60'>/</span>
 						<EnvironmentCrumb projectId={projectId} />
 					</>
 				),
@@ -74,12 +75,15 @@ function ServiceLayout() {
 			actions={
 				<>
 					<Button variant='primary' onClick={() => deploy.mutate()} disabled={!canDeploy || deploy.isPending}>
+						<IconRocket />
 						{deploy.isPending ? 'Starting…' : 'Deploy'}
 					</Button>
 					<Button onClick={() => act.mutate('restart')} disabled={!running}>
+						<IconRefresh />
 						Restart
 					</Button>
 					<Button onClick={() => act.mutate('stop')} disabled={!running || act.isPending}>
+						<IconPlayerStop />
 						Stop
 					</Button>
 				</>

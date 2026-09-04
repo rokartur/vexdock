@@ -1,3 +1,4 @@
+import { IconFolder, type Icon as TablerIcon } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -10,6 +11,7 @@ import {
 	CommandList,
 } from '@/components/ui/command'
 import { api } from '../lib/api'
+import { Keys } from './primitives'
 
 /**
  * Jump to any page or project. Opened with Cmd/Ctrl+K, closed with Escape.
@@ -20,7 +22,7 @@ export function CommandPalette({
 	open,
 	onOpenChange,
 }: {
-	links: { to: string; label: string }[]
+	links: { to: string; label: string; icon: TablerIcon }[]
 	open: boolean
 	onOpenChange: (open: boolean) => void
 }) {
@@ -43,6 +45,7 @@ export function CommandPalette({
 					<CommandGroup heading='Pages'>
 						{links.map(link => (
 							<CommandItem key={link.to} value={`${link.label} ${link.to}`} onSelect={() => go(link.to)}>
+								<link.icon />
 								{link.label}
 							</CommandItem>
 						))}
@@ -55,6 +58,7 @@ export function CommandPalette({
 									value={`${project.name} ${project.slug}`}
 									onSelect={() => go(`/projects/${project.id}`)}
 								>
+									<IconFolder />
 									{project.name}
 									<span className='ml-auto font-mono text-meta text-muted-foreground'>
 										{project.running_count}/{project.service_count}
@@ -64,6 +68,21 @@ export function CommandPalette({
 						</CommandGroup>
 					) : null}
 				</CommandList>
+				{/* Negative margins undo Command's padding so the hairline spans the dialog. */}
+				<div className='-mx-1 -mb-1 flex items-center gap-3 border-t px-4 py-1.5 text-meta text-muted-foreground'>
+					<span className='flex items-center gap-1'>
+						<Keys keys={['↑', '↓']} />
+						move
+					</span>
+					<span className='flex items-center gap-1'>
+						<Keys keys={['↵']} />
+						open
+					</span>
+					<span className='ml-auto flex items-center gap-1'>
+						<Keys keys={['Esc']} />
+						close
+					</span>
+				</div>
 			</Command>
 		</CommandDialog>
 	)

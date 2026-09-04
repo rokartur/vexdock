@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { IconLayersLinked, IconVariable, type Icon as TablerIcon } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, ErrorText, Section } from '../components/primitives'
+import { ErrorText, FormSection, SaveButton, Textarea } from '../components/primitives'
 import { api, type EnvVar } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
 import { useEnvironmentId } from '../lib/environment'
@@ -20,10 +21,11 @@ function ProjectEnvironment() {
 	const current = environments.data?.find(env => (selected ? env.id === selected : env.is_default))
 
 	return (
-		<>
+		<div className='max-w-3xl'>
 			<VariablesEditor
 				title='Shared variables'
-				description='every environment of this project gets these'
+				description='Every environment of this project gets these.'
+				icon={IconVariable}
 				queryKey={['variables', 'project', projectId]}
 				load={() => api.projectVariables(projectId)}
 				save={variables => api.saveProjectVariables(projectId, variables)}
@@ -31,25 +33,28 @@ function ProjectEnvironment() {
 			{current ? (
 				<VariablesEditor
 					title={`${current.name} variables`}
-					description='override a shared value, or add one only this environment needs'
+					description='Override a shared value, or add one only this environment needs.'
+					icon={IconLayersLinked}
 					queryKey={['variables', 'environment', current.id]}
 					load={() => api.environmentVariables(current.id)}
 					save={variables => api.saveEnvironmentVariables(current.id, variables)}
 				/>
 			) : null}
-		</>
+		</div>
 	)
 }
 
 function VariablesEditor({
 	title,
 	description,
+	icon,
 	queryKey,
 	load,
 	save,
 }: {
 	title: string
 	description: string
+	icon: TablerIcon
 	queryKey: string[]
 	load: () => Promise<EnvVar[]>
 	save: (variables: EnvVar[]) => Promise<EnvVar[]>
@@ -74,26 +79,22 @@ function VariablesEditor({
 	})
 
 	return (
-		<Section
+		<FormSection
 			title={title}
 			description={description}
+			icon={icon}
+			hint='One KEY=value per line. Redeploy to apply.'
 			onSave={() => write.mutate()}
-			actions={
-				<Button variant='primary' onClick={() => write.mutate()} disabled={write.isPending}>
-					{write.isPending ? 'Saving…' : 'Save'}
-				</Button>
-			}
+			actions={<SaveButton pending={write.isPending} />}
 		>
 			<ErrorText error={write.error} />
-			<textarea
+			<Textarea
 				rows={12}
 				value={text}
 				placeholder='KEY=value'
 				onChange={event => setText(event.target.value)}
-				className='font-mono text-body'
 				spellCheck={false}
 			/>
-			<p className='mt-1 text-label text-muted-foreground'>One KEY=value per line. Redeploy to apply.</p>
-		</Section>
+		</FormSection>
 	)
 }

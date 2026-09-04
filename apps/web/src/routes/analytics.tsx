@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IconChartBar, IconClock, IconEye, IconTrash, IconUsers, IconWorld } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
@@ -15,7 +16,20 @@ import {
 	YAxis,
 } from 'recharts'
 import { MetricCard, type Point } from '../components/metric-chart'
-import { Button, Cell, Cells, ErrorText, Page, Refresh, Section, Segmented, Select } from '../components/primitives'
+import {
+	Button,
+	Cell,
+	Cells,
+	Confirm,
+	EmptyState,
+	ErrorText,
+	FormSection,
+	Page,
+	Refresh,
+	Section,
+	Segmented,
+	Select,
+} from '../components/primitives'
 import { type AnalyticsRange, api, type Breakdown, type Traffic, type TrafficPoint } from '../lib/api'
 import { delta, dense, WEEKDAYS, weekdayHours } from '../lib/traffic'
 
@@ -52,24 +66,21 @@ function AnalyticsPage() {
 		staleTime: 5 * 60_000,
 	})
 	const queryClient = useQueryClient()
-	const [confirmClear, setConfirmClear] = useState(false)
 	const clear = useMutation({
 		mutationFn: () => api.clearAnalytics(selected as string),
-		onSuccess: () => {
-			setConfirmClear(false)
-			return queryClient.invalidateQueries({ queryKey: ['analytics'] })
-		},
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['analytics'] }),
 	})
 
 	if (!(domains.isLoading || tracked.length)) {
 		return (
 			<Page>
-				<Section title='Analytics' description='no domain is collecting yet'>
-					<p className='text-body text-muted-foreground'>
-						Turn on Analytics for a domain in its project to start counting visits. Nothing has to change
-						inside the deployed app.
-					</p>
-				</Section>
+				<div className='rounded-xl border bg-card'>
+					<EmptyState
+						icon={IconChartBar}
+						title='No domain is collecting yet'
+						description='Turn on Analytics for a domain in its project to start counting visits. Nothing has to change inside the deployed app.'
+					/>
+				</div>
 			</Page>
 		)
 	}
@@ -95,6 +106,7 @@ function AnalyticsPage() {
 			<Cells className='mb-10'>
 				<MetricCard
 					label='Unique visitors'
+					icon={IconUsers}
 					value={traffic?.visitors ?? '-'}
 					series={[pointsOf(traffic, point => point.visitors)]}
 					format={([visitors]) => `${visitors} visitors`}
@@ -103,20 +115,23 @@ function AnalyticsPage() {
 				/>
 				<MetricCard
 					label='Page views'
+					icon={IconEye}
 					value={traffic?.views ?? '-'}
 					series={[pointsOf(traffic, point => point.views)]}
 					format={([views]) => `${views} views`}
 					windowLabel={windowLabel}
 					hint={traffic && trend(traffic.views, traffic.previous.views)}
 				/>
-				<Cell label='Online now' value={traffic?.online ?? '-'} hint='last 5 minutes' />
+				<Cell label='Online now' icon={IconWorld} value={traffic?.online ?? '-'} hint='last 5 minutes' />
 				<Cell
 					label='Visits'
+					icon={IconChartBar}
 					value={traffic?.visits ?? '-'}
 					hint={traffic && trend(traffic.visits, traffic.previous.visits)}
 				/>
 				<Cell
 					label='Avg visit'
+					icon={IconClock}
 					value={traffic ? duration(traffic.avg_duration) : '-'}
 					hint={traffic && trend(traffic.avg_duration, traffic.previous.avg_duration)}
 				/>
@@ -150,27 +165,29 @@ function AnalyticsPage() {
 				<Top title='Events' rows={traffic?.events} unit='fired' />
 			</div>
 
-			<Section title='Clear statistics' description='every event of this site, all ranges'>
+			<FormSection
+				title='Clear statistics'
+				description='Every event of this site, all ranges.'
+				icon={IconTrash}
+				hint='There is no undo and no export. Other tracked domains are untouched; collection stays on.'
+				actions={
+					<Confirm
+						title={`Delete every event of ${selected}?`}
+						description='The counters restart from zero and the history is gone.'
+						onConfirm={() => clear.mutate()}
+					>
+						<Button variant='danger' disabled={clear.isPending}>
+							<IconTrash />
+							{clear.isPending ? 'Deleting…' : 'Clear statistics'}
+						</Button>
+					</Confirm>
+				}
+			>
 				<ErrorText error={clear.error} />
-				{confirmClear ? (
-					<div className='flex gap-2'>
-						<Button variant='danger' onClick={() => clear.mutate()} disabled={clear.isPending}>
-							{clear.isPending ? 'Deleting…' : `Delete every event of ${selected}`}
-						</Button>
-						<Button variant='ghost' onClick={() => setConfirmClear(false)}>
-							Cancel
-						</Button>
-					</div>
-				) : (
-					<Button variant='danger' onClick={() => setConfirmClear(true)}>
-						Clear statistics
-					</Button>
-				)}
-				<p className='mt-1 text-label text-muted-foreground'>
-					The counters restart from zero and the history is gone. There is no undo and no export, and the
-					other tracked domains are untouched. Collection stays on.
+				<p className='text-body text-muted-foreground'>
+					The counters restart from zero and the history is gone.
 				</p>
-			</Section>
+			</FormSection>
 		</Page>
 	)
 }

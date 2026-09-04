@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
+import { IconDownload } from '@tabler/icons-react'
 import { useMutation } from '@tanstack/react-query'
+import { DialogFooter } from '@/components/ui/dialog'
 import { api, type EnvVar, GIT_PROVIDERS, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { Button, Check, ErrorText, Field } from './primitives'
+import { Button, Check, ErrorText, Field, Textarea } from './primitives'
 
 const providers = ['unconfigured', ...GIT_PROVIDERS, 'image', 'raw'] as readonly string[]
 
@@ -156,26 +158,24 @@ export function ImportServicesForm({
 			}}
 		>
 			<Field label='Export' hint='Copied from another project’s settings.'>
-				<textarea
+				<Textarea
 					required
 					rows={4}
 					value={pasted}
 					onChange={event => setPasted(event.target.value)}
-					className='font-mono break-all'
+					spellCheck={false}
 					placeholder='eyJ2ZXJzaW9uIjoxLCJzZXJ2aWNlcyI6W119'
 				/>
 			</Field>
 
-			{decoded instanceof Error && decoded.message !== 'empty' ? (
-				<p className='mb-3 text-label text-destructive'>{decoded.message}</p>
-			) : null}
+			{decoded instanceof Error && decoded.message !== 'empty' ? <ErrorText error={decoded} /> : null}
 
 			{parsed ? (
 				<div className='mb-3'>
 					<p className='mb-2 text-label text-muted-foreground'>
 						{parsed.services.length} service{parsed.services.length === 1 ? '' : 's'} from {parsed.project}
 					</p>
-					<div className='rounded-xl border border-border px-3'>
+					<div className='rounded-md border bg-background px-3'>
 						{parsed.services.map(service => {
 							const collides = taken.has(service.name)
 							const on = !collides && !skipped.includes(service.name)
@@ -215,14 +215,15 @@ export function ImportServicesForm({
 			) : null}
 
 			<ErrorText error={run.error} />
-			<div className='flex gap-2'>
-				<Button type='submit' variant='primary' disabled={run.isPending || importable.length === 0}>
-					{run.isPending ? 'Importing…' : `Import ${importable.length || ''}`.trim()}
-				</Button>
+			<DialogFooter>
 				<Button variant='ghost' onClick={onCancel}>
 					Cancel
 				</Button>
-			</div>
+				<Button type='submit' variant='primary' disabled={run.isPending || importable.length === 0}>
+					<IconDownload />
+					{run.isPending ? 'Importing…' : `Import ${importable.length || ''}`.trim()}
+				</Button>
+			</DialogFooter>
 		</form>
 	)
 }

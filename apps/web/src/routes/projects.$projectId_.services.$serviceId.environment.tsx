@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { IconVariable } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, ErrorText, Section } from '../components/primitives'
+import { ErrorText, FormSection, SaveButton, Textarea } from '../components/primitives'
 import { api } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
 
@@ -33,26 +34,24 @@ function ServiceEnvironment() {
 	})
 
 	return (
-		<Section
-			title='Environment variables'
-			description='written to this service’s own .env with 0600 permissions'
-			onSave={() => save.mutate()}
-			actions={
-				<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
-					{save.isPending ? 'Saving…' : 'Save'}
-				</Button>
-			}
-		>
-			<ErrorText error={save.error} />
-			<textarea
-				rows={18}
-				value={text}
-				placeholder='KEY=value'
-				onChange={event => setText(event.target.value)}
-				className='font-mono text-body'
-				spellCheck={false}
-			/>
-			<p className='mt-1 text-label text-muted-foreground'>One KEY=value per line. Redeploy to apply.</p>
-		</Section>
+		<div className='max-w-3xl'>
+			<FormSection
+				title='Environment variables'
+				description='Written to this service’s own .env with 0600 permissions.'
+				icon={IconVariable}
+				hint='One KEY=value per line. Redeploy to apply.'
+				onSave={() => save.mutate()}
+				actions={<SaveButton pending={save.isPending} />}
+			>
+				<ErrorText error={save.error} />
+				<Textarea
+					rows={18}
+					value={text}
+					placeholder='KEY=value'
+					onChange={event => setText(event.target.value)}
+					spellCheck={false}
+				/>
+			</FormSection>
+		</div>
 	)
 }

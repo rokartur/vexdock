@@ -1,9 +1,21 @@
 import { useMemo, useState } from 'react'
+import {
+	IconBox,
+	IconCpu,
+	IconDatabase,
+	IconFileText,
+	IconFolder,
+	IconPlayerPlay,
+	IconServer,
+	IconStack2,
+	IconTag,
+} from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { Progress } from '@/components/ui/progress'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Cell, Cells, Page, Refresh, Section, Status } from '../components/primitives'
+import { Cell, Cells, IconButton, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
 import { deploymentLink } from '../lib/deployment-link'
 import { bytes, percent, since } from '../lib/format'
@@ -42,19 +54,20 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 		cell.accessor(({ deployment }) => deployment.created_at, {
 			id: 'when',
 			header: 'When',
-			cell: ({ row }) => since(row.original.deployment.created_at),
+			cell: ({ row }) => (
+				<span className='text-muted-foreground'>{since(row.original.deployment.created_at)}</span>
+			),
 		}),
 		cell.display({
 			id: 'logs',
 			header: '',
 			meta: { align: 'right' },
 			cell: ({ row: { original } }) => (
-				<Link
-					{...deploymentLink(original.deployment.project_id, original.deployment.id)}
-					className='text-muted-foreground hover:underline'
-				>
-					logs
-				</Link>
+				<IconButton
+					icon={IconFileText}
+					label='Logs'
+					render={<Link {...deploymentLink(original.deployment.project_id, original.deployment.id)} />}
+				/>
 			),
 		}),
 	]
@@ -130,6 +143,7 @@ function DashboardPage() {
 				<Cells className='mb-2'>
 					<MetricCard
 						label='CPU'
+						icon={IconCpu}
 						value={current ? percent(current.cpu_percent) : '-'}
 						series={[seriesOf(history, sample => sample.cpu_percent)]}
 						max={100}
@@ -139,6 +153,7 @@ function DashboardPage() {
 					/>
 					<MetricCard
 						label='Memory'
+						icon={IconServer}
 						value={current ? bytes(current.memory_used) : '-'}
 						series={[seriesOf(history, sample => sample.memory_used)]}
 						max={current?.memory_total}
@@ -151,38 +166,41 @@ function DashboardPage() {
 					{/* Disk moves in hours, so a line would be flat; the bar says more. */}
 					<Cell
 						label='Disk'
+						icon={IconDatabase}
 						value={current ? bytes(current.disk_used) : '-'}
 						hint={`of ${bytes(current?.disk_total)} · ${percent(diskUsed * 100)}`}
 					>
-						<div className='mt-2.5 h-0.5 rounded-full bg-muted'>
-							<div
-								className='h-full rounded-full bg-foreground'
-								style={{ width: percent(diskUsed * 100) }}
-							/>
-						</div>
+						<Progress value={diskUsed * 100} className='mt-2.5 h-0.5' />
 					</Cell>
 					<Cell
 						label='Containers'
+						icon={IconBox}
 						value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
 						hint='running / total'
 					/>
-					<Cell label='Projects' value={projects.data?.length ?? 0} hint='on this host' />
+					<Cell label='Projects' icon={IconFolder} value={projects.data?.length ?? 0} hint='on this host' />
 					<Cell
 						label='Services'
+						icon={IconServer}
 						value={services.total}
 						hint={`${services.apps} apps · ${services.compose} compose · ${services.db} db`}
 					/>
 					<Cell
 						label='Running'
+						icon={IconPlayerPlay}
 						value={`${services.running} / ${services.total}`}
 						hint={`${services.errored} errored · ${services.idle} idle`}
 					/>
-					<Cell label='Images' value={info.data?.images ?? 0} hint='on this host' />
+					<Cell label='Images' icon={IconStack2} value={info.data?.images ?? 0} hint='on this host' />
 					<Cell
 						label='Version'
+						icon={IconTag}
 						value={
 							version.data?.update_available ? (
-								<Link to='/system/settings/about' className='text-amber-400 hover:underline'>
+								<Link
+									to='/system/settings/about'
+									className='text-amber-400 underline-offset-4 hover:underline'
+								>
 									{info.data?.version} · update
 								</Link>
 							) : (
@@ -204,7 +222,7 @@ function DashboardPage() {
 					columns={deploymentColumns}
 					loading={info.isLoading}
 					getRowId={({ deployment }) => deployment.id}
-					empty='No deployments yet.'
+					empty='No deployments yet'
 				/>
 			</Section>
 		</Page>

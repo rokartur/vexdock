@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { IconUserPlus } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Button, ErrorText, Field } from '../components/primitives'
+import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signUp } from '../lib/auth-client'
 
 export const Route = createFileRoute('/setup')({ component: SetupPage })
@@ -35,8 +36,13 @@ function SetupPage() {
 
 	return (
 		<div className='mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6'>
-			<h1 className='mb-1 text-[16px] font-medium'>Create administrator</h1>
-			<p className='mb-6 text-xs text-muted-foreground'>
+			<div className='mb-1 flex items-center gap-2.5'>
+				<span className='flex size-7 items-center justify-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground'>
+					VX
+				</span>
+				<h1 className='text-title font-medium'>Create administrator</h1>
+			</div>
+			<p className='mb-6 text-label text-muted-foreground'>
 				This is the only account creation step. It closes afterwards.
 			</p>
 			<form
@@ -46,7 +52,7 @@ function SetupPage() {
 				}}
 			>
 				<Field label='Setup token' hint='Printed by the installer. Also in /opt/vexdock/.env.'>
-					<input
+					<Input
 						type='password'
 						autoComplete='off'
 						required
@@ -55,7 +61,7 @@ function SetupPage() {
 					/>
 				</Field>
 				<Field label='Email'>
-					<input
+					<Input
 						type='email'
 						autoComplete='username'
 						required
@@ -64,7 +70,7 @@ function SetupPage() {
 					/>
 				</Field>
 				<Field label='Password' hint='At least 10 characters.'>
-					<input
+					<Input
 						type='password'
 						autoComplete='new-password'
 						required
@@ -74,7 +80,7 @@ function SetupPage() {
 					/>
 				</Field>
 				<Field label='Confirm password'>
-					<input
+					<Input
 						type='password'
 						autoComplete='new-password'
 						required
@@ -82,9 +88,10 @@ function SetupPage() {
 						onChange={event => setConfirm(event.target.value)}
 					/>
 				</Field>
-				{mismatch ? <p className='py-2 text-xs text-destructive'>Passwords do not match.</p> : null}
+				{mismatch ? <ErrorText error='Passwords do not match.' /> : null}
 				<ErrorText error={setup.error} />
 				<Button type='submit' variant='primary' disabled={setup.isPending || mismatch}>
+					<IconUserPlus />
 					{setup.isPending ? 'Creating…' : 'Create account'}
 				</Button>
 			</form>

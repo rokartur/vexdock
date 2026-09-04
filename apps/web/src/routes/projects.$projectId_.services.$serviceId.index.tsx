@@ -6,11 +6,31 @@ import {
 	IconBrandGithub,
 	IconBrandGitlab,
 	IconCup,
+	IconDatabase,
+	IconEye,
+	IconEyeOff,
 	IconFileCode,
+	IconGitBranch,
+	IconPlug,
+	IconRocket,
+	IconTerminal2,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button, ErrorText, Fact, Facts, Field, FormSection, Segmented, Select, Status } from '../components/primitives'
+import {
+	Button,
+	ErrorText,
+	Fact,
+	Facts,
+	Field,
+	FormSection,
+	Input,
+	SaveButton,
+	Segmented,
+	Select,
+	Status,
+	Textarea,
+} from '../components/primitives'
 import { api, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { duration, since } from '../lib/format'
@@ -77,13 +97,16 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 		<FormSection
 			title='Deploy'
 			description='Deploy, restart and stop are in the header. Their log opens under Deployments.'
+			icon={IconRocket}
+			hint='Auto deploy is the project’s setting.'
 			actions={
 				<Button render={<Link to='/projects/$projectId/services/$serviceId/terminal' params={params} />}>
+					<IconTerminal2 />
 					Open terminal
 				</Button>
 			}
 		>
-			<Facts className='mb-3'>
+			<Facts>
 				<Fact
 					label='Last deploy'
 					value={
@@ -93,7 +116,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 									to='/projects/$projectId/services/$serviceId/deployments'
 									params={params}
 									search={{ deployment: latest.id }}
-									className='hover:underline'
+									className='underline-offset-4 hover:underline'
 								>
 									#{latest.number}
 								</Link>
@@ -114,7 +137,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 							<Link
 								to='/projects/$projectId/settings'
 								params={{ projectId }}
-								className='font-sans hover:underline'
+								className='font-sans underline-offset-4 hover:underline'
 							>
 								project settings
 							</Link>
@@ -151,13 +174,16 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 			<FormSection
 				title='Connection'
 				description='Reachable under this hostname from every other service in this project.'
+				icon={IconPlug}
+				hint='The password is what the container was created with.'
 				actions={
 					<Button variant='ghost' onClick={() => setRevealed(value => !value)}>
+						{revealed ? <IconEyeOff /> : <IconEye />}
 						{revealed ? 'Hide' : 'Reveal'}
 					</Button>
 				}
 			>
-				<Facts className='mb-2'>
+				<Facts>
 					<Fact label='Host' value={data.host} />
 					<Fact label='Port' value={data.port} />
 					{data.database ? <Fact label='Database' value={data.database} /> : null}
@@ -166,7 +192,11 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 					<Fact label='URL' value={revealed ? data.url : data.url.replace(data.password, '•••')} />
 				</Facts>
 			</FormSection>
-			<FormSection title='Engine' description='Change the image under Source, then Deploy to move versions.'>
+			<FormSection
+				title='Engine'
+				description='Change the image under Source, then Deploy to move versions.'
+				icon={IconDatabase}
+			>
 				<Facts>
 					<Fact label='Engine' value={data.engine} />
 					<Fact label='Image' value={data.image} />
@@ -255,14 +285,13 @@ function SourceSection({ service }: { service: Service }) {
 	return (
 		<FormSection
 			title='Source'
-			description='Where the code comes from. Applied on the next deploy.'
+			description='Where the code comes from.'
+			icon={IconGitBranch}
+			hint='Applied on the next deploy.'
 			onSave={() => save.mutate()}
-			actions={
-				<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
-					{save.isPending ? 'Saving…' : 'Save'}
-				</Button>
-			}
+			actions={<SaveButton pending={save.isPending} />}
 		>
+			<ErrorText error={save.error} />
 			{editable ? (
 				<div className='mb-4'>
 					<Segmented
@@ -288,7 +317,7 @@ function SourceSection({ service }: { service: Service }) {
 						hint={accountId === '' ? undefined : (repositories.error?.message ?? undefined)}
 					>
 						{accountId === '' ? (
-							<input value={repositoryUrl} onChange={event => setRepositoryUrl(event.target.value)} />
+							<Input value={repositoryUrl} onChange={event => setRepositoryUrl(event.target.value)} />
 						) : (
 							<Select
 								value={repositoryUrl}
@@ -313,10 +342,10 @@ function SourceSection({ service }: { service: Service }) {
 					</Field>
 					<div className='grid gap-x-6 md:grid-cols-2'>
 						<Field label='Branch'>
-							<input value={branch} onChange={event => setBranch(event.target.value)} />
+							<Input value={branch} onChange={event => setBranch(event.target.value)} />
 						</Field>
 						<Field label='Build path'>
-							<input value={buildPath} onChange={event => setBuildPath(event.target.value)} />
+							<Input value={buildPath} onChange={event => setBuildPath(event.target.value)} />
 						</Field>
 						{accountId === '' ? (
 							<Field label='Credentials'>
@@ -332,11 +361,10 @@ function SourceSection({ service }: { service: Service }) {
 								label={credentialKind === 'token' ? 'Token' : 'Private key'}
 								hint='Leave empty to keep the stored value.'
 							>
-								<textarea
+								<Textarea
 									rows={credentialKind === 'token' ? 1 : 5}
 									value={credentialSecret}
 									onChange={event => setCredentialSecret(event.target.value)}
-									className='font-mono text-body'
 								/>
 							</Field>
 						)}
@@ -348,21 +376,19 @@ function SourceSection({ service }: { service: Service }) {
 					label='Image'
 					hint={service.type === 'database' ? 'Changing the tag is how a database moves version.' : undefined}
 				>
-					<input value={image} onChange={event => setImage(event.target.value)} />
+					<Input value={image} onChange={event => setImage(event.target.value)} />
 				</Field>
 			) : null}
 			{showing === 'raw' ? (
 				<Field label='Compose fragment'>
-					<textarea
+					<Textarea
 						rows={10}
 						value={fragment}
 						onChange={event => setFragment(event.target.value)}
-						className='font-mono text-body'
 						spellCheck={false}
 					/>
 				</Field>
 			) : null}
-			<ErrorText error={save.error} />
 		</FormSection>
 	)
 }

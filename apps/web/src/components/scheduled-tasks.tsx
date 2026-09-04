@@ -1,12 +1,24 @@
 import { useMemo, useState } from 'react'
+import {
+	IconClock,
+	IconDeviceFloppy,
+	IconFileText,
+	IconPencil,
+	IconPlayerPause,
+	IconPlayerPlay,
+	IconPlus,
+	IconTrash,
+} from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since, until } from '../lib/format'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { LogViewer } from './log-viewer'
-import { Button, Check, ErrorText, Field, Section, Select } from './primitives'
+import { Button, Confirm, ErrorText, Field, IconButton, Input, Section, Select, Switch, Textarea } from './primitives'
 
 /** A task being written. `id` is null while it is still a new one. */
 type TaskForm = TaskInput & { id: string | null }
@@ -48,23 +60,11 @@ type TaskActions = {
 	toggle: (task: ScheduledTask) => void
 	remove: (id: string) => void
 	runningId: string | null
-	confirming: string | null
-	setConfirming: (id: string | null) => void
 	/** Off on a service's own tab, where every row has the same owner. */
 	owner: boolean
 }
 
-function taskColumns({
-	select,
-	edit,
-	run,
-	toggle,
-	remove,
-	runningId,
-	confirming,
-	setConfirming,
-	owner,
-}: TaskActions): Columns<ScheduledTask> {
+function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: TaskActions): Columns<ScheduledTask> {
 	const cell = columnsFor<ScheduledTask>()
 	const ownerColumn = cell.accessor(task => `${task.project_name} ${task.service_name}`, {
 		id: 'service',
@@ -74,7 +74,7 @@ function taskColumns({
 				<Link
 					to='/projects/$projectId/services/$serviceId/tasks'
 					params={{ projectId: row.original.project_id, serviceId: row.original.service_id }}
-					className='hover:underline'
+					className='underline-offset-4 hover:underline'
 				>
 					{row.original.service_name}
 				</Link>
@@ -87,15 +87,20 @@ function taskColumns({
 			id: 'name',
 			header: 'Name',
 			cell: ({ row }) => (
-				<>
-					{row.original.name}
-					{row.original.enabled ? null : <span className='ml-2 text-label text-muted-foreground'>off</span>}
-					{row.original.description ? (
-						<span className='block max-w-64 truncate text-label text-muted-foreground'>
-							{row.original.description}
+				<span className='flex items-center gap-2'>
+					<IconClock className='size-4 shrink-0 text-muted-foreground' />
+					<span className='min-w-0'>
+						<span className='flex items-center gap-2 font-medium'>
+							{row.original.name}
+							{row.original.enabled ? null : <Badge variant='outline'>paused</Badge>}
 						</span>
-					) : null}
-				</>
+						{row.original.description ? (
+							<span className='block max-w-64 truncate text-label text-muted-foreground'>
+								{row.original.description}
+							</span>
+						) : null}
+					</span>
+				</span>
 			),
 		}),
 		...(owner ? [ownerColumn] : []),
@@ -152,36 +157,31 @@ function taskColumns({
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
-			cell: ({ row: { original } }) =>
-				// Deleting a task takes its whole run history with it, so it asks first.
-				confirming === original.id ? (
-					<div className='flex justify-end gap-2'>
-						<Button variant='danger' onClick={() => remove(original.id)}>
-							confirm delete
-						</Button>
-						<Button variant='ghost' onClick={() => setConfirming(null)}>
-							cancel
-						</Button>
-					</div>
-				) : (
-					<div className='flex justify-end gap-2'>
-						<Button variant='ghost' onClick={() => select(original.id)}>
-							logs
-						</Button>
-						<Button disabled={runningId !== null} variant='ghost' onClick={() => run(original.id)}>
-							{runningId === original.id ? 'running' : 'run now'}
-						</Button>
-						<Button variant='ghost' onClick={() => edit(original)}>
-							edit
-						</Button>
-						<Button variant='ghost' onClick={() => toggle(original)}>
-							{original.enabled ? 'disable' : 'enable'}
-						</Button>
-						<Button variant='ghost' onClick={() => setConfirming(original.id)}>
-							delete
-						</Button>
-					</div>
-				),
+			cell: ({ row: { original } }) => (
+				<div className='flex justify-end gap-0.5'>
+					<IconButton icon={IconFileText} label='Runs' onClick={() => select(original.id)} />
+					<IconButton
+						icon={IconPlayerPlay}
+						label={runningId === original.id ? 'Running…' : 'Run now'}
+						disabled={runningId !== null}
+						onClick={() => run(original.id)}
+					/>
+					<IconButton icon={IconPencil} label='Edit' onClick={() => edit(original)} />
+					<IconButton
+						icon={original.enabled ? IconPlayerPause : IconPlayerPlay}
+						label={original.enabled ? 'Pause' : 'Resume'}
+						onClick={() => toggle(original)}
+					/>
+					{/* Deleting a task takes its whole run history with it, so it asks first. */}
+					<Confirm
+						title={`Delete ${original.name}?`}
+						description='The task and every run it recorded are removed.'
+						onConfirm={() => remove(original.id)}
+					>
+						<IconButton icon={IconTrash} label='Delete' />
+					</Confirm>
+				</div>
+			),
 		}),
 	]
 }
@@ -200,7 +200,6 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 	// A form is open exactly when there is one to edit, so one state covers both.
 	const [form, setForm] = useState<TaskForm | null>(null)
 	const [selected, setSelected] = useState<string | null>(null)
-	const [confirming, setConfirming] = useState<string | null>(null)
 
 	const queryKey = serviceId ? ['service', serviceId, 'tasks'] : ['tasks']
 	const tasks = useQuery({
@@ -245,7 +244,6 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 	const remove = useMutation({
 		mutationFn: (id: string) => api.deleteTask(id),
 		onSuccess: async (_result, id) => {
-			setConfirming(null)
 			if (selected === id) setSelected(null)
 			if (form?.id === id) setForm(null)
 			await invalidate()
@@ -267,11 +265,9 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 				toggle: toggleTask,
 				remove: removeTask,
 				runningId,
-				confirming,
-				setConfirming,
 				owner: serviceId === undefined,
 			}),
-		[runTask, toggleTask, removeTask, runningId, confirming, serviceId],
+		[runTask, toggleTask, removeTask, runningId, serviceId],
 	)
 
 	return (
@@ -282,6 +278,7 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 				actions={
 					serviceId ? (
 						<Button variant='primary' onClick={() => setForm(emptyTask)}>
+							<IconPlus />
 							New task
 						</Button>
 					) : null
@@ -292,7 +289,8 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 					columns={columns}
 					loading={tasks.isLoading}
 					getRowId={task => task.id}
-					empty={serviceId ? 'No scheduled tasks.' : 'No scheduled tasks. Add one from a service.'}
+					filter='Filter tasks'
+					empty={serviceId ? 'No scheduled tasks' : 'No scheduled tasks. Add one from a service.'}
 				/>
 				<ErrorText error={run.error ?? toggle.error ?? remove.error} />
 			</Section>
@@ -372,7 +370,7 @@ function TaskFormFields({
 			}}
 		>
 			<Field label='Name'>
-				<input
+				<Input
 					required
 					value={form.name}
 					onChange={event => onChange({ ...form, name: event.target.value })}
@@ -380,7 +378,7 @@ function TaskFormFields({
 				/>
 			</Field>
 			<Field label='Description'>
-				<input
+				<Input
 					value={form.description}
 					onChange={event => onChange({ ...form, description: event.target.value })}
 					placeholder='what it does, for whoever reads this next'
@@ -394,11 +392,11 @@ function TaskFormFields({
 					onChange={schedule => onChange({ ...form, schedule })}
 					options={scheduleOptions}
 				/>
-				<input
+				<Input
 					required
 					value={form.schedule}
 					onChange={event => onChange({ ...form, schedule: event.target.value })}
-					className='mt-1.5 font-mono'
+					spellCheck={false}
 				/>
 			</Field>
 			<div className='grid grid-cols-2 gap-3'>
@@ -421,20 +419,20 @@ function TaskFormFields({
 				</Field>
 			</div>
 			<Field label='Command'>
-				<textarea
+				<Textarea
 					required
 					rows={4}
 					value={form.command}
 					onChange={event => onChange({ ...form, command: event.target.value })}
 					placeholder='php artisan schedule:run'
-					className='font-mono text-body'
 					spellCheck={false}
 				/>
 			</Field>
-			<Check label='Enabled' checked={form.enabled} onChange={enabled => onChange({ ...form, enabled })} />
+			<Switch label='Enabled' checked={form.enabled} onChange={enabled => onChange({ ...form, enabled })} />
 			<ErrorText error={error} />
-			<div className='mt-3'>
+			<div className='mt-4 flex justify-end'>
 				<Button type='submit' variant='primary' disabled={saving}>
+					{form.id ? <IconDeviceFloppy /> : <IconPlus />}
 					{form.id ? 'Save task' : 'Add task'}
 				</Button>
 			</div>
@@ -452,25 +450,31 @@ function TaskRuns({ task }: { task: ScheduledTask }) {
 	return (
 		<div>
 			{runs.data?.length ? (
-				<div className='flex flex-wrap gap-2'>
+				<ToggleGroup
+					variant='outline'
+					size='sm'
+					spacing={2}
+					className='flex-wrap'
+					value={shown ? [shown.id] : []}
+					onValueChange={([id]) => {
+						if (typeof id === 'string') setOpenRun(id)
+					}}
+				>
 					{runs.data.map(item => (
-						<button
+						<ToggleGroupItem
 							key={item.id}
-							type='button'
-							onClick={() => setOpenRun(item.id)}
-							className={`cursor-pointer rounded-md border px-2 py-1 text-label ${
-								item.id === shown?.id ? 'border-foreground' : 'border-border text-muted-foreground'
-							}`}
+							value={item.id}
+							className='text-label text-muted-foreground aria-pressed:text-foreground'
 						>
 							<span className={item.exit_code === 0 ? undefined : 'text-red-400'}>
 								{since(item.started_at)}
 							</span>
-							<span className='ml-2 font-mono text-muted-foreground'>
+							<span className='font-mono text-muted-foreground'>
 								{item.finished_at ? duration(item.started_at, item.finished_at) : 'running'}
 							</span>
-						</button>
+						</ToggleGroupItem>
 					))}
-				</div>
+				</ToggleGroup>
 			) : (
 				<p className='text-body text-muted-foreground'>This task has not run yet.</p>
 			)}

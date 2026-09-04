@@ -1,17 +1,56 @@
-import { type ComponentProps, Fragment, type KeyboardEvent, type ReactNode } from 'react'
-import { Select as SelectPrimitive } from '@base-ui/react/select'
-import { IconCheck, IconChevronDown, IconRefresh, type Icon as TablerIcon } from '@tabler/icons-react'
+import { type ComponentProps, Fragment, type ReactElement, type ReactNode, useState } from 'react'
+import {
+	IconAlertCircle,
+	IconDeviceFloppy,
+	IconInbox,
+	IconRefresh,
+	IconTrash,
+	type Icon as TablerIcon,
+} from '@tabler/icons-react'
 import { Link, useRouter, useRouterState } from '@tanstack/react-router'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import { Button as ShadcnButton } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field as ShadcnField, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { Input as ShadcnInput } from '@/components/ui/input'
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { Select as ShadcnSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch as ShadcnSwitch } from '@/components/ui/switch'
+import { Tabs as ShadcnTabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea as ShadcnTextarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { labelOf, trailOf } from '@/lib/breadcrumb'
 import { cn } from '@/utils/cn'
 
 /**
  * The vocabulary every page speaks. Each one wraps a shadcn component so the
  * whole panel inherits one design system, while keeping the dense, flat layout
- * the dashboard needs.
+ * the dashboard needs. Vercel's rules: one black canvas, a hairline border
+ * instead of a shadow, white on black for the one primary action, sentence
+ * case everywhere, an icon on every action.
  */
 
 type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost'
@@ -25,21 +64,85 @@ const buttonVariants = {
 	ghost: 'ghost',
 } as const satisfies Record<ButtonVariant, string>
 
+type ButtonProps = Omit<ComponentProps<typeof ShadcnButton>, 'variant' | 'size' | 'className'>
+
 // Only the intent is ours; everything else passes through, so a Button can be
 // what a menu trigger renders as and still receive the handlers that needs.
-export function Button({
-	variant = 'default',
-	type = 'button',
-	...props
-}: Omit<ComponentProps<typeof ShadcnButton>, 'variant' | 'size' | 'className'> & { variant?: ButtonVariant }) {
+export function Button({ variant = 'default', type = 'button', ...props }: ButtonProps & { variant?: ButtonVariant }) {
 	return (
 		<ShadcnButton
 			type={type}
-			size='sm'
 			variant={buttonVariants[variant]}
-			className={cn('h-8 px-3 text-xs', variant === 'ghost' && 'text-muted-foreground hover:text-foreground')}
+			className={cn('text-body', variant === 'ghost' && 'text-muted-foreground hover:text-foreground')}
 			{...props}
 		/>
+	)
+}
+
+/**
+ * An icon-only action with its name in a tooltip: row actions, the refresh in a
+ * section header, the rail's buttons. `sm` is the row size; `default` matches
+ * the buttons it sits next to in a header.
+ */
+export function IconButton({
+	icon: Icon,
+	label,
+	variant = 'ghost',
+	size = 'sm',
+	...props
+}: Omit<ButtonProps, 'children'> & {
+	icon: TablerIcon
+	label: string
+	variant?: ButtonVariant
+	size?: 'sm' | 'default'
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					<ShadcnButton
+						type='button'
+						variant={buttonVariants[variant]}
+						size={size === 'sm' ? 'icon-sm' : 'icon'}
+						aria-label={label}
+						// Rendered as a Link when `render` is given, so base-ui must not expect a <button>.
+						nativeButton={props.render === undefined}
+						// A pressed toggle (follow, wrap) reads as its hover state kept on.
+						className={cn(
+							variant === 'ghost' && 'text-muted-foreground hover:text-foreground',
+							'aria-pressed:bg-muted aria-pressed:text-foreground',
+						)}
+						{...props}
+					/>
+				}
+			>
+				<Icon />
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
+	)
+}
+
+/**
+ * The modifier the platform expects: ⌘ on Apple hardware, Ctrl elsewhere.
+ * navigator.platform is deprecated but still the one signal every browser
+ * ships. Unset during the prerender, which never renders the shell anyway.
+ */
+export const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/u.test(navigator.platform) ? '⌘' : 'Ctrl'
+
+/**
+ * A key combination shown next to the thing it triggers, one cap per key:
+ * `<Keys keys={[mod, 'K']} />`. Inside a button it takes the button's colour.
+ */
+export function Keys({ keys }: { keys: string[] }) {
+	return (
+		<KbdGroup>
+			{keys.map(key => (
+				<Kbd key={key} className='in-data-[slot=button]:bg-current/15 in-data-[slot=button]:text-current'>
+					{key}
+				</Kbd>
+			))}
+		</KbdGroup>
 	)
 }
 
@@ -75,18 +178,7 @@ export function Status({ value }: { value: string }) {
 
 /** Re-fetches a section's data. Lives in the section header, next to its title. */
 export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean }) {
-	return (
-		<button
-			type='button'
-			aria-label='Refresh'
-			title='Refresh'
-			onClick={onClick}
-			disabled={busy}
-			className='flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-foreground/20 hover:text-foreground active:scale-[0.95] disabled:cursor-default disabled:opacity-50 motion-reduce:active:scale-100'
-		>
-			<IconRefresh className='size-4' />
-		</button>
-	)
+	return <IconButton icon={IconRefresh} label='Refresh' onClick={onClick} disabled={busy} />
 }
 
 /**
@@ -124,98 +216,96 @@ export function Page({
 
 	return (
 		<>
-			<header className='flex h-12 shrink-0 items-center justify-between gap-3 border-b px-6'>
-				<div className='flex min-w-0 items-center gap-2'>
-					{trail.map(({ segment, to, linkable }, index) => {
-						const label = labels?.[segment]
-						// A supplied label owns its own interaction: the pickers render a
-						// button, and wrapping that in a link would navigate on the click
-						// that opens the popover.
-						return (
-							<Fragment key={to}>
-								{index > 0 ? <span className='text-muted-foreground'>/</span> : null}
-								{linkable && label === undefined ? (
-									<Link
-										to={to}
-										className='truncate text-body text-muted-foreground hover:text-foreground'
-									>
+			{/* pr-14 on small screens keeps the actions clear of the shell's sidebar toggle. */}
+			<header className='flex h-12 shrink-0 items-center justify-between gap-3 border-b px-5 pr-14 md:pr-5'>
+				<Breadcrumb className='min-w-0 flex-1'>
+					<BreadcrumbList className='flex-nowrap gap-2 overflow-hidden text-body sm:gap-2'>
+						{trail.map(({ segment, to, linkable }, index) => {
+							const label = labels?.[segment]
+							const last = index === trail.length - 1
+							// A supplied label owns its own interaction: the pickers render a
+							// button, and wrapping that in a link would navigate on the click
+							// that opens the popover. Only a plain last segment is the "page"
+							// (aria-current); a picker or an ancestor is a bare span, never a
+							// disabled link.
+							const crumbClass = cn(
+								'flex min-w-0 items-center gap-2 truncate',
+								last ? 'font-medium text-foreground' : 'text-muted-foreground',
+							)
+							let crumb: ReactNode
+							if (linkable && label === undefined) {
+								crumb = (
+									<BreadcrumbLink render={<Link to={to} />} className='truncate'>
 										{labelOf(segment)}
-									</Link>
-								) : (
-									<span
-										className={cn(
-											'flex min-w-0 items-center gap-2 truncate text-body',
-											index === trail.length - 1
-												? 'font-medium text-foreground'
-												: 'text-muted-foreground',
-										)}
-									>
-										{label ?? labelOf(segment)}
-									</span>
-								)}
-							</Fragment>
-						)
-					})}
-				</div>
+									</BreadcrumbLink>
+								)
+							} else if (last && label === undefined) {
+								crumb = <BreadcrumbPage className={crumbClass}>{labelOf(segment)}</BreadcrumbPage>
+							} else {
+								crumb = <span className={crumbClass}>{label ?? labelOf(segment)}</span>
+							}
+							return (
+								<Fragment key={to}>
+									{index > 0 ? (
+										<BreadcrumbSeparator className='text-muted-foreground/60'>
+											/
+										</BreadcrumbSeparator>
+									) : null}
+									<BreadcrumbItem className='min-w-0 gap-2'>{crumb}</BreadcrumbItem>
+								</Fragment>
+							)
+						})}
+					</BreadcrumbList>
+				</Breadcrumb>
 				{actions ? <div className='flex shrink-0 items-center gap-2'>{actions}</div> : null}
 			</header>
 			{toolbar || filters ? (
-				<div className='flex h-11 shrink-0 items-center gap-4 border-b px-6'>
+				<div className='flex h-10 shrink-0 items-center gap-4 border-b px-3'>
 					{toolbar}
-					<div className='ml-auto flex items-center gap-2'>{filters}</div>
+					<div className='ml-auto flex items-center gap-2 pr-2'>{filters}</div>
 				</div>
 			) : null}
-			<div className='min-h-0 flex-1 overflow-y-auto px-6 py-5'>{children}</div>
+			<div className='min-h-0 flex-1 overflow-y-auto px-5 py-5'>{children}</div>
 		</>
 	)
 }
 
 /**
- * The one switch shape in the app, datafa.st's dashboard tabs: a sunken strip
- * whose active item is a raised card-coloured pill. `Tabs` drives it off the
- * URL, `Segmented` off a value, and both belong in a Page's `toolbar`.
- */
-const segmentStrip =
-	'inline-flex h-8 shrink-0 items-center rounded-xl bg-sidebar/70 p-0.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
-
-const segmentItem = (active: boolean) =>
-	cn(
-		'inline-flex h-full items-center rounded-lg px-2.5 text-body font-medium whitespace-nowrap transition-[color,background-color,scale] active:scale-[0.96] motion-reduce:active:scale-100',
-		active ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground/60 hover:text-foreground',
-	)
-
-/**
- * Sub-navigation for a Page's `toolbar`. A tab links to `base + suffix`; the
- * empty suffix is the layout's index route and only matches the base itself.
+ * Sub-navigation for a Page's `toolbar`, Vercel's underlined tabs: the active
+ * one carries a 2px line on the band's own hairline. A tab links to
+ * `base + suffix`; the empty suffix is the layout's index route and only
+ * matches the base itself.
  */
 export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; label: string }[] }) {
 	const pathname = useRouterState({ select: state => state.location.pathname })
+	const active = tabs.find(tab =>
+		tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(base + tab.suffix),
+	)
 
 	return (
-		<nav className={segmentStrip}>
-			{tabs.map(tab => {
-				const to = base + tab.suffix
-				const active =
-					tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(to)
-				return (
-					<Link
+		<ShadcnTabs value={active?.label ?? ''} className='h-full'>
+			<TabsList variant='line' className='h-full gap-0 p-0'>
+				{tabs.map(tab => (
+					<TabsTrigger
 						key={tab.label}
-						to={to}
-						aria-current={active ? 'page' : undefined}
-						className={segmentItem(active)}
+						value={tab.label}
+						render={<Link to={base + tab.suffix} />}
+						nativeButton={false}
+						className='h-full rounded-none px-3 text-body after:bottom-0'
 					>
 						{tab.label}
-					</Link>
-				)
-			})}
-		</nav>
+					</TabsTrigger>
+				))}
+			</TabsList>
+		</ShadcnTabs>
 	)
 }
 
 /**
- * The same strip, switching a value instead of the URL: ranges, filters, modes.
- * An option may carry an icon, which is how a row of sources (GitHub, GitLab,
- * an image) reads as the brands it names rather than a list of words.
+ * A joined row of options switching a value instead of the URL: ranges,
+ * filters, modes. An option may carry an icon, which is how a row of sources
+ * (GitHub, GitLab, an image) reads as the brands it names rather than a list
+ * of words.
  */
 export function Segmented<TValue extends string>({
 	value,
@@ -227,54 +317,59 @@ export function Segmented<TValue extends string>({
 	onChange: (value: TValue) => void
 }) {
 	return (
-		<div className={segmentStrip}>
+		<ToggleGroup
+			variant='outline'
+			spacing={0}
+			value={[value]}
+			onValueChange={next => {
+				// Pressing the selected option again would clear the group; a switch
+				// always has a position, so that press is a no-op.
+				const [selected] = next as TValue[]
+				if (selected !== undefined) onChange(selected)
+			}}
+		>
 			{options.map(option => (
-				<button
+				<ToggleGroupItem
 					key={option.value}
-					type='button'
-					aria-pressed={option.value === value}
-					onClick={() => onChange(option.value)}
-					className={cn(segmentItem(option.value === value), option.icon && 'gap-1.5')}
+					value={option.value}
+					className='text-body text-muted-foreground aria-pressed:bg-foreground aria-pressed:text-background'
 				>
-					{option.icon ? <option.icon className='size-3.5' stroke={1.75} /> : null}
+					{option.icon ? <option.icon /> : null}
 					{option.label}
-				</button>
+				</ToggleGroupItem>
 			))}
-		</div>
+		</ToggleGroup>
 	)
 }
 
-/**
- * Cmd+S (macOS) / Ctrl+S saves the section the caret is inside, so a page with
- * several sections saves the one being edited.
- */
-const saveShortcut = (onSave?: () => void) => (event: KeyboardEvent<HTMLElement>) => {
-	if (!onSave || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
-	event.preventDefault()
-	onSave()
+/** The Save a FormSection ends with: submits it, and shows the Cmd/Ctrl+S that does the same. */
+export function SaveButton({ pending, label = 'Save' }: { pending: boolean; label?: string }) {
+	return (
+		<Button type='submit' variant='primary' disabled={pending}>
+			<IconDeviceFloppy />
+			{pending ? 'Saving…' : label}
+			<Keys keys={[mod, 'S']} />
+		</Button>
+	)
 }
 
+/** A titled block of a page: a table, a chart, a list. Not a form; that is a FormSection. */
 export function Section({
 	title,
 	actions,
 	children,
 	description,
-	onSave,
-	className,
 }: {
 	title: string
 	actions?: ReactNode
 	children: ReactNode
 	description?: string
-	onSave?: () => void
-	/** Layout only, e.g. letting a section fill the page for a full-height table. */
-	className?: string
 }) {
 	return (
-		<section className={cn('mb-10', className)} onKeyDown={saveShortcut(onSave)}>
+		<section className='mb-8'>
 			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
-				<div className='flex items-baseline gap-3'>
-					<h2 className='text-title font-bold'>{title}</h2>
+				<div className='flex items-baseline gap-2.5'>
+					<h2 className='text-title font-medium'>{title}</h2>
 					{description ? <span className='text-label text-muted-foreground'>{description}</span> : null}
 				</div>
 				{actions ? <div className='flex items-center gap-2'>{actions}</div> : null}
@@ -285,50 +380,80 @@ export function Section({
 }
 
 /**
- * One group of a settings page: what it is on the left, its controls on the
- * right, a hairline between groups. Each group saves on its own, so its Save
- * goes in `actions` and lands under the controls, never in a page-wide bar.
+ * One group of a settings page, Vercel's card: what it is on top, its controls
+ * in the body, and a footer strip with a hint on the left and the group's own
+ * Save on the right. Each group saves on its own, so its Save goes in
+ * `actions`, never in a page-wide bar.
+ *
+ * With `onSave` the card is a form: its submit button, Enter in a field and
+ * Cmd/Ctrl+S all run the browser's own validation (`required`, `min`) and then
+ * `onSave`. Any other button inside must stay `type='button'`, which the
+ * primitives already are.
  */
 export function FormSection({
 	title,
 	description,
+	icon: Icon,
+	hint,
 	actions,
 	onSave,
 	children,
 }: {
 	title: string
 	description?: string
+	icon?: TablerIcon
+	/** Footer text: what saving does, or what the group needs before it can. */
+	hint?: ReactNode
 	actions?: ReactNode
 	onSave?: () => void
 	children: ReactNode
 }) {
+	const card = (
+		<Card className='mb-4 gap-0 py-0 ring-border'>
+			<CardHeader className='gap-0.5 px-5 pt-4'>
+				<CardTitle className='flex items-center gap-2 text-title'>
+					{Icon ? <Icon className='size-4 text-muted-foreground' /> : null}
+					{title}
+				</CardTitle>
+				{description ? <CardDescription className='text-label'>{description}</CardDescription> : null}
+			</CardHeader>
+			<CardContent className='px-5 py-4'>{children}</CardContent>
+			{actions || hint ? (
+				<CardFooter className='min-h-12 justify-between gap-3 px-5 py-2.5 text-label text-muted-foreground'>
+					<span>{hint}</span>
+					<div className='flex items-center gap-2'>{actions}</div>
+				</CardFooter>
+			) : null}
+		</Card>
+	)
+	if (!onSave) return card
+	// A real form, so `required` inputs validate and Enter submits. `data-saves`
+	// is what the shell's Cmd/Ctrl+S looks for: it submits the form the caret is
+	// in, so a page with several sections saves the one being edited.
 	return (
-		<section
-			className='grid gap-x-7 gap-y-3 border-t py-5 first:border-t-0 first:pt-1 lg:grid-cols-[200px_1fr]'
-			onKeyDown={saveShortcut(onSave)}
+		<form
+			data-saves
+			onSubmit={event => {
+				event.preventDefault()
+				onSave()
+			}}
 		>
-			<div>
-				<h2 className='text-title font-bold'>{title}</h2>
-				{description ? <p className='mt-0.5 text-label text-muted-foreground'>{description}</p> : null}
-			</div>
-			<div className='min-w-0'>
-				{children}
-				{actions ? <div className='flex justify-end gap-2'>{actions}</div> : null}
-			</div>
-		</section>
+			{card}
+		</form>
 	)
 }
 
 /**
- * A row of readings sharing hairlines: a card whose cells split it into equal
- * readings, one ring shadow around the whole block. Children supply their own
- * padding and must not draw their own border.
+ * A row of readings sharing hairlines: one bordered card whose cells split it
+ * into equal readings. Children supply their own padding and must not draw
+ * their own border: each cell outlines itself into the 1px gap, so a short
+ * last row leaves plain card behind it rather than a slab of border colour.
  */
 export function Cells({ children, className }: { children: ReactNode; className?: string }) {
 	return (
 		<div
 			className={cn(
-				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-xl bg-border shadow-card [&>*]:bg-card',
+				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-xl border bg-card [&>*]:bg-card [&>*]:outline [&>*]:outline-1 [&>*]:outline-border',
 				className,
 			)}
 		>
@@ -344,21 +469,26 @@ export function Cells({ children, className }: { children: ReactNode; className?
  */
 export function Cell({
 	label,
+	icon: Icon,
 	value,
 	hint,
 	children,
 }: {
 	label: string
+	icon?: TablerIcon
 	/** Left out by a cell whose body is its content, e.g. a list of facts. */
 	value?: ReactNode
 	hint?: ReactNode
 	children?: ReactNode
 }) {
 	return (
-		<div className='px-3 py-2.5'>
-			<div className='text-meta tracking-wide text-muted-foreground uppercase'>{label}</div>
+		<div className='px-4 py-3'>
+			<div className='flex items-center gap-1.5 text-label text-muted-foreground'>
+				{Icon ? <Icon className='size-3.5' /> : null}
+				{label}
+			</div>
 			{value === undefined ? null : (
-				<div className='mt-1 truncate text-reading font-bold tabular-nums'>{value}</div>
+				<div className='mt-0.5 truncate text-reading font-semibold tracking-tight tabular-nums'>{value}</div>
 			)}
 			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
 			{children}
@@ -369,30 +499,26 @@ export function Cell({
 /**
  * A list of facts: label on the left, value on the right, one hairline per row.
  * The shape the panel uses wherever a set of attributes is read, not edited.
- *
- * The box owns the outer edge, so the first row drops the hairline every `Fact`
- * draws above itself.
  */
 export function Facts({ children, className }: { children: ReactNode; className?: string }) {
 	return (
-		<dl
-			className={cn(
-				'grid grid-cols-[max-content_1fr] gap-x-6 rounded-xl bg-card px-3 py-0.5 text-body shadow-card [&>*:nth-child(-n+2)]:border-t-0',
-				className,
-			)}
-		>
+		<ItemGroup className={cn('gap-0 rounded-xl border bg-card px-3 [&>*+*]:border-t', className)}>
 			{children}
-		</dl>
+		</ItemGroup>
 	)
 }
 
-/** One row of a `Facts` list. The dt/dd pair are the grid's cells, so no wrapper. */
+/** One row of a `Facts` list. */
 export function Fact({ label, value }: { label: string; value: ReactNode }) {
 	return (
-		<>
-			<dt className='border-t py-1.5'>{label}</dt>
-			<dd className='truncate border-t py-1.5 text-right font-mono text-muted-foreground'>{value}</dd>
-		</>
+		<Item size='sm' className='min-h-9 flex-nowrap rounded-none border-x-0 border-b-0 px-0 py-1 text-body'>
+			<ItemContent className='shrink-0'>
+				<ItemTitle className='font-normal text-muted-foreground'>{label}</ItemTitle>
+			</ItemContent>
+			<ItemActions className='min-w-0 flex-1 justify-end truncate text-right font-mono text-label'>
+				{value}
+			</ItemActions>
+		</Item>
 	)
 }
 
@@ -400,15 +526,92 @@ export function ErrorText({ error }: { error: unknown }) {
 	if (!error) return null
 	const message = error instanceof Error ? error.message : String(error)
 	return (
-		<p role='alert' className='py-2 text-xs text-destructive'>
-			{message}
-		</p>
+		<Alert variant='destructive' className='mb-3 text-body'>
+			<IconAlertCircle />
+			<AlertDescription className='text-body'>{message}</AlertDescription>
+		</Alert>
 	)
 }
 
 /**
- * The only checkbox shape in the app. Wrapping in a <label> is safe: base-ui's
- * Checkbox renders a visually hidden native input, so clicking the text toggles it.
+ * What a list shows when it has nothing to list: an icon, a line, and
+ * optionally the action that fills it.
+ */
+export function EmptyState({
+	icon: Icon = IconInbox,
+	title,
+	description,
+	children,
+}: {
+	icon?: TablerIcon
+	title: ReactNode
+	description?: ReactNode
+	children?: ReactNode
+}) {
+	return (
+		<Empty className='gap-3 border-0 py-8'>
+			<EmptyHeader className='gap-1'>
+				<EmptyMedia variant='icon' className='mb-1'>
+					<Icon />
+				</EmptyMedia>
+				<EmptyTitle className='text-body font-medium'>{title}</EmptyTitle>
+				{description ? <EmptyDescription className='text-label'>{description}</EmptyDescription> : null}
+			</EmptyHeader>
+			{children ? <EmptyContent>{children}</EmptyContent> : null}
+		</Empty>
+	)
+}
+
+/**
+ * The one way to ask before something unrecoverable. The trigger is whatever
+ * `children` renders; the dialog names the action and does it on confirm.
+ */
+export function Confirm({
+	title,
+	description,
+	action = 'Delete',
+	onConfirm,
+	children,
+}: {
+	title: string
+	description?: string
+	action?: string
+	onConfirm: () => void
+	children: ReactElement
+}) {
+	// Owned state: base-ui's alert dialog has no Action part that closes, only
+	// Cancel does, so confirming has to close it by hand.
+	const [open, setOpen] = useState(false)
+	return (
+		<AlertDialog open={open} onOpenChange={setOpen}>
+			<AlertDialogTrigger render={children} />
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>{title}</AlertDialogTitle>
+					{description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>Cancel</AlertDialogCancel>
+					<AlertDialogAction
+						variant='destructive'
+						onClick={() => {
+							setOpen(false)
+							onConfirm()
+						}}
+					>
+						<IconTrash />
+						{action}
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	)
+}
+
+/**
+ * The only checkbox shape in the app, for picking things out of a list.
+ * Wrapping in a <label> is safe: base-ui's Checkbox renders a visually hidden
+ * native input, so clicking the text toggles it.
  */
 export function Check({
 	label,
@@ -427,17 +630,39 @@ export function Check({
 	className?: string
 }) {
 	return (
-		<label className={cn('flex items-center gap-1.5 text-body', muted && 'text-muted-foreground', className)}>
+		<label className={cn('flex items-center gap-2 text-body', muted && 'text-muted-foreground', className)}>
 			<Checkbox checked={checked} disabled={disabled} onCheckedChange={onChange} />
 			{label}
 		</label>
 	)
 }
 
-/**
- * The only picker shape in the app. The trigger wears the plain-input styling
- * from styles.css, so a Select and an <input> next to it are the same control.
- */
+/** An on/off setting. A Check picks; a Switch turns something on. */
+export function Switch({
+	label,
+	hint,
+	checked,
+	onChange,
+	disabled,
+}: {
+	label: string
+	hint?: string
+	checked: boolean
+	onChange: (checked: boolean) => void
+	disabled?: boolean
+}) {
+	return (
+		<label className='flex items-start gap-3 text-body'>
+			<ShadcnSwitch checked={checked} disabled={disabled} onCheckedChange={onChange} className='mt-0.5' />
+			<span className='flex flex-col gap-0.5'>
+				{label}
+				{hint ? <span className='text-label text-muted-foreground'>{hint}</span> : null}
+			</span>
+		</label>
+	)
+}
+
+/** The only picker shape in the app. */
 export function Select<TValue extends string>({
 	value,
 	options,
@@ -459,7 +684,7 @@ export function Select<TValue extends string>({
 	className?: string
 }) {
 	return (
-		<SelectPrimitive.Root
+		<ShadcnSelect
 			items={options}
 			value={value}
 			onValueChange={next => {
@@ -468,44 +693,32 @@ export function Select<TValue extends string>({
 			required={required}
 			disabled={disabled}
 		>
-			<SelectPrimitive.Trigger
-				data-slot='select-trigger'
-				aria-label={label}
-				className={cn('flex cursor-pointer items-center justify-between gap-2 text-left', className)}
-			>
-				<SelectPrimitive.Value className='truncate' />
-				<IconChevronDown className='size-3.5 shrink-0 text-muted-foreground' />
-			</SelectPrimitive.Trigger>
-			<SelectPrimitive.Portal>
-				<SelectPrimitive.Positioner
-					className='isolate z-50 outline-none'
-					sideOffset={4}
-					alignItemWithTrigger={false}
-				>
-					<SelectPrimitive.Popup className='max-h-(--available-height) min-w-(--anchor-width) overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none'>
-						{options.map(option => (
-							<SelectPrimitive.Item
-								key={option.value}
-								value={option.value}
-								className='flex cursor-default items-center justify-between gap-3 rounded-md py-1 pr-1.5 pl-2 text-body outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground'
-							>
-								<SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
-								<SelectPrimitive.ItemIndicator>
-									<IconCheck className='size-3.5' />
-								</SelectPrimitive.ItemIndicator>
-							</SelectPrimitive.Item>
-						))}
-					</SelectPrimitive.Popup>
-				</SelectPrimitive.Positioner>
-			</SelectPrimitive.Portal>
-		</SelectPrimitive.Root>
+			<SelectTrigger aria-label={label} className={cn('w-full text-body', className)}>
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent alignItemWithTrigger={false}>
+				{options.map(option => (
+					<SelectItem key={option.value} value={option.value} className='text-body'>
+						{option.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</ShadcnSelect>
 	)
+}
+
+export function Input(props: Omit<ComponentProps<typeof ShadcnInput>, 'className'>) {
+	return <ShadcnInput className='text-body md:text-body' {...props} />
+}
+
+export function Textarea(props: Omit<ComponentProps<typeof ShadcnTextarea>, 'className'>) {
+	return <ShadcnTextarea className='min-h-20 text-body md:text-body' {...props} />
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
 	return (
-		<ShadcnField className='mb-3 gap-1'>
-			<FieldLabel className='text-label tracking-wide text-muted-foreground uppercase'>{label}</FieldLabel>
+		<ShadcnField className='mb-3 gap-1.5'>
+			<FieldLabel className='text-label'>{label}</FieldLabel>
 			{children}
 			{hint ? <FieldDescription className='text-label'>{hint}</FieldDescription> : null}
 		</ShadcnField>

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { IconGitBranch, IconGitCommit, IconRocket } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { api, type Deployment, type Service } from '../lib/api'
@@ -6,7 +7,7 @@ import { useEnvironmentId } from '../lib/environment'
 import { duration, shortSha, since } from '../lib/format'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { DeploymentDetail } from './deployment-detail'
-import { Button, ErrorText, Refresh, Section, Status } from './primitives'
+import { ErrorText, IconButton, Refresh, Section, Status } from './primitives'
 
 /**
  * Which deployment is open lives in the URL, so anything that starts a deploy
@@ -36,12 +37,29 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			header: 'Service',
 			meta: { mono: true },
 		}),
-		cell.accessor(deployment => deployment.branch, { id: 'branch', header: 'Branch', meta: { mono: true } }),
+		cell.accessor(deployment => deployment.branch, {
+			id: 'branch',
+			header: 'Branch',
+			meta: { mono: true },
+			cell: ({ row }) =>
+				row.original.branch ? (
+					<span className='inline-flex items-center gap-1'>
+						<IconGitBranch className='size-3 text-muted-foreground' />
+						{row.original.branch}
+					</span>
+				) : null,
+		}),
 		cell.accessor(deployment => deployment.commit_sha, {
 			id: 'commit',
 			header: 'Commit',
 			meta: { mono: true },
-			cell: ({ row }) => shortSha(row.original.commit_sha),
+			cell: ({ row }) =>
+				row.original.commit_sha ? (
+					<span className='inline-flex items-center gap-1'>
+						<IconGitCommit className='size-3 text-muted-foreground' />
+						{shortSha(row.original.commit_sha)}
+					</span>
+				) : null,
 		}),
 		cell.accessor(deployment => deployment.trigger, { id: 'trigger', header: 'Trigger' }),
 		cell.accessor(deployment => deployment.started_at ?? '', {
@@ -53,7 +71,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 		cell.accessor(deployment => deployment.created_at, {
 			id: 'when',
 			header: 'When',
-			cell: ({ row }) => since(row.original.created_at),
+			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
 		}),
 		cell.display({
 			id: 'actions',
@@ -61,16 +79,14 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			meta: { align: 'right' },
 			cell: ({ row: { original } }) =>
 				original.commit_sha && original.status === 'success' ? (
-					<Button
-						variant='ghost'
+					<IconButton
+						icon={IconRocket}
+						label='Redeploy this commit'
 						onClick={event => {
 							event.stopPropagation()
 							redeploy(original.id)
 						}}
-						title='Redeploy this commit'
-					>
-						redeploy this
-					</Button>
+					/>
 				) : null,
 		}),
 	]
@@ -131,7 +147,7 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 				columns={columns}
 				loading={deployments.isLoading}
 				getRowId={deployment => deployment.id}
-				empty='No deployments yet.'
+				empty='No deployments yet'
 				detail={{ openId, onOpenChange: open, render: renderDetail }}
 			/>
 		</Section>

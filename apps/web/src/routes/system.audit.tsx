@@ -11,7 +11,11 @@ const auditTableColumns: Columns<AuditEntry> = (() => {
 		cell.accessor(entry => entry.at, {
 			id: 'when',
 			header: 'When',
-			cell: ({ row }) => since(row.original.at),
+			cell: ({ row }) => (
+				<span className='text-muted-foreground' title={new Date(row.original.at).toLocaleString()}>
+					{since(row.original.at)}
+				</span>
+			),
 		}),
 		cell.accessor(entry => entry.actor, { id: 'actor', header: 'Actor' }),
 		cell.accessor(entry => `${entry.method} ${entry.path}`, {
@@ -43,7 +47,8 @@ function Audit() {
 					columns={auditTableColumns}
 					loading={auditLog.isLoading}
 					getRowId={entry => entry.id}
-					empty='Nothing recorded yet.'
+					filter='Filter entries'
+					empty='Nothing recorded yet'
 				/>
 			</Section>
 		</Page>

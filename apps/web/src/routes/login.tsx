@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { IconLogin2 } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Button, ErrorText, Field } from '../components/primitives'
+import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signIn } from '../lib/auth-client'
 
 export const Route = createFileRoute('/login')({ component: LoginPage })
@@ -25,7 +26,12 @@ function LoginPage() {
 
 	return (
 		<div className='mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6'>
-			<h1 className='mb-6 text-[16px] font-medium'>Sign in</h1>
+			<div className='mb-6 flex items-center gap-2.5'>
+				<span className='flex size-7 items-center justify-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground'>
+					VX
+				</span>
+				<h1 className='text-title font-medium'>Sign in to vexdock</h1>
+			</div>
 			<form
 				onSubmit={event => {
 					event.preventDefault()
@@ -33,7 +39,7 @@ function LoginPage() {
 				}}
 			>
 				<Field label='Email'>
-					<input
+					<Input
 						type='email'
 						autoComplete='username'
 						required
@@ -42,7 +48,7 @@ function LoginPage() {
 					/>
 				</Field>
 				<Field label='Password'>
-					<input
+					<Input
 						type='password'
 						autoComplete='current-password'
 						required
@@ -52,6 +58,7 @@ function LoginPage() {
 				</Field>
 				<ErrorText error={login.error} />
 				<Button type='submit' variant='primary' disabled={login.isPending}>
+					<IconLogin2 />
 					{login.isPending ? 'Signing in…' : 'Sign in'}
 				</Button>
 			</form>

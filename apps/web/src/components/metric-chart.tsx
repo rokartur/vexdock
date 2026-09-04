@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
+import type { Icon as TablerIcon } from '@tabler/icons-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, type TooltipContentProps, XAxis, YAxis } from 'recharts'
 import { Cell } from './primitives'
 
@@ -89,11 +90,12 @@ export function joinSeries(series: Point[][]): Row[] {
 			rows.set(point.at, row)
 		}
 	}
-	return [...rows.values()].sort((left, right) => left.at - right.at)
+	return [...rows.values()].toSorted((left, right) => left.at - right.at)
 }
 
 type MetricCardProps = {
 	label: string
+	icon?: TablerIcon
 	/** Current reading, rendered as text so the chart never has to be precise. */
 	value: ReactNode
 	/** One series draws filled; a second one draws muted on top (rx/tx, read/write). */
@@ -113,6 +115,7 @@ type MetricCardProps = {
 /** Compact metric: label, current value, and the recorded window as a sparkline. */
 export function MetricCard({
 	label,
+	icon,
 	value,
 	series,
 	max,
@@ -126,7 +129,7 @@ export function MetricCard({
 	const filled = series.length === 1
 
 	return (
-		<Cell label={label} hint={hint} value={value}>
+		<Cell label={label} icon={icon} hint={hint} value={value}>
 			{/* The tooltip only dates values that are already shown live, so there is
 			    nothing here a keyboard user cannot already read. */}
 			<div className='mt-1.5' style={{ height }} role='img' aria-label={`${label}, ${windowLabel}`}>
@@ -134,8 +137,8 @@ export function MetricCard({
 					<AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 1, left: 0 }}>
 						<defs>
 							<linearGradient id={fade} x1='0' y1='0' x2='0' y2='1'>
-								<stop offset='0%' stopColor='var(--primary)' stopOpacity={0.3} />
-								<stop offset='100%' stopColor='var(--primary)' stopOpacity={0} />
+								<stop offset='0%' stopColor='var(--chart-1)' stopOpacity={0.3} />
+								<stop offset='100%' stopColor='var(--chart-1)' stopOpacity={0} />
 							</linearGradient>
 						</defs>
 						<XAxis dataKey='at' type='number' domain={['dataMin', 'dataMax']} hide />
@@ -149,8 +152,8 @@ export function MetricCard({
 							isAnimationActive={false}
 						/>
 						{series.map((_, index) => {
-							// The lead series draws in the brand orange, the way datafa.st charts do.
-							const color = index > 0 ? 'var(--muted-foreground)' : 'var(--primary)'
+							// The lead series draws in the brand colour, the one place the accent shows.
+							const color = index > 0 ? 'var(--muted-foreground)' : 'var(--chart-1)'
 							return (
 								<Area
 									// Series order is the identity here: the array is rebuilt whole.
