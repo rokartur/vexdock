@@ -1,8 +1,20 @@
 import { useMemo, useState } from 'react'
+import { IconAlertTriangle, IconKey, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, ErrorText, Field, Refresh, Section } from '../components/primitives'
+import {
+	Button,
+	Confirm,
+	ErrorText,
+	Field,
+	FormSection,
+	IconButton,
+	Input,
+	Refresh,
+	Section,
+} from '../components/primitives'
 import { api, type ApiToken } from '../lib/api'
 import { since } from '../lib/format'
 
@@ -11,7 +23,16 @@ export const Route = createFileRoute('/system/settings/tokens')({ component: Api
 function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 	const cell = columnsFor<ApiToken>()
 	return [
-		cell.accessor(token => token.name, { id: 'name', header: 'Name' }),
+		cell.accessor(token => token.name, {
+			id: 'name',
+			header: 'Name',
+			cell: ({ row }) => (
+				<span className='inline-flex items-center gap-2 font-medium'>
+					<IconKey className='size-4 text-muted-foreground' />
+					{row.original.name}
+				</span>
+			),
+		}),
 		cell.accessor(token => token.prefix, {
 			id: 'prefix',
 			header: 'Prefix',
@@ -21,21 +42,30 @@ function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 		cell.accessor(token => token.last_used_at ?? '', {
 			id: 'last-used',
 			header: 'Last used',
-			cell: ({ row }) => (row.original.last_used_at ? since(row.original.last_used_at) : 'never'),
+			cell: ({ row }) => (
+				<span className='text-muted-foreground'>
+					{row.original.last_used_at ? since(row.original.last_used_at) : 'never'}
+				</span>
+			),
 		}),
 		cell.accessor(token => token.created_at, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => since(row.original.created_at),
+			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
 		}),
 		cell.display({
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
 			cell: ({ row }) => (
-				<Button variant='ghost' onClick={() => revoke(row.original.id)}>
-					revoke
-				</Button>
+				<Confirm
+					title={`Revoke ${row.original.name}?`}
+					description='Anything still using this token is locked out immediately.'
+					action='Revoke'
+					onConfirm={() => revoke(row.original.id)}
+				>
+					<IconButton icon={IconTrash} label='Revoke' />
+				</Confirm>
 			),
 		}),
 	]
@@ -65,47 +95,50 @@ function ApiTokens() {
 	const columns = useMemo(() => tokenTableColumns(revokeToken), [revokeToken])
 
 	return (
-		<Section
-			title='API tokens'
-			description='for CI and scripted deploys'
-			actions={<Refresh onClick={() => tokens.refetch()} busy={tokens.isFetching} />}
-		>
-			<DataTable
-				data={tokens.data ?? []}
-				columns={columns}
-				loading={tokens.isLoading}
-				getRowId={token => token.id}
-				empty='No tokens issued.'
-			/>
+		<div className='max-w-3xl'>
+			<Section
+				title='API tokens'
+				description='for CI and scripted deploys'
+				actions={<Refresh onClick={() => tokens.refetch()} busy={tokens.isFetching} />}
+			>
+				<ErrorText error={remove.error} />
+				<DataTable
+					data={tokens.data ?? []}
+					columns={columns}
+					loading={tokens.isLoading}
+					getRowId={token => token.id}
+					empty='No tokens issued'
+				/>
+			</Section>
 
 			{issued ? (
-				<p className='mt-3 max-w-2xl rounded-xl border border-border p-2 font-mono text-body break-all'>
-					{issued}
-					<span className='mt-1 block font-sans text-label text-amber-400'>
-						Copy it now. It is not shown again.
-					</span>
-				</p>
+				<Alert className='mb-4'>
+					<IconAlertTriangle className='text-amber-400' />
+					<AlertTitle>Copy it now. It is not shown again.</AlertTitle>
+					<AlertDescription className='font-mono text-label break-all'>{issued}</AlertDescription>
+				</Alert>
 			) : null}
 
-			<form
-				className='mt-3 flex items-end gap-2'
-				onSubmit={event => {
-					event.preventDefault()
-					create.mutate()
-				}}
-			>
-				<div className='w-64'>
-					<Field label='Token name'>
-						<input required value={name} onChange={event => setName(event.target.value)} placeholder='ci' />
-					</Field>
-				</div>
-				<div className='pb-3'>
-					<Button type='submit' disabled={create.isPending}>
+			<FormSection
+				title='Create a token'
+				description='Sent as a bearer token; it can do everything this account can.'
+				icon={IconKey}
+				hint='Name it after what will hold it.'
+				actions={
+					<Button type='submit' variant='primary' disabled={create.isPending}>
+						<IconPlus />
 						Create token
 					</Button>
+				}
+				onSave={() => create.mutate()}
+			>
+				<ErrorText error={create.error} />
+				<div className='max-w-xs'>
+					<Field label='Token name'>
+						<Input required value={name} onChange={event => setName(event.target.value)} placeholder='ci' />
+					</Field>
 				</div>
-			</form>
-			<ErrorText error={create.error ?? remove.error} />
-		</Section>
+			</FormSection>
+		</div>
 	)
 }

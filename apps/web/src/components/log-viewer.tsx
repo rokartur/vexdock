@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+	IconArrowDown,
+	IconDownload,
+	IconEraser,
+	IconPlayerPause,
+	IconPlayerPlay,
+	IconSearch,
+	IconTextWrap,
+} from '@tabler/icons-react'
+import { ButtonGroup } from '@/components/ui/button-group'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { cn } from '@/utils/cn'
 import { bytes, parseAccessLine, parseLogLine } from '../lib/format'
 import { useEventSource } from '../lib/sse'
-import { Button } from './primitives'
+import { IconButton } from './primitives'
 
 export type Line = { stream: string; text: string }
 
@@ -77,29 +88,79 @@ export function LogViewer({
 	return (
 		<div>
 			<div className='mb-2 flex flex-wrap items-center gap-2'>
-				<input
-					value={filter}
-					placeholder='Search'
-					onChange={event => setFilter(event.target.value)}
-					className='!w-56 text-body'
-				/>
-				{url ? (
-					<>
-						<Button onClick={() => setPaused(value => !value)}>{paused ? 'Resume' : 'Pause'}</Button>
-						<Button onClick={() => setFollow(value => !value)}>{follow ? 'Unfollow' : 'Follow'}</Button>
-					</>
-				) : null}
-				<Button onClick={() => setPlain(value => !value)}>{plain ? 'Formatted' : 'Plain text'}</Button>
-				{url ? <Button onClick={() => setStreamed([])}>Clear</Button> : null}
-				<Button onClick={() => download(visible)}>Download</Button>
+				<InputGroup className='h-8 w-56'>
+					<InputGroupAddon>
+						<IconSearch />
+					</InputGroupAddon>
+					<InputGroupInput
+						value={filter}
+						placeholder='Search'
+						aria-label='Search lines'
+						onChange={event => setFilter(event.target.value)}
+						className='text-body'
+					/>
+				</InputGroup>
+				<ButtonGroup>
+					{url ? (
+						<>
+							<IconButton
+								icon={paused ? IconPlayerPlay : IconPlayerPause}
+								label={paused ? 'Resume' : 'Pause'}
+								variant='default'
+								size='default'
+								onClick={() => setPaused(value => !value)}
+							/>
+							<IconButton
+								icon={IconArrowDown}
+								label={follow ? 'Stop following' : 'Follow'}
+								variant='default'
+								size='default'
+								aria-pressed={follow}
+								onClick={() => setFollow(value => !value)}
+							/>
+						</>
+					) : null}
+					<IconButton
+						icon={IconTextWrap}
+						label={plain ? 'Formatted' : 'Plain text'}
+						variant='default'
+						size='default'
+						aria-pressed={plain}
+						onClick={() => setPlain(value => !value)}
+					/>
+					{url ? (
+						<IconButton
+							icon={IconEraser}
+							label='Clear'
+							variant='default'
+							size='default'
+							onClick={() => setStreamed([])}
+						/>
+					) : null}
+					<IconButton
+						icon={IconDownload}
+						label='Download'
+						variant='default'
+						size='default'
+						onClick={() => download(visible)}
+					/>
+				</ButtonGroup>
 				<span className='text-label text-muted-foreground'>
+					{url ? (
+						<span
+							className={cn(
+								'mr-1.5 inline-block size-1.5 rounded-full',
+								connected ? 'bg-emerald-400' : 'bg-muted-foreground',
+							)}
+						/>
+					) : null}
 					{url ? `${connected ? 'streaming' : 'disconnected'} · ` : ''}
 					{visible.length} lines
 				</span>
 			</div>
 			<div
 				className={cn(
-					'h-[60vh] overflow-auto rounded-xl border border-console-border bg-console p-2 font-mono text-body leading-[1.4] text-console-foreground',
+					'h-[60vh] overflow-auto rounded-xl border border-console-border bg-console p-3 font-mono text-label leading-[1.5] text-console-foreground',
 					className,
 				)}
 			>

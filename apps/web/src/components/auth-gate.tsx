@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { IconAlertCircle, IconLoader2, IconRefresh } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { fetchSetupStatus, useSession } from '../lib/auth-client'
@@ -75,13 +76,22 @@ function useBootScreenPhase() {
 function BootScreen({ stalled = false }: { stalled?: boolean }) {
 	return (
 		<div className='flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center'>
-			<p className='text-sm'>{stalled ? 'The manager is not responding' : 'Connecting to the manager'}</p>
+			{/* Static on purpose: a spinning loader repaints for the whole boot wait. */}
+			{stalled ? (
+				<IconAlertCircle className='size-5 text-muted-foreground' />
+			) : (
+				<IconLoader2 className='size-5 text-muted-foreground' />
+			)}
+			<p className='text-body text-muted-foreground'>
+				{stalled ? 'The manager is not responding' : 'Connecting to the manager'}
+			</p>
 			{stalled ? (
 				<Button
 					onClick={() => {
 						window.location.reload()
 					}}
 				>
+					<IconRefresh />
 					Retry
 				</Button>
 			) : null}

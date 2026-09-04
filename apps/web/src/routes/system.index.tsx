@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { IconActivity } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -11,7 +12,16 @@ type HealthRow = { name: string; result: string }
 const healthTableColumns: Columns<HealthRow> = (() => {
 	const cell = columnsFor<HealthRow>()
 	return [
-		cell.accessor(row => row.name, { id: 'check', header: 'Check', meta: { mono: true } }),
+		cell.accessor(row => row.name, {
+			id: 'check',
+			header: 'Check',
+			cell: ({ row }) => (
+				<span className='inline-flex items-center gap-2'>
+					<IconActivity className='size-4 text-muted-foreground' />
+					<span className='font-mono text-label'>{row.original.name}</span>
+				</span>
+			),
+		}),
 		cell.accessor(row => row.result, {
 			id: 'result',
 			header: 'Result',
@@ -45,7 +55,7 @@ function SystemOverview() {
 						columns={healthTableColumns}
 						loading={health.isLoading}
 						getRowId={row => row.name}
-						empty='No checks reported.'
+						empty='No checks reported'
 					/>
 				</Section>
 

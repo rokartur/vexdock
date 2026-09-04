@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { IconX } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type Line, LogViewer } from '../components/log-viewer'
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
@@ -75,9 +76,9 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 	const isRunning = deployment?.status === 'running' || deployment?.status === 'queued'
 
 	return (
-		<div className='flex flex-col gap-3 bg-background/40 px-3 py-3'>
+		<div className='flex flex-col gap-3 border-t bg-background px-4 py-3'>
 			<ErrorText error={cancel.error} />
-			{deployment?.error ? <p className='text-body text-destructive'>{deployment.error}</p> : null}
+			<ErrorText error={deployment?.error} />
 
 			<div className='flex flex-wrap items-center gap-x-6 gap-y-2'>
 				{steps.length === 0 ? (
@@ -96,6 +97,7 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 				{isRunning ? (
 					<span className='ml-auto'>
 						<Button variant='danger' onClick={() => cancel.mutate()}>
+							<IconX />
 							Cancel
 						</Button>
 					</span>

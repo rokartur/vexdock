@@ -1,10 +1,44 @@
 import { useMemo, useState } from 'react'
+import {
+	IconAlertTriangle,
+	IconCertificate,
+	IconChartBar,
+	IconChartBarOff,
+	IconExternalLink,
+	IconLock,
+	IconPlus,
+	IconRefresh,
+	IconTrash,
+	IconUpload,
+	IconWorld,
+} from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { api, type Certificate, type CertificateSource, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { cn } from '../utils/cn'
 import { type Columns, DataTable, columnsFor } from './data-table'
-import { Button, Check, ErrorText, Field, Refresh, Section, Select, Status } from './primitives'
+import {
+	Button,
+	Confirm,
+	ErrorText,
+	Field,
+	FormSection,
+	IconButton,
+	Input,
+	Refresh,
+	Section,
+	Segmented,
+	Select,
+	Status,
+	Switch,
+	Textarea,
+} from './primitives'
+
+const certificateSources = [
+	{ value: 'letsencrypt', label: "Let's Encrypt", icon: IconLock },
+	{ value: 'custom', label: 'Upload my own', icon: IconUpload },
+] as const satisfies readonly { value: CertificateSource; label: string; icon: unknown }[]
 
 type DomainTableDeps = {
 	certificateFor: (domainId: string) => Certificate | undefined
@@ -30,15 +64,16 @@ function domainTableColumns({
 		cell.accessor(domain => domain.hostname, {
 			id: 'hostname',
 			header: 'Domain',
-			meta: { mono: true },
 			cell: ({ row: { original } }) => (
 				<a
 					href={`${original.https_enabled ? 'https' : 'http'}://${original.hostname}`}
 					target='_blank'
 					rel='noreferrer'
-					className='hover:underline'
+					className='group inline-flex items-center gap-2 underline-offset-4 hover:underline'
 				>
-					{original.hostname}
+					<IconWorld className='size-4 text-muted-foreground' />
+					<span className='font-mono text-label'>{original.hostname}</span>
+					<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100' />
 				</a>
 			),
 		}),
@@ -57,9 +92,12 @@ function domainTableColumns({
 			id: 'analytics',
 			header: 'Analytics',
 			cell: ({ row: { original } }) => (
-				<Button variant='ghost' onClick={() => toggleAnalytics(original)}>
-					{original.analytics ? 'on' : 'off'}
-				</Button>
+				<IconButton
+					icon={original.analytics ? IconChartBar : IconChartBarOff}
+					label={original.analytics ? 'Analytics on. Turn off' : 'Analytics off. Turn on'}
+					aria-pressed={original.analytics}
+					onClick={() => toggleAnalytics(original)}
+				/>
 			),
 		}),
 		cell.accessor(domain => certificateFor(domain.id)?.status ?? 'none', {
@@ -85,20 +123,30 @@ function domainTableColumns({
 			header: '',
 			meta: { align: 'right' },
 			cell: ({ row: { original } }) => (
-				<span className='flex justify-end gap-1.5'>
+				<span className='flex justify-end gap-0.5'>
 					{original.https_enabled && original.certificate_source !== 'custom' ? (
-						<Button variant='ghost' onClick={() => renew(original.id)} disabled={renewing}>
-							renew
-						</Button>
+						<IconButton
+							icon={IconRefresh}
+							label='Renew certificate'
+							onClick={() => renew(original.id)}
+							disabled={renewing}
+						/>
 					) : null}
 					{original.certificate_source === 'custom' ? (
-						<Button variant='ghost' onClick={() => replace(original)}>
-							replace certificate
-						</Button>
+						<IconButton
+							icon={IconCertificate}
+							label='Replace certificate'
+							onClick={() => replace(original)}
+						/>
 					) : null}
-					<Button variant='ghost' onClick={() => remove(original.id)}>
-						remove
-					</Button>
+					<Confirm
+						title={`Remove ${original.hostname}?`}
+						description='Nginx stops answering for it. Its certificate is kept until it expires.'
+						action='Remove'
+						onConfirm={() => remove(original.id)}
+					>
+						<IconButton icon={IconTrash} label='Remove' />
+					</Confirm>
 				</span>
 			),
 		}),
@@ -222,6 +270,15 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 				description='the platform generates and reloads Nginx for you'
 				actions={<Refresh onClick={() => domains.refetch()} busy={domains.isFetching} />}
 			>
+				<ErrorText error={remove.error ?? issue.error ?? tracking.error} />
+				{certificates.data?.some(cert => cert.status === 'failed') ? (
+					<Alert className='mb-3'>
+						<IconAlertTriangle className='text-amber-400' />
+						<AlertDescription>
+							{certificates.data.find(cert => cert.status === 'failed')?.last_error}
+						</AlertDescription>
+					</Alert>
+				) : null}
 				<DataTable
 					data={rows}
 					columns={columns}
@@ -229,71 +286,74 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 					getRowId={domain => domain.id}
 					empty='No domains yet. Point an A record at this server, then add it below.'
 				/>
-				<ErrorText error={remove.error ?? issue.error ?? tracking.error} />
-				{certificates.data?.some(cert => cert.status === 'failed') ? (
-					<p className='pt-2 text-body text-amber-400'>
-						{certificates.data.find(cert => cert.status === 'failed')?.last_error}
-					</p>
-				) : null}
 			</Section>
 
 			{replacing ? (
-				<Section title={`Replace the certificate for ${replacing.hostname}`}>
-					<form
-						className='grid gap-x-6 border-t pt-3 md:grid-cols-2'
-						onSubmit={event => {
-							event.preventDefault()
-							replace.mutate(replacing.id)
-						}}
-					>
-						<Field label='Certificate' hint='Full chain in PEM: the leaf first, then any intermediates.'>
-							<textarea
+				<FormSection
+					title={`Replace the certificate for ${replacing.hostname}`}
+					description='Full chain in PEM: the leaf first, then any intermediates.'
+					icon={IconCertificate}
+					hint='The private key never leaves this server.'
+					actions={
+						<>
+							<Button variant='ghost' onClick={() => setReplacing(null)}>
+								Cancel
+							</Button>
+							<Button type='submit' variant='primary' disabled={replace.isPending}>
+								<IconUpload />
+								{replace.isPending ? 'Installing…' : 'Install certificate'}
+							</Button>
+						</>
+					}
+					onSave={() => replace.mutate(replacing.id)}
+				>
+					<ErrorText error={replace.error} />
+					<div className='grid gap-x-6 md:grid-cols-2'>
+						<Field label='Certificate'>
+							<Textarea
 								rows={7}
 								required
 								spellCheck={false}
 								value={replaceCert}
 								onChange={event => setReplaceCert(event.target.value)}
-								className='font-mono text-label'
 							/>
 						</Field>
 						<Field label='Private key'>
-							<textarea
+							<Textarea
 								rows={7}
 								required
 								spellCheck={false}
 								value={replaceKey}
 								onChange={event => setReplaceKey(event.target.value)}
-								className='font-mono text-label'
 							/>
 						</Field>
-						<div className='md:col-span-2'>
-							<ErrorText error={replace.error} />
-							<div className='flex gap-2'>
-								<Button type='submit' variant='primary' disabled={replace.isPending}>
-									{replace.isPending ? 'Installing…' : 'Install certificate'}
-								</Button>
-								<Button variant='ghost' onClick={() => setReplacing(null)}>
-									Cancel
-								</Button>
-							</div>
-						</div>
-					</form>
-				</Section>
+					</div>
+				</FormSection>
 			) : null}
 
-			<Section title='Add domain'>
-				<form
-					className={cn(
-						'grid gap-x-6 border-t border-border pt-3',
-						scope ? 'md:grid-cols-3' : 'md:grid-cols-4',
-					)}
-					onSubmit={event => {
-						event.preventDefault()
-						create.mutate()
-					}}
-				>
-					<Field label='Domain' hint='*.example.com needs a Cloudflare token in system settings.'>
-						<input
+			<FormSection
+				title='Add domain'
+				description='Point an A record at this server first.'
+				icon={IconWorld}
+				hint='*.example.com needs a Cloudflare token in system settings.'
+				actions={
+					<Button type='submit' variant='primary' disabled={create.isPending}>
+						<IconPlus />
+						{create.isPending ? 'Adding…' : 'Add domain'}
+					</Button>
+				}
+				onSave={() => create.mutate()}
+			>
+				<ErrorText error={create.error} />
+				{warning ? (
+					<Alert className='mb-3'>
+						<IconAlertTriangle className='text-amber-400' />
+						<AlertDescription>{warning}</AlertDescription>
+					</Alert>
+				) : null}
+				<div className={cn('grid gap-x-6', scope ? 'md:grid-cols-3' : 'md:grid-cols-4')}>
+					<Field label='Domain'>
+						<Input
 							required
 							placeholder='app.example.com'
 							value={hostname}
@@ -317,7 +377,7 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 						</Field>
 					)}
 					<Field label='Container port'>
-						<input
+						<Input
 							type='number'
 							required
 							min={1}
@@ -326,78 +386,58 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 							onChange={event => setPort(Number(event.target.value))}
 						/>
 					</Field>
-					<div className='flex flex-col justify-center gap-1.5 pb-3'>
-						<Check label='Enable HTTPS' checked={https} onChange={setHttps} />
-						<Check
+					<div className='flex flex-col justify-center gap-2 pb-3'>
+						<Switch label='Enable HTTPS' checked={https} onChange={setHttps} />
+						<Switch
 							label='Redirect HTTP to HTTPS'
 							checked={redirect}
 							disabled={!https}
 							onChange={setRedirect}
 						/>
-						<Check label='Collect analytics' checked={analytics} onChange={setAnalytics} />
+						<Switch label='Collect analytics' checked={analytics} onChange={setAnalytics} />
 					</div>
-					{https ? (
-						<div className='md:col-span-4'>
-							<div className='mb-3 flex flex-wrap gap-4'>
-								{(['letsencrypt', 'custom'] as const).map(option => (
-									<label key={option} className='flex items-center gap-1.5 text-body'>
-										<input
-											type='radio'
-											name='certificate-source'
-											className='!w-auto'
-											checked={source === option}
-											onChange={() => setSource(option)}
-										/>
-										{option === 'letsencrypt'
-											? "Let's Encrypt, issued and renewed automatically"
-											: 'Upload my own certificate'}
-									</label>
-								))}
+				</div>
+				{https ? (
+					<>
+						<Field
+							label='Certificate'
+							hint={source === 'letsencrypt' ? 'Issued and renewed automatically.' : undefined}
+						>
+							<Segmented value={source} onChange={setSource} options={certificateSources} />
+						</Field>
+						{source === 'custom' ? (
+							<div className='grid gap-x-6 md:grid-cols-2'>
+								<Field
+									label='Certificate'
+									hint='Full chain in PEM: the leaf first, then any intermediates.'
+								>
+									<Textarea
+										rows={7}
+										required
+										spellCheck={false}
+										placeholder='-----BEGIN CERTIFICATE-----'
+										value={certPem}
+										onChange={event => setCertPem(event.target.value)}
+									/>
+								</Field>
+								<Field
+									label='Private key'
+									hint='Never leaves this server. Stored with 0600 permissions.'
+								>
+									<Textarea
+										rows={7}
+										required
+										spellCheck={false}
+										placeholder='-----BEGIN PRIVATE KEY-----'
+										value={keyPem}
+										onChange={event => setKeyPem(event.target.value)}
+									/>
+								</Field>
 							</div>
-							{source === 'custom' ? (
-								<div className='grid gap-x-6 md:grid-cols-2'>
-									<Field
-										label='Certificate'
-										hint='Full chain in PEM: the leaf first, then any intermediates.'
-									>
-										<textarea
-											rows={7}
-											required
-											spellCheck={false}
-											placeholder='-----BEGIN CERTIFICATE-----'
-											value={certPem}
-											onChange={event => setCertPem(event.target.value)}
-											className='font-mono text-label'
-										/>
-									</Field>
-									<Field
-										label='Private key'
-										hint='Never leaves this server. Stored with 0600 permissions.'
-									>
-										<textarea
-											rows={7}
-											required
-											spellCheck={false}
-											placeholder='-----BEGIN PRIVATE KEY-----'
-											value={keyPem}
-											onChange={event => setKeyPem(event.target.value)}
-											className='font-mono text-label'
-										/>
-									</Field>
-								</div>
-							) : null}
-						</div>
-					) : null}
-
-					<div className='md:col-span-4'>
-						<ErrorText error={create.error} />
-						{warning ? <p className='pb-2 text-body text-amber-400'>{warning}</p> : null}
-						<Button type='submit' variant='primary' disabled={create.isPending}>
-							{create.isPending ? 'Adding…' : 'Add domain'}
-						</Button>
-					</div>
-				</form>
-			</Section>
+						) : null}
+					</>
+				) : null}
+			</FormSection>
 		</>
 	)
 }

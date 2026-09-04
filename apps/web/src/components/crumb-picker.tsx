@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react'
-import { IconChevronDown } from '@tabler/icons-react'
+import { IconBox, IconDatabase, IconFolder, IconGitBranch, IconLayersLinked, IconSelector } from '@tabler/icons-react'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
@@ -30,9 +30,9 @@ function CrumbPicker({
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger className='-mx-1 flex h-7 min-w-0 items-center gap-2 rounded-md px-1.5 hover:bg-accent data-popup-open:bg-accent'>
+			<PopoverTrigger className='-mx-1.5 flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body transition-colors hover:bg-accent data-popup-open:bg-accent'>
 				<span className='flex min-w-0 items-center gap-2 truncate'>{label}</span>
-				<IconChevronDown className='size-3 shrink-0 text-muted-foreground' />
+				<IconSelector className='size-3.5 shrink-0 text-muted-foreground' />
 			</PopoverTrigger>
 			<PopoverContent align='start' className='w-72 gap-0 p-0'>
 				<Command>
@@ -73,6 +73,7 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 			query={projects}
 			label={
 				<>
+					<IconFolder className='size-4 shrink-0 text-muted-foreground' />
 					{current.data?.name ?? projectId}
 					{current.data?.latest_deployment ? <Status value={current.data.latest_deployment.status} /> : null}
 				</>
@@ -97,6 +98,7 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 								})
 							}}
 						>
+							<IconFolder className='text-muted-foreground' />
 							<span className='truncate'>{project.name}</span>
 							{isCurrent ? null : (
 								<span className='ml-auto font-mono text-meta text-muted-foreground'>
@@ -125,7 +127,16 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 	const current = environments.data?.find(env => (selected ? env.id === selected : env.is_default))
 
 	return (
-		<CrumbPicker placeholder='Find environment…' query={environments} label={current?.name ?? 'Production'}>
+		<CrumbPicker
+			placeholder='Find environment…'
+			query={environments}
+			label={
+				<>
+					<IconLayersLinked className='size-4 shrink-0 text-muted-foreground' />
+					{current?.name ?? 'Production'}
+				</>
+			}
+		>
 			{close =>
 				environments.data?.map(env => (
 					<CommandItem
@@ -137,9 +148,13 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 							void navigate({ to: '.', search: prev => ({ ...prev, env: env.id }) })
 						}}
 					>
+						<IconLayersLinked className='text-muted-foreground' />
 						<span className='truncate'>{env.name}</span>
 						{env.branch ? (
-							<span className='ml-auto font-mono text-meta text-muted-foreground'>{env.branch}</span>
+							<span className='ml-auto inline-flex items-center gap-1 font-mono text-meta text-muted-foreground'>
+								<IconGitBranch className='size-3' />
+								{env.branch}
+							</span>
 						) : null}
 					</CommandItem>
 				))
@@ -167,6 +182,11 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 			query={services}
 			label={
 				<>
+					{current.data?.type === 'database' ? (
+						<IconDatabase className='size-4 shrink-0 text-muted-foreground' />
+					) : (
+						<IconBox className='size-4 shrink-0 text-muted-foreground' />
+					)}
 					{current.data?.compose_service_name ?? serviceId}
 					{current.data ? <Status value={current.data.state || 'stopped'} /> : null}
 				</>
@@ -188,6 +208,11 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 								})
 							}}
 						>
+							{service.type === 'database' ? (
+								<IconDatabase className='text-muted-foreground' />
+							) : (
+								<IconBox className='text-muted-foreground' />
+							)}
 							<span className='truncate'>{service.compose_service_name}</span>
 							{isCurrent ? null : (
 								<span className='ml-auto'>

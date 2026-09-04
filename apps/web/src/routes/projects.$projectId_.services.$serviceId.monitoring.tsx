@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { IconAffiliate, IconCpu, IconDatabase, IconServer } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { MetricCard, type Point, ratesOf, seriesOf, useHistory } from '../components/metric-chart'
@@ -56,6 +57,7 @@ function ServiceMonitoring() {
 			<Cells>
 				<MetricCard
 					label='CPU'
+					icon={IconCpu}
 					value={current ? percent(current.cpu_percent) : '-'}
 					series={[seriesOf(history, sample => sample.cpu_percent)]}
 					max={100}
@@ -63,6 +65,7 @@ function ServiceMonitoring() {
 				/>
 				<MetricCard
 					label='Memory'
+					icon={IconServer}
 					value={current ? bytes(current.memory_usage) : '-'}
 					series={[seriesOf(history, sample => sample.memory_usage)]}
 					max={current?.memory_limit}
@@ -71,6 +74,7 @@ function ServiceMonitoring() {
 				/>
 				<MetricCard
 					label='Network'
+					icon={IconAffiliate}
 					value={`${bytes(latest(received))} / ${bytes(latest(sent))}`}
 					series={[received, sent]}
 					format={([rx, tx]) => `${bytes(rx)} / ${bytes(tx)}`}
@@ -78,6 +82,7 @@ function ServiceMonitoring() {
 				/>
 				<MetricCard
 					label='Block i/o'
+					icon={IconDatabase}
 					value={`${bytes(latest(read))} / ${bytes(latest(written))}`}
 					series={[read, written]}
 					format={([r, w]) => `${bytes(r)} / ${bytes(w)}`}

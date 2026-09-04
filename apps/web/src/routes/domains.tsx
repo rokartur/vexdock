@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { IconExternalLink, IconWorld } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -14,15 +15,16 @@ function domainTableColumns(): Columns<DomainRow> {
 		cell.accessor(row => row.domain.hostname, {
 			id: 'hostname',
 			header: 'Domain',
-			meta: { mono: true },
 			cell: ({ row: { original } }) => (
 				<a
 					href={`${original.domain.https_enabled ? 'https' : 'http'}://${original.domain.hostname}`}
 					target='_blank'
 					rel='noreferrer'
-					className='hover:underline'
+					className='group inline-flex items-center gap-2 underline-offset-4 hover:underline'
 				>
-					{original.domain.hostname}
+					<IconWorld className='size-4 text-muted-foreground' />
+					<span className='font-mono text-label'>{original.domain.hostname}</span>
+					<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100' />
 				</a>
 			),
 		}),
@@ -33,7 +35,7 @@ function domainTableColumns(): Columns<DomainRow> {
 				<Link
 					to='/projects/$projectId/domains'
 					params={{ projectId: original.domain.project_id }}
-					className='hover:underline'
+					className='underline-offset-4 hover:underline'
 				>
 					{original.projectName}
 				</Link>
@@ -54,8 +56,11 @@ function domainTableColumns(): Columns<DomainRow> {
 		cell.accessor(row => row.certificate?.expires_at ?? '', {
 			id: 'expires',
 			header: 'Expires',
-			cell: ({ row: { original } }) =>
-				original.certificate?.expires_at ? original.certificate.expires_at.slice(0, 10) : '-',
+			cell: ({ row: { original } }) => (
+				<span className='text-muted-foreground'>
+					{original.certificate?.expires_at ? original.certificate.expires_at.slice(0, 10) : '-'}
+				</span>
+			),
 			meta: { mono: true },
 		}),
 	]
@@ -91,7 +96,8 @@ function DomainsPage() {
 					columns={columns}
 					loading={domains.isLoading}
 					getRowId={({ domain }) => domain.id}
-					empty='No domains configured yet.'
+					filter='Filter domains'
+					empty='No domains configured yet'
 				/>
 			</Section>
 		</Page>

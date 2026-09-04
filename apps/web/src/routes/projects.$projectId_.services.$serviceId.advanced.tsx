@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { IconTrash } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Button, ErrorText, FormSection } from '../components/primitives'
+import { Button, Confirm, ErrorText, FormSection } from '../components/primitives'
 import { api } from '../lib/api'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
@@ -15,7 +15,7 @@ function ServiceAdvanced() {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const service = useService(serviceId)
-	const [confirmDelete, setConfirmDelete] = useState(false)
+	const name = service.data?.compose_service_name ?? 'service'
 
 	const remove = useMutation({
 		mutationFn: () => api.deleteService(serviceId),
@@ -26,25 +26,28 @@ function ServiceAdvanced() {
 	})
 
 	return (
-		<FormSection
-			title='Delete service'
-			description='Removes it from the compose overlay and drops its environment. The data volume stays, so recreating the service under the same name picks it back up.'
-		>
-			<ErrorText error={remove.error} />
-			{confirmDelete ? (
-				<div className='flex gap-2'>
-					<Button variant='danger' onClick={() => remove.mutate()} disabled={remove.isPending}>
-						{remove.isPending ? 'Deleting…' : `Delete ${service.data?.compose_service_name ?? 'service'}`}
-					</Button>
-					<Button variant='ghost' onClick={() => setConfirmDelete(false)}>
-						Cancel
-					</Button>
-				</div>
-			) : (
-				<Button variant='danger' onClick={() => setConfirmDelete(true)}>
-					Delete service
-				</Button>
-			)}
-		</FormSection>
+		<div className='max-w-3xl'>
+			<FormSection
+				title='Delete service'
+				description='Removes it from the compose overlay and drops its environment.'
+				icon={IconTrash}
+				hint='The data volume stays, so recreating the service under the same name picks it back up.'
+				actions={
+					<Confirm
+						title={`Delete ${name}?`}
+						description='Its container is removed and its environment dropped. The data volume stays.'
+						onConfirm={() => remove.mutate()}
+					>
+						<Button variant='danger' disabled={remove.isPending}>
+							<IconTrash />
+							{remove.isPending ? 'Deleting…' : 'Delete service'}
+						</Button>
+					</Confirm>
+				}
+			>
+				<ErrorText error={remove.error} />
+				<p className='text-body text-muted-foreground'>Deleting {name} cannot be undone from the panel.</p>
+			</FormSection>
+		</div>
 	)
 }

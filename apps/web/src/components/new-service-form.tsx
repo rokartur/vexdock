@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { IconPlus } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { DialogFooter } from '@/components/ui/dialog'
 import { api, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { Button, ErrorText, Field, Select } from './primitives'
+import { Button, ErrorText, Field, Input, Select, Textarea } from './primitives'
 
 /**
  * What the menu asked for. An application is created as a bare name: whether it
@@ -101,7 +103,7 @@ export function NewServiceForm({
 		>
 			<div className='grid gap-x-6 md:grid-cols-2'>
 				<Field label='Name' hint='Its name in compose, and how siblings reach it.'>
-					<input
+					<Input
 						required
 						value={name}
 						onChange={event => setName(event.target.value)}
@@ -128,7 +130,7 @@ export function NewServiceForm({
 						{isCustom ? (
 							<>
 								<Field label='Image' hint='Including the tag.'>
-									<input
+									<Input
 										required
 										value={image}
 										onChange={event => setImage(event.target.value)}
@@ -139,7 +141,7 @@ export function NewServiceForm({
 									label='Data path'
 									hint='Where the image stores its data. Without it a redeploy wipes the database.'
 								>
-									<input
+									<Input
 										required
 										value={dataPath}
 										onChange={event => setDataPath(event.target.value)}
@@ -156,7 +158,7 @@ export function NewServiceForm({
 										: 'Read from the registry. Any tag can be typed.'
 								}
 							>
-								<input
+								<Input
 									list='engine-versions'
 									value={version}
 									onChange={event => setVersion(event.target.value)}
@@ -174,12 +176,12 @@ export function NewServiceForm({
 
 						{selected?.database_var ? (
 							<Field label='Database'>
-								<input value={databaseName} onChange={event => setDatabaseName(event.target.value)} />
+								<Input value={databaseName} onChange={event => setDatabaseName(event.target.value)} />
 							</Field>
 						) : null}
 						{selected?.user_var ? (
 							<Field label='User'>
-								<input value={user} onChange={event => setUser(event.target.value)} />
+								<Input value={user} onChange={event => setUser(event.target.value)} />
 							</Field>
 						) : null}
 					</>
@@ -191,12 +193,12 @@ export function NewServiceForm({
 					label='Compose fragment'
 					hint='The service body, without its name. Named volumes are declared for you. env_file: .env is the project environment.'
 				>
-					<textarea
+					<Textarea
 						required
 						rows={6}
 						value={fragment}
 						onChange={event => setFragment(event.target.value)}
-						className='font-mono'
+						spellCheck={false}
 						placeholder={'image: redis:7\nrestart: unless-stopped'}
 					/>
 				</Field>
@@ -214,14 +216,15 @@ export function NewServiceForm({
 			) : null}
 
 			<ErrorText error={create.error} />
-			<div className='flex gap-2'>
-				<Button type='submit' variant='primary' disabled={create.isPending}>
-					{create.isPending ? 'Adding…' : 'Add service'}
-				</Button>
+			<DialogFooter>
 				<Button variant='ghost' onClick={onCancel}>
 					Cancel
 				</Button>
-			</div>
+				<Button type='submit' variant='primary' disabled={create.isPending}>
+					<IconPlus />
+					{create.isPending ? 'Adding…' : 'Add service'}
+				</Button>
+			</DialogFooter>
 		</form>
 	)
 }

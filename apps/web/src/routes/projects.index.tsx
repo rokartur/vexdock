@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { IconArrowRight, IconFolder, IconPlus, IconX } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, ErrorText, Field, Page, Refresh, Section, Status } from '../components/primitives'
+import { Button, ErrorText, Field, IconButton, Input, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type Project } from '../lib/api'
 import { since } from '../lib/format'
 
@@ -14,7 +16,12 @@ const projectTableColumns: Columns<Project> = (() => {
 			id: 'name',
 			header: 'Name',
 			cell: ({ row }) => (
-				<Link to='/projects/$projectId' params={{ projectId: row.original.id }} className='hover:underline'>
+				<Link
+					to='/projects/$projectId'
+					params={{ projectId: row.original.id }}
+					className='inline-flex items-center gap-2 font-medium underline-offset-4 hover:underline'
+				>
+					<IconFolder className='size-4 text-muted-foreground' />
 					{row.original.name}
 				</Link>
 			),
@@ -22,7 +29,19 @@ const projectTableColumns: Columns<Project> = (() => {
 		cell.accessor(project => tagsOf(project).join(' '), {
 			id: 'tags',
 			header: 'Tags',
-			cell: ({ row }) => <span className='text-muted-foreground'>{tagsOf(row.original).join(' ') || '-'}</span>,
+			cell: ({ row }) => {
+				const tags = tagsOf(row.original)
+				if (tags.length === 0) return <span className='text-muted-foreground'>-</span>
+				return (
+					<span className='flex flex-wrap gap-1'>
+						{tags.map(tag => (
+							<Badge key={tag} variant='outline'>
+								{tag}
+							</Badge>
+						))}
+					</span>
+				)
+			},
 		}),
 		cell.accessor(project => project.running_count, {
 			id: 'services',
@@ -54,13 +73,11 @@ const projectTableColumns: Columns<Project> = (() => {
 			header: '',
 			meta: { align: 'right' },
 			cell: ({ row }) => (
-				<Link
-					to='/projects/$projectId'
-					params={{ projectId: row.original.id }}
-					className='text-body text-muted-foreground hover:text-foreground'
-				>
-					open
-				</Link>
+				<IconButton
+					icon={IconArrowRight}
+					label='Open'
+					render={<Link to='/projects/$projectId' params={{ projectId: row.original.id }} />}
+				/>
 			),
 		}),
 	]
@@ -79,6 +96,7 @@ function ProjectsPage() {
 		<Page
 			actions={
 				<Button variant='primary' onClick={() => setCreating(true)}>
+					<IconPlus />
 					New project
 				</Button>
 			}
@@ -102,6 +120,7 @@ function ProjectsPage() {
 					columns={projectTableColumns}
 					loading={projects.isLoading}
 					getRowId={project => project.id}
+					filter='Filter projects'
 					empty='No projects yet. Create one, then add services to it.'
 				/>
 			</Section>
@@ -143,7 +162,7 @@ function NewProjectForm({ knownTags, onDone }: { knownTags: string[]; onDone: ()
 		>
 			<div className='grid gap-x-6 md:grid-cols-2'>
 				<Field label='Name'>
-					<input required value={name} onChange={event => setName(event.target.value)} placeholder='my-app' />
+					<Input required value={name} onChange={event => setName(event.target.value)} placeholder='my-app' />
 				</Field>
 
 				<Field label='Tags (optional)' hint='Enter adds one, click a tag to drop it.'>
@@ -152,14 +171,15 @@ function NewProjectForm({ knownTags, onDone }: { knownTags: string[]; onDone: ()
 			</div>
 
 			<ErrorText error={create.error} />
-			<div className='flex gap-2'>
-				<Button type='submit' variant='primary' disabled={create.isPending}>
-					{create.isPending ? 'Creating…' : 'Create'}
-				</Button>
+			<DialogFooter>
 				<Button variant='ghost' onClick={onDone}>
 					Cancel
 				</Button>
-			</div>
+				<Button type='submit' variant='primary' disabled={create.isPending}>
+					<IconPlus />
+					{create.isPending ? 'Creating…' : 'Create'}
+				</Button>
+			</DialogFooter>
 		</form>
 	)
 }
@@ -191,7 +211,7 @@ function TagInput({
 
 	return (
 		<>
-			<input
+			<Input
 				list='known-project-tags'
 				value={draft}
 				placeholder='staging'
@@ -214,16 +234,23 @@ function TagInput({
 				))}
 			</datalist>
 			{value.length > 0 ? (
-				<div className='mt-2 flex flex-wrap gap-3 text-body'>
+				<div className='mt-2 flex flex-wrap gap-1.5'>
 					{value.map(tag => (
-						<button
+						<Badge
 							key={tag}
-							type='button'
-							className='text-muted-foreground hover:text-foreground'
-							onClick={() => onChange(value.filter(other => other !== tag))}
+							variant='outline'
+							render={
+								<button
+									type='button'
+									aria-label={`Remove ${tag}`}
+									onClick={() => onChange(value.filter(other => other !== tag))}
+								/>
+							}
+							className='cursor-pointer hover:bg-accent'
 						>
-							{tag} ×
-						</button>
+							{tag}
+							<IconX />
+						</Badge>
 					))}
 				</div>
 			) : null}

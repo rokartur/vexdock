@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { type CSSProperties, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
 	IconActivity,
 	IconAffiliate,
@@ -6,14 +6,15 @@ import {
 	IconBox,
 	IconCertificate,
 	IconChartBar,
-	IconChevronDown,
 	IconClock,
 	IconDatabase,
 	IconFolder,
 	IconHome,
 	IconLayoutSidebar,
 	IconListDetails,
+	IconLogout,
 	IconSearch,
+	IconSelector,
 	IconSettings,
 	IconStack2,
 	IconTrash,
@@ -21,8 +22,9 @@ import {
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -31,13 +33,32 @@ import {
 	DropdownMenuShortcut,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarGroupLabel,
+	SidebarHeader,
+	SidebarInset,
+	SidebarMenu,
+	SidebarMenuBadge,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarProvider,
+	SidebarRail,
+	SidebarTrigger,
+	useSidebar,
+} from '@/components/ui/sidebar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/utils/cn'
 import { api, updateActive } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
 import { useBrandColor } from '../lib/brand'
 import { useSystemEvents } from '../lib/sse'
 import { CommandPalette } from './command-palette'
-import { NavigationSidebar } from './navigation-sidebar'
+import { Keys, mod } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
@@ -76,23 +97,56 @@ const groups: { label: string; items: NavItem[] }[] = [
 
 const HIDDEN_KEY = 'navigation-leftBarIsHidden'
 
-/** Read on the first render for the same reason as the rail's width. */
+/**
+ * Read on the first render so no reload ever paints the rail open and then
+ * hides it. Safe because the shell is client-only: the auth gate resolves a
+ * session before it mounts, so this is never part of the prerendered markup.
+ */
 const storedHidden = () => typeof localStorage !== 'undefined' && localStorage.getItem(HIDDEN_KEY) === 'true'
 
-/** Active is the filled row itself; every hover surface in the rail shares one radius. */
-const linkClass =
-	'group flex h-7 items-center gap-2.5 rounded-md px-2 text-body text-muted-foreground hover:bg-accent hover:text-foreground data-[status=active]:bg-sidebar-accent data-[status=active]:text-foreground'
-
-function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?: string }) {
+/** One icon button in the rail's top row, its name and shortcut in the tooltip. */
+function RailButton({
+	icon: Icon,
+	label,
+	keys,
+	onClick,
+}: {
+	icon: TablerIcon
+	label: string
+	keys: string[]
+	onClick: () => void
+}) {
 	return (
-		<Link draggable={false} to={to} activeOptions={{ exact: exact ?? false }} className={linkClass}>
-			<Icon
-				stroke={1.5}
-				className='size-4 shrink-0 text-muted-foreground group-hover:text-foreground group-data-[status=active]:text-foreground'
-			/>
-			<span className='truncate'>{label}</span>
-			{dot ? <span className={cn('ml-auto size-1.5 shrink-0 rounded-full', dot)} aria-hidden /> : null}
-		</Link>
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					<Button
+						variant='ghost'
+						size='icon-sm'
+						onClick={onClick}
+						aria-label={label}
+						className='text-muted-foreground hover:text-foreground'
+					/>
+				}
+			>
+				<Icon />
+			</TooltipTrigger>
+			<TooltipContent>
+				{label}
+				<Keys keys={keys} />
+			</TooltipContent>
+		</Tooltip>
+	)
+}
+
+/** Search and hide, next to the workspace switcher. Inside the provider for `toggleSidebar`. */
+function RailButtons({ onSearch }: { onSearch: () => void }) {
+	const { toggleSidebar } = useSidebar()
+	return (
+		<div className='flex shrink-0 items-center'>
+			<RailButton icon={IconSearch} label='Search' keys={[mod, 'K']} onClick={onSearch} />
+			<RailButton icon={IconLayoutSidebar} label='Hide sidebar' keys={['[']} onClick={toggleSidebar} />
+		</div>
 	)
 }
 
@@ -100,9 +154,9 @@ function NavigationLink({ to, label, exact, icon: Icon, dot }: NavItem & { dot?:
 export function Shell({ children }: { children: ReactNode }) {
 	const [paletteOpen, setPaletteOpen] = useState(false)
 	const [isHidden, setIsHidden] = useState(storedHidden)
-	const [showTemporary, setShowTemporary] = useState(false)
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
+	const pathname = useRouterState({ select: state => state.location.pathname })
 
 	useBrandColor()
 	// The whole panel's refresh loop: docker and deployment events invalidate the
@@ -125,15 +179,15 @@ export function Shell({ children }: { children: ReactNode }) {
 
 	let settingsDot: string | undefined
 	let footerText = version.data?.current ?? 'dev'
-	let footerClass = 'text-muted-foreground hover:text-muted-foreground'
+	let footerClass = 'text-muted-foreground'
 	if (updating) {
 		settingsDot = 'bg-amber-400'
 		footerText = restarting ? 'restarting…' : `updating → ${updateState.data?.target}`
-		footerClass = 'text-amber-400 hover:text-amber-300'
+		footerClass = 'text-amber-400'
 	} else if (updateAvailable) {
 		settingsDot = 'bg-emerald-400'
 		footerText = `${version.data?.current} → ${version.data?.latest}`
-		footerClass = 'text-emerald-400 hover:text-emerald-300'
+		footerClass = 'text-emerald-400'
 	}
 	const session = useSession()
 
@@ -145,12 +199,9 @@ export function Shell({ children }: { children: ReactNode }) {
 		},
 	})
 
-	const toggleHidden = () => {
-		setIsHidden(hidden => {
-			localStorage.setItem(HIDDEN_KEY, String(!hidden))
-			return !hidden
-		})
-		setShowTemporary(false)
+	const setHidden = (hidden: boolean) => {
+		localStorage.setItem(HIDDEN_KEY, String(hidden))
+		setIsHidden(hidden)
 	}
 
 	useEffect(() => {
@@ -160,17 +211,25 @@ export function Shell({ children }: { children: ReactNode }) {
 				setPaletteOpen(open => !open)
 				return
 			}
-			// Sections handle Cmd/Ctrl+S themselves; swallow the rest so the browser
-			// never offers to save the page.
+			// Cmd/Ctrl+S submits the FormSection the caret is in (requestSubmit, so
+			// its `required` inputs are checked first); anywhere else it is swallowed
+			// so the browser never offers to save the page.
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
 				event.preventDefault()
+				if (event.target instanceof Element)
+					event.target.closest<HTMLFormElement>('form[data-saves]')?.requestSubmit()
 				return
 			}
 			const target = event.target as HTMLElement | null
 			const typing =
 				target?.isContentEditable ||
 				['input', 'textarea', 'select'].includes(target?.tagName.toLowerCase() ?? '')
-			if (event.key === '[' && !typing && !event.metaKey && !event.ctrlKey) toggleHidden()
+			if (event.key === '[' && !typing && !event.metaKey && !event.ctrlKey) {
+				setIsHidden(hidden => {
+					localStorage.setItem(HIDDEN_KEY, String(!hidden))
+					return !hidden
+				})
+			}
 		}
 		window.addEventListener('keydown', onKey)
 		return () => window.removeEventListener('keydown', onKey)
@@ -179,114 +238,126 @@ export function Shell({ children }: { children: ReactNode }) {
 	const links = useMemo(() => groups.flatMap(group => group.items), [])
 	const email = session.data?.user.email ?? ''
 	const name = session.data?.user.name || 'Account'
+	const isActive = (item: NavItem) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
 	return (
-		// The rail's colour is also the canvas the content panel floats on.
-		<div className='flex h-dvh w-full overflow-hidden bg-sidebar'>
-			<NavigationSidebar
-				canHide
-				isHidden={isHidden}
-				showTemporary={showTemporary}
-				onShowTemporaryChange={setShowTemporary}
-			>
-				<div className='flex min-w-0 items-center gap-2'>
-					<div className='min-w-0 flex-1'>
-						<DropdownMenu>
-							<DropdownMenuTrigger className='flex h-7 max-w-full min-w-0 items-center gap-2 rounded-md pr-2 pl-1 text-left hover:bg-accent'>
-								<Avatar className='size-5 rounded-md'>
-									<AvatarFallback className='rounded-md bg-secondary text-[10px] font-normal text-foreground'>
-										VX
+		<SidebarProvider
+			open={!isHidden}
+			onOpenChange={open => setHidden(!open)}
+			className='h-dvh min-h-0 overflow-hidden'
+			style={{ '--sidebar-width': '15rem' } as CSSProperties}
+		>
+			<Sidebar collapsible='offcanvas'>
+				<SidebarHeader className='flex-row items-center gap-1 p-2'>
+					<SidebarMenu className='min-w-0 flex-1'>
+						<SidebarMenuItem>
+							<DropdownMenu>
+								<DropdownMenuTrigger render={<SidebarMenuButton className='h-8' />}>
+									<Avatar className='size-5 rounded-sm'>
+										<AvatarFallback className='rounded-sm bg-primary text-[10px] font-semibold text-primary-foreground'>
+											VX
+										</AvatarFallback>
+									</Avatar>
+									<span className='truncate font-medium'>vexdock</span>
+									<IconSelector className='ml-auto size-3.5! text-muted-foreground' />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent side='bottom' align='start' sideOffset={8} className='w-60'>
+									<DropdownMenuItem render={<Link to='/system/settings' />}>
+										<IconSettings />
+										Settings
+									</DropdownMenuItem>
+									<DropdownMenuItem onClick={() => setPaletteOpen(true)}>
+										<IconSearch />
+										Jump to
+										<DropdownMenuShortcut className='tracking-normal'>
+											<Keys keys={[mod, 'K']} />
+										</DropdownMenuShortcut>
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									{email ? (
+										<div className='truncate px-2 py-1.5 text-label text-muted-foreground'>
+											{email}
+										</div>
+									) : null}
+									<DropdownMenuItem onClick={() => logout.mutate()}>
+										<IconLogout />
+										Log out
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</SidebarMenuItem>
+					</SidebarMenu>
+					<RailButtons onSearch={() => setPaletteOpen(true)} />
+				</SidebarHeader>
+
+				<SidebarContent>
+					{groups.map(group => (
+						<SidebarGroup key={group.label} className='py-1'>
+							<SidebarGroupLabel className='h-7 text-label text-muted-foreground'>
+								{group.label}
+							</SidebarGroupLabel>
+							<SidebarGroupContent>
+								<SidebarMenu className='gap-px'>
+									{group.items.map(item => (
+										<SidebarMenuItem key={item.to}>
+											<SidebarMenuButton
+												isActive={isActive(item)}
+												render={<Link to={item.to} draggable={false} />}
+												className='h-7 text-body text-muted-foreground hover:text-foreground data-active:text-foreground'
+											>
+												<item.icon stroke={1.5} />
+												<span>{item.label}</span>
+											</SidebarMenuButton>
+											{item.to === '/system/settings' && settingsDot ? (
+												<SidebarMenuBadge className='top-1'>
+													<span
+														aria-hidden
+														className={cn('size-1.5 rounded-full', settingsDot)}
+													/>
+												</SidebarMenuBadge>
+											) : null}
+										</SidebarMenuItem>
+									))}
+								</SidebarMenu>
+							</SidebarGroupContent>
+						</SidebarGroup>
+					))}
+				</SidebarContent>
+
+				<SidebarFooter className='gap-1 border-t p-2'>
+					<SidebarMenu>
+						<SidebarMenuItem>
+							<SidebarMenuButton size='lg' render={<Link to='/system/settings' draggable={false} />}>
+								<Avatar className='size-6 rounded-md'>
+									<AvatarFallback className='rounded-md bg-secondary text-[10px] font-medium'>
+										{(email || '?').slice(0, 2).toUpperCase()}
 									</AvatarFallback>
 								</Avatar>
-								<span className='min-w-0 flex-1 truncate text-sm font-normal text-foreground'>
-									vexdock
+								<span className='flex min-w-0 flex-1 flex-col leading-tight'>
+									<span className='truncate text-body font-medium'>{name}</span>
+									<span className='truncate text-label text-muted-foreground'>{email}</span>
 								</span>
-								<IconChevronDown className='size-3 shrink-0 text-muted-foreground' />
-							</DropdownMenuTrigger>
-							<DropdownMenuContent side='bottom' align='start' sideOffset={8} className='w-64'>
-								<DropdownMenuItem render={<Link to='/system/settings' />}>Settings</DropdownMenuItem>
-								<DropdownMenuItem onClick={() => setPaletteOpen(true)}>
-									Jump to
-									<DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								{email ? (
-									<div className='truncate px-2 py-1.5 text-xs text-muted-foreground'>{email}</div>
-								) : null}
-								<DropdownMenuItem onClick={() => logout.mutate()}>Log out</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
-
-					<div className='flex shrink-0 items-center gap-0.5'>
-						<button
-							type='button'
-							onClick={() => setPaletteOpen(true)}
-							className='flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-accent hover:text-foreground active:scale-[0.95] motion-reduce:active:scale-100'
-							aria-label='Search'
-						>
-							<IconSearch className='size-4' />
-						</button>
-						<button
-							type='button'
-							onClick={toggleHidden}
-							className='flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[color,background-color,scale] hover:bg-accent hover:text-foreground active:scale-[0.95] motion-reduce:active:scale-100'
-							aria-label={isHidden ? 'Show sidebar' : 'Hide sidebar'}
-						>
-							<IconLayoutSidebar className='size-4' />
-						</button>
-					</div>
-				</div>
-
-				<div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
-					{groups.map(group => (
-						<div key={group.label} className='flex flex-col gap-1'>
-							<span className='px-2 text-meta tracking-wider text-muted-foreground uppercase'>
-								{group.label}
-							</span>
-							<div className='flex flex-col gap-0.5'>
-								{group.items.map(item => (
-									<NavigationLink
-										key={item.to}
-										{...item}
-										dot={item.to === '/system/settings' ? settingsDot : undefined}
-									/>
-								))}
-							</div>
-						</div>
-					))}
-				</div>
-
-				<div className='flex flex-col gap-1 border-t border-sidebar-border pt-2'>
+								<IconSettings className='text-muted-foreground' />
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					</SidebarMenu>
 					<Link
-						draggable={false}
-						to='/system/settings'
-						className='group flex h-10 items-center gap-2.5 rounded-md px-2 text-left hover:bg-accent'
+						to='/system/settings/about'
+						className={cn('text-center font-mono text-meta hover:text-foreground', footerClass)}
 					>
-						<Avatar className='size-6 rounded-md'>
-							<AvatarFallback className='rounded-md bg-secondary text-[10px] font-normal text-foreground'>
-								{(email || '?').slice(0, 2).toUpperCase()}
-							</AvatarFallback>
-						</Avatar>
-						<div className='min-w-0 flex-1'>
-							<div className='truncate text-body font-medium text-foreground'>{name}</div>
-							<div className='truncate text-label text-muted-foreground'>{email}</div>
-						</div>
-						<IconSettings className='size-3.5 shrink-0 text-muted-foreground group-hover:text-muted-foreground' />
-					</Link>
-					<Link to='/system/settings/about' className={cn('text-center font-mono text-meta', footerClass)}>
 						{footerText}
 					</Link>
-				</div>
-			</NavigationSidebar>
+				</SidebarFooter>
+				<SidebarRail />
+			</Sidebar>
 
-			{/* Inset card, so the rail's colour reads as the canvas it floats on. The rail's
-			    spacer owns the left gutter (8px when collapsed), so the panel skips ml. */}
-			<main className='m-2 ml-0 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background'>
+			<SidebarInset className='min-h-0 overflow-hidden'>
+				{/* Below md the rail is a sheet, and this is the only way to open it. */}
+				<SidebarTrigger className='absolute top-2 right-2 z-20 md:hidden' />
 				{children}
-			</main>
+			</SidebarInset>
 
 			<CommandPalette links={links} open={paletteOpen} onOpenChange={setPaletteOpen} />
-		</div>
+		</SidebarProvider>
 	)
 }

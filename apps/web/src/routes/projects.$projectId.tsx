@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { IconDots, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { EnvironmentCrumb, ProjectCrumb } from '../components/crumb-picker'
-import { Button, ErrorText, Page, Tabs } from '../components/primitives'
+import { Confirm, ErrorText, IconButton, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 import { environmentSearch } from '../lib/environment'
 
@@ -24,7 +24,6 @@ function ProjectLayout() {
 	const { projectId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const [confirmDelete, setConfirmDelete] = useState(false)
 
 	const remove = useMutation({
 		mutationFn: () => api.deleteProject(projectId, false),
@@ -42,35 +41,31 @@ function ProjectLayout() {
 				[projectId]: (
 					<>
 						<ProjectCrumb projectId={projectId} />
-						<span className='text-muted-foreground'>/</span>
+						<span className='text-muted-foreground/60'>/</span>
 						<EnvironmentCrumb projectId={projectId} />
 					</>
 				),
 			}}
 			actions={
-				confirmDelete ? (
-					<>
-						<Button variant='danger' onClick={() => remove.mutate()} disabled={remove.isPending}>
-							Confirm delete
-						</Button>
-						<Button variant='ghost' onClick={() => setConfirmDelete(false)}>
-							Cancel
-						</Button>
-					</>
-				) : (
-					// Deleting a project is rare and unrecoverable, so it sits behind the
-					// overflow instead of one stray click away on every page below here.
-					<DropdownMenu>
-						<DropdownMenuTrigger render={<Button variant='ghost' aria-label='Project actions' />}>
-							···
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align='end'>
-							<DropdownMenuItem variant='destructive' onClick={() => setConfirmDelete(true)}>
+				// Deleting a project is rare and unrecoverable, so it sits behind the
+				// overflow instead of one stray click away on every page below here.
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						render={<IconButton icon={IconDots} label='Project actions' size='default' />}
+					/>
+					<DropdownMenuContent align='end'>
+						<Confirm
+							title='Delete this project?'
+							description='Every service, deployment and domain in it goes with it. Volumes are kept.'
+							onConfirm={() => remove.mutate()}
+						>
+							<DropdownMenuItem variant='destructive' closeOnClick={false}>
+								<IconTrash />
 								Delete project
 							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)
+						</Confirm>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			}
 			toolbar={<Tabs base={base} tabs={tabs} />}
 		>

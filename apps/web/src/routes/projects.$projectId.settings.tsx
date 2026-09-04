@@ -1,7 +1,29 @@
 import { useEffect, useState } from 'react'
+import {
+	IconCheck,
+	IconCopy,
+	IconFolder,
+	IconGitBranch,
+	IconLayersLinked,
+	IconPlus,
+	IconTrash,
+	IconUpload,
+	IconWebhook,
+} from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, Check, ErrorText, Field, Section } from '../components/primitives'
+import { Badge } from '@/components/ui/badge'
+import {
+	Button,
+	Confirm,
+	ErrorText,
+	Field,
+	FormSection,
+	IconButton,
+	Input,
+	SaveButton,
+	Switch,
+} from '../components/primitives'
 import { api } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 
@@ -38,57 +60,56 @@ function ProjectSettings() {
 	})
 
 	return (
-		<>
-			<Section title='Project' onSave={() => save.mutate()}>
-				<div className='grid gap-x-6 border-t border-border pt-3 md:grid-cols-2'>
+		<div className='max-w-3xl'>
+			<ErrorText error={save.error} />
+			<FormSection
+				title='Project'
+				icon={IconFolder}
+				hint='The name is what the breadcrumb and the project list show.'
+				actions={<SaveButton pending={save.isPending} />}
+				onSave={() => save.mutate()}
+			>
+				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Name'>
-						<input value={name} onChange={event => setName(event.target.value)} />
+						<Input value={name} onChange={event => setName(event.target.value)} />
 					</Field>
 				</div>
-				<Check
+				<Switch
 					label='Deploy automatically when a service’s branch is pushed'
-					className='mb-3'
 					checked={autoDeploy}
 					onChange={setAutoDeploy}
 				/>
-				<ErrorText error={save.error} />
-				<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
-					{save.isPending ? 'Saving…' : 'Save'}
-				</Button>
-			</Section>
+			</FormSection>
 
-			<Section
+			<FormSection
 				title='Webhook'
-				description='point your git provider here to auto deploy'
+				description='Point your git provider here to auto deploy.'
+				icon={IconWebhook}
+				hint={
+					project.data?.webhook_secret_set
+						? 'A secret is set. Enter a new one to replace it, or a single space to disable verification.'
+						: 'Optional. When set, X-Hub-Signature-256 must match or the request is rejected.'
+				}
+				actions={<SaveButton pending={save.isPending} label='Save webhook secret' />}
 				onSave={() => save.mutate()}
 			>
-				<code className='block border-t border-border pt-2 font-mono text-body break-all text-foreground'>
+				<code className='mb-4 block rounded-md border bg-background px-3 py-2 font-mono text-label break-all'>
 					{project.data?.webhook_url}
 				</code>
-				<div className='mt-3 max-w-md'>
-					<Field
-						label='Signing secret'
-						hint={
-							project.data?.webhook_secret_set
-								? 'A secret is set. Enter a new one to replace it, or a single space to disable verification.'
-								: 'Optional. When set, X-Hub-Signature-256 must match or the request is rejected.'
-						}
-					>
-						<input
+				<div className='max-w-md'>
+					<Field label='Signing secret'>
+						<Input
 							type='password'
 							value={webhookSecret}
 							onChange={event => setWebhookSecret(event.target.value)}
 						/>
 					</Field>
-					<Button variant='primary' onClick={() => save.mutate()} disabled={save.isPending}>
-						Save webhook secret
-					</Button>
 				</div>
-			</Section>
+			</FormSection>
 
 			<Environments projectId={projectId} />
 			<ExportServices projectId={projectId} />
-		</>
+		</div>
 	)
 }
 
@@ -101,7 +122,6 @@ function Environments({ projectId }: { projectId: string }) {
 	const queryClient = useQueryClient()
 	const [name, setName] = useState('')
 	const [branch, setBranch] = useState('')
-	const [confirming, setConfirming] = useState<string | null>(null)
 
 	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
 	const refresh = () => queryClient.invalidateQueries({ queryKey: ['environments', projectId] })
@@ -116,72 +136,63 @@ function Environments({ projectId }: { projectId: string }) {
 	})
 	const remove = useMutation({
 		mutationFn: (id: string) => api.deleteEnvironment(id, true),
-		onSuccess: async () => {
-			setConfirming(null)
-			await refresh()
-		},
+		onSuccess: refresh,
 	})
 
 	return (
-		<Section title='Environments' description='each one deploys on its own, into its own containers'>
+		<FormSection
+			title='Environments'
+			description='Each one deploys on its own, into its own containers.'
+			icon={IconLayersLinked}
+			hint='A name becomes the slug the API and the directory use. An empty branch lets each service follow its own.'
+			actions={
+				<Button type='submit' variant='primary' disabled={create.isPending}>
+					<IconPlus />
+					{create.isPending ? 'Creating…' : 'Add environment'}
+				</Button>
+			}
+			onSave={() => create.mutate()}
+		>
 			<ErrorText error={create.error ?? remove.error} />
-			<ul className='mb-4'>
+			<ul className='mb-4 rounded-md border bg-background'>
 				{environments.data?.map(env => (
-					<li key={env.id} className='flex h-9 items-center gap-3 border-b'>
+					<li key={env.id} className='flex h-9 items-center gap-3 border-b px-3 last:border-b-0'>
+						<IconLayersLinked className='size-4 text-muted-foreground' />
 						<span className='text-body'>{env.name}</span>
-						<span className='font-mono text-meta text-muted-foreground'>
+						{env.is_default ? <Badge variant='outline'>default</Badge> : null}
+						<span className='inline-flex items-center gap-1 font-mono text-meta text-muted-foreground'>
+							<IconGitBranch className='size-3' />
 							{env.branch || 'service branch'}
 						</span>
 						{env.is_default ? null : (
 							<span className='ml-auto'>
-								{confirming === env.id ? (
-									<>
-										<Button
-											variant='danger'
-											onClick={() => remove.mutate(env.id)}
-											disabled={remove.isPending}
-										>
-											Delete with volumes
-										</Button>
-										<Button variant='ghost' onClick={() => setConfirming(null)}>
-											Cancel
-										</Button>
-									</>
-								) : (
-									<Button variant='ghost' onClick={() => setConfirming(env.id)}>
-										Delete
-									</Button>
-								)}
+								<Confirm
+									title={`Delete ${env.name}?`}
+									description='Its containers and volumes are removed with it.'
+									action='Delete with volumes'
+									onConfirm={() => remove.mutate(env.id)}
+								>
+									<IconButton icon={IconTrash} label='Delete' disabled={remove.isPending} />
+								</Confirm>
 							</span>
 						)}
 					</li>
 				))}
 			</ul>
-			<form
-				className='grid gap-x-6 md:grid-cols-2'
-				onSubmit={event => {
-					event.preventDefault()
-					create.mutate()
-				}}
-			>
-				<Field label='Name' hint='Becomes the slug the API and the directory use.'>
-					<input
+			<div className='grid gap-x-6 md:grid-cols-2'>
+				<Field label='Name'>
+					<Input
 						required
 						value={name}
 						onChange={event => setName(event.target.value)}
 						placeholder='Staging'
 					/>
 				</Field>
-				<Field label='Branch' hint='Empty lets each service follow its own branch.'>
-					<input value={branch} onChange={event => setBranch(event.target.value)} placeholder='develop' />
+				<Field label='Branch'>
+					<Input value={branch} onChange={event => setBranch(event.target.value)} placeholder='develop' />
 				</Field>
-				<div>
-					<Button variant='primary' type='submit' disabled={create.isPending || !name}>
-						{create.isPending ? 'Creating…' : 'Add environment'}
-					</Button>
-				</div>
-			</form>
-		</Section>
+			</div>
+		</FormSection>
 	)
 }
 
@@ -201,9 +212,11 @@ function ExportServices({ projectId }: { projectId: string }) {
 	})
 
 	return (
-		<Section
+		<FormSection
 			title='Export services'
-			description='paste into another project’s import'
+			description='Paste into another project’s import.'
+			icon={IconUpload}
+			hint='With secrets off, they export as keys with empty values and the import leaves the generated ones alone.'
 			actions={
 				<Button
 					variant='primary'
@@ -213,27 +226,23 @@ function ExportServices({ projectId }: { projectId: string }) {
 						setCopied(true)
 					}}
 				>
+					{copied ? <IconCheck /> : <IconCopy />}
 					{copied ? 'Copied' : 'Copy'}
 				</Button>
 			}
 		>
 			<ErrorText error={exported.error} />
-			<code className='block max-h-24 overflow-y-auto border-t border-border pt-2 font-mono text-label break-all text-muted-foreground'>
+			<code className='mb-4 block max-h-24 overflow-y-auto rounded-md border bg-background px-3 py-2 font-mono text-label break-all text-muted-foreground'>
 				{exported.data?.payload || 'No managed services to export.'}
 			</code>
-			<div className='mt-3'>
-				<Check
-					label='Include secret values'
-					checked={secrets}
-					onChange={next => {
-						setSecrets(next)
-						setCopied(false)
-					}}
-				/>
-				<p className='mt-1 text-label text-muted-foreground'>
-					Off, secrets export as keys with empty values and the import leaves the generated ones alone.
-				</p>
-			</div>
-		</Section>
+			<Switch
+				label='Include secret values'
+				checked={secrets}
+				onChange={next => {
+					setSecrets(next)
+					setCopied(false)
+				}}
+			/>
+		</FormSection>
 	)
 }

@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
+import { IconStack2, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
-import { Button, ErrorText, Page, Refresh, Section } from '../components/primitives'
+import { Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
 import { api, type ImageSummary } from '../lib/api'
 import { bytes, since } from '../lib/format'
 
@@ -13,7 +14,16 @@ function imageName(image: ImageSummary) {
 function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> {
 	const cell = columnsFor<ImageSummary>()
 	return [
-		cell.accessor(imageName, { id: 'repository', header: 'Repository', meta: { mono: true } }),
+		cell.accessor(imageName, {
+			id: 'repository',
+			header: 'Repository',
+			cell: ({ row }) => (
+				<span className='inline-flex items-center gap-2'>
+					<IconStack2 className='size-4 text-muted-foreground' />
+					<span className='font-mono text-label'>{imageName(row.original)}</span>
+				</span>
+			),
+		}),
 		cell.accessor(image => image.size, {
 			id: 'size',
 			header: 'Size',
@@ -29,7 +39,7 @@ function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> 
 		cell.accessor(image => image.created, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => since(row.original.created),
+			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created)}</span>,
 		}),
 		cell.display({
 			id: 'actions',
@@ -37,9 +47,14 @@ function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> 
 			enableSorting: false,
 			meta: { align: 'right' },
 			cell: ({ row }) => (
-				<Button variant='ghost' onClick={() => remove(row.original.id)}>
-					remove
-				</Button>
+				<Confirm
+					title={`Remove ${imageName(row.original)}?`}
+					description='An image still used by a container is refused.'
+					action='Remove'
+					onConfirm={() => remove(row.original.id)}
+				>
+					<IconButton icon={IconTrash} label='Remove' />
+				</Confirm>
 			),
 		}),
 	]
@@ -67,16 +82,15 @@ function ImagesPage() {
 				title='Local images'
 				description={`${data.length} total`}
 				actions={<Refresh onClick={() => images.refetch()} busy={images.isFetching} />}
-				className='mb-0 flex h-full min-h-0 flex-col'
 			>
 				<ErrorText error={remove.error} />
 				<DataTable
-					fillHeight
 					data={data}
 					columns={columns}
 					loading={images.isLoading}
 					getRowId={image => image.id}
-					empty='No images.'
+					filter='Filter images'
+					empty='No images'
 				/>
 			</Section>
 		</Page>

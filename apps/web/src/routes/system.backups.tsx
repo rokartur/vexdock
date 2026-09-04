@@ -1,3 +1,4 @@
+import { IconArchive, IconDatabase } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -8,7 +9,16 @@ import { bytes, since } from '../lib/format'
 const backupTableColumns: Columns<Backup> = (() => {
 	const cell = columnsFor<Backup>()
 	return [
-		cell.accessor(backup => backup.name, { id: 'name', header: 'Name', meta: { mono: true } }),
+		cell.accessor(backup => backup.name, {
+			id: 'name',
+			header: 'Name',
+			cell: ({ row }) => (
+				<span className='inline-flex items-center gap-2'>
+					<IconArchive className='size-4 text-muted-foreground' />
+					<span className='font-mono text-label'>{row.original.name}</span>
+				</span>
+			),
+		}),
 		cell.accessor(backup => (backup.has_volumes ? 'platform + volumes' : 'platform'), {
 			id: 'contents',
 			header: 'Contents',
@@ -22,7 +32,7 @@ const backupTableColumns: Columns<Backup> = (() => {
 		cell.accessor(backup => backup.created_at, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => since(row.original.created_at),
+			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
 		}),
 		cell.accessor(backup => backup.path, { id: 'path', header: 'Path', meta: { mono: true } }),
 	]
@@ -49,9 +59,11 @@ function BackupsPage() {
 				actions={
 					<div className='flex items-center gap-2'>
 						<Button onClick={() => create.mutate(false)} disabled={create.isPending}>
+							<IconArchive />
 							Platform only
 						</Button>
 						<Button variant='primary' onClick={() => create.mutate(true)} disabled={create.isPending}>
+							<IconDatabase />
 							{create.isPending ? 'Creating…' : 'Include volumes'}
 						</Button>
 						<Refresh onClick={() => backups.refetch()} busy={backups.isFetching} />
@@ -64,6 +76,7 @@ function BackupsPage() {
 					columns={backupTableColumns}
 					loading={backups.isLoading}
 					getRowId={backup => backup.name}
+					filter='Filter backups'
 					empty='No backups yet. One is taken automatically before every platform update.'
 				/>
 			</Section>

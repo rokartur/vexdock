@@ -1,21 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { IconDatabase, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, ErrorText, Page, Refresh, Section } from '../components/primitives'
+import { Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
 import { api, type VolumeSummary } from '../lib/api'
 import { bytes, since } from '../lib/format'
 
-type VolumeActions = {
-	pendingDelete: string | null
-	setPendingDelete: (name: string | null) => void
-	remove: (name: string) => void
-}
-
-function volumeTableColumns({ pendingDelete, setPendingDelete, remove }: VolumeActions): Columns<VolumeSummary> {
+function volumeTableColumns(remove: (name: string) => void): Columns<VolumeSummary> {
 	const cell = columnsFor<VolumeSummary>()
 	return [
-		cell.accessor(volume => volume.name, { id: 'name', header: 'Name', meta: { mono: true } }),
+		cell.accessor(volume => volume.name, {
+			id: 'name',
+			header: 'Name',
+			cell: ({ row }) => (
+				<span className='inline-flex items-center gap-2'>
+					<IconDatabase className='size-4 text-muted-foreground' />
+					<span className='font-mono text-label'>{row.original.name}</span>
+				</span>
+			),
+		}),
 		cell.accessor(volume => volume.driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
 		cell.accessor(volume => volume.size, {
 			id: 'size',
@@ -32,27 +36,21 @@ function volumeTableColumns({ pendingDelete, setPendingDelete, remove }: VolumeA
 		cell.accessor(volume => volume.created_at, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => since(row.original.created_at),
+			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
 		}),
 		cell.display({
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
-			cell: ({ row }) =>
-				pendingDelete === row.original.name ? (
-					<span className='flex justify-end gap-1.5'>
-						<Button variant='danger' onClick={() => remove(row.original.name)}>
-							confirm delete
-						</Button>
-						<Button variant='ghost' onClick={() => setPendingDelete(null)}>
-							cancel
-						</Button>
-					</span>
-				) : (
-					<Button variant='ghost' onClick={() => setPendingDelete(row.original.name)}>
-						delete
-					</Button>
-				),
+			cell: ({ row }) => (
+				<Confirm
+					title={`Delete ${row.original.name}?`}
+					description='Everything stored in the volume is destroyed. There is no undo.'
+					onConfirm={() => remove(row.original.name)}
+				>
+					<IconButton icon={IconTrash} label='Delete' />
+				</Confirm>
+			),
 		}),
 	]
 }
@@ -61,24 +59,17 @@ export const Route = createFileRoute('/docker/volumes')({ component: VolumesPage
 
 function VolumesPage() {
 	const queryClient = useQueryClient()
-	const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
 	const volumes = useQuery({ queryKey: ['volumes'], queryFn: api.volumes })
 
 	const remove = useMutation({
 		mutationFn: (name: string) => api.removeVolume(name),
-		onSuccess: async () => {
-			setPendingDelete(null)
-			await queryClient.invalidateQueries({ queryKey: ['volumes'] })
-		},
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['volumes'] }),
 	})
 
 	const data = volumes.data ?? []
 	const { mutate: removeVolume } = remove
-	const columns = useMemo(
-		() => volumeTableColumns({ pendingDelete, setPendingDelete, remove: removeVolume }),
-		[pendingDelete, removeVolume],
-	)
+	const columns = useMemo(() => volumeTableColumns(removeVolume), [removeVolume])
 
 	return (
 		<Page>
@@ -93,7 +84,8 @@ function VolumesPage() {
 					columns={columns}
 					loading={volumes.isLoading}
 					getRowId={volume => volume.name}
-					empty='No volumes.'
+					filter='Filter volumes'
+					empty='No volumes'
 				/>
 			</Section>
 		</Page>

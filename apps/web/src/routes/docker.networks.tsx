@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { IconAffiliate } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -8,7 +9,16 @@ import { api, type NetworkSummary } from '../lib/api'
 function networkTableColumns(): Columns<NetworkSummary> {
 	const cell = columnsFor<NetworkSummary>()
 	return [
-		cell.accessor(network => network.name, { id: 'name', header: 'Name', meta: { mono: true } }),
+		cell.accessor(network => network.name, {
+			id: 'name',
+			header: 'Name',
+			cell: ({ row }) => (
+				<span className='inline-flex items-center gap-2'>
+					<IconAffiliate className='size-4 text-muted-foreground' />
+					<span className='font-mono text-label'>{row.original.name}</span>
+				</span>
+			),
+		}),
 		cell.accessor(network => network.driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
 		cell.accessor(network => network.scope, { id: 'scope', header: 'Scope', meta: { mono: true } }),
 		cell.accessor(network => network.containers?.map(container => container.name).join(', ') || '-', {
@@ -39,7 +49,8 @@ function NetworksPage() {
 					columns={columns}
 					loading={networks.isLoading}
 					getRowId={network => network.id}
-					empty='No networks.'
+					filter='Filter networks'
+					empty='No networks'
 				/>
 			</Section>
 		</Page>
