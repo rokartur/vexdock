@@ -182,7 +182,7 @@ export function ImportServicesForm({
 							return (
 								<div
 									key={service.name}
-									className={`flex items-center gap-3 border-b border-border py-1.5 text-body last:border-0 ${collides ? 'opacity-40' : ''}`}
+									className={`flex items-center gap-3 border-b border-rule py-1.5 text-body last:border-0 ${collides ? 'opacity-40' : ''}`}
 								>
 									<Check
 										label={service.name}

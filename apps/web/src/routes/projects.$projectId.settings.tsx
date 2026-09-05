@@ -156,7 +156,7 @@ function Environments({ projectId }: { projectId: string }) {
 			<ErrorText error={create.error ?? remove.error} />
 			<ul className='mb-4 rounded-md border bg-background'>
 				{environments.data?.map(env => (
-					<li key={env.id} className='flex h-9 items-center gap-3 border-b px-3 last:border-b-0'>
+					<li key={env.id} className='flex h-9 items-center gap-3 border-b border-rule px-3 last:border-b-0'>
 						<IconLayersLinked className='size-4 text-muted-foreground' />
 						<span className='text-body'>{env.name}</span>
 						{env.is_default ? <Badge variant='outline'>default</Badge> : null}

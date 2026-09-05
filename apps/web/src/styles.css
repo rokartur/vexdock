@@ -16,9 +16,9 @@
 	--text-meta: 11px;
 	--text-label: 12px;
 	--text-body: 13px;
-	--text-title: 14px;
+	--text-title: 15px;
 	/* The one size that is allowed to be big: a live reading in a Cells grid. */
-	--text-reading: 19px;
+	--text-reading: 22px;
 }
 
 /* Dark-only app: <html class="dark"> is hardcoded in routes/__root.tsx and there
@@ -45,6 +45,8 @@
 	--accent-foreground: oklch(0.205 0 0);
 	--destructive: oklch(0.577 0.245 27.325);
 	--border: oklch(0.922 0 0);
+	--rule: oklch(0.955 0 0);
+	--highlight: transparent;
 	--input: oklch(0.922 0 0);
 	--ring: oklch(0.708 0 0);
 	--chart-1: oklch(0.87 0 0);
@@ -82,8 +84,15 @@
 	--accent-foreground: #ededed;
 	--destructive: #e5484d;
 	--destructive-foreground: #ffffff;
-	--border: #2e2e2e;
-	--input: #2e2e2e;
+	/* Two weights of hairline. --border is a container's edge: the outline of a
+	 * card, a table, an input. --rule is a separator inside one, a table row or a
+	 * fact, and is quieter so a list does not read as a stack of boxes. */
+	--border: #262626;
+	--rule: #171717;
+	/* A one-pixel inset highlight along the top of anything raised, which is what
+	 * makes a card read as lit from above without a shadow. */
+	--highlight: rgb(255 255 255 / 0.045);
+	--input: #262626;
 	--ring: #878787;
 	/* The one accent knob. Settings overrides --brand inline on <html>; it colours
 	 * the charts and nothing else, so the chrome stays monochrome. */
@@ -99,7 +108,7 @@
 	--sidebar-primary-foreground: #0a0a0a;
 	--sidebar-accent: #1a1a1a;
 	--sidebar-accent-foreground: #ededed;
-	--sidebar-border: #2e2e2e;
+	--sidebar-border: var(--border);
 	--sidebar-ring: #878787;
 
 	/* Console surfaces (log tail, container shell): darker than the cards
@@ -108,7 +117,7 @@
 	--console-foreground: #d4d4d4;
 	--console-muted: #8a8a8a;
 	--console-stderr: #ff8a80;
-	--console-border: #2e2e2e;
+	--console-border: var(--border);
 }
 
 @theme inline {
@@ -128,6 +137,7 @@
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
 	--color-border: var(--border);
+	--color-rule: var(--rule);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
 	--color-chart-1: var(--chart-1);
@@ -156,10 +166,10 @@
 	--radius-sm: calc(var(--radius) - 2px);
 	--radius-md: var(--radius);
 	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 2px);
-	--radius-2xl: calc(var(--radius) + 4px);
-	--radius-3xl: calc(var(--radius) + 6px);
-	--radius-4xl: calc(var(--radius) + 8px);
+	--radius-xl: calc(var(--radius) + 6px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 10px);
+	--radius-4xl: calc(var(--radius) + 12px);
 }
 
 @layer base {
@@ -197,6 +207,9 @@
 		@apply scroll-smooth bg-background text-foreground antialiased;
 		font-size: 13px;
 		line-height: 1.5;
+		/* A panel of readings, durations and sizes: digits line up by default,
+		 * everywhere, instead of each surface opting in. */
+		font-variant-numeric: tabular-nums;
 		scroll-behavior: auto;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
@@ -241,6 +254,11 @@
 	html {
 		@apply font-sans;
 	}
+}
+
+/* Raised surfaces carry one lit edge. Cards, tables, cells, buttons. */
+@utility raised {
+	box-shadow: inset 0 1px 0 var(--highlight);
 }
 
 @layer utilities {

@@ -76,7 +76,7 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 	const isRunning = deployment?.status === 'running' || deployment?.status === 'queued'
 
 	return (
-		<div className='flex flex-col gap-3 border-t bg-background px-4 py-3'>
+		<div className='flex flex-col gap-3 border-t border-rule bg-background px-4 py-3'>
 			<ErrorText error={cancel.error} />
 			<ErrorText error={deployment?.error} />
 

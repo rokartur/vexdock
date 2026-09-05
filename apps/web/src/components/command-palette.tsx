@@ -69,7 +69,7 @@ export function CommandPalette({
 					) : null}
 				</CommandList>
 				{/* Negative margins undo Command's padding so the hairline spans the dialog. */}
-				<div className='-mx-1 -mb-1 flex items-center gap-3 border-t px-4 py-1.5 text-meta text-muted-foreground'>
+				<div className='-mx-1 -mb-1 flex items-center gap-3 border-t border-rule px-4 py-1.5 text-meta text-muted-foreground'>
 					<span className='flex items-center gap-1'>
 						<Keys keys={['↑', '↓']} />
 						move
