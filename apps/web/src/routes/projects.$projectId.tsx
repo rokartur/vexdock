@@ -1,5 +1,5 @@
 import { IconDots, IconTrash } from '@tabler/icons-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { EnvironmentCrumb, ProjectCrumb } from '../components/crumb-picker'
@@ -24,6 +24,8 @@ function ProjectLayout() {
 	const { projectId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
+	// The query the crumb picker already runs, so this reads the cache.
+	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
 
 	const remove = useMutation({
 		mutationFn: () => api.deleteProject(projectId, false),
@@ -37,6 +39,7 @@ function ProjectLayout() {
 
 	return (
 		<Page
+			name={project.data?.name}
 			labels={{
 				[projectId]: (
 					<>

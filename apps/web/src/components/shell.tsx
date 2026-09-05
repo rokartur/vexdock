@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
 	IconActivity,
 	IconAffiliate,
@@ -10,7 +10,6 @@ import {
 	IconDatabase,
 	IconFolder,
 	IconHome,
-	IconLayoutSidebar,
 	IconListDetails,
 	IconLogout,
 	IconSearch,
@@ -24,136 +23,106 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuShortcut,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-	Sidebar,
-	SidebarContent,
-	SidebarFooter,
-	SidebarGroup,
-	SidebarGroupContent,
-	SidebarGroupLabel,
-	SidebarHeader,
-	SidebarInset,
-	SidebarMenu,
-	SidebarMenuBadge,
-	SidebarMenuButton,
-	SidebarMenuItem,
-	SidebarProvider,
-	SidebarRail,
-	SidebarTrigger,
-	useSidebar,
-} from '@/components/ui/sidebar'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/utils/cn'
 import { api, updateActive } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
 import { useBrandColor } from '../lib/brand'
 import { useSystemEvents } from '../lib/sse'
 import { CommandPalette } from './command-palette'
-import { Keys, mod } from './primitives'
+import { Button, Keys, mod, PageChrome } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
-const groups: { label: string; items: NavItem[] }[] = [
-	{
-		label: 'Home',
-		items: [
-			{ to: '/', label: 'Dashboard', icon: IconHome, exact: true },
-			{ to: '/projects', label: 'Projects', icon: IconFolder },
-			{ to: '/domains', label: 'Domains', icon: IconWorld },
-			{ to: '/tasks', label: 'Tasks', icon: IconClock },
-			{ to: '/analytics', label: 'Analytics', icon: IconChartBar },
-		],
-	},
-	{
-		label: 'Docker',
-		items: [
-			{ to: '/docker/containers', label: 'Containers', icon: IconBox },
-			{ to: '/docker/images', label: 'Images', icon: IconStack2 },
-			{ to: '/docker/volumes', label: 'Volumes', icon: IconDatabase },
-			{ to: '/docker/networks', label: 'Networks', icon: IconAffiliate },
-		],
-	},
-	{
-		label: 'System',
-		items: [
-			{ to: '/system', label: 'Overview', icon: IconActivity, exact: true },
-			{ to: '/system/certificates', label: 'Certificates', icon: IconCertificate },
-			{ to: '/system/audit', label: 'Audit', icon: IconListDetails },
-			{ to: '/system/docker', label: 'Cleanup', icon: IconTrash },
-			{ to: '/system/backups', label: 'Backups', icon: IconArchive },
-			{ to: '/system/settings', label: 'Settings', icon: IconSettings },
-		],
-	},
+const home: NavItem[] = [
+	{ to: '/', label: 'Dashboard', icon: IconHome, exact: true },
+	{ to: '/projects', label: 'Projects', icon: IconFolder },
+	{ to: '/domains', label: 'Domains', icon: IconWorld },
+	{ to: '/tasks', label: 'Tasks', icon: IconClock },
+	{ to: '/analytics', label: 'Analytics', icon: IconChartBar },
 ]
 
-const HIDDEN_KEY = 'navigation-leftBarIsHidden'
+const docker: NavItem[] = [
+	{ to: '/docker/containers', label: 'Containers', icon: IconBox },
+	{ to: '/docker/images', label: 'Images', icon: IconStack2 },
+	{ to: '/docker/volumes', label: 'Volumes', icon: IconDatabase },
+	{ to: '/docker/networks', label: 'Networks', icon: IconAffiliate },
+]
+
+const system: NavItem[] = [
+	{ to: '/system', label: 'Overview', icon: IconActivity, exact: true },
+	{ to: '/system/certificates', label: 'Certificates', icon: IconCertificate },
+	{ to: '/system/audit', label: 'Audit', icon: IconListDetails },
+	{ to: '/system/docker', label: 'Cleanup', icon: IconTrash },
+	{ to: '/system/backups', label: 'Backups', icon: IconArchive },
+	{ to: '/system/settings', label: 'Settings', icon: IconSettings },
+]
+
+const groups = [
+	{ label: 'Home', items: home },
+	{ label: 'Docker', items: docker },
+	{ label: 'System', items: system },
+]
 
 /**
- * Read on the first render so no reload ever paints the rail open and then
- * hides it. Safe because the shell is client-only: the auth gate resolves a
- * session before it mounts, so this is never part of the prerendered markup.
+ * The section bar at the top level. Docker and System are whole sections, so
+ * they enter at their first page and the bar becomes their own pages from
+ * there; the breadcrumb and the workspace menu are the way back out.
  */
-const storedHidden = () => typeof localStorage !== 'undefined' && localStorage.getItem(HIDDEN_KEY) === 'true'
+const topLevel: NavItem[] = [
+	...home,
+	{ to: '/docker/containers', label: 'Docker', icon: IconBox },
+	{ to: '/system', label: 'System', icon: IconActivity },
+]
 
-/** One icon button in the rail's top row, its name and shortcut in the tooltip. */
-function RailButton({
-	icon: Icon,
-	label,
-	keys,
-	onClick,
-}: {
-	icon: TablerIcon
-	label: string
-	keys: string[]
-	onClick: () => void
-}) {
+function sectionOf(pathname: string) {
+	if (pathname.startsWith('/docker')) return docker
+	if (pathname.startsWith('/system')) return system
+	return topLevel
+}
+
+const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
+
+/** One section link: the rail's pill, laid on its side. */
+function SectionLink({ item, active }: { item: NavItem; active: boolean }) {
 	return (
-		<Tooltip>
-			<TooltipTrigger
-				render={
-					<Button
-						variant='ghost'
-						size='icon-sm'
-						onClick={onClick}
-						aria-label={label}
-						className='text-muted-foreground hover:text-foreground'
-					/>
-				}
-			>
-				<Icon />
-			</TooltipTrigger>
-			<TooltipContent>
-				{label}
-				<Keys keys={keys} />
-			</TooltipContent>
-		</Tooltip>
+		<Link
+			to={item.to}
+			draggable={false}
+			aria-current={active ? 'page' : undefined}
+			className={cn(
+				'flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-body whitespace-nowrap transition-colors',
+				active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+			)}
+		>
+			<item.icon stroke={1.5} className='size-4' />
+			{item.label}
+		</Link>
 	)
 }
 
-/** Search and hide, next to the workspace switcher. Inside the provider for `toggleSidebar`. */
-function RailButtons({ onSearch }: { onSearch: () => void }) {
-	const { toggleSidebar } = useSidebar()
-	return (
-		<div className='flex shrink-0 items-center'>
-			<RailButton icon={IconSearch} label='Search' keys={[mod, 'K']} onClick={onSearch} />
-			<RailButton icon={IconLayoutSidebar} label='Hide sidebar' keys={['[']} onClick={toggleSidebar} />
-		</div>
-	)
-}
-
-/** The rail plus the content panel it sits next to. Cmd/Ctrl+K opens the palette, `[` hides the rail. */
+/**
+ * The panel's chrome: a workspace bar carrying the page's own breadcrumb and
+ * actions, and a section bar under it. A page with sub-navigation of its own
+ * takes that second bar over, so there is only ever one row of tabs on screen.
+ * Cmd/Ctrl+K opens the palette, which is what reaches everything else.
+ */
 export function Shell({ children }: { children: ReactNode }) {
 	const [paletteOpen, setPaletteOpen] = useState(false)
-	const [isHidden, setIsHidden] = useState(storedHidden)
+	// Set from the refs during commit, so the page's chrome lands in these bars
+	// before the first paint rather than a frame later.
+	const [header, setHeader] = useState<HTMLElement | null>(null)
+	const [toolbar, setToolbar] = useState<HTMLElement | null>(null)
+	const chrome = useMemo(() => (header && toolbar ? { header, toolbar } : null), [header, toolbar])
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const pathname = useRouterState({ select: state => state.location.pathname })
@@ -164,7 +133,7 @@ export function Shell({ children }: { children: ReactNode }) {
 	useSystemEvents()
 	const version = useQuery({ queryKey: ['version'], queryFn: api.version, refetchInterval: 60_000 })
 	const updateAvailable = version.data?.update_available ?? false
-	// The update state is a tiny file read; polling it keeps the rail honest
+	// The update state is a tiny file read; polling it keeps the bar honest
 	// about an update started on another page (or by another session).
 	const updateState = useQuery({
 		queryKey: ['update-state'],
@@ -177,17 +146,17 @@ export function Shell({ children }: { children: ReactNode }) {
 	const updating = updateActive(updateState.data?.phase)
 	const restarting = updating && updateState.isError
 
-	let settingsDot: string | undefined
-	let footerText = version.data?.current ?? 'dev'
-	let footerClass = 'text-muted-foreground'
+	let updateDot: string | undefined
+	let versionText = version.data?.current ?? 'dev'
+	let versionClass = 'text-muted-foreground'
 	if (updating) {
-		settingsDot = 'bg-amber-400'
-		footerText = restarting ? 'restarting…' : `updating → ${updateState.data?.target}`
-		footerClass = 'text-amber-400'
+		updateDot = 'bg-amber-400'
+		versionText = restarting ? 'restarting…' : `updating → ${updateState.data?.target}`
+		versionClass = 'text-amber-400'
 	} else if (updateAvailable) {
-		settingsDot = 'bg-emerald-400'
-		footerText = `${version.data?.current} → ${version.data?.latest}`
-		footerClass = 'text-emerald-400'
+		updateDot = 'bg-emerald-400'
+		versionText = `${version.data?.current} → ${version.data?.latest}`
+		versionClass = 'text-emerald-400'
 	}
 	const session = useSession()
 
@@ -198,11 +167,6 @@ export function Shell({ children }: { children: ReactNode }) {
 			await navigate({ to: '/login', replace: true })
 		},
 	})
-
-	const setHidden = (hidden: boolean) => {
-		localStorage.setItem(HIDDEN_KEY, String(hidden))
-		setIsHidden(hidden)
-	}
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -218,17 +182,6 @@ export function Shell({ children }: { children: ReactNode }) {
 				event.preventDefault()
 				if (event.target instanceof Element)
 					event.target.closest<HTMLFormElement>('form[data-saves]')?.requestSubmit()
-				return
-			}
-			const target = event.target as HTMLElement | null
-			const typing =
-				target?.isContentEditable ||
-				['input', 'textarea', 'select'].includes(target?.tagName.toLowerCase() ?? '')
-			if (event.key === '[' && !typing && !event.metaKey && !event.ctrlKey) {
-				setIsHidden(hidden => {
-					localStorage.setItem(HIDDEN_KEY, String(!hidden))
-					return !hidden
-				})
 			}
 		}
 		window.addEventListener('keydown', onKey)
@@ -238,126 +191,116 @@ export function Shell({ children }: { children: ReactNode }) {
 	const links = useMemo(() => groups.flatMap(group => group.items), [])
 	const email = session.data?.user.email ?? ''
 	const name = session.data?.user.name || 'Account'
-	const isActive = (item: NavItem) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
 	return (
-		<SidebarProvider
-			open={!isHidden}
-			onOpenChange={open => setHidden(!open)}
-			className='h-dvh min-h-0 overflow-hidden'
-			style={{ '--sidebar-width': '15rem' } as CSSProperties}
-		>
-			<Sidebar collapsible='offcanvas'>
-				<SidebarHeader className='flex-row items-center gap-1 p-2'>
-					<SidebarMenu className='min-w-0 flex-1'>
-						<SidebarMenuItem>
-							<DropdownMenu>
-								<DropdownMenuTrigger render={<SidebarMenuButton className='h-8' />}>
-									<Avatar className='size-5 rounded-sm'>
-										<AvatarFallback className='rounded-sm bg-primary text-[10px] font-semibold text-primary-foreground'>
-											VX
-										</AvatarFallback>
-									</Avatar>
-									<span className='truncate font-medium'>vexdock</span>
-									<IconSelector className='ml-auto size-3.5! text-muted-foreground' />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent side='bottom' align='start' sideOffset={8} className='w-60'>
-									<DropdownMenuItem render={<Link to='/system/settings' />}>
-										<IconSettings />
-										Settings
-									</DropdownMenuItem>
-									<DropdownMenuItem onClick={() => setPaletteOpen(true)}>
-										<IconSearch />
-										Jump to
-										<DropdownMenuShortcut className='tracking-normal'>
-											<Keys keys={[mod, 'K']} />
-										</DropdownMenuShortcut>
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									{email ? (
-										<div className='truncate px-2 py-1.5 text-label text-muted-foreground'>
-											{email}
-										</div>
-									) : null}
-									<DropdownMenuItem onClick={() => logout.mutate()}>
-										<IconLogout />
-										Log out
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						</SidebarMenuItem>
-					</SidebarMenu>
-					<RailButtons onSearch={() => setPaletteOpen(true)} />
-				</SidebarHeader>
-
-				<SidebarContent>
-					{groups.map(group => (
-						<SidebarGroup key={group.label} className='py-1'>
-							<SidebarGroupLabel className='h-7 text-label text-muted-foreground'>
-								{group.label}
-							</SidebarGroupLabel>
-							<SidebarGroupContent>
-								<SidebarMenu className='gap-px'>
-									{group.items.map(item => (
-										<SidebarMenuItem key={item.to}>
-											<SidebarMenuButton
-												isActive={isActive(item)}
-												render={<Link to={item.to} draggable={false} />}
-												className='h-7 text-body text-muted-foreground hover:text-foreground data-active:text-foreground'
-											>
-												<item.icon stroke={1.5} />
-												<span>{item.label}</span>
-											</SidebarMenuButton>
-											{item.to === '/system/settings' && settingsDot ? (
-												<SidebarMenuBadge className='top-1'>
-													<span
-														aria-hidden
-														className={cn('size-1.5 rounded-full', settingsDot)}
-													/>
-												</SidebarMenuBadge>
-											) : null}
-										</SidebarMenuItem>
-									))}
-								</SidebarMenu>
-							</SidebarGroupContent>
-						</SidebarGroup>
-					))}
-				</SidebarContent>
-
-				<SidebarFooter className='gap-1 border-t p-2'>
-					<SidebarMenu>
-						<SidebarMenuItem>
-							<SidebarMenuButton size='lg' render={<Link to='/system/settings' draggable={false} />}>
-								<Avatar className='size-6 rounded-md'>
-									<AvatarFallback className='rounded-md bg-secondary text-[10px] font-medium'>
-										{(email || '?').slice(0, 2).toUpperCase()}
-									</AvatarFallback>
-								</Avatar>
-								<span className='flex min-w-0 flex-1 flex-col leading-tight'>
-									<span className='truncate text-body font-medium'>{name}</span>
-									<span className='truncate text-label text-muted-foreground'>{email}</span>
-								</span>
-								<IconSettings className='text-muted-foreground' />
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					</SidebarMenu>
-					<Link
-						to='/system/settings/about'
-						className={cn('text-center font-mono text-meta hover:text-foreground', footerClass)}
+		<div className='flex h-dvh min-h-0 flex-col overflow-hidden'>
+			<header className='flex h-12 shrink-0 items-center gap-2 border-b px-3'>
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						render={
+							<button
+								type='button'
+								aria-label='Navigation'
+								className='flex h-8 shrink-0 items-center gap-2 rounded-md px-1.5 text-body hover:bg-muted'
+							/>
+						}
 					>
-						{footerText}
-					</Link>
-				</SidebarFooter>
-				<SidebarRail />
-			</Sidebar>
+						<Avatar className='size-5 rounded-sm'>
+							<AvatarFallback className='rounded-sm bg-primary text-[10px] font-semibold text-primary-foreground'>
+								VX
+							</AvatarFallback>
+						</Avatar>
+						<span className='font-medium'>vexdock</span>
+						{updateDot ? <span aria-hidden className={cn('size-1.5 rounded-full', updateDot)} /> : null}
+						<IconSelector className='size-3.5! text-muted-foreground' />
+					</DropdownMenuTrigger>
+					<DropdownMenuContent side='bottom' align='start' sideOffset={8} className='w-56'>
+						{groups.map(group => (
+							<DropdownMenuGroup key={group.label}>
+								<DropdownMenuLabel className='text-label text-muted-foreground'>
+									{group.label}
+								</DropdownMenuLabel>
+								{group.items.map(item => (
+									<DropdownMenuItem key={item.to} render={<Link to={item.to} />}>
+										<item.icon />
+										{item.label}
+									</DropdownMenuItem>
+								))}
+							</DropdownMenuGroup>
+						))}
+						<DropdownMenuSeparator />
+						<DropdownMenuItem render={<Link to='/system/settings/about' />}>
+							<span className={cn('font-mono text-meta', versionClass)}>{versionText}</span>
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+				<span aria-hidden className='shrink-0 text-muted-foreground/60'>
+					/
+				</span>
+				{/* The page's breadcrumb and actions land here, so a page owns what it
+				    is called without owning a bar of its own. */}
+				<div ref={setHeader} className='flex min-w-0 flex-1 items-center gap-3 overflow-hidden' />
+				<Button variant='ghost' onClick={() => setPaletteOpen(true)}>
+					<IconSearch />
+					<span className='hidden sm:inline'>Search</span>
+					<Keys keys={[mod, 'K']} />
+				</Button>
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						render={
+							<button
+								type='button'
+								aria-label='Account'
+								className='shrink-0 rounded-md p-1 hover:bg-muted'
+							/>
+						}
+					>
+						<Avatar className='size-6 rounded-md'>
+							<AvatarFallback className='rounded-md bg-secondary text-[10px] font-medium'>
+								{(email || '?').slice(0, 2).toUpperCase()}
+							</AvatarFallback>
+						</Avatar>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent side='bottom' align='end' sideOffset={8} className='w-60'>
+						<div className='px-2 py-1.5'>
+							<div className='truncate text-body font-medium'>{name}</div>
+							{email ? <div className='truncate text-label text-muted-foreground'>{email}</div> : null}
+						</div>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem render={<Link to='/system/settings' />}>
+							<IconSettings />
+							Settings
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setPaletteOpen(true)}>
+							<IconSearch />
+							Jump to
+							<DropdownMenuShortcut className='tracking-normal'>
+								<Keys keys={[mod, 'K']} />
+							</DropdownMenuShortcut>
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem onClick={() => logout.mutate()}>
+							<IconLogout />
+							Log out
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</header>
 
-			<SidebarInset className='min-h-0 overflow-hidden'>
-				{/* Below md the rail is a sheet, and this is the only way to open it. */}
-				<SidebarTrigger className='absolute top-2 right-2 z-20 md:hidden' />
-				{children}
-			</SidebarInset>
+			<div className='flex h-10 shrink-0 items-center gap-4 border-b px-3'>
+				{/* Hidden while the page fills the slot next to it: a page's own tabs
+				    replace its section's, the way the breadcrumb replaces its trail. */}
+				<nav className='flex min-w-0 items-center gap-0.5 overflow-x-auto [&:has(~div:not(:empty))]:hidden'>
+					{sectionOf(pathname).map(item => (
+						<SectionLink key={item.to} item={item} active={isActive(item, pathname)} />
+					))}
+				</nav>
+				<div ref={setToolbar} className='contents' />
+			</div>
+
+			<PageChrome value={chrome}>{children}</PageChrome>
 
 			<CommandPalette links={links} open={paletteOpen} onOpenChange={setPaletteOpen} />
-		</SidebarProvider>
+		</div>
 	)
 }

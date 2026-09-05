@@ -60,6 +60,7 @@ function ServiceLayout() {
 
 	return (
 		<Page
+			name={service.data?.compose_service_name}
 			// The name and its state live in the trail's service picker.
 			labels={{
 				[projectId]: (
