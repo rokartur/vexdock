@@ -72,7 +72,8 @@ therefore not hand-edited without reason. Pages never import them directly:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
 IconButton, Status, Confirm, EmptyState), so a design change happens in one
-file. The shell is a workspace bar over a section bar; tables are `DataTable` in
+file. The shell is a workspace bar over a nav bar that is the same on every
+page; tables are `DataTable` in
 `components/data-table.tsx`, its own primitive that pages import directly. A
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).
@@ -84,10 +85,8 @@ monochrome. Dense tables, and no continuously repainting animation: the panel
 is often left open.
 
 Every page is a `Page`: the breadcrumb and that page's actions go into the
-shell's workspace bar, its sub-navigation and its filters into the section bar
-under it (replacing the section's own links while that page is open), content
-below. A page renders those into the shell through `PageChrome`, so the window
-never stacks one level's chrome on another's. `Page` also names the browser tab
+shell's workspace bar through `PageChrome`, its sub-navigation and its filters
+into a row the page draws under the shell's two, content below. `Page` also names the browser tab
 from the URL; a route whose last segment is an id passes `name` for it.
 `Tabs` are underlined and move through the URL; `Segmented` is a joined row of
 outlined options that moves a value, the chosen one inverted. Every action

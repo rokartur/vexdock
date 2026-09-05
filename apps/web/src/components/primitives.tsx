@@ -194,16 +194,14 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 	return <IconButton icon={IconRefresh} label='Refresh' onClick={onClick} disabled={busy} />
 }
 
-type Chrome = { header: HTMLElement; toolbar: HTMLElement }
-
-const ChromeContext = createContext<Chrome | null>(null)
+const ChromeContext = createContext<HTMLElement | null>(null)
 
 /**
- * The shell lending its two bars to the page inside it. A page renders its
- * breadcrumb, actions and sub-navigation into them, so the chrome is one
- * strip at the top of the window rather than one per level.
+ * The shell lending its workspace bar to the page inside it. A page renders
+ * its breadcrumb and actions into it, so the top of the window says where you
+ * are without the page drawing a header of its own.
  */
-export function PageChrome({ value, children }: { value: Chrome | null; children: ReactNode }) {
+export function PageChrome({ value, children }: { value: HTMLElement | null; children: ReactNode }) {
 	return <ChromeContext.Provider value={value}>{children}</ChromeContext.Provider>
 }
 
@@ -231,7 +229,7 @@ export function Page({
 	/** What this page is about, for the tab, when the URL only has an id. */
 	name?: string
 	actions?: ReactNode
-	/** Sub-navigation, on the left of the row under the header. */
+	/** Sub-navigation, on the left of the page's own first row. */
 	toolbar?: ReactNode
 	/** What narrows the page, on the right of that same row. */
 	filters?: ReactNode
@@ -239,7 +237,7 @@ export function Page({
 }) {
 	const router = useRouter()
 	const pathname = useRouterState({ select: state => state.location.pathname })
-	const chrome = useContext(ChromeContext)
+	const header = useContext(ChromeContext)
 	const trail = trailOf(pathname, Object.keys(router.routesByPath)).filter(
 		({ segment }) => labels?.[segment] !== null,
 	)
@@ -298,19 +296,17 @@ export function Page({
 		</>
 	)
 
-	const bar = (
-		<>
-			{toolbar}
-			<div className='ml-auto flex items-center gap-2 pr-2'>{filters}</div>
-		</>
-	)
-
-	// Null only on the shell's very first render, before its bars have been
-	// committed; it sets them during that commit, so nothing paints without them.
+	// Null only on the shell's very first render, before its bar has been
+	// committed; it sets it during that commit, so nothing paints without it.
 	return (
 		<>
-			{chrome ? createPortal(head, chrome.header) : null}
-			{chrome && (toolbar || filters) ? createPortal(bar, chrome.toolbar) : null}
+			{header ? createPortal(head, header) : null}
+			{toolbar || filters ? (
+				<div className='flex h-10 shrink-0 items-center gap-4 border-b px-3'>
+					{toolbar}
+					{filters ? <div className='ml-auto flex items-center gap-2'>{filters}</div> : null}
+				</div>
+			) : null}
 			<div className='min-h-0 flex-1 overflow-y-auto px-5 py-5'>{children}</div>
 		</>
 	)
