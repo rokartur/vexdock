@@ -1,4 +1,13 @@
-import { type ComponentProps, Fragment, type ReactElement, type ReactNode, useState } from 'react'
+import {
+	type ComponentProps,
+	createContext,
+	Fragment,
+	type ReactElement,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useState,
+} from 'react'
 import {
 	IconAlertCircle,
 	IconDeviceFloppy,
@@ -9,6 +18,7 @@ import {
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { Link, useRouter, useRouterState } from '@tanstack/react-router'
+import { createPortal } from 'react-dom'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
 	AlertDialog,
@@ -184,9 +194,22 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 	return <IconButton icon={IconRefresh} label='Refresh' onClick={onClick} disabled={busy} />
 }
 
+type Chrome = { header: HTMLElement; toolbar: HTMLElement }
+
+const ChromeContext = createContext<Chrome | null>(null)
+
 /**
- * Fills the shell's content panel: a fixed title bar with optional actions,
- * then the scrolling body. Every page is a Page; nothing else scrolls.
+ * The shell lending its two bars to the page inside it. A page renders its
+ * breadcrumb, actions and sub-navigation into them, so the chrome is one
+ * strip at the top of the window rather than one per level.
+ */
+export function PageChrome({ value, children }: { value: Chrome | null; children: ReactNode }) {
+	return <ChromeContext.Provider value={value}>{children}</ChromeContext.Provider>
+}
+
+/**
+ * The scrolling body of the shell, plus what the page puts in the shell's
+ * bars. Every page is a Page; nothing else scrolls.
  *
  * The header trail is read off the URL, so a page never spells out its own
  * ancestors: /projects/api/settings renders Projects / api / Settings. Pass
@@ -198,12 +221,15 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
  */
 export function Page({
 	labels,
+	name,
 	actions,
 	toolbar,
 	filters,
 	children,
 }: {
 	labels?: Record<string, ReactNode>
+	/** What this page is about, for the tab, when the URL only has an id. */
+	name?: string
 	actions?: ReactNode
 	/** Sub-navigation, on the left of the row under the header. */
 	toolbar?: ReactNode
@@ -213,61 +239,78 @@ export function Page({
 }) {
 	const router = useRouter()
 	const pathname = useRouterState({ select: state => state.location.pathname })
+	const chrome = useContext(ChromeContext)
 	const trail = trailOf(pathname, Object.keys(router.routesByPath)).filter(
 		({ segment }) => labels?.[segment] !== null,
 	)
 
+	// The tab is named after the deepest thing the URL says, then what the page
+	// is inside of: Logs · storefront-web · Vexdock. A segment standing in for an
+	// id says nothing, so `name` speaks for it.
+	const tail = trail.at(-1)
+	const leaf = tail && labels?.[tail.segment] === undefined ? labelOf(tail.segment) : undefined
+	const title = [leaf, name, 'Vexdock'].filter(Boolean).join(' · ')
+	useEffect(() => {
+		document.title = title
+	}, [title])
+
+	const head = (
+		<>
+			<Breadcrumb className='min-w-0 flex-1'>
+				<BreadcrumbList className='flex-nowrap gap-2 overflow-hidden text-body sm:gap-2'>
+					{trail.map(({ segment, to, linkable }, index) => {
+						const label = labels?.[segment]
+						const last = index === trail.length - 1
+						// A supplied label owns its own interaction: the pickers render a
+						// button, and wrapping that in a link would navigate on the click
+						// that opens the popover. Only a plain last segment is the "page"
+						// (aria-current); a picker or an ancestor is a bare span, never a
+						// disabled link.
+						const crumbClass = cn(
+							'flex min-w-0 items-center gap-2 truncate',
+							last ? 'font-medium text-foreground' : 'text-muted-foreground',
+						)
+						let crumb: ReactNode
+						if (linkable && label === undefined) {
+							crumb = (
+								<BreadcrumbLink render={<Link to={to} />} className='truncate'>
+									{labelOf(segment)}
+								</BreadcrumbLink>
+							)
+						} else if (last && label === undefined) {
+							crumb = <BreadcrumbPage className={crumbClass}>{labelOf(segment)}</BreadcrumbPage>
+						} else {
+							crumb = <span className={crumbClass}>{label ?? labelOf(segment)}</span>
+						}
+						return (
+							<Fragment key={to}>
+								{index > 0 ? (
+									<BreadcrumbSeparator className='text-muted-foreground/60'>/</BreadcrumbSeparator>
+								) : null}
+								<BreadcrumbItem className='min-w-0 gap-2'>{crumb}</BreadcrumbItem>
+							</Fragment>
+						)
+					})}
+				</BreadcrumbList>
+			</Breadcrumb>
+			{/* Buttons carry their own shrink-0, so this only squeezes text actions. */}
+			{actions ? <div className='flex min-w-0 items-center gap-2'>{actions}</div> : null}
+		</>
+	)
+
+	const bar = (
+		<>
+			{toolbar}
+			<div className='ml-auto flex items-center gap-2 pr-2'>{filters}</div>
+		</>
+	)
+
+	// Null only on the shell's very first render, before its bars have been
+	// committed; it sets them during that commit, so nothing paints without them.
 	return (
 		<>
-			{/* pr-14 on small screens keeps the actions clear of the shell's sidebar toggle. */}
-			<header className='flex h-12 shrink-0 items-center justify-between gap-3 border-b px-5 pr-14 md:pr-5'>
-				<Breadcrumb className='min-w-0 flex-1'>
-					<BreadcrumbList className='flex-nowrap gap-2 overflow-hidden text-body sm:gap-2'>
-						{trail.map(({ segment, to, linkable }, index) => {
-							const label = labels?.[segment]
-							const last = index === trail.length - 1
-							// A supplied label owns its own interaction: the pickers render a
-							// button, and wrapping that in a link would navigate on the click
-							// that opens the popover. Only a plain last segment is the "page"
-							// (aria-current); a picker or an ancestor is a bare span, never a
-							// disabled link.
-							const crumbClass = cn(
-								'flex min-w-0 items-center gap-2 truncate',
-								last ? 'font-medium text-foreground' : 'text-muted-foreground',
-							)
-							let crumb: ReactNode
-							if (linkable && label === undefined) {
-								crumb = (
-									<BreadcrumbLink render={<Link to={to} />} className='truncate'>
-										{labelOf(segment)}
-									</BreadcrumbLink>
-								)
-							} else if (last && label === undefined) {
-								crumb = <BreadcrumbPage className={crumbClass}>{labelOf(segment)}</BreadcrumbPage>
-							} else {
-								crumb = <span className={crumbClass}>{label ?? labelOf(segment)}</span>
-							}
-							return (
-								<Fragment key={to}>
-									{index > 0 ? (
-										<BreadcrumbSeparator className='text-muted-foreground/60'>
-											/
-										</BreadcrumbSeparator>
-									) : null}
-									<BreadcrumbItem className='min-w-0 gap-2'>{crumb}</BreadcrumbItem>
-								</Fragment>
-							)
-						})}
-					</BreadcrumbList>
-				</Breadcrumb>
-				{actions ? <div className='flex shrink-0 items-center gap-2'>{actions}</div> : null}
-			</header>
-			{toolbar || filters ? (
-				<div className='flex h-10 shrink-0 items-center gap-4 border-b px-3'>
-					{toolbar}
-					<div className='ml-auto flex items-center gap-2 pr-2'>{filters}</div>
-				</div>
-			) : null}
+			{chrome ? createPortal(head, chrome.header) : null}
+			{chrome && (toolbar || filters) ? createPortal(bar, chrome.toolbar) : null}
 			<div className='min-h-0 flex-1 overflow-y-auto px-5 py-5'>{children}</div>
 		</>
 	)

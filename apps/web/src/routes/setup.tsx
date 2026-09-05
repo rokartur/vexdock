@@ -5,7 +5,10 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signUp } from '../lib/auth-client'
 
-export const Route = createFileRoute('/setup')({ component: SetupPage })
+export const Route = createFileRoute('/setup')({
+	component: SetupPage,
+	head: () => ({ meta: [{ title: 'Set up · Vexdock' }] }),
+})
 
 function SetupPage() {
 	const navigate = useNavigate()
@@ -35,7 +38,7 @@ function SetupPage() {
 	})
 
 	return (
-		<div className='mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6'>
+		<div className='mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6'>
 			<div className='mb-1 flex items-center gap-2.5'>
 				<span className='flex size-7 items-center justify-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground'>
 					VX

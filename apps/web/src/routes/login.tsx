@@ -5,7 +5,11 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signIn } from '../lib/auth-client'
 
-export const Route = createFileRoute('/login')({ component: LoginPage })
+export const Route = createFileRoute('/login')({
+	component: LoginPage,
+	// Pages inside the shell name the tab themselves; this one is outside it.
+	head: () => ({ meta: [{ title: 'Sign in · Vexdock' }] }),
+})
 
 function LoginPage() {
 	const navigate = useNavigate()
@@ -25,7 +29,7 @@ function LoginPage() {
 	})
 
 	return (
-		<div className='mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6'>
+		<div className='mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6'>
 			<div className='mb-6 flex items-center gap-2.5'>
 				<span className='flex size-7 items-center justify-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground'>
 					VX
