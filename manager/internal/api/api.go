@@ -155,6 +155,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/git-accounts", s.protected(s.handleCreateGitAccount))
 	mux.Handle("DELETE /api/git-accounts/{id}", s.protected(s.handleDeleteGitAccount))
 	mux.Handle("GET /api/git-accounts/{id}/repositories", s.protected(s.handleGitAccountRepositories))
+	mux.Handle("GET /api/git-accounts/{id}/branches", s.protected(s.handleGitAccountBranches))
 
 	mux.Handle("GET /api/tokens", s.protected(s.handleListTokens))
 	mux.Handle("POST /api/tokens", s.protected(s.handleCreateToken))

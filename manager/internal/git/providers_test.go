@@ -80,6 +80,48 @@ func TestListRepositoriesDropsUncloneableURL(t *testing.T) {
 	}
 }
 
+// Every provider names a branch the same way; only the path differs, and
+// GitLab's is the one that has to carry an encoded slash.
+func TestListBranchesPerProviderPath(t *testing.T) {
+	want := map[string]string{
+		"github": "/repos/acme/api/branches",
+		"gitea":  "/repos/acme/api/branches",
+		"gitlab": "/projects/acme%2Fapi/repository/branches",
+	}
+	for provider, wantPath := range want {
+		t.Run(provider, func(t *testing.T) {
+			var gotPath string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.EscapedPath()
+				_, _ = w.Write([]byte(`[{"name":"main"},{"name":"../etc"}]`))
+			}))
+			defer srv.Close()
+
+			branches, err := listBranches(context.Background(), provider, srv.URL, "t", "acme/api")
+			if err != nil {
+				t.Fatalf("list: %v", err)
+			}
+			if gotPath != wantPath {
+				t.Errorf("path = %q, want %q", gotPath, wantPath)
+			}
+			// The traversing name is not a ref git would check out.
+			if len(branches) != 1 || branches[0] != "main" {
+				t.Errorf("got %q, want [main]", branches)
+			}
+		})
+	}
+}
+
+// The repository name comes from the dashboard and is interpolated into a URL
+// path, so it never leaves the shape a provider uses.
+func TestListBranchesRejectsRepoOutsidePathShape(t *testing.T) {
+	for _, repo := range []string{"acme", "acme/../../admin", "acme/api?x=1", ""} {
+		if _, err := ListBranches(context.Background(), "github", "", "t", repo); err == nil {
+			t.Errorf("ListBranches(%q) = nil error, want a rejection", repo)
+		}
+	}
+}
+
 func TestAPIBase(t *testing.T) {
 	cases := []struct {
 		provider, host, want string

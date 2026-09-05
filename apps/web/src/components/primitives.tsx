@@ -4,6 +4,7 @@ import {
 	IconDeviceFloppy,
 	IconInbox,
 	IconRefresh,
+	IconSelector,
 	IconTrash,
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
@@ -31,11 +32,13 @@ import {
 import { Button as ShadcnButton } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field as ShadcnField, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input as ShadcnInput } from '@/components/ui/input'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select as ShadcnSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch as ShadcnSwitch } from '@/components/ui/switch'
 import { Tabs as ShadcnTabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -712,6 +715,71 @@ export function Select<TValue extends string>({
 				))}
 			</SelectContent>
 		</ShadcnSelect>
+	)
+}
+
+/**
+ * A Select that is typed into. Same props, plus a search box over the options:
+ * the shape for a list that arrives from a provider and can be long, like
+ * repositories or branches. Under a hundred fixed choices, use Select.
+ */
+export function Combo<TValue extends string>({
+	value,
+	options,
+	onChange,
+	disabled,
+	placeholder = 'Select',
+	empty = 'No matches',
+}: {
+	value: TValue | ''
+	options: readonly { value: NoInfer<TValue>; label: string }[]
+	onChange: (value: TValue) => void
+	disabled?: boolean
+	/** Shown while nothing is picked yet, or while the list is still loading. */
+	placeholder?: string
+	/** Shown when the search matches nothing. */
+	empty?: string
+}) {
+	const [open, setOpen] = useState(false)
+	const selected = options.find(option => option.value === value)
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger
+				render={
+					<button
+						type='button'
+						disabled={disabled}
+						className='flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-left text-body transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50'
+					>
+						<span className={cn('line-clamp-1', selected ? undefined : 'text-muted-foreground')}>
+							{selected?.label || value || placeholder}
+						</span>
+						<IconSelector className='size-4 shrink-0 text-muted-foreground' />
+					</button>
+				}
+			/>
+			<PopoverContent align='start' className='w-(--anchor-width) p-0'>
+				<Command>
+					<CommandInput placeholder={placeholder} />
+					<CommandList>
+						<CommandEmpty>{empty}</CommandEmpty>
+						{options.map(option => (
+							<CommandItem
+								key={option.value}
+								value={option.label}
+								data-checked={option.value === value}
+								onSelect={() => {
+									onChange(option.value)
+									setOpen(false)
+								}}
+							>
+								{option.label}
+							</CommandItem>
+						))}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
 	)
 }
 

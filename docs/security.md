@@ -126,10 +126,13 @@ unencrypted, so a command that echoes a secret leaves it in the run history.
   SSH host keys are pinned on first use in `/opt/vexdock/secrets/known_hosts`,
   so a later clone from a host whose key changed fails instead of proceeding.
 - A connected git account is one provider token, encrypted with the same key and
-  decrypted for two things only: listing that account's repositories for the
-  source picker, and cloning a service that points at it. The token is write-only
-  over the API, the dashboard only ever receives repository names and clone URLs,
-  and a clone URL coming back from a provider is validated exactly like one typed
+  decrypted for two things only: listing that account's repositories and their
+  branches for the source picker, and cloning a service that points at it. The
+  repository name the branch listing takes is interpolated into the provider's
+  URL path, so it must be an `owner/name` before the request is made and cannot
+  point a token at a path of someone else's choosing. The token is write-only
+  over the API, the dashboard only ever receives repository names, branch names
+  and clone URLs, and a clone URL coming back from a provider is validated exactly like one typed
   by hand before it can reach a `git clone`. A self-hosted host must be an https
   origin, so a token is never sent in the clear, and the API path after that
   origin is fixed by the manager.

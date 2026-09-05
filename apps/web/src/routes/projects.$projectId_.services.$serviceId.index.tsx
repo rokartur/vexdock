@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import {
 	Button,
+	Combo,
 	ErrorText,
 	Fact,
 	Facts,
@@ -253,6 +254,20 @@ function SourceSection({ service }: { service: Service }) {
 			: []),
 	]
 
+	// Branches come from the repository that is actually selected, so the field
+	// offers what the remote has instead of accepting a name that fails at clone
+	// time. A repository the account no longer lists has no name to ask about.
+	const selectedRepository = listed.find(repo => repo.clone_url === repositoryUrl)
+	const branches = useQuery({
+		queryKey: ['git-branches', accountId, selectedRepository?.full_name],
+		queryFn: () => api.gitBranches(accountId, selectedRepository?.full_name ?? ''),
+		enabled: accountId !== '' && selectedRepository !== undefined,
+	})
+	const branchOptions = [
+		...(branches.data ?? []).map(name => ({ value: name, label: name })),
+		...(branch && !(branches.data ?? []).includes(branch) ? [{ value: branch, label: branch }] : []),
+	]
+
 	const save = useMutation({
 		mutationFn: () =>
 			api.updateService(service.id, {
@@ -319,19 +334,12 @@ function SourceSection({ service }: { service: Service }) {
 						{accountId === '' ? (
 							<Input value={repositoryUrl} onChange={event => setRepositoryUrl(event.target.value)} />
 						) : (
-							<Select
+							<Combo
 								value={repositoryUrl}
 								disabled={repositories.isPending}
-								options={
-									repositoryOptions.length > 0
-										? repositoryOptions
-										: [
-												{
-													value: '',
-													label: repositories.isPending ? 'Loading…' : 'No repositories',
-												},
-											]
-								}
+								placeholder={repositories.isPending ? 'Loading…' : 'Search repositories'}
+								empty='No repositories'
+								options={repositoryOptions}
 								onChange={url => {
 									setRepositoryUrl(url)
 									const picked = listed.find(repo => repo.clone_url === url)
@@ -341,8 +349,18 @@ function SourceSection({ service }: { service: Service }) {
 						)}
 					</Field>
 					<div className='grid gap-x-6 md:grid-cols-2'>
-						<Field label='Branch'>
-							<Input value={branch} onChange={event => setBranch(event.target.value)} />
+						<Field label='Branch' hint={branches.error?.message ?? undefined}>
+							{branches.isSuccess ? (
+								<Combo
+									value={branch}
+									placeholder='Search branches'
+									empty='No branches'
+									options={branchOptions}
+									onChange={setBranch}
+								/>
+							) : (
+								<Input value={branch} onChange={event => setBranch(event.target.value)} />
+							)}
 						</Field>
 						<Field label='Build path'>
 							<Input value={buildPath} onChange={event => setBuildPath(event.target.value)} />
