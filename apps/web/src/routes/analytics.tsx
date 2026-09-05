@@ -74,7 +74,7 @@ function AnalyticsPage() {
 	if (!(domains.isLoading || tracked.length)) {
 		return (
 			<Page>
-				<div className='rounded-xl border bg-card'>
+				<div className='rounded-xl border bg-card raised'>
 					<EmptyState
 						icon={IconChartBar}
 						title='No domain is collecting yet'
@@ -219,7 +219,8 @@ function TrafficChart({ traffic, range }: { traffic: Traffic; range: AnalyticsRa
 			>
 				<ResponsiveContainer width='100%' height='100%'>
 					<AreaChart data={points} margin={{ top: 1, right: 0, bottom: 0, left: 0 }}>
-						<CartesianGrid vertical={false} stroke='var(--border)' />
+						{/* Grid lines sit inside a card, so they take the quiet hairline. */}
+						<CartesianGrid vertical={false} stroke='var(--rule)' />
 						<XAxis
 							dataKey='at'
 							type='number'
@@ -341,9 +342,7 @@ function Donut({ rows }: { rows: Breakdown[] }) {
 							className='size-2 shrink-0 rounded-xs bg-foreground'
 						/>
 						<span className='truncate'>{row.name}</span>
-						<span className='ml-auto font-mono tabular-nums'>
-							{Math.round((row.visitors / total) * 100)}%
-						</span>
+						<span className='ml-auto font-mono'>{Math.round((row.visitors / total) * 100)}%</span>
 					</li>
 				))}
 			</ul>
@@ -409,7 +408,7 @@ function Top({ title, rows, unit }: { title: string; rows: Breakdown[] | undefin
 								className='absolute inset-y-0 left-0 bg-foreground/8'
 							/>
 							<span className='relative truncate'>{row.name}</span>
-							<span className='relative font-mono tabular-nums'>{value(row)}</span>
+							<span className='relative font-mono'>{value(row)}</span>
 						</li>
 					))}
 				</ul>

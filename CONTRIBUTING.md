@@ -98,10 +98,13 @@ the palette, `--radius`, the type scale and `--font-sans` (Geist;
 `--font-mono` stays for machine output: console, code, ids) are set once
 there, so reskinning is a token edit and never a sweep over pages. Every corner
 in the app comes off `--radius`: the whole `--radius-*` ladder is derived from
-it two pixels a rung, `md`/`lg` for anything clickable and `xl` upwards for
-boxes, so no component ever writes a radius of its own. A card draws its edge
-as a one-pixel border, never a shadow; inside it, rows are separated by single
-hairlines (`--border`): tables separate rows with them, readings sit in a
+it, `md`/`lg` for anything clickable and `xl` upwards for boxes, so no
+component ever writes a radius of its own. A card draws its edge as a
+one-pixel border, never a shadow, plus the `raised` utility: a one-pixel inset
+highlight (`--highlight`) that is what makes a surface read as lit from above.
+Hairlines come in two weights, and using the wrong one flattens the page:
+`--border` is a container's own edge, `--rule` is a separator inside one and is
+quieter. Tables separate rows with `--rule`, readings sit in a
 `Cells` grid that owns the hairlines its children must not redraw, and
 attributes are read as a `Facts` list: label left, value right, a rule between
 rows. The type scale is custom `text-*` tokens; `utils/cn.ts` registers them

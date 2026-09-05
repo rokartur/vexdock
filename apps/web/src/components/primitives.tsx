@@ -73,7 +73,7 @@ export function Button({ variant = 'default', type = 'button', ...props }: Butto
 		<ShadcnButton
 			type={type}
 			variant={buttonVariants[variant]}
-			className={cn('text-body', variant === 'ghost' && 'text-muted-foreground hover:text-foreground')}
+			className={cn('text-body', variant === 'ghost' ? 'text-muted-foreground hover:text-foreground' : 'raised')}
 			{...props}
 		/>
 	)
@@ -109,7 +109,7 @@ export function IconButton({
 						nativeButton={props.render === undefined}
 						// A pressed toggle (follow, wrap) reads as its hover state kept on.
 						className={cn(
-							variant === 'ghost' && 'text-muted-foreground hover:text-foreground',
+							variant === 'ghost' ? 'text-muted-foreground hover:text-foreground' : 'raised',
 							'aria-pressed:bg-muted aria-pressed:text-foreground',
 						)}
 						{...props}
@@ -409,7 +409,7 @@ export function FormSection({
 	children: ReactNode
 }) {
 	const card = (
-		<Card className='mb-4 gap-0 py-0 ring-border'>
+		<Card className='mb-4 gap-0 py-0 raised ring-border'>
 			<CardHeader className='gap-0.5 px-5 pt-4'>
 				<CardTitle className='flex items-center gap-2 text-title'>
 					{Icon ? <Icon className='size-4 text-muted-foreground' /> : null}
@@ -419,7 +419,7 @@ export function FormSection({
 			</CardHeader>
 			<CardContent className='px-5 py-4'>{children}</CardContent>
 			{actions || hint ? (
-				<CardFooter className='min-h-12 justify-between gap-3 px-5 py-2.5 text-label text-muted-foreground'>
+				<CardFooter className='min-h-12 justify-between gap-3 border-rule px-5 py-2.5 text-label text-muted-foreground'>
 					<span>{hint}</span>
 					<div className='flex items-center gap-2'>{actions}</div>
 				</CardFooter>
@@ -454,6 +454,9 @@ export function Cells({ children, className }: { children: ReactNode; className?
 		<div
 			className={cn(
 				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-xl border bg-card [&>*]:bg-card [&>*]:outline [&>*]:outline-1 [&>*]:outline-border',
+				// The lit edge belongs to the grid's own top row, not to every cell: an
+				// interior cell is not raised above the one above it.
+				'raised',
 				className,
 			)}
 		>
@@ -488,7 +491,7 @@ export function Cell({
 				{label}
 			</div>
 			{value === undefined ? null : (
-				<div className='mt-0.5 truncate text-reading font-semibold tracking-tight tabular-nums'>{value}</div>
+				<div className='mt-0.5 truncate text-reading font-semibold tracking-tight'>{value}</div>
 			)}
 			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
 			{children}
@@ -502,7 +505,12 @@ export function Cell({
  */
 export function Facts({ children, className }: { children: ReactNode; className?: string }) {
 	return (
-		<ItemGroup className={cn('gap-0 rounded-xl border bg-card px-3 [&>*+*]:border-t', className)}>
+		<ItemGroup
+			className={cn(
+				'gap-0 rounded-xl border bg-card px-3 raised [&>*+*]:border-t [&>*+*]:border-rule',
+				className,
+			)}
+		>
 			{children}
 		</ItemGroup>
 	)

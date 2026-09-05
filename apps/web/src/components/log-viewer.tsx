@@ -191,18 +191,16 @@ function LogLine({ line }: { line: Line }) {
 	return (
 		<div className='flex gap-3'>
 			{time ? (
-				<span className='shrink-0 text-console-muted tabular-nums' title={timestamp ?? undefined}>
+				<span className='shrink-0 text-console-muted' title={timestamp ?? undefined}>
 					{time}
 				</span>
 			) : null}
 			{request ? (
 				<>
-					<span className={cn('w-8 shrink-0 tabular-nums', statusColor[request.status[0] ?? ''])}>
-						{request.status}
-					</span>
+					<span className={cn('w-8 shrink-0', statusColor[request.status[0] ?? ''])}>{request.status}</span>
 					<span className='w-14 shrink-0 text-console-muted'>{request.method}</span>
 					<span className='min-w-0 flex-1 break-all'>{request.path}</span>
-					<span className='shrink-0 text-console-muted tabular-nums'>{bytes(request.bytes)}</span>
+					<span className='shrink-0 text-console-muted'>{bytes(request.bytes)}</span>
 					<span className='shrink-0 text-console-muted'>{request.client}</span>
 				</>
 			) : (

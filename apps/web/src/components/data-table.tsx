@@ -126,9 +126,9 @@ export function DataTable<TData extends RowData>({
 	return (
 		/* The table is a card: hairline border for the outer edge, rows separated by their own hairlines.
 		   overflow-hidden clips the edge-to-edge sticky header background at the rounded corners. */
-		<div className='overflow-hidden rounded-xl border bg-card'>
+		<div className='overflow-hidden rounded-xl border bg-card raised'>
 			{filter ? (
-				<div className='relative border-b'>
+				<div className='relative border-b border-rule'>
 					<IconSearch className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' />
 					<Input
 						value={globalFilter}
@@ -144,7 +144,8 @@ export function DataTable<TData extends RowData>({
 			) : null}
 			{/* Rows and hairlines run edge to edge; the gutter lives in each row's first and last cell. */}
 			<div className='max-h-[70vh] overflow-auto'>
-				<ShadcnTable className='text-body [&_td:first-child]:pl-4 [&_th:first-child]:pl-4'>
+				{/* Row separators are the quiet hairline; the card's own edge stays --border. */}
+				<ShadcnTable className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_th:first-child]:pl-4'>
 					<TableHeader>
 						{table.getHeaderGroups().map(headerGroup => (
 							<TableRow key={headerGroup.id} className='hover:bg-transparent'>
@@ -157,7 +158,7 @@ export function DataTable<TData extends RowData>({
 												// The hairline lives on the th (inset shadow), not the tr border: collapsed
 												// tr borders do not travel with sticky cells, which reads as a gap when rows
 												// scroll underneath.
-												'sticky top-0 z-10 h-9 bg-card pr-3 pl-0 text-label font-medium text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]',
+												'sticky top-0 z-10 h-8 bg-card pr-3 pl-0 text-label font-medium text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]',
 												header.column.columnDef.meta?.align === 'right' && 'text-right',
 											)}
 										>
@@ -222,7 +223,7 @@ export function DataTable<TData extends RowData>({
 												<TableCell
 													key={cell.id}
 													className={cn(
-														'h-10 py-2 pr-3 pl-0',
+														'h-8 py-0.5 pr-3 pl-0',
 														cell.column.columnDef.meta?.align === 'right' && 'text-right',
 														cell.column.columnDef.meta?.mono && 'font-mono text-label',
 													)}
@@ -246,7 +247,7 @@ export function DataTable<TData extends RowData>({
 				</ShadcnTable>
 			</div>
 			{pageCount > 1 && (
-				<div className='flex items-center justify-between gap-2 border-t px-4 py-1.5 text-label text-muted-foreground'>
+				<div className='flex items-center justify-between gap-2 border-t border-rule px-4 py-1.5 text-label text-muted-foreground'>
 					<span className='font-mono'>
 						{safePageIndex * pageSize + 1}–{Math.min((safePageIndex + 1) * pageSize, visible.length)} of{' '}
 						{visible.length}
@@ -293,7 +294,7 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
 			{Array.from({ length: rows }, (_row, index) => (
 				<TableRow key={index} className='hover:bg-transparent'>
 					{Array.from({ length: columns }, (_cell, cell) => (
-						<TableCell key={cell} className='h-10 py-2 pr-3 pl-0'>
+						<TableCell key={cell} className='h-8 py-0.5 pr-3 pl-0'>
 							{/* animate-none: a pulse repaints for as long as the fetch takes. */}
 							<Skeleton className='h-3 w-24 animate-none' />
 						</TableCell>
