@@ -74,13 +74,8 @@ func (s *Server) handleDeleteGitAccount(w http.ResponseWriter, r *http.Request) 
 // handleGitAccountRepositories is what the source picker reads: the token never
 // leaves the manager, the dashboard only ever sees names and clone URLs.
 func (s *Server) handleGitAccountRepositories(w http.ResponseWriter, r *http.Request) {
-	account, err := s.DB.GitAccount(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
-		return
-	}
-	token, err := s.Cipher.Decrypt(account.EncryptedTok)
-	if err != nil {
-		serverError(w, err)
+	account, token, ok := s.gitAccountToken(w, r)
+	if !ok {
 		return
 	}
 	repos, err := git.ListRepositories(r.Context(), account.Provider, account.Host, token)
@@ -89,4 +84,39 @@ func (s *Server) handleGitAccountRepositories(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, repos)
+}
+
+// handleGitAccountBranches backs the branch picker, so a branch is chosen from
+// what the remote has rather than typed and discovered wrong at deploy time.
+func (s *Server) handleGitAccountBranches(w http.ResponseWriter, r *http.Request) {
+	account, token, ok := s.gitAccountToken(w, r)
+	if !ok {
+		return
+	}
+	repo := strings.TrimSpace(r.URL.Query().Get("repository"))
+	if repo == "" {
+		badRequest(w, errors.New("a repository is required"))
+		return
+	}
+	branches, err := git.ListBranches(r.Context(), account.Provider, account.Host, token, repo)
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, branches)
+}
+
+// gitAccountToken resolves the account in the path and decrypts its token,
+// answering the request itself on any failure.
+func (s *Server) gitAccountToken(w http.ResponseWriter, r *http.Request) (*database.GitAccount, string, bool) {
+	account, err := s.DB.GitAccount(r.Context(), r.PathValue("id"))
+	if handleLookupError(w, err) {
+		return nil, "", false
+	}
+	token, err := s.Cipher.Decrypt(account.EncryptedTok)
+	if err != nil {
+		serverError(w, err)
+		return nil, "", false
+	}
+	return account, token, true
 }

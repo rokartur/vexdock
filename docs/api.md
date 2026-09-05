@@ -387,6 +387,7 @@ data rather than junk; the other kinds can be rebuilt and ask for nothing.
 | `POST /api/git-accounts` | `{"provider", "name", "host", "token"}`. `201` |
 | `DELETE /api/git-accounts/{id}` | Removes one |
 | `GET /api/git-accounts/{id}/repositories` | `[{"full_name", "clone_url", "default_branch"}]` |
+| `GET /api/git-accounts/{id}/branches` | `?repository=owner/name`; the repository's branch names |
 
 An account is one provider token stored encrypted and reused by every service
 that sets `git_account_id`, which is how a repository gets picked from a list
@@ -397,7 +398,10 @@ so a token that cannot read them is rejected here rather than mid-deployment.
 
 The repository list is one page of a hundred, most recently active first, and
 entries whose clone URL would not pass the same validation as a hand-typed one
-are dropped. Deleting an account clears it off its services, which then have no
+are dropped. Branches are the same: one page of a hundred, and a name that git
+would not accept as a ref is dropped. `repository` is interpolated into the
+provider's URL path, so it must be an `owner/name` of the characters a provider
+uses and is rejected otherwise. Deleting an account clears it off its services, which then have no
 credential and fail their next deployment rather than deploying a stale checkout.
 
 ## Registries

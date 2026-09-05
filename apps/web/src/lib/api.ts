@@ -796,6 +796,8 @@ export const api = {
 		request<GitAccount>('/api/git-accounts', { method: 'POST', body }),
 	deleteGitAccount: (id: string) => request<{ ok: boolean }>(`/api/git-accounts/${id}`, { method: 'DELETE' }),
 	gitRepositories: (id: string) => request<GitRepository[]>(`/api/git-accounts/${id}/repositories`),
+	gitBranches: (id: string, repository: string) =>
+		request<string[]>(`/api/git-accounts/${id}/branches?repository=${encodeURIComponent(repository)}`),
 
 	registries: () => request<Registry[]>('/api/registries'),
 	createRegistry: (body: { name: string; url: string; username: string; password: string }) =>
