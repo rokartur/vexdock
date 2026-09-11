@@ -45,7 +45,6 @@ token and create the administrator account.
   to a project with their image, volume and credentials generated, or any other
   image you name.
 - **API tokens.** The same REST API the dashboard uses, for CI.
-- **Audit log.** Who changed what, when, and from where.
 
 ## What it deliberately does not do
 

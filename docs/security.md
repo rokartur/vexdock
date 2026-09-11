@@ -170,6 +170,8 @@ removed.
 Deleting a container is offered only once it is stopped, so the dashboard never
 sends the `force` the API would accept; the volumes stay behind either way, and
 the next deploy recreates anything the platform manages.
+Deleting a snapshot removes its directory and nothing else; the name is resolved
+inside the backups directory first, so it cannot point at a path outside it.
 Uninstalling keeps application data by default.
 
 ## Proxy configuration

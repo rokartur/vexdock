@@ -21,6 +21,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/docker"
+	"github.com/vexdock/platform/manager/internal/security"
 )
 
 type Service struct {
@@ -131,6 +132,18 @@ func (s *Service) List() ([]Snapshot, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name > out[j].Name })
 	return out, nil
+}
+
+// Delete removes one snapshot by name.
+func (s *Service) Delete(name string) error {
+	dir, err := security.ResolveInside(s.cfg.BackupsDir, name)
+	if err != nil {
+		return err
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return fmt.Errorf("backup %q not found", name)
+	}
+	return os.RemoveAll(dir)
 }
 
 // Prune keeps the newest n snapshots.

@@ -201,9 +201,8 @@ vx /api/docker/containers/$CONTAINER/remove?force=true -X POST
 
 ```sh
 vx /api/system/settings                                  # PUT writes the whole object; cloudflare_api_token is write-only
-vx /api/system/audit                                     # last 100 mutations
 vx /api/system/backup -X POST                            # ?volumes=true is slow and large; snapshot holds the master key
-vx /api/system/backups
+vx /api/system/backups; vx /api/system/backups/2026-01-05T031500 -X DELETE
 vx /api/system/version; vx /api/system/version/check -X POST
 vx /api/system/update -X POST -d '{}'                    # latest on track; refuses 409 UNHEALTHY
 vx /api/system/update/status                             # phase: idle|backup|pulling|restarting|done|rolled-back

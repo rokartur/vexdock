@@ -24,30 +24,6 @@ func (db *DB) RecordAudit(ctx context.Context, e AuditEntry) error {
 	return err
 }
 
-// ListAudit returns the newest entries first.
-func (db *DB) ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
-	}
-	rows, err := db.QueryContext(ctx,
-		`SELECT id, at, actor, method, path, status, client_ip, credential
-		 FROM audit_log ORDER BY at DESC LIMIT ?`, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []AuditEntry{}
-	for rows.Next() {
-		var e AuditEntry
-		if err := rows.Scan(&e.ID, &e.At, &e.Actor, &e.Method, &e.Path, &e.Status,
-			&e.ClientIP, &e.Credential); err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
-}
-
 // PruneAudit keeps the newest n entries so the table cannot grow without bound.
 func (db *DB) PruneAudit(ctx context.Context, keep int) error {
 	_, err := db.ExecContext(ctx,
