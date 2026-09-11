@@ -371,9 +371,9 @@ and keeps polling until the manager returns.
 | `GET /api/system/metrics` | Recorded host usage over `?window=`, which seeds the charts before live samples arrive |
 | `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, notification webhook, brand colour, Cloudflare token |
 | `GET /api/system/certificates` | Every issued certificate |
-| `GET /api/system/audit` | The hundred most recent state-changing calls |
 | `POST /api/system/backup` | Takes a snapshot; `?volumes=true` includes volume archives. `201` |
 | `GET /api/system/backups` | The snapshots on disk |
+| `DELETE /api/system/backups/{name}` | Removes one snapshot directory |
 
 `?window=` is `30m`, `1h`, `6h`, `24h` or `7d`, and anything else is `30m`. The
 range is reduced to at most 240 points, so a wider window returns coarser

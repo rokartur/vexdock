@@ -1,12 +1,13 @@
-import { IconArchive, IconDatabase } from '@tabler/icons-react'
+import { useMemo } from 'react'
+import { IconArchive, IconDatabase, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, ErrorText, Page, Refresh, Section } from '../components/primitives'
+import { Button, Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
 import { api, type Backup } from '../lib/api'
 import { bytes, since } from '../lib/format'
 
-const backupTableColumns: Columns<Backup> = (() => {
+function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 	const cell = columnsFor<Backup>()
 	return [
 		cell.accessor(backup => backup.name, {
@@ -35,8 +36,22 @@ const backupTableColumns: Columns<Backup> = (() => {
 			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
 		}),
 		cell.accessor(backup => backup.path, { id: 'path', header: 'Path', meta: { mono: true } }),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row }) => (
+				<Confirm
+					title={`Delete ${row.original.name}?`}
+					description='The snapshot and everything archived in it is removed from disk. There is no undo.'
+					onConfirm={() => remove(row.original.name)}
+				>
+					<IconButton icon={IconTrash} label='Delete' />
+				</Confirm>
+			),
+		}),
 	]
-})()
+}
 
 export const Route = createFileRoute('/system/backups')({ component: BackupsPage })
 
@@ -49,7 +64,14 @@ function BackupsPage() {
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
 	})
 
+	const remove = useMutation({
+		mutationFn: (name: string) => api.deleteBackup(name),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
+	})
+
 	const data = backups.data ?? []
+	const { mutate: removeBackup } = remove
+	const columns = useMemo(() => backupTableColumns(removeBackup), [removeBackup])
 
 	return (
 		<Page>
@@ -70,10 +92,10 @@ function BackupsPage() {
 					</div>
 				}
 			>
-				<ErrorText error={create.error} />
+				<ErrorText error={create.error ?? remove.error} />
 				<DataTable
 					data={data}
-					columns={backupTableColumns}
+					columns={columns}
 					loading={backups.isLoading}
 					getRowId={backup => backup.name}
 					filter='Filter backups'

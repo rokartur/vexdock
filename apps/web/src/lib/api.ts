@@ -500,17 +500,6 @@ export type SettingsUpdate = Omit<Settings, 'cloudflare_token_set'> & {
 	cloudflare_api_token?: string
 }
 
-export type AuditEntry = {
-	id: string
-	at: string
-	actor: string
-	method: string
-	path: string
-	status: number
-	client_ip: string
-	credential: string
-}
-
 export type Backup = {
 	name: string
 	path: string
@@ -871,10 +860,11 @@ export const api = {
 	settings: () => request<Settings>('/api/system/settings'),
 	saveSettings: (body: SettingsUpdate) => request<Settings>('/api/system/settings', { method: 'PUT', body }),
 	certificates: () => request<Certificate[]>('/api/system/certificates'),
-	audit: () => request<AuditEntry[]>('/api/system/audit'),
 	backups: () => request<Backup[]>('/api/system/backups'),
 	createBackup: (includeVolumes = false) =>
 		request<Backup>(`/api/system/backup?volumes=${includeVolumes}`, { method: 'POST' }),
+	deleteBackup: (name: string) =>
+		request<{ ok: boolean }>(`/api/system/backups/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 	version: () => request<VersionStatus>('/api/system/version'),
 	setVersionSettings: (settings: VersionSettings) =>
 		request<VersionStatus>('/api/system/version', { method: 'PUT', body: settings }),

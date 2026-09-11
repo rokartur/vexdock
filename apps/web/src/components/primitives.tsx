@@ -314,8 +314,9 @@ export function Page({
 }
 
 /**
- * Sub-navigation for a Page's `toolbar`, Vercel's underlined tabs: the active
- * one carries a 2px line on the band's own hairline. A tab links to
+ * Sub-navigation for a Page's `toolbar`, underlined tabs: the active one is
+ * white over a 2px line on the band's own hairline, the same state the nav
+ * bar draws one row above. A tab links to
  * `base + suffix`; the empty suffix is the layout's index route and only
  * matches the base itself.
  */
@@ -334,7 +335,7 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 						value={tab.label}
 						render={<Link to={base + tab.suffix} />}
 						nativeButton={false}
-						className='h-full rounded-none px-3 text-body after:bottom-0'
+						className='h-full rounded-none px-3 text-body font-normal after:-bottom-px data-active:font-medium'
 					>
 						{tab.label}
 					</TabsTrigger>

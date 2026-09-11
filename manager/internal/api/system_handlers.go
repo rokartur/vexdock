@@ -419,6 +419,14 @@ func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+func (s *Server) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
+	if err := s.Backups.Delete(r.PathValue("name")); err != nil {
+		badRequest(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleUpdate hands the swap to a detached updater container.
 func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -469,16 +477,6 @@ func (s *Server) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
 		resp.Log = s.Updater.LogTail(r.Context())
 	}
 	writeJSON(w, http.StatusOK, resp)
-}
-
-// handleAudit lists recent state-changing calls.
-func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.DB.ListAudit(r.Context(), 100)
-	if err != nil {
-		serverError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, entries)
 }
 
 func (s *Server) handleListRegistries(w http.ResponseWriter, r *http.Request) {

@@ -10,7 +10,6 @@ import {
 	IconDatabase,
 	IconFolder,
 	IconHome,
-	IconListDetails,
 	IconLogout,
 	IconSearch,
 	IconSettings,
@@ -57,7 +56,6 @@ const docker: NavItem[] = [
 const system: NavItem[] = [
 	{ to: '/system', label: 'Overview', icon: IconActivity, exact: true },
 	{ to: '/system/certificates', label: 'Certificates', icon: IconCertificate },
-	{ to: '/system/audit', label: 'Audit', icon: IconListDetails },
 	{ to: '/system/docker', label: 'Cleanup', icon: IconTrash },
 	{ to: '/system/backups', label: 'Backups', icon: IconArchive },
 	{ to: '/system/settings', label: 'Settings', icon: IconSettings },
@@ -71,8 +69,10 @@ const groups = [
 
 const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
-const pill =
-	'flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-body whitespace-nowrap transition-colors data-[on=false]:text-muted-foreground data-[on=false]:hover:text-foreground data-[on=true]:bg-muted data-[on=true]:text-foreground'
+// Same active state as a page's Tabs: white label over a 2px rule sitting on
+// the bar's own hairline, so "where I am" reads the same in both rows.
+const navItem =
+	'relative flex h-full shrink-0 items-center gap-1.5 px-2.5 text-body whitespace-nowrap transition-colors data-[on=false]:text-muted-foreground data-[on=false]:hover:text-foreground data-[on=true]:font-medium data-[on=true]:text-foreground data-[on=true]:after:absolute data-[on=true]:after:inset-x-0 data-[on=true]:after:-bottom-px data-[on=true]:after:h-0.5 data-[on=true]:after:bg-foreground'
 
 /** One destination in the nav bar. */
 function SectionLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -82,7 +82,7 @@ function SectionLink({ item, active }: { item: NavItem; active: boolean }) {
 			draggable={false}
 			aria-current={active ? 'page' : undefined}
 			data-on={active}
-			className={pill}
+			className={navItem}
 		>
 			<item.icon stroke={1.5} className='size-4' />
 			{item.label}
@@ -109,7 +109,7 @@ function SectionMenu({
 	const active = items.some(item => isActive(item, pathname))
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger render={<button type='button' aria-label={label} data-on={active} className={pill} />}>
+			<DropdownMenuTrigger render={<button type='button' aria-label={label} data-on={active} className={navItem} />}>
 				<Icon stroke={1.5} className='size-4' />
 				{label}
 				<IconChevronDown className='size-3.5! text-muted-foreground' />
@@ -275,7 +275,7 @@ export function Shell({ children }: { children: ReactNode }) {
 			</header>
 
 			{/* The same destinations everywhere, so nothing has to be found twice. */}
-			<nav className='flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b px-3'>
+			<nav className='flex h-10 shrink-0 items-stretch overflow-x-auto border-b px-3'>
 				{home.map(item => (
 					<SectionLink key={item.to} item={item} active={isActive(item, pathname)} />
 				))}
@@ -284,7 +284,7 @@ export function Shell({ children }: { children: ReactNode }) {
 				<Link
 					to='/system/settings/about'
 					draggable={false}
-					className={cn('ml-auto flex shrink-0 items-center gap-1.5 pl-3 font-mono text-meta', versionClass)}
+					className={cn('my-auto ml-auto flex shrink-0 items-center gap-1.5 pl-3 font-mono text-meta', versionClass)}
 				>
 					{updateDot ? <span aria-hidden className={cn('size-1.5 rounded-full', updateDot)} /> : null}
 					{versionText}
