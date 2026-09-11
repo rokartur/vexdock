@@ -5,7 +5,6 @@ import {
 	IconArchive,
 	IconBox,
 	IconCertificate,
-	IconChartBar,
 	IconChevronDown,
 	IconClock,
 	IconDatabase,
@@ -46,7 +45,6 @@ const home: NavItem[] = [
 	{ to: '/projects', label: 'Projects', icon: IconFolder },
 	{ to: '/domains', label: 'Domains', icon: IconWorld },
 	{ to: '/tasks', label: 'Tasks', icon: IconClock },
-	{ to: '/analytics', label: 'Analytics', icon: IconChartBar },
 ]
 
 const docker: NavItem[] = [
