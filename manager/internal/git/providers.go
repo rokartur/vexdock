@@ -82,20 +82,27 @@ func listRepositories(ctx context.Context, provider, base, token string) ([]Repo
 		endpoint = base + "/projects?membership=true&simple=true&per_page=100&order_by=last_activity_at"
 	}
 
-	// GitHub and Gitea answer in the same shape; GitLab names the same two
-	// things differently. Decoding both at once is cheaper than a type per
-	// provider that only differs in its tags.
-	var body []struct {
-		FullName      string `json:"full_name"`
-		CloneURL      string `json:"clone_url"`
-		PathNamespace string `json:"path_with_namespace"`
-		HTTPURL       string `json:"http_url_to_repo"`
-		DefaultBranch string `json:"default_branch"`
-	}
+	var body []repository
 	if err := fetchJSON(ctx, provider, endpoint, token, &body); err != nil {
 		return nil, err
 	}
+	return deployable(body), nil
+}
 
+// repository is one entry of a provider's listing. GitHub and Gitea answer in
+// the same shape; GitLab names the same two things differently. Decoding both
+// at once is cheaper than a type per provider that only differs in its tags.
+type repository struct {
+	FullName      string `json:"full_name"`
+	CloneURL      string `json:"clone_url"`
+	PathNamespace string `json:"path_with_namespace"`
+	HTTPURL       string `json:"http_url_to_repo"`
+	DefaultBranch string `json:"default_branch"`
+}
+
+// deployable narrows a provider's listing to the repositories the manager could
+// actually clone.
+func deployable(body []repository) []Repository {
 	out := make([]Repository, 0, len(body))
 	for _, r := range body {
 		// The URL arrives over the network and ends up in a git clone, so it is
@@ -110,7 +117,7 @@ func listRepositories(ctx context.Context, provider, base, token string) ([]Repo
 			DefaultBranch: cmp.Or(r.DefaultBranch, "main"),
 		})
 	}
-	return out, nil
+	return out
 }
 
 // ListBranches returns the branch names of one repository, so a branch is
@@ -158,22 +165,30 @@ func listBranches(ctx context.Context, provider, base, token, repo string) ([]st
 // fetchJSON is the one authenticated GET the provider listings share. The token
 // only ever travels in the header the provider expects.
 func fetchJSON(ctx context.Context, provider, endpoint, token string, dest any) error {
+	header := http.Header{"Accept": {"application/json"}}
+	switch provider {
+	case "github":
+		header.Set("Authorization", "Bearer "+token)
+	case "gitea":
+		header.Set("Authorization", "token "+token)
+	case "gitlab":
+		header.Set("PRIVATE-TOKEN", token)
+	}
+	return send(ctx, provider, http.MethodGet, endpoint, header, dest)
+}
+
+// send is every call to a provider: one request, a bounded wait, and the same
+// reading of what went wrong. The caller owns the headers, so a credential only
+// ever travels the way its provider expects.
+func send(ctx context.Context, provider, method, endpoint string, header http.Header, dest any) error {
 	ctx, cancel := context.WithTimeout(ctx, listTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil)
 	if err != nil {
 		return err
 	}
-	switch provider {
-	case "github":
-		req.Header.Set("Authorization", "Bearer "+token)
-	case "gitea":
-		req.Header.Set("Authorization", "token "+token)
-	case "gitlab":
-		req.Header.Set("PRIVATE-TOKEN", token)
-	}
-	req.Header.Set("Accept", "application/json")
+	req.Header = header
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -182,10 +197,10 @@ func fetchJSON(ctx context.Context, provider, endpoint, token string, dest any) 
 	defer resp.Body.Close()
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return fmt.Errorf("%s rejected the token", provider)
+		return fmt.Errorf("%s rejected the credential", provider)
 	case resp.StatusCode == http.StatusNotFound:
 		return fmt.Errorf("%s does not have that repository", provider)
-	case resp.StatusCode != http.StatusOK:
+	case resp.StatusCode < 200 || resp.StatusCode > 299:
 		return fmt.Errorf("%s returned %s", provider, resp.Status)
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 4<<20)).Decode(dest); err != nil {

@@ -64,6 +64,10 @@ func (s *Server) handleCreateGitAccount(w http.ResponseWriter, r *http.Request) 
 // their repository URL and fall back to no credential, which fails loudly on
 // the next deployment instead of silently deploying an old checkout.
 func (s *Server) handleDeleteGitAccount(w http.ResponseWriter, r *http.Request) {
+	// A minted app token outlives the row it came from unless it is dropped.
+	if account, err := s.DB.GitAccount(r.Context(), r.PathValue("id")); err == nil {
+		git.ForgetInstallation(account.InstallationID)
+	}
 	if err := s.DB.DeleteGitAccount(r.Context(), r.PathValue("id")); err != nil {
 		serverError(w, err)
 		return
@@ -78,7 +82,15 @@ func (s *Server) handleGitAccountRepositories(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	repos, err := git.ListRepositories(r.Context(), account.Provider, account.Host, token)
+	// An app reaches the repositories its owner picked while installing it, not
+	// everything that owner can see, so it is asked a different question.
+	var repos []git.Repository
+	var err error
+	if account.InstallationID != "" {
+		repos, err = git.InstallationRepositories(r.Context(), token)
+	} else {
+		repos, err = git.ListRepositories(r.Context(), account.Provider, account.Host, token)
+	}
 	if err != nil {
 		badRequest(w, err)
 		return
@@ -106,16 +118,21 @@ func (s *Server) handleGitAccountBranches(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, branches)
 }
 
-// gitAccountToken resolves the account in the path and decrypts its token,
-// answering the request itself on any failure.
+// gitAccountToken resolves the account in the path and the token it can call
+// its provider with, answering the request itself on any failure.
 func (s *Server) gitAccountToken(w http.ResponseWriter, r *http.Request) (*database.GitAccount, string, bool) {
 	account, err := s.DB.GitAccount(r.Context(), r.PathValue("id"))
 	if handleLookupError(w, err) {
 		return nil, "", false
 	}
-	token, err := s.Cipher.Decrypt(account.EncryptedTok)
+	secret, err := s.Cipher.Decrypt(account.EncryptedTok)
 	if err != nil {
 		serverError(w, err)
+		return nil, "", false
+	}
+	token, err := git.AccountToken(r.Context(), account.AppID, account.InstallationID, secret)
+	if err != nil {
+		badRequest(w, err)
 		return nil, "", false
 	}
 	return account, token, true

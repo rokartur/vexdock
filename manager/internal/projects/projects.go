@@ -408,7 +408,13 @@ func (s *Service) Credential(ctx context.Context, svc *database.Service) (git.Cr
 		if err != nil {
 			return git.Credential{}, err
 		}
-		token, err := s.cipher.Decrypt(account.EncryptedTok)
+		secret, err := s.cipher.Decrypt(account.EncryptedTok)
+		if err != nil {
+			return git.Credential{}, err
+		}
+		// An app account holds a key rather than a token, and the token it mints
+		// expires within the hour, so it is resolved per clone.
+		token, err := git.AccountToken(ctx, account.AppID, account.InstallationID, secret)
 		if err != nil {
 			return git.Credential{}, err
 		}

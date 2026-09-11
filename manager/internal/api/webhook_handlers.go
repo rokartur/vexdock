@@ -9,6 +9,7 @@ import (
 
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/deployments"
+	"github.com/vexdock/platform/manager/internal/git"
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
@@ -46,42 +47,109 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "pong"})
 		return
 	}
-	envs, err := s.DB.ListEnvironments(r.Context(), project.ID)
+	ref, repos := pushRef(body), pushRepos(body)
+	queued, err := s.queueFollowers(r.Context(), project, ref, repos)
 	if err != nil {
 		serverError(w, err)
 		return
-	}
-	// One push can deploy more than one environment, and usually deploys none of
-	// the others: production tracks main while staging tracks its own branch. A
-	// project's services can come from different repositories, so the payload's
-	// repository has to match too, or a push to one would redeploy the other.
-	ref, repos := pushRef(body), pushRepos(body)
-	queued := []string{}
-	for i := range envs {
-		env := &envs[i]
-		matched, err := s.environmentFollows(r.Context(), env, ref, repos)
-		if err != nil {
-			serverError(w, err)
-			return
-		}
-		if !matched {
-			continue
-		}
-		deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
-			Trigger: deployments.TriggerWebhook,
-			Actor:   "webhook",
-		})
-		if err != nil {
-			serverError(w, err)
-			return
-		}
-		queued = append(queued, deployment.ID)
 	}
 	if len(queued) == 0 {
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "ignored", "reason": "branch " + ref})
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "queued", "deployment_ids": queued})
+}
+
+// handleGitHubAppWebhook is where a push from a connected GitHub App lands. The
+// app delivers pushes from every repository it was installed on to one URL, so
+// unlike a per-project hook this one is not told which project it is about: the
+// delivery names its installation, and every project is offered the push.
+func (s *Server) handleGitHubAppWebhook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	defer r.Body.Close()
+
+	// The payload is unverified here. It is read only to choose which secret the
+	// signature is checked against, and that check is what decides whether the
+	// delivery is acted on.
+	account, err := s.DB.GitAccountByInstallation(r.Context(), git.InstallationFromWebhook(body))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Unknown webhook", nil)
+		return
+	}
+	secret, err := s.Cipher.Decrypt(account.EncryptedHookSecret)
+	if err != nil || secret == "" ||
+		!security.VerifyGitHubSignature(secret, body, r.Header.Get("X-Hub-Signature-256")) {
+		writeError(w, http.StatusUnauthorized, "SIGNATURE_INVALID", "Webhook signature mismatch", nil)
+		return
+	}
+	if event := r.Header.Get("X-GitHub-Event"); event != "push" {
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "ignored", "reason": "event " + event})
+		return
+	}
+
+	projects, err := s.DB.ListProjects(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	// ponytail: every project is asked about every push. A server holds tens of
+	// them, so an index from repository to environment only pays off much later.
+	ref, repos := pushRef(body), pushRepos(body)
+	queued := []string{}
+	for i := range projects {
+		project := &projects[i]
+		if !project.AutoDeploy {
+			continue
+		}
+		ids, err := s.queueFollowers(r.Context(), project, ref, repos)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		queued = append(queued, ids...)
+	}
+	if len(queued) == 0 {
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "ignored", "reason": "branch " + ref})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"status": "queued", "deployment_ids": queued})
+}
+
+// queueFollowers deploys the environments of a project that track the pushed
+// repository and branch. One push can deploy more than one environment, and
+// usually deploys none of the others: production tracks main while staging
+// tracks its own branch. A project's services can come from different
+// repositories, so the payload's repository has to match too, or a push to one
+// would redeploy the other.
+func (s *Server) queueFollowers(ctx context.Context, project *database.Project, ref string, repos []string) ([]string, error) {
+	envs, err := s.DB.ListEnvironments(ctx, project.ID)
+	if err != nil {
+		return nil, err
+	}
+	queued := []string{}
+	for i := range envs {
+		env := &envs[i]
+		matched, err := s.environmentFollows(ctx, env, ref, repos)
+		if err != nil {
+			return nil, err
+		}
+		if !matched {
+			continue
+		}
+		deployment, err := s.Deployments.Trigger(ctx, project, env, deployments.Options{
+			Trigger: deployments.TriggerWebhook,
+			Actor:   "webhook",
+		})
+		if err != nil {
+			return nil, err
+		}
+		queued = append(queued, deployment.ID)
+	}
+	return queued, nil
 }
 
 // webhookSecretKey namespaces a project's optional HMAC secret in settings.

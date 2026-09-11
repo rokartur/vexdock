@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { IconBrandGithub, IconBrandGitlab, IconCup, IconPlug, IconTrash } from '@tabler/icons-react'
+import { IconBrandGithub, IconBrandGitlab, IconCup, IconPlug, IconSettings, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -18,7 +18,18 @@ import {
 import { api, type GitAccount, type ServiceProvider } from '../lib/api'
 import { since } from '../lib/format'
 
-export const Route = createFileRoute('/system/settings/git')({ component: GitAccounts })
+export const Route = createFileRoute('/system/settings/git')({
+	// GitHub sends the owner back here when connecting an app goes wrong, and a
+	// redirect has no other way to say so.
+	validateSearch: (search: Record<string, unknown>) => ({
+		error: typeof search.error === 'string' ? search.error : undefined,
+	}),
+	component: GitAccounts,
+})
+
+/** Where the owner picks which repositories an installed app may reach. */
+const installationURL = (account: GitAccount) =>
+	`https://github.com/apps/${account.app_slug}/installations/new?state=${account.id}`
 
 /** The providers with a repository list behind a token. A plain git URL has no API. */
 const providers = [
@@ -43,7 +54,10 @@ function accountTableColumns(remove: (id: string) => void): Columns<GitAccount> 
 				)
 			},
 		}),
-		cell.accessor(account => account.provider, { id: 'provider', header: 'Provider' }),
+		cell.accessor(account => (account.app_id ? 'github app' : account.provider), {
+			id: 'provider',
+			header: 'Provider',
+		}),
 		cell.accessor(account => account.host || 'hosted', { id: 'host', header: 'Host', meta: { mono: true } }),
 		cell.accessor(account => account.created_at, {
 			id: 'added',
@@ -55,14 +69,22 @@ function accountTableColumns(remove: (id: string) => void): Columns<GitAccount> 
 			header: '',
 			meta: { align: 'right' },
 			cell: ({ row }) => (
-				<Confirm
-					title={`Remove ${row.original.name}?`}
-					description='Services using this account keep their repository but can no longer pull with it.'
-					action='Remove'
-					onConfirm={() => remove(row.original.id)}
-				>
-					<IconButton icon={IconTrash} label='Remove' />
-				</Confirm>
+				<div className='flex items-center justify-end gap-1'>
+					{row.original.app_id ? (
+						<Button variant='ghost' render={<a href={installationURL(row.original)} />}>
+							<IconSettings />
+							{row.original.installation_id ? 'Repositories' : 'Finish install'}
+						</Button>
+					) : null}
+					<Confirm
+						title={`Remove ${row.original.name}?`}
+						description='Services using this account keep their repository but can no longer pull with it.'
+						action='Remove'
+						onConfirm={() => remove(row.original.id)}
+					>
+						<IconButton icon={IconTrash} label='Remove' />
+					</Confirm>
+				</div>
 			),
 		}),
 	]
@@ -70,10 +92,36 @@ function accountTableColumns(remove: (id: string) => void): Columns<GitAccount> 
 
 const emptyForm = { provider: 'github' as ServiceProvider, name: '', host: '', token: '' }
 
+/**
+ * GitHub creates an app from a manifest posted by the browser, not by the
+ * manager: it is the owner's session that is allowed to create it. So the
+ * manifest is handed to a throwaway form and submitted, which leaves the panel
+ * for GitHub and comes back through the callback.
+ */
+function postManifest(postURL: string, manifest: string) {
+	const form = document.createElement('form')
+	form.method = 'post'
+	form.action = postURL
+	const field = document.createElement('input')
+	field.type = 'hidden'
+	field.name = 'manifest'
+	field.value = manifest
+	form.append(field)
+	document.body.append(form)
+	form.submit()
+}
+
 function GitAccounts() {
 	const queryClient = useQueryClient()
+	const { error: redirectError } = Route.useSearch()
 	const accounts = useQuery({ queryKey: ['git-accounts'], queryFn: api.gitAccounts })
 	const [form, setForm] = useState(emptyForm)
+	const [app, setApp] = useState({ name: 'vexdock', organization: '' })
+
+	const connectApp = useMutation({
+		mutationFn: () => api.gitAppManifest(app),
+		onSuccess: ({ post_url, manifest }) => postManifest(post_url, manifest),
+	})
 
 	const create = useMutation({
 		mutationFn: () => api.createGitAccount(form),
@@ -98,7 +146,7 @@ function GitAccounts() {
 				description='connect once, then pick a repository instead of pasting a URL'
 				actions={<Refresh onClick={() => accounts.refetch()} busy={accounts.isFetching} />}
 			>
-				<ErrorText error={remove.error} />
+				<ErrorText error={remove.error ?? (redirectError ? new Error(redirectError) : null)} />
 				<DataTable
 					data={accounts.data ?? []}
 					columns={columns}
@@ -107,6 +155,38 @@ function GitAccounts() {
 					empty='No accounts connected. A service can still clone from a git URL.'
 				/>
 			</Section>
+
+			<FormSection
+				title='Connect a GitHub App'
+				description='GitHub creates the app, you pick which repositories it may reach.'
+				icon={IconBrandGithub}
+				hint='Leave the organization empty to install on your own account. The panel must be reachable over https.'
+				actions={
+					<Button type='submit' variant='primary' disabled={connectApp.isPending}>
+						<IconBrandGithub />
+						{connectApp.isPending ? 'Opening GitHub…' : 'Create on GitHub'}
+					</Button>
+				}
+				onSave={() => connectApp.mutate()}
+			>
+				<ErrorText error={connectApp.error} />
+				<div className='grid gap-x-6 md:grid-cols-2'>
+					<Field label='App name' hint='Has to be free on GitHub.'>
+						<Input
+							required
+							value={app.name}
+							onChange={event => setApp({ ...app, name: event.target.value })}
+						/>
+					</Field>
+					<Field label='Organization'>
+						<Input
+							placeholder='acme'
+							value={app.organization}
+							onChange={event => setApp({ ...app, organization: event.target.value })}
+						/>
+					</Field>
+				</div>
+			</FormSection>
 
 			<FormSection
 				title='Connect an account'

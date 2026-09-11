@@ -136,6 +136,14 @@ unencrypted, so a command that echoes a secret leaves it in the run history.
   by hand before it can reach a `git clone`. A self-hosted host must be an https
   origin, so a token is never sent in the clear, and the API path after that
   origin is fixed by the manager.
+- A GitHub App account stores its private key, not a token, encrypted with the
+  same key. The key never leaves the manager: it signs a ten minute JWT, the JWT
+  mints an installation token that lives an hour, and that token is what lists
+  and clones. Its reach is whatever the owner selected while installing, so a
+  compromised panel cannot read a repository the app was not installed on, and
+  removing the account drops the minted token from memory as well as the row.
+  The app's webhook deliveries are verified against the secret GitHub generated
+  for it before a push can start a deployment.
 - Registry credentials are encrypted in the database and also handed to
   `docker login`, which writes them to `/opt/vexdock/system/docker/config.json`
   in Docker's own format. That directory is on the host so the login survives
