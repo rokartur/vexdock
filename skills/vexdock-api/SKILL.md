@@ -162,11 +162,9 @@ vx "/api/projects/$PROJECT/deploy?environment=$ENV" -X POST
 ## Domains
 
 ```sh
-vx /api/domains -d '{"project_id":"'$PROJECT'","service":"web","hostname":"shop.example.com","container_port":3000,"https_enabled":true,"redirect_https":true,"analytics":false}'
-vx /api/domains/$DOMAIN -X PATCH -d '{"analytics":true}'
+vx /api/domains -d '{"project_id":"'$PROJECT'","service":"web","hostname":"shop.example.com","container_port":3000,"https_enabled":true,"redirect_https":true}'
 vx /api/domains/$DOMAIN/certificate -X POST              # issue/renew now; 502 CERTIFICATE_FAILED with reason
 vx /api/domains/$DOMAIN -X DELETE
-vx "/api/analytics/shop.example.com?range=7d"           # 24h 7d 30d
 ```
 
 Optional: `environment_id`, `certificate_source` `letsencrypt|custom` (+

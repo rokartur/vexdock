@@ -560,80 +560,13 @@ only.
 | `POST /api/domains/{id}/certificate` | Issues or renews its certificate now; answers the certificate, or `502 CERTIFICATE_FAILED` |
 
 A domain takes `project_id`, `service`, `hostname`, `container_port`,
-`https_enabled`, `redirect_https`, `analytics`, and optionally `environment_id`
+`https_enabled`, `redirect_https`, and optionally `environment_id`
 (the default environment when omitted) and `certificate_source`, which is
 `letsencrypt` or `custom`. A custom source takes `certificate_pem` and
 `private_key_pem` with it; the pair is validated against the hostname before
 anything is stored. Create and update both answer `{"domain"}`, and add a
 `warning` when the mapping was saved but the certificate could not be issued,
 so the domain serves over HTTP and TLS can be retried through `certificate`.
-
-## Analytics
-
-`GET /api/analytics/{hostname}?range=24h|7d|30d` returns the domain and every
-section the analytics page shows, in one response. An unknown range is a day.
-`bucket` is the series' step in seconds (900 for 24h, 3600 for 7d, 21600 for
-30d); a bucket with no events is left out of `series`, so a chart fills its own
-gaps.
-
-```json
-{
-  "domain": { "hostname": "app.example.com", "analytics": true },
-  "traffic": {
-    "views": 1840,
-    "visitors": 612,
-    "online": 7,
-    "visits": 733,
-    "avg_duration": 96,
-    "bounce_rate": 0.41,
-    "previous": { "views": 1640, "visitors": 548, "visits": 690, "avg_duration": 102, "bounce_rate": 0.44 },
-    "bucket": 900,
-    "series": [{ "at": 1738000800, "views": 42, "visitors": 31 }],
-    "pages": [{ "name": "/pricing", "count": 210, "visitors": 180 }],
-    "referrers": [], "countries": [], "devices": [], "browsers": [],
-    "systems": [], "events": [], "online_pages": []
-  }
-}
-```
-
-`visits` are sessions: a gap of more than thirty minutes starts a new one.
-`avg_duration` is their mean length in seconds and `bounce_rate` the share with
-a single page view, 0 to 1. `online` counts visitors whose latest event in the
-last five minutes was not a `leave`, and `online_pages` is the page each of them
-is on. Every breakdown carries both `count` (hits) and `visitors`
-(distinct people) and is capped at twenty rows. `previous` repeats the headline
-numbers for the window of the same length immediately before this one, which is
-where the dashboard's trend percentages come from.
-
-`GET /api/analytics/{hostname}/activity` returns four weeks of hourly buckets,
-`{ "series": [{ "at": 1738000800, "views": 42, "visitors": 31 }] }`, in the same
-sparse shape. It is what the dashboard's weekday heatmap folds into local days
-and hours; the server stays in unix seconds because only the browser knows the
-reader's timezone.
-
-`DELETE /api/analytics/{hostname}` erases every event of that site and answers
-`{ "deleted": 1840 }`. It is not scoped to a range, there is no undo, and other
-domains keep their history. Collection stays on.
-
-Collection is off until a domain sets `analytics: true`. The generated vhost
-then serves two paths from the site itself, both public and neither part of the
-panel API:
-
-- `GET /_vx.js` the beacon, injected into HTML responses before `</head>`.
-- `POST /_vx` one hit: `{"k":"pageview","p":"/pricing","r":"…","tz":"Europe/Warsaw"}`.
-  Always answered `204`, including for an unknown host or a bot.
-
-Nginx proxies the two to `/api/collect.js` and `/api/collect` on the manager,
-which is why they are unauthenticated: they are called by every visitor to a
-site, not by the panel. Both are rate limited by Nginx, and events age out after
-ninety days. Do not call the `/api/collect` form directly; the site's own path
-is the contract.
-
-`k` is `pageview`, `ping` (a heartbeat the beacon sends every minute while the
-tab is visible, which is what visit duration is measured from), `leave` (the tab
-went hidden or closed, which ends the visitor's presence) or a custom event
-name. Fire one with `vx('signup', { plan: 'pro' })`; the payload is capped at
-1 KB and stored as sent.
 
 ## Webhooks
 

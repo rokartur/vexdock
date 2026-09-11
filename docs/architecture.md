@@ -192,25 +192,6 @@ prunes metrics. Runs left open by a restart are closed on boot, the same way
 interrupted deployments are, so the UI never shows an execution nothing is
 running.
 
-## Site analytics
-
-A domain can count its own visits. Turning it on changes only the generated
-vhost: Nginx injects `<script defer src="/_vx.js">` into HTML responses with
-`sub_filter` and routes `/_vx.js` and `/_vx` to the manager. The deployed app is
-never modified, the script is served from the site's own hostname, and the hits
-never leave the server. Because `sub_filter` cannot rewrite a compressed body,
-those vhosts ask the upstream for plain HTML and let Nginx compress the result.
-
-The manager stores one row per hit and computes everything at read time: views,
-unique visitors, sessions and their length, bounce rate, top pages, referrers,
-regions, devices and custom events. There are no rollup tables to keep in sync,
-and the scheduler prunes events older than ninety days, so the table stays
-bounded like the metrics ones. Visitors are a daily rotating hash of the
-address and the coarse device bucket rather than a cookie, which keeps the
-feature out of consent-banner territory but also fixes the resolution: a
-private window is not a second person, and two phones on one home connection
-are not two either. A returning-visitor count is not possible by construction.
-
 ## Certificates
 
 A domain either gets its certificate from Let's Encrypt or you upload one. Both

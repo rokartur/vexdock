@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react'
 import {
 	IconAlertTriangle,
 	IconCertificate,
-	IconChartBar,
-	IconChartBarOff,
 	IconExternalLink,
 	IconLock,
 	IconPlus,
@@ -47,7 +45,6 @@ type DomainTableDeps = {
 	renewing: boolean
 	replace: (domain: Domain) => void
 	remove: (domainId: string) => void
-	toggleAnalytics: (domain: Domain) => void
 }
 
 function domainTableColumns({
@@ -57,7 +54,6 @@ function domainTableColumns({
 	renewing,
 	replace,
 	remove,
-	toggleAnalytics,
 }: DomainTableDeps): Columns<Domain> {
 	const cell = columnsFor<Domain>()
 	return [
@@ -87,18 +83,6 @@ function domainTableColumns({
 		cell.accessor(domain => (domain.certificate_source === 'custom' ? 'uploaded' : "Let's Encrypt"), {
 			id: 'source',
 			header: 'Source',
-		}),
-		cell.accessor(domain => (domain.analytics ? 'on' : 'off'), {
-			id: 'analytics',
-			header: 'Analytics',
-			cell: ({ row: { original } }) => (
-				<IconButton
-					icon={original.analytics ? IconChartBar : IconChartBarOff}
-					label={original.analytics ? 'Analytics on. Turn off' : 'Analytics off. Turn on'}
-					aria-pressed={original.analytics}
-					onClick={() => toggleAnalytics(original)}
-				/>
-			),
 		}),
 		cell.accessor(domain => certificateFor(domain.id)?.status ?? 'none', {
 			id: 'certificate',
@@ -178,7 +162,6 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 	const [source, setSource] = useState<CertificateSource>('letsencrypt')
 	const [certPem, setCertPem] = useState('')
 	const [keyPem, setKeyPem] = useState('')
-	const [analytics, setAnalytics] = useState(false)
 	// An uploaded certificate expires and has to be replaced by hand.
 	const [replacing, setReplacing] = useState<Domain | null>(null)
 	const [replaceCert, setReplaceCert] = useState('')
@@ -202,7 +185,6 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 				certificate_source: source,
 				certificate_pem: source === 'custom' ? certPem : undefined,
 				private_key_pem: source === 'custom' ? keyPem : undefined,
-				analytics,
 			}),
 		onSuccess: async result => {
 			setWarning(result.warning ?? '')
@@ -223,11 +205,6 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 		onSuccess: invalidate,
 	})
 
-	const tracking = useMutation({
-		mutationFn: (domain: Domain) => api.updateDomain(domain.id, { analytics: !domain.analytics }),
-		onSuccess: invalidate,
-	})
-
 	const replace = useMutation({
 		mutationFn: (id: string) =>
 			api.updateDomain(id, {
@@ -245,7 +222,6 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 
 	const { mutate: issueCertificate, isPending: issuing } = issue
 	const { mutate: removeDomain } = remove
-	const { mutate: toggleAnalytics } = tracking
 	const { data: serviceList } = services
 	const { data: certificateList } = certificates
 	const columns = useMemo(
@@ -257,9 +233,8 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 				renewing: issuing,
 				replace: setReplacing,
 				remove: removeDomain,
-				toggleAnalytics,
 			}).filter(column => !scope || column.id !== 'service'),
-		[certificateList, serviceList, issueCertificate, issuing, removeDomain, toggleAnalytics, scope],
+		[certificateList, serviceList, issueCertificate, issuing, removeDomain, scope],
 	)
 	const rows = (domains.data ?? []).filter(domain => !scope || domain.service_id === scope.id)
 
@@ -270,7 +245,7 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 				description='the platform generates and reloads Nginx for you'
 				actions={<Refresh onClick={() => domains.refetch()} busy={domains.isFetching} />}
 			>
-				<ErrorText error={remove.error ?? issue.error ?? tracking.error} />
+				<ErrorText error={remove.error ?? issue.error} />
 				{certificates.data?.some(cert => cert.status === 'failed') ? (
 					<Alert className='mb-3'>
 						<IconAlertTriangle className='text-amber-400' />
@@ -394,7 +369,6 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 							disabled={!https}
 							onChange={setRedirect}
 						/>
-						<Switch label='Collect analytics' checked={analytics} onChange={setAnalytics} />
 					</div>
 				</div>
 				{https ? (

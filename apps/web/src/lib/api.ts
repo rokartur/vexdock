@@ -55,55 +55,9 @@ export type Domain = {
 	https_enabled: boolean
 	redirect_https: boolean
 	certificate_source: CertificateSource
-	/** Injects the visit beacon into HTML served for this hostname. */
-	analytics: boolean
 	created_at: string
 	updated_at: string
 }
-
-/** One bucket of the visits chart. `at` is unix seconds. */
-export type TrafficPoint = {
-	at: number
-	views: number
-	visitors: number
-}
-
-/** One row of a top-pages, referrers, countries, devices or events table. */
-export type Breakdown = {
-	name: string
-	count: number
-	visitors: number
-}
-
-/** One window's headline numbers. */
-export type TrafficTotals = {
-	views: number
-	visitors: number
-	visits: number
-	/** Mean visit length in seconds. */
-	avg_duration: number
-	/** Share of visits with a single pageview, 0 to 1. */
-	bounce_rate: number
-}
-
-export type Traffic = TrafficTotals & {
-	/** The same window immediately before this one. */
-	previous: TrafficTotals
-	online: number
-	/** Step of `series` in seconds. A bucket with no events is absent from it. */
-	bucket: number
-	series: TrafficPoint[]
-	pages: Breakdown[]
-	referrers: Breakdown[]
-	countries: Breakdown[]
-	devices: Breakdown[]
-	browsers: Breakdown[]
-	systems: Breakdown[]
-	events: Breakdown[]
-	online_pages: Breakdown[]
-}
-
-export type AnalyticsRange = '24h' | '7d' | '30d'
 
 export type Project = {
 	id: string
@@ -788,7 +742,6 @@ export const api = {
 		certificate_source?: CertificateSource
 		certificate_pem?: string
 		private_key_pem?: string
-		analytics?: boolean
 	}) => request<{ domain: Domain; warning?: string }>('/api/domains', { method: 'POST', body }),
 	updateDomain: (
 		id: string,
@@ -800,18 +753,10 @@ export const api = {
 			certificate_source: CertificateSource
 			certificate_pem: string
 			private_key_pem: string
-			analytics: boolean
 		}>,
 	) => request<{ domain: Domain; warning?: string }>(`/api/domains/${id}`, { method: 'PATCH', body }),
 	deleteDomain: (id: string) => request<{ ok: boolean }>(`/api/domains/${id}`, { method: 'DELETE' }),
 	issueCertificate: (id: string) => request<Certificate>(`/api/domains/${id}/certificate`, { method: 'POST' }),
-
-	analytics: (hostname: string, range: AnalyticsRange) =>
-		request<{ domain: Domain; traffic: Traffic }>(`/api/analytics/${hostname}?range=${range}`),
-	/** Four weeks of hourly buckets, for the weekday heatmap. */
-	analyticsActivity: (hostname: string) => request<{ series: TrafficPoint[] }>(`/api/analytics/${hostname}/activity`),
-	clearAnalytics: (hostname: string) =>
-		request<{ deleted: number }>(`/api/analytics/${hostname}`, { method: 'DELETE' }),
 
 	deployment: (id: string) => request<{ deployment: Deployment; steps: DeploymentStep[] }>(`/api/deployments/${id}`),
 	cancelDeployment: (id: string) => request<{ ok: boolean }>(`/api/deployments/${id}/cancel`, { method: 'POST' }),
