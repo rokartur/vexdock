@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { IconPlus } from '@tabler/icons-react'
+import { IconEye, IconEyeOff, IconPlus, IconRefresh } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { DialogFooter } from '@/components/ui/dialog'
-import { api, type Service, type ServiceProvider } from '../lib/api'
+import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { Button, ErrorText, Field, Input, Select, Textarea } from './primitives'
+import { Button, ErrorText, Field, IconButton, Input, Textarea } from './primitives'
 
 /**
  * What the menu asked for. An application is created as a bare name: whether it
@@ -24,6 +24,9 @@ const providers: Record<ServiceKind, ServiceProvider> = {
 	database: 'image',
 	compose: 'raw',
 }
+
+/** Hex, so it can never carry the whitespace or quotes the manager rejects. */
+const generatePassword = () => crypto.randomUUID().replaceAll('-', '')
 
 export function newServiceTitle(kind: ServiceKind) {
 	return titles[kind]
@@ -54,6 +57,8 @@ export function NewServiceForm({
 	const [user, setUser] = useState('app')
 	const [image, setImage] = useState('')
 	const [dataPath, setDataPath] = useState('')
+	const [password, setPassword] = useState(generatePassword)
+	const [revealed, setRevealed] = useState(false)
 
 	const engines = useQuery({ queryKey: ['engines'], queryFn: api.engines, enabled: kind === 'database' })
 	const selected = engines.data?.find(option => option.slug === engine)
@@ -83,6 +88,7 @@ export function NewServiceForm({
 									version: version || undefined,
 									name: databaseName || undefined,
 									user: user || undefined,
+									password,
 									image: isCustom ? image : undefined,
 									data_path: isCustom ? dataPath : undefined,
 								},
@@ -101,6 +107,19 @@ export function NewServiceForm({
 				create.mutate()
 			}}
 		>
+			{kind === 'database' ? (
+				<Field label='Engine'>
+					<EnginePicker
+						engines={engines.data ?? []}
+						value={engine}
+						onChange={next => {
+							setEngine(next)
+							setVersion('')
+						}}
+					/>
+				</Field>
+			) : null}
+
 			<div className='grid gap-x-6 md:grid-cols-2'>
 				<Field label='Name' hint='Its name in compose, and how siblings reach it.'>
 					<Input
@@ -113,20 +132,6 @@ export function NewServiceForm({
 
 				{kind === 'database' ? (
 					<>
-						<Field label='Engine'>
-							<Select
-								value={engine}
-								onChange={next => {
-									setEngine(next)
-									setVersion('')
-								}}
-								options={(engines.data ?? []).map(option => ({
-									value: option.slug,
-									label: option.name,
-								}))}
-							/>
-						</Field>
-
 						{isCustom ? (
 							<>
 								<Field label='Image' hint='Including the tag.'>
@@ -184,6 +189,32 @@ export function NewServiceForm({
 								<Input value={user} onChange={event => setUser(event.target.value)} />
 							</Field>
 						) : null}
+						{selected?.password_var ? (
+							<Field
+								label='Password'
+								hint='Seeded into this service’s environment, where it can be changed later.'
+							>
+								<div className='flex items-center gap-1'>
+									<Input
+										required
+										type={revealed ? 'text' : 'password'}
+										value={password}
+										onChange={event => setPassword(event.target.value)}
+										spellCheck={false}
+									/>
+									<IconButton
+										icon={IconRefresh}
+										label='Regenerate'
+										onClick={() => setPassword(generatePassword())}
+									/>
+									<IconButton
+										icon={revealed ? IconEyeOff : IconEye}
+										label={revealed ? 'Hide' : 'Reveal'}
+										onClick={() => setRevealed(value => !value)}
+									/>
+								</div>
+							</Field>
+						) : null}
 					</>
 				) : null}
 			</div>
@@ -209,12 +240,6 @@ export function NewServiceForm({
 					Where it comes from is set next, in the service&rsquo;s settings. It deploys once that is answered.
 				</p>
 			) : null}
-			{kind === 'database' && !isCustom ? (
-				<p className='mb-3 text-label text-muted-foreground'>
-					The password is generated and stored in this service&rsquo;s environment.
-				</p>
-			) : null}
-
 			<ErrorText error={create.error} />
 			<DialogFooter>
 				<Button variant='ghost' onClick={onCancel}>
@@ -226,5 +251,82 @@ export function NewServiceForm({
 				</Button>
 			</DialogFooter>
 		</form>
+	)
+}
+
+/**
+ * Brand marks for the catalog. Tabler ships only two of the five, so all of
+ * them are inline paths instead, to keep one weight across the row.
+ */
+const marks: Record<string, { fill: string; d: string }> = {
+	postgres: {
+		fill: '#4d79a4',
+		d: 'M12 2C7.6 2 4 4 4 8.5c0 3 .6 6.3 1.7 9 .7 1.8 1.5 3 2.4 3 .7 0 1-.5 1.3-1.4l.5-1.6c.3.1.7.2 1.1.2h.2c2 0 3.4-1.4 3.4-3.5 0-1.7-1.1-2.9-2.7-2.9-1 0-1.8.5-2.2 1.3.1-2 1.3-3.4 3.4-3.4 2.6 0 4.4 2 4.4 5 0 1.8-.5 3.4-1.2 4.5-.3.5-.1 1 .3 1.2.5.2 1 0 1.3-.5.9-1.4 1.5-3.4 1.5-5.6C20 5.4 16.7 2 12 2Z',
+	},
+	mysql: {
+		fill: '#2c9bc9',
+		d: 'M2.5 16c2-4.5 5.5-7.6 9.4-9.2-.6 1-.9 2-.9 3 2.5-2.4 5.6-4 8.9-4.4-2.4 1.9-4 4-4.8 6.3-.5 1.5-.5 2.6-.2 3.4.2.5.6 1 1.2 1.5.4.3.5.5.5.7 0 .4-.3.7-.9.7-.7 0-1.4-.4-2-1-.9-1-1.2-2.3-1-3.8-2.6 1.4-4.7 3.4-6.2 6-.2.3-.4.4-.7.4-.5 0-.9-.4-.9-.9 0-.2 0-.4.1-.6l1-2.1c-1 .6-2 1.4-2.9 2.3l-.6-2.3Z',
+	},
+	mariadb: {
+		fill: '#9b9b9b',
+		d: 'M22 6.5c-1.3 0-2.2.6-3 1.5-.8.9-1.4 1.4-2.6 1.4-2.6 0-4.3-1.1-7-1.1-3.5 0-6.4 2-7.4 5C1.4 15.4 2.6 18 5 18.6l-.8 1.4c-.2.3 0 .6.3.6h5c2.8 0 5-1.2 6.7-3.4 1.3-1.7 2-3 3.4-3.9 1.4-.9 2.4-1.9 2.4-4.4 0-1-.3-1.8-.6-2.2ZM6.6 12.3a.9.9 0 1 1 0-1.8.9.9 0 0 1 0 1.8Z',
+	},
+	mongodb: {
+		fill: '#4faa41',
+		d: 'M12 1.5c1.6 2.4 5 5.4 5 10.1 0 4-2.3 6.9-4.3 8.3l-.3 2.6h-.8l-.3-2.6C9.3 18.5 7 15.6 7 11.6c0-4.7 3.4-7.7 5-10.1Z',
+	},
+	valkey: {
+		fill: '#c6332e',
+		d: 'M12 3 2 6.8l10 3.8 10-3.8L12 3Zm10 6.4-10 3.8-10-3.8v1.9l10 3.8 10-3.8V9.4Zm0 4.2-10 3.8-10-3.8v1.9L12 19l10-3.8v-1.6Z',
+	},
+}
+
+/**
+ * The catalog as a list: one row per engine, with the image it will pull on the
+ * right so the version can be sanity-checked before anything is picked.
+ */
+function EnginePicker({
+	engines,
+	value,
+	onChange,
+}: {
+	engines: Engine[]
+	value: string
+	onChange: (slug: string) => void
+}) {
+	return (
+		<div className='overflow-hidden rounded-lg border border-input'>
+			{engines.map(engine => {
+				const mark = marks[engine.slug]
+				return (
+					<button
+						key={engine.slug}
+						type='button'
+						aria-pressed={engine.slug === value}
+						onClick={() => onChange(engine.slug)}
+						className='flex w-full items-center gap-2.5 border-b border-input px-2.5 py-2 text-body last:border-b-0 hover:bg-muted aria-pressed:bg-accent'
+					>
+						<svg className='size-4 shrink-0' viewBox='0 0 24 24' aria-hidden='true'>
+							{mark ? (
+								<path d={mark.d} fill={mark.fill} />
+							) : (
+								<path
+									d='M3 4h18v16H3zM3 9h18M8 9v11'
+									fill='none'
+									stroke='currentColor'
+									strokeWidth='1.6'
+								/>
+							)}
+						</svg>
+						{engine.name}
+						<span className='ml-auto font-mono text-label text-muted-foreground'>
+							{engine.repository
+								? `${engine.repository.replace('library/', '')}:${engine.default_tag}`
+								: 'any image'}
+						</span>
+					</button>
+				)
+			})}
+		</div>
 	)
 }
