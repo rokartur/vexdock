@@ -65,6 +65,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/system/version", s.handleVersion)
 	mux.HandleFunc("POST /api/webhooks/projects/{token}", s.handleWebhook)
+	mux.HandleFunc("POST /api/webhooks/github/app", s.handleGitHubAppWebhook)
 	// The beacon and its hits come from visitors of tracked sites, not from the
 	// panel, so they cannot carry a session. Nginx only routes them for a
 	// hostname whose domain has analytics enabled.
@@ -156,6 +157,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/git-accounts/{id}", s.protected(s.handleDeleteGitAccount))
 	mux.Handle("GET /api/git-accounts/{id}/repositories", s.protected(s.handleGitAccountRepositories))
 	mux.Handle("GET /api/git-accounts/{id}/branches", s.protected(s.handleGitAccountBranches))
+	// Connecting a GitHub App: the dashboard asks for a manifest, GitHub walks
+	// the owner through creating and installing the app, and the two redirects
+	// land back here carrying the session cookie.
+	mux.Handle("POST /api/git-apps/manifest", s.protected(s.handleGitAppManifest))
+	mux.Handle("GET /api/git-apps/callback", s.protected(s.handleGitAppCallback))
+	mux.Handle("GET /api/git-apps/installed", s.protected(s.handleGitAppInstalled))
 
 	mux.Handle("GET /api/tokens", s.protected(s.handleListTokens))
 	mux.Handle("POST /api/tokens", s.protected(s.handleCreateToken))

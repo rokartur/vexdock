@@ -388,6 +388,9 @@ data rather than junk; the other kinds can be rebuilt and ask for nothing.
 | `DELETE /api/git-accounts/{id}` | Removes one |
 | `GET /api/git-accounts/{id}/repositories` | `[{"full_name", "clone_url", "default_branch"}]` |
 | `GET /api/git-accounts/{id}/branches` | `?repository=owner/name`; the repository's branch names |
+| `POST /api/git-apps/manifest` | `{"name", "organization"}` → `{"post_url", "manifest"}` |
+| `GET /api/git-apps/callback` | Where GitHub returns once the app exists. Redirects |
+| `GET /api/git-apps/installed` | Where GitHub returns once it is installed. Redirects |
 
 An account is one provider token stored encrypted and reused by every service
 that sets `git_account_id`, which is how a repository gets picked from a list
@@ -395,6 +398,34 @@ instead of pasted as a URL. `provider` is `github`, `gitlab` or `gitea`; `host`
 is the https origin of a self-hosted instance, required for Gitea and empty for
 the hosted services. Creating an account lists repositories once with the token,
 so a token that cannot read them is rejected here rather than mid-deployment.
+
+### GitHub Apps
+
+A GitHub account can be connected as an app instead of a token, which is the
+difference between "everything its owner can read" and "the repositories its
+owner picked". It is the same account row: `app_id` is what tells the two apart,
+and every service, repository picker and branch picker works the same either
+way.
+
+The app is created through GitHub's manifest flow, so nothing is typed by hand.
+`POST /api/git-apps/manifest` returns the manifest and the URL the browser posts
+it to; GitHub creates the app and returns to `/api/git-apps/callback` with a
+one-time code, which is exchanged for the app's private key and webhook secret
+and stored as a new account; the browser then goes to GitHub's install screen,
+where the owner picks all repositories or a few, and returns to
+`/api/git-apps/installed`, which records the installation. Both callbacks are
+ordinary session-authenticated routes and answer with a redirect back to
+**System → Settings → Git**, carrying `?error=` when something went wrong. The
+flow needs `PLATFORM_PUBLIC_URL` set to an https origin, because that is what
+GitHub has to reach. Hosted GitHub only; GitHub Enterprise still connects with a
+token.
+
+An app account stores no long-lived token. Its private key signs a JWT that
+mints an installation token lasting an hour, cached until shortly before it
+expires and minted again for the next listing or clone. Repositories come from
+the installation rather than from the user, so the list is exactly what the owner
+granted; changing that selection later is the same install screen again, reached
+from the account's row.
 
 The repository list is one page of a hundred, most recently active first, and
 entries whose clone URL would not pass the same validation as a hand-typed one
@@ -560,3 +591,11 @@ provider at it and enable auto deploy.
 - GitHub `ping` events are answered `202 pong`.
 - When a webhook secret is configured, `X-Hub-Signature-256` is verified before
   anything else happens.
+
+A connected GitHub App brings its own hook instead: GitHub delivers every push
+from every repository it is installed on to `POST /api/webhooks/github/app`, so
+there is nothing to configure per project. The delivery names its installation,
+which selects the account whose secret must have signed it; an unsigned or
+wrongly signed delivery is `401` and never reaches a deployment. A verified push
+is then offered to every project with auto deploy on, matched exactly as above,
+and answered the same way.

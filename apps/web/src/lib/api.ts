@@ -427,13 +427,22 @@ export type VersionSettings = {
 	cleanup_old_images: boolean
 }
 
-/** A provider token connected once, so repositories are picked instead of pasted. */
+/**
+ * A provider account connected once, so repositories are picked instead of
+ * pasted. Either a personal access token or an installed GitHub App, which
+ * `app_id` is what distinguishes.
+ */
 export type GitAccount = {
 	id: string
 	provider: ServiceProvider
 	name: string
 	/** The origin of a self-hosted GitLab or Gitea; empty for the hosted ones. */
 	host: string
+	/** Set for a GitHub App account, empty for a token. */
+	app_id: string
+	app_slug: string
+	/** Empty until the app is installed and its repositories are picked. */
+	installation_id: string
 	created_at: string
 }
 
@@ -795,6 +804,9 @@ export const api = {
 	createGitAccount: (body: { provider: ServiceProvider; name: string; host?: string; token: string }) =>
 		request<GitAccount>('/api/git-accounts', { method: 'POST', body }),
 	deleteGitAccount: (id: string) => request<{ ok: boolean }>(`/api/git-accounts/${id}`, { method: 'DELETE' }),
+	/** The app GitHub should create, and the URL the browser posts it to. */
+	gitAppManifest: (body: { name: string; organization?: string }) =>
+		request<{ post_url: string; manifest: string }>('/api/git-apps/manifest', { method: 'POST', body }),
 	gitRepositories: (id: string) => request<GitRepository[]>(`/api/git-accounts/${id}/repositories`),
 	gitBranches: (id: string, repository: string) =>
 		request<string[]>(`/api/git-accounts/${id}/branches?repository=${encodeURIComponent(repository)}`),

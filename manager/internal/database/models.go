@@ -201,18 +201,30 @@ type DeploymentStep struct {
 	FinishedAt   string `json:"finished_at"`
 }
 
-// GitAccount is a provider token connected once and reused by any service that
-// clones from that provider. It is what turns "paste a URL" into "pick a
-// repository": the same token lists the repositories and clones them.
+// GitAccount is a provider account connected once and reused by any service
+// that clones from that provider. It is what turns "paste a URL" into "pick a
+// repository": the same credential lists the repositories and clones them.
+//
+// Two kinds share the row. A token account holds a personal access token. A
+// GitHub App account holds the app's private key instead and mints a token per
+// use, which is why AppID is what tells them apart.
 type GitAccount struct {
 	ID       string `json:"id"`
 	Provider string `json:"provider"`
 	Name     string `json:"name"`
 	// Host is the origin of a self-hosted GitLab or Gitea, empty for the
 	// hosted providers.
-	Host         string `json:"host"`
+	Host string `json:"host"`
+	// EncryptedTok is the access token, or the app's private key when AppID is
+	// set.
 	EncryptedTok string `json:"-"`
-	CreatedAt    string `json:"created_at"`
+	AppID        string `json:"app_id"`
+	AppSlug      string `json:"app_slug"`
+	// InstallationID is empty until the owner finishes installing the app and
+	// picks the repositories it may reach.
+	InstallationID      string `json:"installation_id"`
+	EncryptedHookSecret string `json:"-"`
+	CreatedAt           string `json:"created_at"`
 }
 
 type Registry struct {

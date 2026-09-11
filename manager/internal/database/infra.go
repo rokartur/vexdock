@@ -134,14 +134,43 @@ func (db *DB) ListCertificates(ctx context.Context) ([]Certificate, error) {
 	return out, rows.Err()
 }
 
-const gitAccountColumns = `id, provider, name, host, token_enc, created_at`
+const gitAccountColumns = `id, provider, name, host, token_enc, app_id, app_slug, installation_id,
+	webhook_secret_enc, created_at`
 
 func (db *DB) CreateGitAccount(ctx context.Context, a *GitAccount) error {
 	a.ID, a.CreatedAt = NewID(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO git_accounts (`+gitAccountColumns+`) VALUES (?, ?, ?, ?, ?, ?)`,
-		a.ID, a.Provider, a.Name, a.Host, a.EncryptedTok, a.CreatedAt)
+		`INSERT INTO git_accounts (`+gitAccountColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.Provider, a.Name, a.Host, a.EncryptedTok, a.AppID, a.AppSlug, a.InstallationID,
+		a.EncryptedHookSecret, a.CreatedAt)
 	return err
+}
+
+// SetGitAccountInstallation records which app installation an account clones
+// through, which is the last step of connecting a GitHub App and also what a
+// later "pick different repositories" lands on.
+func (db *DB) SetGitAccountInstallation(ctx context.Context, id, installationID string) error {
+	_, err := db.ExecContext(ctx, `UPDATE git_accounts SET installation_id = ? WHERE id = ?`, installationID, id)
+	return err
+}
+
+// GitAccountByInstallation finds the account an app webhook delivery belongs
+// to. The payload names the installation, and the account it maps to holds the
+// secret that delivery has to be signed with.
+func (db *DB) GitAccountByInstallation(ctx context.Context, installationID string) (*GitAccount, error) {
+	var a GitAccount
+	err := db.QueryRowContext(ctx,
+		`SELECT `+gitAccountColumns+` FROM git_accounts WHERE installation_id = ? AND installation_id != ''`,
+		installationID).Scan(scanGitAccount(&a)...)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &a, err
+}
+
+func scanGitAccount(a *GitAccount) []any {
+	return []any{&a.ID, &a.Provider, &a.Name, &a.Host, &a.EncryptedTok, &a.AppID, &a.AppSlug,
+		&a.InstallationID, &a.EncryptedHookSecret, &a.CreatedAt}
 }
 
 func (db *DB) DeleteGitAccount(ctx context.Context, id string) error {
@@ -155,7 +184,7 @@ func (db *DB) DeleteGitAccount(ctx context.Context, id string) error {
 func (db *DB) GitAccount(ctx context.Context, id string) (*GitAccount, error) {
 	var a GitAccount
 	err := db.QueryRowContext(ctx, `SELECT `+gitAccountColumns+` FROM git_accounts WHERE id = ?`, id).
-		Scan(&a.ID, &a.Provider, &a.Name, &a.Host, &a.EncryptedTok, &a.CreatedAt)
+		Scan(scanGitAccount(&a)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -171,7 +200,7 @@ func (db *DB) ListGitAccounts(ctx context.Context) ([]GitAccount, error) {
 	out := []GitAccount{}
 	for rows.Next() {
 		var a GitAccount
-		if err := rows.Scan(&a.ID, &a.Provider, &a.Name, &a.Host, &a.EncryptedTok, &a.CreatedAt); err != nil {
+		if err := rows.Scan(scanGitAccount(&a)...); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
