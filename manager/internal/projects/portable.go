@@ -21,9 +21,15 @@ const exportVersion = 2
 // promises something that is silently dropped. DisplayName is absent for that
 // reason: creating a service takes no display name.
 type PortableService struct {
-	Name            string           `json:"name"`
-	Provider        string           `json:"provider"`
-	RepositoryURL   string           `json:"repository_url,omitempty"`
+	Name          string `json:"name"`
+	Provider      string `json:"provider"`
+	RepositoryURL string `json:"repository_url,omitempty"`
+	// A connected service names its repository on a connection rather than by
+	// URL. The connection id only resolves on the server that exported it, the
+	// same way a credential only exists there.
+	GitProviderID   string           `json:"git_provider_id,omitempty"`
+	Owner           string           `json:"owner,omitempty"`
+	Repository      string           `json:"repository,omitempty"`
 	Branch          string           `json:"branch,omitempty"`
 	BuildPath       string           `json:"build_path,omitempty"`
 	Image           string           `json:"image,omitempty"`
@@ -78,6 +84,9 @@ func (s *Service) ExportServices(ctx context.Context, p *database.Project, env *
 			Name:            svc.ComposeServiceName,
 			Provider:        svc.Provider,
 			RepositoryURL:   svc.RepositoryURL,
+			GitProviderID:   svc.GitProviderID,
+			Owner:           svc.Owner,
+			Repository:      svc.Repository,
 			Branch:          svc.Branch,
 			BuildPath:       svc.BuildPath,
 			Image:           svc.Image,

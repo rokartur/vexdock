@@ -91,7 +91,9 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		BuildPath        string `json:"build_path"`
 		CredentialKind   string `json:"credential_kind"`
 		CredentialSecret string `json:"credential_secret"`
-		GitAccountID     string `json:"git_account_id"`
+		GitProviderID    string `json:"git_provider_id"`
+		Owner            string `json:"owner"`
+		Repository       string `json:"repository"`
 		Image            string `json:"image"`
 		ComposeFragment  string `json:"compose_fragment"`
 		Database         *struct {
@@ -116,7 +118,9 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		BuildPath:        req.BuildPath,
 		CredentialKind:   req.CredentialKind,
 		CredentialSecret: req.CredentialSecret,
-		GitAccountID:     req.GitAccountID,
+		GitProviderID:    req.GitProviderID,
+		Owner:            req.Owner,
+		Repository:       req.Repository,
 		Image:            req.Image,
 		ComposeFragment:  req.ComposeFragment,
 	}
@@ -151,13 +155,21 @@ func adoptProvider(service *database.Service, want *string) error {
 		return errors.New("a database cannot change provider; delete it and create it again")
 	}
 	switch {
-	case database.GitProvider(*want), *want == database.ProviderImage, *want == database.ProviderRaw:
+	case database.ClonesFromGit(*want), *want == database.ProviderImage, *want == database.ProviderRaw:
 	default:
 		return fmt.Errorf("unknown provider %q", *want)
 	}
 	service.Provider = *want
-	if database.GitProvider(*want) && service.Branch == "" {
+	if database.ClonesFromGit(*want) && service.Branch == "" {
 		service.Branch = "main"
+	}
+	// The two git sources address a repository in different ways, and leaving
+	// the old address behind would make requireCompleteProvider pass on a
+	// service that cannot clone.
+	if database.ClonesFromConnection(*want) {
+		service.RepositoryURL, service.CredentialKind, service.CredentialEnc = "", database.GitCredentialNone, ""
+	} else {
+		service.GitProviderID, service.Owner, service.Repository = "", "", ""
 	}
 	return nil
 }
@@ -166,7 +178,9 @@ func adoptProvider(service *database.Service, want *string) error {
 // provider it has no address for, which reaches docker as an empty build.
 func requireCompleteProvider(service *database.Service) error {
 	switch {
-	case database.GitProvider(service.Provider) && service.RepositoryURL == "":
+	case database.ClonesFromConnection(service.Provider) && service.Repository == "":
+		return errors.New("a repository is required")
+	case service.Provider == database.ProviderGit && service.RepositoryURL == "":
 		return errors.New("a repository URL is required")
 	case service.Provider == database.ProviderImage && service.Image == "":
 		return errors.New("an image is required")
@@ -189,7 +203,9 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		BuildPath        *string `json:"build_path"`
 		CredentialKind   *string `json:"credential_kind"`
 		CredentialSecret *string `json:"credential_secret"`
-		GitAccountID     *string `json:"git_account_id"`
+		GitProviderID    *string `json:"git_provider_id"`
+		Owner            *string `json:"owner"`
+		Repository       *string `json:"repository"`
 		Image            *string `json:"image"`
 		ComposeFragment  *string `json:"compose_fragment"`
 	}
@@ -214,15 +230,21 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.GitAccountID != nil {
-		if err := s.Projects.SetGitAccount(r.Context(), service, *req.GitAccountID); err != nil {
+	// Repointing a connected service means all three of connection, owner and
+	// repository, because any one of them alone names a repository that may not
+	// exist.
+	if req.GitProviderID != nil || req.Owner != nil || req.Repository != nil {
+		if err := s.Projects.SetGitRepository(r.Context(), service,
+			valueOr(req.GitProviderID, service.GitProviderID),
+			valueOr(req.Owner, service.Owner),
+			valueOr(req.Repository, service.Repository)); err != nil {
 			badRequest(w, err)
 			return
 		}
 	}
-	// A connected account is the credential, so an edit that sets one wins over
+	// A connection is the credential, so an edit that sets one wins over
 	// credential fields the same request happened to carry.
-	if req.CredentialKind != nil && service.GitAccountID == "" {
+	if req.CredentialKind != nil && service.GitProviderID == "" {
 		secret := ""
 		if req.CredentialSecret != nil {
 			secret = *req.CredentialSecret
@@ -306,6 +328,15 @@ func assign(dst *string, src *string) {
 	if src != nil {
 		*dst = *src
 	}
+}
+
+// valueOr is assign for a field that has to be passed on rather than stored:
+// what the request said, or what the service already holds.
+func valueOr(src *string, current string) string {
+	if src != nil {
+		return *src
+	}
+	return current
 }
 
 // assignValid is assign for a field that create validates. An edit reaches the

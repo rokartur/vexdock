@@ -324,3 +324,63 @@ func TestUpgradingToEnvironmentsKeepsData(t *testing.T) {
 		t.Fatalf("staging cannot have its own web service: %v", err)
 	}
 }
+
+// 0017 replaces git_accounts with the git_providers tree, which means dropping
+// a table services point at. A service that used a connection cannot keep it,
+// but it must survive the upgrade with everything else it owns.
+func TestUpgradingToGitProvidersKeepsServices(t *testing.T) {
+	ctx := context.Background()
+	db := openUpTo(t, filepath.Join(t.TempDir(), "app.db"), "0016")
+
+	project := newProject(t, db, "app")
+	env := defaultEnv(t, db, project.ID)
+	accountID := NewID()
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO git_accounts (id, provider, name, token_enc, created_at)
+		 VALUES (?, 'github', 'acme', 'sealed', ?)`, accountID, Now()); err != nil {
+		t.Fatalf("insert git account: %v", err)
+	}
+	serviceID := NewID()
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO services (id, project_id, environment_id, compose_service_name, provider,
+			repository_url, branch, git_account_id, created_at)
+		 VALUES (?, ?, ?, 'web', 'github', 'https://github.com/acme/web.git', 'main', ?, ?)`,
+		serviceID, project.ID, env.ID, accountID, Now()); err != nil {
+		t.Fatalf("insert service: %v", err)
+	}
+	if err := db.UpsertSecret(ctx, ServiceScope, serviceID, "TOKEN", "sealed", true); err != nil {
+		t.Fatalf("upsert service secret: %v", err)
+	}
+
+	if err := db.migrate(ctx); err != nil {
+		t.Fatalf("upgrade: %v", err)
+	}
+	var integrity string
+	if err := db.QueryRowContext(ctx, `PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		t.Fatalf("integrity check: %v", err)
+	}
+	if integrity != "ok" {
+		t.Fatalf("the upgrade damaged the database: %s", integrity)
+	}
+
+	service, err := db.ServiceByID(ctx, serviceID)
+	if err != nil {
+		t.Fatalf("the service did not survive the upgrade: %v", err)
+	}
+	// Its connection is gone, so it comes out as a plain git service pointed
+	// at the URL it was cloning, which is the only address that outlives the
+	// account it borrowed.
+	if service.Provider != ProviderGit {
+		t.Fatalf("got provider %q, want a plain git service", service.Provider)
+	}
+	if service.RepositoryURL != "https://github.com/acme/web.git" {
+		t.Fatalf("the repository URL was lost: %q", service.RepositoryURL)
+	}
+	secrets, err := db.ListSecrets(ctx, ServiceScope, serviceID)
+	if err != nil {
+		t.Fatalf("list service secrets: %v", err)
+	}
+	if len(secrets) != 1 {
+		t.Fatalf("the rebuild cascaded into service_secrets: %d rows left, want 1", len(secrets))
+	}
+}

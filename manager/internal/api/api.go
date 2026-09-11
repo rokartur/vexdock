@@ -65,7 +65,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/system/version", s.handleVersion)
 	mux.HandleFunc("POST /api/webhooks/projects/{token}", s.handleWebhook)
-	mux.HandleFunc("POST /api/webhooks/github/app", s.handleGitHubAppWebhook)
+	// One deploy endpoint per provider, because each signs its payload its own
+	// way and names the repository in its own shape.
+	mux.HandleFunc("POST /api/deploy/{provider}", s.handleProviderWebhook)
 	// The beacon and its hits come from visitors of tracked sites, not from the
 	// panel, so they cannot carry a session. Nginx only routes them for a
 	// hostname whose domain has analytics enabled.
@@ -152,17 +154,27 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/registries", s.protected(s.handleCreateRegistry))
 	mux.Handle("DELETE /api/registries/{id}", s.protected(s.handleDeleteRegistry))
 
-	mux.Handle("GET /api/git-accounts", s.protected(s.handleListGitAccounts))
-	mux.Handle("POST /api/git-accounts", s.protected(s.handleCreateGitAccount))
-	mux.Handle("DELETE /api/git-accounts/{id}", s.protected(s.handleDeleteGitAccount))
-	mux.Handle("GET /api/git-accounts/{id}/repositories", s.protected(s.handleGitAccountRepositories))
-	mux.Handle("GET /api/git-accounts/{id}/branches", s.protected(s.handleGitAccountBranches))
-	// Connecting a GitHub App: the dashboard asks for a manifest, GitHub walks
-	// the owner through creating and installing the app, and the two redirects
-	// land back here carrying the session cookie.
-	mux.Handle("POST /api/git-apps/manifest", s.protected(s.handleGitAppManifest))
-	mux.Handle("GET /api/git-apps/callback", s.protected(s.handleGitAppCallback))
-	mux.Handle("GET /api/git-apps/installed", s.protected(s.handleGitAppInstalled))
+	mux.Handle("GET /api/git-providers", s.protected(s.handleListGitProviders))
+	mux.Handle("GET /api/git-providers/{id}", s.protected(s.handleGetGitProvider))
+	mux.Handle("PATCH /api/git-providers/{id}", s.protected(s.handleRenameGitProvider))
+	mux.Handle("DELETE /api/git-providers/{id}", s.protected(s.handleDeleteGitProvider))
+	mux.Handle("GET /api/git-providers/{id}/repositories", s.protected(s.handleGitProviderRepositories))
+	mux.Handle("GET /api/git-providers/{id}/branches", s.protected(s.handleGitProviderBranches))
+	// Creating and re-registering a connection. The same handler serves both,
+	// because re-entering an app's credentials is the fix for a revoked grant.
+	mux.Handle("POST /api/git-providers/github", s.protected(s.handleCreateGitHubProvider))
+	mux.Handle("POST /api/git-providers/gitlab", s.protected(s.handleSaveGitLabProvider))
+	mux.Handle("PUT /api/git-providers/{id}/gitlab", s.protected(s.handleSaveGitLabProvider))
+	mux.Handle("POST /api/git-providers/bitbucket", s.protected(s.handleSaveBitbucketProvider))
+	mux.Handle("PUT /api/git-providers/{id}/bitbucket", s.protected(s.handleSaveBitbucketProvider))
+	mux.Handle("POST /api/git-providers/gitea", s.protected(s.handleSaveGiteaProvider))
+	mux.Handle("PUT /api/git-providers/{id}/gitea", s.protected(s.handleSaveGiteaProvider))
+	// Where the hosts return once the owner has approved. These are reached by
+	// top-level navigation from the provider, so they carry the session cookie
+	// and answer with a redirect rather than JSON.
+	mux.Handle("GET /api/providers/github/callback", s.protected(s.handleGitHubCallback))
+	mux.Handle("GET /api/providers/github/installed", s.protected(s.handleGitHubInstalled))
+	mux.Handle("GET /api/providers/{provider}/callback", s.protected(s.handleOAuthCallback))
 
 	mux.Handle("GET /api/tokens", s.protected(s.handleListTokens))
 	mux.Handle("POST /api/tokens", s.protected(s.handleCreateToken))

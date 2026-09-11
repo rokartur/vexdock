@@ -125,25 +125,36 @@ unencrypted, so a command that echoes a secret leaves it in the run history.
   and SSH keys through a 0600 temporary file removed when the clone finishes.
   SSH host keys are pinned on first use in `/opt/vexdock/secrets/known_hosts`,
   so a later clone from a host whose key changed fails instead of proceeding.
-- A connected git account is one provider token, encrypted with the same key and
-  decrypted for two things only: listing that account's repositories and their
-  branches for the source picker, and cloning a service that points at it. The
-  repository name the branch listing takes is interpolated into the provider's
-  URL path, so it must be an `owner/name` before the request is made and cannot
-  point a token at a path of someone else's choosing. The token is write-only
-  over the API, the dashboard only ever receives repository names, branch names
-  and clone URLs, and a clone URL coming back from a provider is validated exactly like one typed
-  by hand before it can reach a `git clone`. A self-hosted host must be an https
-  origin, so a token is never sent in the clear, and the API path after that
-  origin is fixed by the manager.
-- A GitHub App account stores its private key, not a token, encrypted with the
-  same key. The key never leaves the manager: it signs a ten minute JWT, the JWT
-  mints an installation token that lives an hour, and that token is what lists
-  and clones. Its reach is whatever the owner selected while installing, so a
-  compromised panel cannot read a repository the app was not installed on, and
-  removing the account drops the minted token from memory as well as the row.
-  The app's webhook deliveries are verified against the secret GitHub generated
-  for it before a push can start a deployment.
+- A git provider connection stores every secret it holds encrypted with the same
+  key: GitHub's client secret, private key and webhook secret, GitLab's and
+  Gitea's client secret with their access and refresh tokens, Bitbucket's app
+  password or API token. None of them is returned by any endpoint, in any shape,
+  and each is decrypted for two things only: listing that connection's
+  repositories and branches for the source picker, and cloning a service that
+  points at it.
+- The owner and repository a listing takes are interpolated into the host's URL
+  path, so each is validated first: an owner may contain slashes because a GitLab
+  group nests, a repository name may not, and neither may contain `..`. A token
+  therefore cannot be pointed at a path of someone else's choosing. A clone URL
+  coming back from a host is validated exactly like one typed by hand before it
+  can reach a `git clone`, and a self-hosted host must be an https origin, so a
+  token is never sent in the clear.
+- A GitHub connection holds a private key rather than a token. The key never
+  leaves the manager: it signs a ten minute JWT, the JWT mints an installation
+  token that lives an hour, and that token is what lists and clones. Its reach is
+  whatever the owner selected while installing, so a compromised panel cannot
+  read a repository the App was not installed on, and removing the connection
+  drops the minted token from memory as well as the row. Its webhook deliveries
+  are verified against the secret GitHub generated for it before a push can start
+  a deployment.
+- GitLab, Gitea and Bitbucket deliveries are not signed App-style, so their
+  deploy endpoints verify nothing and instead deploy only what a service already
+  tracks: the exact owner, repository and branch. An unknown repository is
+  answered `202 ignored`, which is the same thing a forged delivery gets.
+- The OAuth state for all three handshakes is the connection row's own id, so a
+  code can only ever be exchanged against the connection that started the flow.
+  The redirect URI is derived from `PLATFORM_PUBLIC_URL`, never from the request,
+  which is why connecting fails with `400` until a panel domain is set.
 - Registry credentials are encrypted in the database and also handed to
   `docker login`, which writes them to `/opt/vexdock/system/docker/config.json`
   in Docker's own format. That directory is on the host so the login survives

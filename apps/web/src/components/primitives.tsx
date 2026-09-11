@@ -164,6 +164,7 @@ const stateColor: Record<string, string> = {
 	healthy: 'text-emerald-400',
 	success: 'text-emerald-400',
 	issued: 'text-emerald-400',
+	connected: 'text-emerald-400',
 	starting: 'text-amber-400',
 	queued: 'text-amber-400',
 	restarting: 'text-amber-400',

@@ -11,27 +11,31 @@ import (
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
-// applyGit validates and stores the repository fields of a git service.
+// applyGit validates and stores the repository fields of a git service. The
+// four connected providers name a repository on a connection; the plain git
+// provider carries its own URL and credential.
 func (s *Service) applyGit(ctx context.Context, svc *database.Service, in ServiceInput) error {
-	url, err := security.ValidateGitURL(in.RepositoryURL)
-	if err != nil {
-		return err
-	}
 	branch := in.Branch
 	if branch == "" {
 		branch = "main"
 	}
-	if branch, err = security.ValidateGitRef(branch); err != nil {
+	branch, err := security.ValidateGitRef(branch)
+	if err != nil {
 		return err
 	}
 	buildPath, err := security.ValidateSubPath(in.BuildPath)
 	if err != nil {
 		return err
 	}
-	svc.RepositoryURL, svc.Branch, svc.BuildPath = url, branch, buildPath
-	if in.GitAccountID != "" {
-		return s.SetGitAccount(ctx, svc, in.GitAccountID)
+	svc.Branch, svc.BuildPath = branch, buildPath
+	if database.ClonesFromConnection(svc.Provider) {
+		return s.SetGitRepository(ctx, svc, in.GitProviderID, in.Owner, in.Repository)
 	}
+	url, err := security.ValidateGitURL(in.RepositoryURL)
+	if err != nil {
+		return err
+	}
+	svc.RepositoryURL = url
 	return s.SetCredential(svc, in.CredentialKind, in.CredentialSecret)
 }
 
@@ -62,7 +66,7 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 	case in.Provider == database.ProviderUnconfigured:
 		// An application is created as a bare name. Where its image comes from
 		// is answered later, in the service's own settings.
-	case database.GitProvider(in.Provider):
+	case database.ClonesFromGit(in.Provider):
 		if err := s.applyGit(ctx, svc, in); err != nil {
 			return nil, err
 		}

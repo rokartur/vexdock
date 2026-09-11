@@ -74,10 +74,21 @@ const (
 	ProviderRaw          = "raw"
 )
 
-// GitProvider reports whether a provider is cloned from a repository.
-func GitProvider(provider string) bool {
+// ClonesFromGit reports whether a provider is cloned from a repository.
+func ClonesFromGit(provider string) bool {
 	switch provider {
 	case ProviderGitHub, ProviderGitLab, ProviderBitbucket, ProviderGitea, ProviderGit:
+		return true
+	}
+	return false
+}
+
+// ClonesFromConnection reports whether a provider clones through a connected
+// account rather than a URL typed by hand. These four are the ones that list
+// repositories, mint their own credentials and receive their own webhooks.
+func ClonesFromConnection(provider string) bool {
+	switch provider {
+	case ProviderGitHub, ProviderGitLab, ProviderBitbucket, ProviderGitea:
 		return true
 	}
 	return false
@@ -93,16 +104,22 @@ type Service struct {
 	DisplayName        string `json:"display_name"`
 	Type               string `json:"type"`
 	Provider           string `json:"provider"`
-	RepositoryURL      string `json:"repository_url"`
-	Branch             string `json:"branch"`
-	BuildPath          string `json:"build_path"`
-	// CredentialKind and CredentialEnc authenticate the clone of a private
+	// RepositoryURL is the remote of a plain git source, the only source that
+	// still is a URL. A provider-sourced service names its repository the way
+	// its provider does, through GitProviderID, Owner and Repository, and its
+	// clone URL is built from the connection at deploy time.
+	RepositoryURL string `json:"repository_url"`
+	Branch        string `json:"branch"`
+	BuildPath     string `json:"build_path"`
+	// CredentialKind and CredentialEnc authenticate the clone of a plain git
 	// repository. The plaintext never leaves the manager.
 	CredentialKind string `json:"credential_kind"`
 	CredentialEnc  string `json:"-"`
-	// GitAccountID points at a connected provider account whose token clones
-	// this service. When set it replaces CredentialKind and CredentialEnc.
-	GitAccountID string `json:"git_account_id"`
+	// GitProviderID points at the connection this service clones through, and
+	// Owner and Repository name the repository on it.
+	GitProviderID string `json:"git_provider_id"`
+	Owner         string `json:"owner"`
+	Repository    string `json:"repository"`
 	// Image is the reference an image-sourced service runs and the one a
 	// database service was created with. Changing the version is an edit of
 	// this field followed by a redeploy, which is why it is stored rather than
@@ -201,30 +218,108 @@ type DeploymentStep struct {
 	FinishedAt   string `json:"finished_at"`
 }
 
-// GitAccount is a provider account connected once and reused by any service
-// that clones from that provider. It is what turns "paste a URL" into "pick a
+// GitProvider is one connection to a git host, connected once and reused by
+// any service that clones from it. It is what turns "paste a URL" into "pick a
 // repository": the same credential lists the repositories and clones them.
 //
-// Two kinds share the row. A token account holds a personal access token. A
-// GitHub App account holds the app's private key instead and mints a token per
-// use, which is why AppID is what tells them apart.
-type GitAccount struct {
-	ID       string `json:"id"`
-	Provider string `json:"provider"`
-	Name     string `json:"name"`
-	// Host is the origin of a self-hosted GitLab or Gitea, empty for the
-	// hosted providers.
-	Host string `json:"host"`
-	// EncryptedTok is the access token, or the app's private key when AppID is
-	// set.
-	EncryptedTok string `json:"-"`
-	AppID        string `json:"app_id"`
-	AppSlug      string `json:"app_slug"`
-	// InstallationID is empty until the owner finishes installing the app and
-	// picks the repositories it may reach.
-	InstallationID      string `json:"installation_id"`
-	EncryptedHookSecret string `json:"-"`
-	CreatedAt           string `json:"created_at"`
+// The four providers do not authenticate alike, so the row only carries what
+// they have in common and exactly one of the four detail structs is set,
+// decided by ProviderType.
+type GitProvider struct {
+	ID           string `json:"git_provider_id"`
+	Name         string `json:"name"`
+	ProviderType string `json:"provider_type"`
+	CreatedAt    string `json:"created_at"`
+
+	// Connected reports whether the connection can actually reach repositories
+	// yet. Creating one is only the first half: GitHub still has to be
+	// installed and the OAuth providers still have to be authorised. It is a
+	// field rather than a method so the dashboard sees it without every handler
+	// having to wrap the row.
+	Connected bool `json:"connected"`
+
+	GitHub    *GitHubProvider    `json:"github,omitempty"`
+	GitLab    *GitLabProvider    `json:"gitlab,omitempty"`
+	Bitbucket *BitbucketProvider `json:"bitbucket,omitempty"`
+	Gitea     *GiteaProvider     `json:"gitea,omitempty"`
+}
+
+func (p *GitProvider) markConnected() {
+	switch {
+	case p.GitHub != nil:
+		p.Connected = p.GitHub.InstallationID != "" && p.GitHub.PrivateKeyEnc != ""
+	case p.GitLab != nil:
+		p.Connected = p.GitLab.AccessTokenEnc != ""
+	case p.Bitbucket != nil:
+		p.Connected = p.Bitbucket.PasswordEnc != "" || p.Bitbucket.APITokenEnc != ""
+	case p.Gitea != nil:
+		p.Connected = p.Gitea.AccessTokenEnc != ""
+	}
+}
+
+// GitHubProvider is a GitHub App: created through the manifest flow, installed
+// by its owner on the repositories it may read, and cloning with an
+// installation token minted from the private key. Every secret is encrypted at
+// rest and none of them is serialised to the dashboard.
+type GitHubProvider struct {
+	GitProviderID   string `json:"git_provider_id"`
+	AppName         string `json:"github_app_name"`
+	AppID           string `json:"github_app_id"`
+	ClientID        string `json:"github_client_id"`
+	ClientSecretEnc string `json:"-"`
+	// InstallationID is empty until the owner finishes the install and picks
+	// the repositories the App may reach.
+	InstallationID   string `json:"github_installation_id"`
+	PrivateKeyEnc    string `json:"-"`
+	WebhookSecretEnc string `json:"-"`
+	URL              string `json:"github_url"`
+}
+
+// GitLabProvider is an OAuth application registered on a GitLab instance. The
+// owner pastes the application id and secret, authorises it once, and the
+// refresh token keeps it alive from then on.
+type GitLabProvider struct {
+	GitProviderID  string `json:"git_provider_id"`
+	URL            string `json:"gitlab_url"`
+	ApplicationID  string `json:"application_id"`
+	RedirectURI    string `json:"redirect_uri"`
+	SecretEnc      string `json:"-"`
+	AccessTokenEnc string `json:"-"`
+	RefreshEnc     string `json:"-"`
+	// GroupName narrows the repository listing to one group. Empty lists
+	// everything the authorising user is a member of.
+	GroupName string `json:"group_name"`
+	ExpiresAt int64  `json:"expires_at"`
+}
+
+// BitbucketProvider is a credential pair rather than an app. Atlassian is
+// retiring app passwords in favour of an account email and an API token, so
+// both pairs are accepted and the API token wins when it is set.
+type BitbucketProvider struct {
+	GitProviderID string `json:"git_provider_id"`
+	Username      string `json:"bitbucket_username"`
+	PasswordEnc   string `json:"-"`
+	Email         string `json:"bitbucket_email"`
+	APITokenEnc   string `json:"-"`
+	WorkspaceName string `json:"bitbucket_workspace_name"`
+}
+
+// GiteaProvider is an OAuth application on a Gitea instance, the same shape as
+// GitLab's with Gitea's own scope names.
+type GiteaProvider struct {
+	GitProviderID       string `json:"git_provider_id"`
+	URL                 string `json:"gitea_url"`
+	RedirectURI         string `json:"redirect_uri"`
+	ClientID            string `json:"client_id"`
+	ClientSecretEnc     string `json:"-"`
+	Username            string `json:"gitea_username"`
+	AccessTokenEnc      string `json:"-"`
+	RefreshEnc          string `json:"-"`
+	ExpiresAt           int64  `json:"expires_at"`
+	Scopes              string `json:"scopes"`
+	LastAuthenticatedAt int64  `json:"last_authenticated_at"`
+	// OrganizationName narrows the repository listing to one organization.
+	OrganizationName string `json:"organization_name"`
 }
 
 type Registry struct {

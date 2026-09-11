@@ -112,7 +112,7 @@ func (s *Service) WriteOverlay(ctx context.Context, env *database.Environment) (
 // spaces, plus the named volumes it needs declared at the top level.
 func (s *Service) renderService(env *database.Environment, svc database.Service) (string, []string, error) {
 	switch {
-	case svc.Provider == database.ProviderImage, database.GitProvider(svc.Provider):
+	case svc.Provider == database.ProviderImage, database.ClonesFromGit(svc.Provider):
 	case svc.Provider == database.ProviderRaw:
 		vols, err := namedVolumes(svc.ComposeFragment)
 		if err != nil {
@@ -153,7 +153,7 @@ func (s *Service) renderService(env *database.Environment, svc database.Service)
 			return "", nil, err
 		}
 		fmt.Fprintf(&b, "    image: %s\n", image)
-	case database.GitProvider(svc.Provider):
+	case database.ClonesFromGit(svc.Provider):
 		// Quoted like env_file below: build_path may legally hold a space or a
 		// '#', either of which changes which directory compose reads.
 		buildContext := filepath.Join(s.ServiceDir(env, svc.ComposeServiceName), "repository", svc.BuildPath)

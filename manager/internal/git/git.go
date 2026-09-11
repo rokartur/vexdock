@@ -19,6 +19,10 @@ import (
 type Credential struct {
 	Kind  string // "none", "token" or "ssh_key"
 	Value string
+	// User is the HTTP basic username paired with a token. GitHub, GitLab and
+	// Gitea ignore it, Bitbucket authenticates by it, so it is only ever set
+	// where it matters and defaults to GitHub's placeholder.
+	User string
 }
 
 const (
@@ -122,9 +126,13 @@ func (r Repo) environment() ([]string, func(), error) {
 			cleanup()
 			return nil, nil, err
 		}
+		user := r.Cred.User
+		if user == "" {
+			user = "x-access-token"
+		}
 		env = append(env,
 			"GIT_ASKPASS="+askpass,
-			"GIT_CRED_USER=x-access-token",
+			"GIT_CRED_USER="+user,
 			"GIT_CRED_TOKEN="+r.Cred.Value,
 		)
 	case KindSSHKey:
