@@ -10,7 +10,50 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/vexdock/platform/manager/internal/auth"
+	"github.com/vexdock/platform/manager/internal/security"
 )
+
+// execTimeout bounds a one-shot command so a hung process cannot hold the
+// request open; it is well inside the hour Nginx allows the API.
+const execTimeout = 10 * time.Minute
+
+// handleExec runs one shell line inside the service's container and answers
+// with its output: the non-interactive twin of handleTerminal for scripts and
+// agents holding a bearer token rather than a browser. A non-zero exit is
+// still a 200: the command ran, and its result is in the payload.
+func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Command string `json:"command"`
+		Shell   string `json:"shell"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	command, err := security.ValidateTaskCommand(req.Command)
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	shell, err := security.ValidateTaskShell(req.Shell)
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	containerID, err := s.resolveServiceContainer(r.Context(), r.PathValue("id"))
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), execTimeout)
+	defer cancel()
+	output, exitCode, err := s.Docker.ExecOutput(ctx, containerID, []string{"/bin/" + shell, "-c", command})
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"exit_code": exitCode, "output": output})
+}
 
 // terminalMessage is the framing between xterm.js and the container exec.
 // Input carries keystrokes; resize carries the new viewport.
