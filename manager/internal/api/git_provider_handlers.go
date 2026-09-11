@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/git"
 )
@@ -145,11 +146,6 @@ func (s *Server) handleCreateGitHubProvider(w http.ResponseWriter, r *http.Reque
 	if host == "" {
 		host = "https://github.com"
 	}
-	publicURL := s.Config.PublicURL
-	if publicURL == "" {
-		badRequest(w, fmt.Errorf("set a panel domain before connecting GitHub: the App needs a public URL to return to"))
-		return
-	}
 	provider := &database.GitProvider{
 		ID:           database.NewID(),
 		Name:         strings.TrimSpace(req.Name),
@@ -166,7 +162,7 @@ func (s *Server) handleCreateGitHubProvider(w http.ResponseWriter, r *http.Reque
 	}
 	// GitHub requires a globally unique App name, so the connection's own name
 	// is not usable as it stands.
-	manifest := git.NewAppManifest(fmt.Sprintf("vexdock-%s", provider.ID[:8]), publicURL)
+	manifest := git.NewAppManifest(fmt.Sprintf("vexdock-%s", provider.ID[:8]), s.publicOrigin(r))
 	target := host + "/settings/apps/new"
 	if org := strings.TrimSpace(req.Organization); org != "" {
 		target = fmt.Sprintf("%s/organizations/%s/settings/apps/new", host, org)
@@ -258,11 +254,7 @@ func (s *Server) handleSaveGitLabProvider(w http.ResponseWriter, r *http.Request
 		badRequest(w, fmt.Errorf("application id and secret are required"))
 		return
 	}
-	redirectURI, err := s.redirectURI("gitlab")
-	if err != nil {
-		badRequest(w, err)
-		return
-	}
+	redirectURI := s.redirectURI(r, "gitlab")
 	secretEnc, err := s.Projects.Encrypt(strings.TrimSpace(req.Secret))
 	if err != nil {
 		serverError(w, err)
@@ -316,11 +308,7 @@ func (s *Server) handleSaveGiteaProvider(w http.ResponseWriter, r *http.Request)
 		badRequest(w, fmt.Errorf("client id and secret are required"))
 		return
 	}
-	redirectURI, err := s.redirectURI("gitea")
-	if err != nil {
-		badRequest(w, err)
-		return
-	}
+	redirectURI := s.redirectURI(r, "gitea")
 	secretEnc, err := s.Projects.Encrypt(strings.TrimSpace(req.ClientSecret))
 	if err != nil {
 		serverError(w, err)
@@ -508,13 +496,23 @@ func (s *Server) createProvider(r *http.Request, providerType, name string, atta
 	return provider, nil
 }
 
-// redirectURI is what the owner registers with the host, so it has to match
-// byte for byte on both sides or the authorisation is refused.
-func (s *Server) redirectURI(providerType string) (string, error) {
-	if s.Config.PublicURL == "" {
-		return "", fmt.Errorf("set a panel domain before connecting %s: the redirect URI needs a public URL", providerType)
+// publicOrigin is the address a provider has to come back to. PLATFORM_PUBLIC_URL
+// wins when it is set, because an install that knows its own domain should not
+// depend on which hostname a browser happened to use; otherwise the request
+// answers, so connecting works on a fresh install with no domain configured yet.
+func (s *Server) publicOrigin(r *http.Request) string {
+	if s.Config.PublicURL != "" {
+		return s.Config.PublicURL
 	}
-	return fmt.Sprintf("%s/api/providers/%s/callback", s.Config.PublicURL, providerType), nil
+	return auth.Origin(r)
+}
+
+// redirectURI is what the owner registers with the host, so it has to match
+// byte for byte on both sides or the authorisation is refused. It is stored on
+// the connection for exactly that reason: the exchange has to repeat whatever
+// the authorisation used, even if the panel is reached differently later.
+func (s *Server) redirectURI(r *http.Request, providerType string) string {
+	return fmt.Sprintf("%s/api/providers/%s/callback", s.publicOrigin(r), providerType)
 }
 
 // redirectToSettings sends the browser back to where the owner started. The

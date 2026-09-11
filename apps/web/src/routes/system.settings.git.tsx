@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
 	IconBrandBitbucket,
 	IconBrandGithub,
@@ -215,13 +215,34 @@ async function saveProvider(form: Form) {
 	return false
 }
 
-/** What each host needs registered, and where the owner registers it. */
-const hints: Record<GitProviderType, string> = {
-	github: 'GitHub creates the App from this form, then asks which repositories it may read. The panel has to be reachable over https.',
-	gitlab: 'Create an application under User settings, Applications with the api and read_repository scopes, then paste its id and secret.',
-	bitbucket:
-		'Either a username and app password, or an email and API token. The workspace is only needed to list a team’s repositories.',
-	gitea: 'Create an OAuth2 application under Settings, Applications, then paste its client id and secret.',
+/**
+ * What each host needs registered, and where the owner registers it. GitLab and
+ * Gitea refuse an authorisation whose redirect URI they were not told about, so
+ * the hint spells out the one this panel will send, built from the address the
+ * browser is on because that is the address a provider comes back to.
+ */
+function hintFor(kind: GitProviderType, origin: string) {
+	switch (kind) {
+		case 'github': {
+			return 'GitHub creates the App from this form, then asks which repositories it may read. The panel has to be reachable over https.'
+		}
+		case 'gitlab': {
+			return `Create an application under User settings, Applications with the api and read_repository scopes and the redirect URI ${origin}/api/providers/gitlab/callback, then paste its id and secret.`
+		}
+		case 'gitea': {
+			return `Create an OAuth2 application under Settings, Applications with the redirect URI ${origin}/api/providers/gitea/callback, then paste its client id and secret.`
+		}
+		default: {
+			return 'Either a username and app password, or an email and API token. The workspace is only needed to list a team’s repositories.'
+		}
+	}
+}
+
+/** The origin the browser is on, which the server is not allowed to guess at render time. */
+function useOrigin() {
+	const [origin, setOrigin] = useState('')
+	useEffect(() => setOrigin(window.location.origin), [])
+	return origin
 }
 
 function saveLabel(pending: boolean, editing: boolean) {
@@ -233,6 +254,7 @@ function GitProviders() {
 	const queryClient = useQueryClient()
 	const { error: redirectError } = Route.useSearch()
 	const providers = useQuery({ queryKey: ['git-providers'], queryFn: api.gitProviders })
+	const origin = useOrigin()
 	const [form, setForm] = useState(emptyForm)
 	const set = <TKey extends keyof Form>(key: TKey, value: Form[TKey]) =>
 		setForm(current => ({ ...current, [key]: value }))
@@ -297,7 +319,7 @@ function GitProviders() {
 			<FormSection
 				title={form.id ? `Edit ${form.name}` : 'Connect a provider'}
 				icon={iconFor(form.kind)}
-				hint={hints[form.kind]}
+				hint={hintFor(form.kind, origin)}
 				actions={
 					<>
 						{form.id ? <Button onClick={() => setForm(emptyForm)}>Cancel</Button> : null}
