@@ -447,9 +447,11 @@ the connection is usable the moment it is saved: either a username with an app
 password, or an email with an API token. When both are given the API token wins.
 
 Every connection's secrets are encrypted at rest and never returned by any
-endpoint. The GitHub, GitLab and Gitea flows need `PLATFORM_PUBLIC_URL` set to an
-https origin, because that is the address the host redirects back to; without it
-those requests answer `400`. All three redirect handlers are ordinary
+endpoint. The address a host redirects back to is `PLATFORM_PUBLIC_URL` when it
+is set and the address the browser reached the panel on otherwise, so connecting
+works before a panel domain is configured. GitHub still requires that address to
+be reachable over https, which is its own rule, not the panel's. All three
+redirect handlers are ordinary
 session-authenticated routes and answer with a redirect back to
 **System → Settings → Git**, carrying `?error=` when something went wrong.
 

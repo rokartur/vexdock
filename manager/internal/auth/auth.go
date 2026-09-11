@@ -218,6 +218,15 @@ func requestScheme(r *http.Request) string {
 	return "http"
 }
 
+// Origin is the address the browser reached this manager on, which is what a
+// provider has to redirect back to. It is derived from the request rather than
+// configured, so connecting a provider works on whatever hostname the panel is
+// actually served from. Only a request that already passed the session and
+// same-origin checks should be asked, because Host is the client's to send.
+func Origin(r *http.Request) string {
+	return requestScheme(r) + "://" + r.Host
+}
+
 // splitOrigin separates an Origin into the scheme and the host it names. This
 // server deploys arbitrary projects, and one of them publishing a port on the
 // dashboard's own hostname is ordinary: a page served from http://panel:8080

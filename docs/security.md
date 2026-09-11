@@ -153,8 +153,12 @@ unencrypted, so a command that echoes a secret leaves it in the run history.
   answered `202 ignored`, which is the same thing a forged delivery gets.
 - The OAuth state for all three handshakes is the connection row's own id, so a
   code can only ever be exchanged against the connection that started the flow.
-  The redirect URI is derived from `PLATFORM_PUBLIC_URL`, never from the request,
-  which is why connecting fails with `400` until a panel domain is set.
+  The redirect URI is `PLATFORM_PUBLIC_URL` when it is set and the address the
+  browser reached the panel on otherwise, so an install with no domain yet can
+  still connect. The request-derived form is only ever read from a request that
+  already passed the session and same-origin checks, and what it produces is
+  stored on the connection, so the exchange repeats the exact URI the
+  authorisation used rather than whatever a later request happens to claim.
 - Registry credentials are encrypted in the database and also handed to
   `docker login`, which writes them to `/opt/vexdock/system/docker/config.json`
   in Docker's own format. That directory is on the host so the login survives
