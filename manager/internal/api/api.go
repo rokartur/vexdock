@@ -109,6 +109,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/services/{id}/stats", s.protected(s.handleServiceStats))
 	mux.Handle("GET /api/services/{id}/metrics", s.protected(s.handleServiceMetrics))
 	mux.Handle("GET /api/services/{id}/terminal", s.protected(s.handleTerminal))
+	mux.Handle("POST /api/services/{id}/exec", s.protected(s.handleExec))
 	mux.Handle("GET /api/services/{id}/tasks", s.protected(s.handleListServiceTasks))
 	mux.Handle("POST /api/services/{id}/tasks", s.protected(s.handleCreateServiceTask))
 

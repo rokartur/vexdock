@@ -760,6 +760,9 @@ export const api = {
 	deployService: (id: string) => request<Deployment>(`/api/services/${id}/deploy`, { method: 'POST' }),
 	serviceAction: (id: string, action: 'start' | 'stop' | 'restart') =>
 		request<{ ok: boolean }>(`/api/services/${id}/${action}`, { method: 'POST' }),
+	/** One-shot command in the service's container; the dashboard uses the terminal, this is for the API. */
+	exec: (id: string, body: { command: string; shell?: 'sh' | 'bash' }) =>
+		request<{ exit_code: number; output: string }>(`/api/services/${id}/exec`, { method: 'POST', body }),
 
 	tasks: () => request<ScheduledTask[]>('/api/tasks'),
 	serviceTasks: (id: string) => request<ScheduledTask[]>(`/api/services/${id}/tasks`),

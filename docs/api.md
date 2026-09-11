@@ -29,6 +29,21 @@ curl -H "Authorization: Bearer $PLATFORM_TOKEN" https://panel.example.com/api/pr
 
 `GET /api/me` returns the account behind whichever credential was used.
 
+**From a script or an agent.** There is no CLI; the token and this document
+are the whole interface (`skills/vexdock-api/` packages it as an agent skill). Export the two values once and every endpoint below
+is one `curl` away, including a command inside a running service:
+
+```sh
+export VEXDOCK_URL=https://panel.example.com
+export VEXDOCK_TOKEN=...   # the value POST /api/tokens showed once
+
+vx() { curl -sS -H "Authorization: Bearer $VEXDOCK_TOKEN" -H 'Content-Type: application/json' "$VEXDOCK_URL$@"; }
+
+vx /api/projects
+vx /api/services/$SERVICE/deploy -X POST
+vx /api/services/$SERVICE/exec -d '{"command":"ls -la /app"}'
+```
+
 **API tokens.** They are managed through the API as well, and the raw value is
 returned exactly once, by the call that creates it. Only a hash is stored, so a
 lost token is replaced rather than recovered.
@@ -83,7 +98,7 @@ Realtime data is Server-Sent Events, except the terminal which is a WebSocket.
 | `GET /api/docker/containers/{id}/logs` | `log`, `end` |
 | `GET /api/system/stats` | `stats` |
 | `GET /api/system/events` | `container.*`, `deployment.*` |
-| `GET /api/services/{id}/terminal` | WebSocket, `{type:"input"}` / `{type:"resize"}` |
+| `GET /api/services/{id}/terminal` | WebSocket, `{type:"input"}` / `{type:"resize"}`; `POST .../exec` is the one-shot form for scripts |
 
 `/api/system/events` is what keeps the dashboard current instead of polling, so
 its event names are a contract: `deployment.queued`, `deployment.success`,
@@ -91,6 +106,16 @@ its event names are a contract: `deployment.queued`, `deployment.success`,
 `container.stop`, `container.destroy` and `container.health_status: healthy` /
 `unhealthy`. `EventSource` has no wildcard, so a new name has to be added to
 `systemEvents` in `apps/web/src/lib/sse.ts` to reach the panel.
+
+## Projects
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/projects` | Every project with its environments, counts, domains and latest deployment |
+| `POST /api/projects` | `{"name", "auto_deploy"?, "tags"?}`. `201` |
+| `GET /api/projects/{id}` | One project, same shape |
+| `PATCH /api/projects/{id}` | Any of `name`, `auto_deploy`, `tags`, `webhook_secret`; omitted fields are left alone |
+| `DELETE /api/projects/{id}` | Stops every environment and drops the project; `?volumes=true` takes its data too |
 
 ## Environments
 
@@ -146,6 +171,7 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `GET \| PUT /api/services/{id}/variables` | Its own variables |
 | `POST /api/services/{id}/deploy` | Deploy this service only |
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
+| `POST /api/services/{id}/exec` | `{"command", "shell"?}`; runs it in the container, answers `{"exit_code", "output"}`. Same rules as a [task](#scheduled-tasks): `sh` or `bash`, output keeps its tail, ten minutes then the process is abandoned |
 | `GET /api/services/{id}/metrics` | Recorded usage over `?window=`, the same windows as `/api/system/metrics` |
 | `GET \| POST /api/services/{id}/tasks` | Its [scheduled tasks](#scheduled-tasks) |
 
