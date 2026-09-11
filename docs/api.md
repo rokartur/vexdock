@@ -155,17 +155,20 @@ The git providers clone the same way and differ only in webhook dialect and
 label. A git service carries its own `repository_url`, `branch`, `build_path`
 and credentials: `credential_kind` is `none`, `token` or `ssh_key`, and
 `credential_secret` is write-only, encrypted at rest and never returned.
-`git_account_id` points at a [connected account](#git-accounts) instead, whose
-token then clones the service and whose repositories it is picked from; setting
-one clears the service's own credential, and clearing it (`""`) hands the
-credential fields back. Sending
+`git_provider_id` points at a [connection](#git-providers) instead, and then
+`owner` and `repository` name the repository on it rather than a URL: the
+connection's token clones it and its repository list is what the name was picked
+from. Setting a connection clears the service's own `repository_url` and
+credential; clearing it (`""`) drops `owner` and `repository` and hands the URL
+and credential fields back. Sending
 a `database` object instead picks the engine catalogue: the image, the volume
 and the credentials are generated for you, and `provider` is forced to `image`.
 
 `unconfigured` is an application that is so far only a name. It is skipped when
 the compose file is written, so it neither deploys nor breaks the deploy of its
 siblings. `PATCH` with a `provider` settles it, and the same request must carry
-the `repository_url`, `image` or `compose_fragment` that goes with it. An
+the `repository_url` (or a connection and `repository`), `image` or
+`compose_fragment` that goes with it. An
 application may change provider later; a database answers `400`, because its
 volume and credentials were rendered from the engine it was created with.
 
@@ -214,8 +217,10 @@ Deploy all, which it offers while a project has no services yet).
 `GET /api/projects/{id}/services/export` returns
 `{"payload": "<base64>", "secrets": false}`. Decoded, the payload is
 `{"version": 2, "project": "...", "services": [...]}`. Each service is flat:
-`name`, `provider`, `repository_url`, `branch`, `build_path`, `image`,
-`engine`, `data_path`, `compose_fragment` and `env` all sit at the top level.
+`name`, `provider`, `repository_url`, `git_provider_id`, `owner`, `repository`,
+`branch`, `build_path`, `image`, `engine`, `data_path`, `compose_fragment` and
+`env` all sit at the top level. A `git_provider_id` only resolves on a server
+that has that connection, the same limitation credentials have.
 That is the blob's own shape, not a request body: `POST .../services` nests
 `engine`, `image` and `data_path` under `database`, takes no `env`, and rejects
 unknown fields outright, so a client has to map the two rather than forward one
@@ -379,46 +384,74 @@ Nothing is pruned on a schedule. A cleanup answers
 just as the single delete does, because an unused volume is a stopped project's
 data rather than junk; the other kinds can be rebuilt and ask for nothing.
 
-## Git accounts
+## Git providers
+
+A git provider is a connection to one host, stored as a parent row and a detail
+row for the host it is: `github`, `gitlab`, `bitbucket` or `gitea`. Every service
+that sets `git_provider_id` clones through it, which is how a repository gets
+picked from a list instead of pasted as a URL.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/git-accounts` | Connected accounts; the token is never returned |
-| `POST /api/git-accounts` | `{"provider", "name", "host", "token"}`. `201` |
-| `DELETE /api/git-accounts/{id}` | Removes one |
-| `GET /api/git-accounts/{id}/repositories` | `[{"full_name", "clone_url", "default_branch"}]` |
-| `GET /api/git-accounts/{id}/branches` | `?repository=owner/name`; the repository's branch names |
-| `POST /api/git-apps/manifest` | `{"name", "organization"}` → `{"post_url", "manifest"}` |
-| `GET /api/git-apps/callback` | Where GitHub returns once the app exists. Redirects |
-| `GET /api/git-apps/installed` | Where GitHub returns once it is installed. Redirects |
+| `GET /api/git-providers` | `{"git_providers": [...]}`; no secret is ever returned |
+| `GET /api/git-providers/{id}` | One connection with its detail |
+| `PATCH /api/git-providers/{id}` | `{"name"}` |
+| `DELETE /api/git-providers/{id}` | Removes one; `409 GIT_PROVIDER_IN_USE` while services still clone through it |
+| `GET /api/git-providers/{id}/repositories` | `{"repositories": [{"name", "owner", "url"}]}` |
+| `GET /api/git-providers/{id}/branches` | `?owner=&repository=` → `{"branches": [...]}` |
+| `POST /api/git-providers/github` | `{"name", "github_url", "organization"}` → `{"git_provider_id", "manifest", "manifest_url"}`. `201` |
+| `POST \| PUT /api/git-providers[/{id}]/gitlab` | `{"name", "gitlab_url", "application_id", "secret", "group_name"}` → `{"git_provider_id", "authorize_url"}` |
+| `POST \| PUT /api/git-providers[/{id}]/gitea` | `{"name", "gitea_url", "client_id", "client_secret", "organization_name"}` → `{"git_provider_id", "authorize_url"}` |
+| `POST \| PUT /api/git-providers[/{id}]/bitbucket` | `{"name", "bitbucket_username", "app_password", "bitbucket_email", "api_token", "bitbucket_workspace_name"}` |
+| `GET /api/providers/github/callback` | Where GitHub returns once the App exists. Redirects |
+| `GET /api/providers/github/installed` | Where GitHub returns once it is installed. Redirects |
+| `GET /api/providers/{provider}/callback` | Where GitLab and Gitea return with an authorisation code. Redirects |
 
-An account is one provider token stored encrypted and reused by every service
-that sets `git_account_id`, which is how a repository gets picked from a list
-instead of pasted as a URL. `provider` is `github`, `gitlab` or `gitea`; `host`
-is the https origin of a self-hosted instance, required for Gitea and empty for
-the hosted services. Creating an account lists repositories once with the token,
-so a token that cannot read them is rejected here rather than mid-deployment.
+Every connection answers `connected`, which is false until the handshake with
+the host finished. Nothing can be listed before then, so the repository picker
+only offers connected ones. Listing repositories is also the honest test of
+whether a connection still works: a revoked grant surfaces as
+`502 GIT_PROVIDER_ERROR` there rather than mid-deployment.
 
-### GitHub Apps
+A `POST` without an id creates the connection; a `PUT` with one re-registers its
+credentials, which is how a rotated secret is replaced. `409` on delete is
+deliberate: removing a connection services depend on would leave them unable to
+deploy with nothing in the UI explaining why.
 
-A GitHub account can be connected as an app instead of a token, which is the
-difference between "everything its owner can read" and "the repositories its
-owner picked". It is the same account row: `app_id` is what tells the two apart,
-and every service, repository picker and branch picker works the same either
-way.
+### GitHub
 
-The app is created through GitHub's manifest flow, so nothing is typed by hand.
-`POST /api/git-apps/manifest` returns the manifest and the URL the browser posts
-it to; GitHub creates the app and returns to `/api/git-apps/callback` with a
-one-time code, which is exchanged for the app's private key and webhook secret
-and stored as a new account; the browser then goes to GitHub's install screen,
-where the owner picks all repositories or a few, and returns to
-`/api/git-apps/installed`, which records the installation. Both callbacks are
-ordinary session-authenticated routes and answer with a redirect back to
-**System → Settings → Git**, carrying `?error=` when something went wrong. The
-flow needs `PLATFORM_PUBLIC_URL` set to an https origin, because that is what
-GitHub has to reach. Hosted GitHub only; GitHub Enterprise still connects with a
-token.
+The App is created through GitHub's manifest flow, so nothing is typed by hand.
+`POST /api/git-providers/github` writes the empty connection and returns the
+manifest with the URL the browser posts it to; GitHub creates the App and
+returns to `/api/providers/github/callback` with a one-time code, which is
+exchanged for the App's id, private key, client secret and webhook secret; the
+browser then goes to GitHub's install screen, where the owner picks all
+repositories or a few, and returns to `/api/providers/github/installed`, which
+records the installation. Clones use an installation token minted on demand and
+cached until it expires.
+
+### GitLab and Gitea
+
+Both are OAuth applications the owner registers on the host, which is why the
+request takes a client id and secret rather than creating anything. The response
+carries `authorize_url`; visiting it and approving returns to
+`/api/providers/{provider}/callback` with a code that is exchanged for an access
+and refresh token pair. Both hosts expire the access token, so the pair is
+stored and refreshed on use. GitLab's `group_name` and Gitea's
+`organization_name` narrow the repository list to one group.
+
+### Bitbucket
+
+Bitbucket takes a credential pair instead of an app, so there is no handshake and
+the connection is usable the moment it is saved: either a username with an app
+password, or an email with an API token. When both are given the API token wins.
+
+Every connection's secrets are encrypted at rest and never returned by any
+endpoint. The GitHub, GitLab and Gitea flows need `PLATFORM_PUBLIC_URL` set to an
+https origin, because that is the address the host redirects back to; without it
+those requests answer `400`. All three redirect handlers are ordinary
+session-authenticated routes and answer with a redirect back to
+**System → Settings → Git**, carrying `?error=` when something went wrong.
 
 An app account stores no long-lived token. Its private key signs a JWT that
 mints an installation token lasting an hour, cached until shortly before it
@@ -592,10 +625,20 @@ provider at it and enable auto deploy.
 - When a webhook secret is configured, `X-Hub-Signature-256` is verified before
   anything else happens.
 
-A connected GitHub App brings its own hook instead: GitHub delivers every push
-from every repository it is installed on to `POST /api/webhooks/github/app`, so
-there is nothing to configure per project. The delivery names its installation,
-which selects the account whose secret must have signed it; an unsigned or
-wrongly signed delivery is `401` and never reaches a deployment. A verified push
-is then offered to every project with auto deploy on, matched exactly as above,
-and answered the same way.
+A connection brings its own hook instead: `POST /api/deploy/{provider}`, one per
+host, with `{provider}` being `github`, `gitlab`, `bitbucket` or `gitea`. Each
+names repositories and signs deliveries its own way, which is why there is an
+endpoint each rather than one. All four are public, like the project token URL.
+
+A GitHub App is wired to its endpoint when it is created, so there is nothing to
+configure per project: the delivery names its installation, which selects the
+connection whose webhook secret must have signed it, and an unsigned or wrongly
+signed delivery is `401` and never reaches a deployment. The other three are
+added as a project- or repository-level webhook on the host. They are not
+signature-verified, because those hosts do not sign App-style deliveries: the
+delivery is matched against the connections of that type, and only a push whose
+owner, repository and branch a service already tracks deploys anything.
+
+A verified push is offered to every project with auto deploy on, matched exactly
+as above, and answered the same way. A monorepo deploys its environment once, not
+once per service that lives in it.

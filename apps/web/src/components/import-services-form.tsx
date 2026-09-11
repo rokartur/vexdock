@@ -13,6 +13,10 @@ type PortableService = {
 	name: string
 	provider: ServiceProvider
 	repository_url?: string
+	/** Set when the service cloned through a connection, which only resolves on the server that has it. */
+	git_provider_id?: string
+	owner?: string
+	repository?: string
 	branch?: string
 	build_path?: string
 	image?: string
@@ -127,6 +131,9 @@ export function ImportServicesForm({
 							name: service.name,
 							provider: service.provider,
 							repository_url: service.repository_url,
+							git_provider_id: service.git_provider_id,
+							owner: service.owner,
+							repository: service.repository,
 							branch: service.branch,
 							build_path: service.build_path,
 							image: service.engine ? undefined : service.image,
@@ -197,7 +204,10 @@ export function ImportServicesForm({
 										}
 									/>
 									<span className='truncate font-mono text-label text-muted-foreground'>
-										{service.image || service.repository_url || service.provider}
+										{service.image ||
+											(service.repository ? `${service.owner}/${service.repository}` : '') ||
+											service.repository_url ||
+											service.provider}
 									</span>
 									<span className='ml-auto shrink-0 text-label text-muted-foreground'>
 										{collides ? 'name taken' : `${(service.env ?? []).length} vars`}

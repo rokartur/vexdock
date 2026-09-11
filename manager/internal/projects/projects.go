@@ -4,7 +4,6 @@ package projects
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,7 +14,6 @@ import (
 	"github.com/vexdock/platform/manager/internal/compose"
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
-	"github.com/vexdock/platform/manager/internal/git"
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
@@ -47,12 +45,15 @@ type ServiceInput struct {
 	RepositoryURL string
 	Branch        string
 	BuildPath     string
-	// CredentialKind and CredentialSecret authenticate a private clone.
+	// CredentialKind and CredentialSecret authenticate a private clone of the
+	// plain git provider.
 	CredentialKind   string
 	CredentialSecret string
-	// GitAccountID clones through a connected provider account instead, and
-	// replaces the two fields above when it is set.
-	GitAccountID string
+	// The four connected providers name a repository instead of a URL: the
+	// connection supplies the host and the token.
+	GitProviderID string
+	Owner         string
+	Repository    string
 	// Image is the reference an image service runs.
 	Image string
 	// ComposeFragment is the YAML body of a raw service.
@@ -396,56 +397,6 @@ func (s *Service) setVariables(ctx context.Context, scope database.SecretScope, 
 			}
 		}
 	}
-	return nil
-}
-
-// Credential decrypts the git credential attached to a service. A connected
-// account wins: its token is what clones every service pointed at it, so those
-// services hold no credential of their own.
-func (s *Service) Credential(ctx context.Context, svc *database.Service) (git.Credential, error) {
-	if svc.GitAccountID != "" {
-		account, err := s.db.GitAccount(ctx, svc.GitAccountID)
-		if err != nil {
-			return git.Credential{}, err
-		}
-		secret, err := s.cipher.Decrypt(account.EncryptedTok)
-		if err != nil {
-			return git.Credential{}, err
-		}
-		// An app account holds a key rather than a token, and the token it mints
-		// expires within the hour, so it is resolved per clone.
-		token, err := git.AccountToken(ctx, account.AppID, account.InstallationID, secret)
-		if err != nil {
-			return git.Credential{}, err
-		}
-		return git.Credential{Kind: git.KindToken, Value: token}, nil
-	}
-	if svc.CredentialKind == "" || svc.CredentialKind == database.GitCredentialNone || svc.CredentialEnc == "" {
-		return git.Credential{Kind: git.KindNone}, nil
-	}
-	value, err := s.cipher.Decrypt(svc.CredentialEnc)
-	if err != nil {
-		return git.Credential{}, err
-	}
-	return git.Credential{Kind: svc.CredentialKind, Value: value}, nil
-}
-
-// SetGitAccount points a service at a connected account, which from then on
-// owns its clone credential. An empty id hands the service back its own
-// credential fields.
-func (s *Service) SetGitAccount(ctx context.Context, svc *database.Service, id string) error {
-	if id == "" {
-		svc.GitAccountID = ""
-		return nil
-	}
-	if _, err := s.db.GitAccount(ctx, id); err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			return fmt.Errorf("unknown git account %q", id)
-		}
-		return err
-	}
-	svc.GitAccountID = id
-	svc.CredentialKind, svc.CredentialEnc = database.GitCredentialNone, ""
 	return nil
 }
 

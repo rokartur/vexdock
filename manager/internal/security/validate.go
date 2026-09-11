@@ -15,7 +15,32 @@ var (
 	// Compose service names follow the same rules docker compose enforces.
 	servicePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 	sshRepoPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9._/-]+$`)
+	// An owner or repository name is interpolated into a clone URL and into an
+	// API path, so anything that could add a query, a fragment or another host
+	// has to be refused here.
+	repoSegment = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$`)
+	// An owner may be a nested GitLab group, which is several segments deep and
+	// clones as one path. Traversal is what the slash must not buy.
+	repoOwner = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,199}$`)
 )
+
+// ValidateRepositoryOwner checks the owning user, organisation or group of a
+// repository as reported by a git provider's API.
+func ValidateRepositoryOwner(owner string) error {
+	if !repoOwner.MatchString(owner) || strings.Contains(owner, "..") {
+		return fmt.Errorf("invalid repository owner %q", owner)
+	}
+	return nil
+}
+
+// ValidateRepositoryName checks the repository half of an "owner/repository"
+// pair.
+func ValidateRepositoryName(name string) error {
+	if !repoSegment.MatchString(name) {
+		return fmt.Errorf("invalid repository name %q", name)
+	}
+	return nil
+}
 
 // ValidateHostname accepts a DNS name usable as an Nginx server_name. A single
 // leading "*." is allowed; whether it can actually be issued is decided at

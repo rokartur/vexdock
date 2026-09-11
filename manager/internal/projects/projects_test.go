@@ -13,6 +13,7 @@ import (
 
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNormalizeTags(t *testing.T) {
@@ -121,37 +122,53 @@ func testService(t *testing.T) *Service {
 	return New(db, &config.Config{Root: root, ProjectsDir: filepath.Join(root, "projects")}, cipher)
 }
 
-// A connected account is what makes a picked repository clonable: the service
-// stores no credential of its own, so the token has to come from the account.
-func TestCredentialComesFromConnectedAccount(t *testing.T) {
+// A connection is what makes a picked repository clonable: the service stores
+// no URL and no credential of its own, so both have to come from the provider.
+func TestGitSourceComesFromConnection(t *testing.T) {
 	svc := testService(t)
 	ctx := context.Background()
 
-	enc, err := svc.cipher.Encrypt("ghp_secret")
+	enc, err := svc.cipher.Encrypt("glpat_secret")
 	if err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
-	account := &database.GitAccount{Provider: "github", Name: "acme", EncryptedTok: enc}
-	if err := svc.db.CreateGitAccount(ctx, account); err != nil {
-		t.Fatalf("create account: %v", err)
+	provider := &database.GitProvider{
+		Name:         "acme",
+		ProviderType: database.ProviderGitLab,
+		GitLab: &database.GitLabProvider{
+			URL:            "https://gitlab.com",
+			AccessTokenEnc: enc,
+			// Far enough out that the account is used as stored rather
+			// than refreshed over the network.
+			ExpiresAt: time.Now().Add(time.Hour).Unix(),
+		},
+	}
+	if err := svc.db.CreateGitProvider(ctx, provider); err != nil {
+		t.Fatalf("create provider: %v", err)
 	}
 
-	service := &database.Service{CredentialKind: database.GitCredentialNone}
-	if err := svc.SetGitAccount(ctx, service, account.ID); err != nil {
-		t.Fatalf("set account: %v", err)
+	service := &database.Service{
+		Provider:       database.ProviderGitLab,
+		CredentialKind: database.GitCredentialNone,
 	}
-	cred, err := svc.Credential(ctx, service)
+	if err := svc.SetGitRepository(ctx, service, provider.ID, "acme", "web"); err != nil {
+		t.Fatalf("set repository: %v", err)
+	}
+	source, err := svc.GitSourceFor(ctx, service)
 	if err != nil {
-		t.Fatalf("credential: %v", err)
+		t.Fatalf("git source: %v", err)
 	}
-	if cred.Kind != git.KindToken || cred.Value != "ghp_secret" {
-		t.Fatalf("got %+v, want the account token", cred)
+	if source.URL != "https://gitlab.com/acme/web.git" {
+		t.Fatalf("got %q, want the clone URL built from the connection", source.URL)
+	}
+	if source.Cred.Kind != git.KindToken || source.Cred.Value != "glpat_secret" {
+		t.Fatalf("got %+v, want the connection's token", source.Cred)
 	}
 
-	if err := svc.SetGitAccount(ctx, service, ""); err != nil {
-		t.Fatalf("clear account: %v", err)
-	}
-	if cred, err = svc.Credential(ctx, service); err != nil || cred.Kind != git.KindNone {
-		t.Fatalf("got %+v, %v, want no credential once the account is cleared", cred, err)
+	// A service can only borrow a connection of its own provider; anything
+	// else would authenticate against the wrong host.
+	service.Provider = database.ProviderGitHub
+	if _, err := svc.GitSourceFor(ctx, service); err == nil {
+		t.Fatal("want an error when the service and the connection disagree")
 	}
 }

@@ -323,7 +323,7 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 	}
 	sourced := make([]database.Service, 0, len(services))
 	for _, svc := range services {
-		if !database.GitProvider(svc.Provider) {
+		if !database.ClonesFromGit(svc.Provider) {
 			continue
 		}
 		if p.target != "" && svc.ComposeServiceName != p.target {
@@ -338,7 +338,7 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 	p.begin(StepClone)
 	shas := make([]string, 0, len(sourced))
 	for _, svc := range sourced {
-		cred, err := p.e.projects.Credential(ctx, &svc)
+		source, err := p.e.projects.GitSourceFor(ctx, &svc)
 		if err != nil {
 			return p.fail(err)
 		}
@@ -347,13 +347,13 @@ func (p *pipeline) serviceCheckouts(ctx context.Context) error {
 			ref = p.ref
 		}
 		repo := git.Repo{
-			URL:        svc.RepositoryURL,
+			URL:        source.URL,
 			Ref:        ref,
 			Dir:        filepath.Join(p.e.projects.ServiceDir(p.environment, svc.ComposeServiceName), "repository"),
-			Cred:       cred,
+			Cred:       source.Cred,
 			KnownHosts: filepath.Join(p.e.cfg.SecretsDir, "known_hosts"),
 		}
-		p.printf("Fetching %s @ %s for service %s", svc.RepositoryURL, ref, svc.ComposeServiceName)
+		p.printf("Fetching %s @ %s for service %s", source.URL, ref, svc.ComposeServiceName)
 		sha, err := repo.Sync(ctx, p)
 		if err != nil {
 			return p.fail(err)

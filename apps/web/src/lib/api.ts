@@ -177,8 +177,12 @@ export type Service = {
 	branch: string
 	build_path: string
 	credential_kind: CredentialKind
-	/** A connected account whose token clones this service, or empty for its own credential. */
-	git_account_id: string
+	/** The connection this service clones through, or empty for a plain git URL. */
+	git_provider_id: string
+	/** Owning user, organisation or group of the repository, on the connection. */
+	owner: string
+	/** Repository name on the connection, which together with owner replaces the URL. */
+	repository: string
 	/** What the service is configured to run, which is set before it ever deploys. */
 	image: string
 	engine: string
@@ -428,28 +432,54 @@ export type VersionSettings = {
 }
 
 /**
- * A provider account connected once, so repositories are picked instead of
- * pasted. Either a personal access token or an installed GitHub App, which
- * `app_id` is what distinguishes.
+ * A connection to a git host, connected once so repositories are picked instead
+ * of pasted. The parent row carries the name; the detail that matches
+ * `provider_type` carries what the host needs.
  */
-export type GitAccount = {
-	id: string
-	provider: ServiceProvider
+export type GitProvider = {
+	git_provider_id: string
 	name: string
-	/** The origin of a self-hosted GitLab or Gitea; empty for the hosted ones. */
-	host: string
-	/** Set for a GitHub App account, empty for a token. */
-	app_id: string
-	app_slug: string
-	/** Empty until the app is installed and its repositories are picked. */
-	installation_id: string
+	provider_type: GitProviderType
 	created_at: string
+	/** False until the handshake with the host finished; nothing can be listed before then. */
+	connected: boolean
+	github?: {
+		github_app_name: string
+		github_app_id: string
+		github_client_id: string
+		github_installation_id: string
+		github_url: string
+	}
+	gitlab?: {
+		gitlab_url: string
+		application_id: string
+		redirect_uri: string
+		group_name: string
+		expires_at: number
+	}
+	bitbucket?: {
+		bitbucket_username: string
+		bitbucket_email: string
+		bitbucket_workspace_name: string
+	}
+	gitea?: {
+		gitea_url: string
+		redirect_uri: string
+		client_id: string
+		gitea_username: string
+		organization_name: string
+		scopes: string
+		expires_at: number
+	}
 }
 
+/** The four hosts a connection can be made to. */
+export type GitProviderType = 'github' | 'gitlab' | 'bitbucket' | 'gitea'
+
 export type GitRepository = {
-	full_name: string
-	clone_url: string
-	default_branch: string
+	name: string
+	owner: string
+	url: string
 }
 
 export type Registry = {
@@ -663,7 +693,10 @@ export const api = {
 			build_path?: string
 			credential_kind?: CredentialKind
 			credential_secret?: string
-			git_account_id?: string
+			/** A connection to clone through; `owner` and `repository` name the repo on it. */
+			git_provider_id?: string
+			owner?: string
+			repository?: string
 			image?: string
 			compose_fragment?: string
 			database?: {
@@ -707,8 +740,10 @@ export const api = {
 			build_path: string
 			credential_kind: CredentialKind
 			credential_secret: string
-			/** Empty hands the service back its own credential fields. */
-			git_account_id: string
+			/** Empty hands the service back its own repository URL and credential. */
+			git_provider_id: string
+			owner: string
+			repository: string
 			/** For a database this is the version switch: set it, then redeploy. */
 			image: string
 			compose_fragment: string
@@ -800,16 +835,75 @@ export const api = {
 			{ method: 'POST' },
 		),
 
-	gitAccounts: () => request<GitAccount[]>('/api/git-accounts'),
-	createGitAccount: (body: { provider: ServiceProvider; name: string; host?: string; token: string }) =>
-		request<GitAccount>('/api/git-accounts', { method: 'POST', body }),
-	deleteGitAccount: (id: string) => request<{ ok: boolean }>(`/api/git-accounts/${id}`, { method: 'DELETE' }),
-	/** The app GitHub should create, and the URL the browser posts it to. */
-	gitAppManifest: (body: { name: string; organization?: string }) =>
-		request<{ post_url: string; manifest: string }>('/api/git-apps/manifest', { method: 'POST', body }),
-	gitRepositories: (id: string) => request<GitRepository[]>(`/api/git-accounts/${id}/repositories`),
-	gitBranches: (id: string, repository: string) =>
-		request<string[]>(`/api/git-accounts/${id}/branches?repository=${encodeURIComponent(repository)}`),
+	gitProviders: async () => {
+		const { git_providers } = await request<{ git_providers: GitProvider[] }>('/api/git-providers')
+		return git_providers
+	},
+	renameGitProvider: (id: string, name: string) =>
+		request<{ ok: boolean }>(`/api/git-providers/${id}`, { method: 'PATCH', body: { name } }),
+	deleteGitProvider: (id: string) => request<{ ok: boolean }>(`/api/git-providers/${id}`, { method: 'DELETE' }),
+	gitRepositories: async (id: string) => {
+		const { repositories } = await request<{ repositories: GitRepository[] }>(
+			`/api/git-providers/${id}/repositories`,
+		)
+		return repositories
+	},
+	gitBranches: async (id: string, owner: string, repository: string) => {
+		const query = `owner=${encodeURIComponent(owner)}&repository=${encodeURIComponent(repository)}`
+		const { branches } = await request<{ branches: string[] }>(`/api/git-providers/${id}/branches?${query}`)
+		return branches
+	},
+	/**
+	 * Creating a GitHub connection answers with the App manifest GitHub expects
+	 * posted to `manifest_url` as a form field, which is what starts the flow.
+	 */
+	createGitHubProvider: (body: { name: string; github_url?: string; organization?: string }) =>
+		request<{ git_provider_id: string; manifest: unknown; manifest_url: string }>('/api/git-providers/github', {
+			method: 'POST',
+			body,
+		}),
+	/** GitLab and Gitea answer with the URL the owner has to visit to authorise the app. */
+	saveGitLabProvider: (
+		id: string | undefined,
+		body: { name: string; gitlab_url?: string; application_id: string; secret: string; group_name?: string },
+	) =>
+		request<{ git_provider_id: string; authorize_url: string }>(
+			id ? `/api/git-providers/${id}/gitlab` : '/api/git-providers/gitlab',
+			{ method: id ? 'PUT' : 'POST', body },
+		),
+	saveGiteaProvider: (
+		id: string | undefined,
+		body: {
+			name: string
+			gitea_url?: string
+			client_id: string
+			client_secret: string
+			organization_name?: string
+		},
+	) =>
+		request<{ git_provider_id: string; authorize_url: string }>(
+			id ? `/api/git-providers/${id}/gitea` : '/api/git-providers/gitea',
+			{ method: id ? 'PUT' : 'POST', body },
+		),
+	/** Bitbucket takes a credential pair, so it is connected the moment it is saved. */
+	saveBitbucketProvider: (
+		id: string | undefined,
+		body: {
+			name: string
+			bitbucket_username?: string
+			app_password?: string
+			bitbucket_email?: string
+			api_token?: string
+			bitbucket_workspace_name?: string
+		},
+	) =>
+		request<{ git_provider_id: string }>(
+			id ? `/api/git-providers/${id}/bitbucket` : '/api/git-providers/bitbucket',
+			{
+				method: id ? 'PUT' : 'POST',
+				body,
+			},
+		),
 
 	registries: () => request<Registry[]>('/api/registries'),
 	createRegistry: (body: { name: string; url: string; username: string; password: string }) =>
