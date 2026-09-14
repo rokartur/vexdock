@@ -124,6 +124,8 @@ export type Service = {
 	id: string
 	project_id: string
 	compose_service_name: string
+	/** What docker ps shows. Empty on services created before the manager named them. */
+	container_name: string
 	display_name: string
 	type: ServiceType
 	provider: ServiceProvider
@@ -643,6 +645,8 @@ export const api = {
 		projectId: string,
 		body: {
 			name: string
+			/** Overrides the host container name; empty takes `<project>-<service>`. */
+			container_name?: string
 			provider: ServiceProvider
 			repository_url?: string
 			branch?: string

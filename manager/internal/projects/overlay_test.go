@@ -75,6 +75,61 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 	}
 }
 
+// A container's name is what someone reads in docker ps, so it follows the
+// project rather than the environment's opaque id, and it has to stay unique
+// across the host: a second environment puts its own name in the middle, and a
+// name already taken is refused rather than left for docker to fail on.
+func TestContainerNames(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+
+	p, err := svc.Create(ctx, CreateInput{Name: "rokartur"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	default_ := defaultEnv(t, svc, p)
+	db, err := svc.CreateService(ctx, default_, ServiceInput{
+		Name:     "db",
+		Provider: database.ProviderImage,
+		Database: &DatabaseInput{Engine: "postgres", Name: "app", User: "app", Password: "s3cret"},
+	})
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	if db.ContainerName != "rokartur-db" {
+		t.Errorf("container name %q, want rokartur-db", db.ContainerName)
+	}
+
+	staging, err := svc.CreateEnvironment(ctx, p, "staging", "main")
+	if err != nil {
+		t.Fatalf("create environment: %v", err)
+	}
+	copies, err := svc.db.ListServices(ctx, staging.ID)
+	if err != nil {
+		t.Fatalf("list staging services: %v", err)
+	}
+	if len(copies) != 1 || copies[0].ContainerName != "rokartur-staging-db" {
+		t.Errorf("staging copy = %+v, want one container named rokartur-staging-db", copies)
+	}
+	if _, err := svc.CreateService(ctx, staging, ServiceInput{
+		Name: "api", Provider: database.ProviderUnconfigured, ContainerName: "rokartur-db",
+	}); err == nil {
+		t.Error("two services took the same container name, which docker would refuse at deploy")
+	}
+
+	path, err := svc.WriteOverlay(ctx, default_)
+	if err != nil {
+		t.Fatalf("write overlay: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read overlay: %v", err)
+	}
+	if !strings.Contains(string(raw), "container_name: rokartur-db") {
+		t.Errorf("the name did not reach the overlay:\n%s", raw)
+	}
+}
+
 // Every overlay after the first is re-rendered from the stored row rather than
 // from the create request, so anything the row does not carry is silently lost.
 // Both cases here pin that: a version that is not the catalog default must not

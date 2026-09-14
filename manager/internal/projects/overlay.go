@@ -86,7 +86,13 @@ func (s *Service) WriteOverlay(ctx context.Context, env *database.Environment) (
 		// The catalog fragments are raw string literals that stop on their last
 		// content character, so the next service's key would land on the previous
 		// one's last line. Normalise here, where all three render branches meet.
-		fmt.Fprintf(&body, "  %s:\n%s\n", svc.ComposeServiceName, strings.TrimRight(fragment, "\n"))
+		fmt.Fprintf(&body, "  %s:\n", svc.ComposeServiceName)
+		// A raw service's fragment is the user's own YAML and may already name its
+		// container; a second key would fail the whole file.
+		if svc.ContainerName != "" && svc.Provider != database.ProviderRaw {
+			fmt.Fprintf(&body, "    container_name: %s\n", svc.ContainerName)
+		}
+		fmt.Fprintf(&body, "%s\n", strings.TrimRight(fragment, "\n"))
 		volumes = append(volumes, vols...)
 	}
 	if len(volumes) > 0 {

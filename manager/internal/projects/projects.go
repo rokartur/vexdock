@@ -41,7 +41,10 @@ type CreateInput struct {
 // fields matter is decided by Provider, and Database is set only when the
 // service is a catalog database.
 type ServiceInput struct {
-	Name          string
+	Name string
+	// ContainerName overrides what the container is called on the host. Empty
+	// takes the project's own name for it.
+	ContainerName string
 	Provider      string
 	RepositoryURL string
 	Branch        string

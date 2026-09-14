@@ -143,7 +143,7 @@ func (db *DB) ListSecrets(ctx context.Context, sc SecretScope, ownerID string) (
 }
 
 // The container id is deliberately not stored: it changes on every recreate.
-const serviceColumns = `id, project_id, environment_id, compose_service_name, display_name, type, provider,
+const serviceColumns = `id, project_id, environment_id, compose_service_name, container_name, display_name, type, provider,
 	repository_url, branch, build_path, credential_kind, credential_enc, git_provider_id, owner, repository, image,
 	engine, data_path, compose_fragment, created_at, updated_at`
 
@@ -152,8 +152,8 @@ const serviceColumns = `id, project_id, environment_id, compose_service_name, di
 func (db *DB) CreateService(ctx context.Context, s *Service) error {
 	s.CreatedAt, s.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.DisplayName, s.Type, s.Provider,
+		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.ContainerName, s.DisplayName, s.Type, s.Provider,
 		s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind, s.CredentialEnc, s.GitProviderID, s.Owner,
 		s.Repository, s.Image, s.Engine, s.DataPath, s.ComposeFragment, s.CreatedAt, s.UpdatedAt)
 	return err
@@ -181,6 +181,13 @@ func (db *DB) ServiceByName(ctx context.Context, environmentID, name string) (*S
 		`SELECT `+serviceColumns+` FROM services WHERE environment_id = ? AND compose_service_name = ?`, environmentID, name))
 }
 
+// ServiceByContainerName spans every project: a container name is unique on the
+// whole host, not within one environment.
+func (db *DB) ServiceByContainerName(ctx context.Context, name string) (*Service, error) {
+	return scanService(db.QueryRowContext(ctx,
+		`SELECT `+serviceColumns+` FROM services WHERE container_name = ?`, name))
+}
+
 func (db *DB) ServiceByID(ctx context.Context, id string) (*Service, error) {
 	return scanService(db.QueryRowContext(ctx,
 		`SELECT `+serviceColumns+` FROM services WHERE id = ?`, id))
@@ -188,7 +195,7 @@ func (db *DB) ServiceByID(ctx context.Context, id string) (*Service, error) {
 
 func scanService(row scanner) (*Service, error) {
 	var s Service
-	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.DisplayName, &s.Type, &s.Provider,
+	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.ContainerName, &s.DisplayName, &s.Type, &s.Provider,
 		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.CredentialKind, &s.CredentialEnc, &s.GitProviderID, &s.Owner,
 		&s.Repository, &s.Image, &s.Engine, &s.DataPath, &s.ComposeFragment, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {

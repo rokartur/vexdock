@@ -58,6 +58,7 @@ export function NewServiceForm({
 	onCancel: () => void
 }) {
 	const [name, setName] = useState('')
+	const [containerName, setContainerName] = useState('')
 	const [fragment, setFragment] = useState('')
 
 	const [engine, setEngine] = useState('postgres')
@@ -89,12 +90,25 @@ export function NewServiceForm({
 	})
 
 	const environmentId = useEnvironmentId()
+	// Both queries are the ones the project shell already runs, so this reads
+	// the cache to show the name the manager would pick on its own.
+	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
+	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
+	const environment = environments.data?.find(candidate =>
+		environmentId ? candidate.id === environmentId : candidate.is_default,
+	)
+	const derivedContainer =
+		project.data && environment && name
+			? [project.data.slug, environment.is_default ? '' : environment.slug, name].filter(Boolean).join('-')
+			: ''
+
 	const create = useMutation({
 		mutationFn: () =>
 			api.createService(
 				projectId,
 				{
 					name,
+					container_name: containerName || undefined,
 					provider: providers[kind],
 					...(kind === 'compose' ? { compose_fragment: fragment } : {}),
 					...(kind === 'database'
@@ -153,6 +167,17 @@ export function NewServiceForm({
 						placeholder={kind === 'database' ? 'db' : 'api'}
 					/>
 				</Field>
+
+				{kind === 'compose' ? null : (
+					<Field label='Container name' hint='What docker ps shows.'>
+						<Input
+							value={containerName}
+							onChange={event => setContainerName(event.target.value)}
+							placeholder={derivedContainer}
+							spellCheck={false}
+						/>
+					</Field>
+				)}
 
 				{kind === 'database' ? (
 					<>
