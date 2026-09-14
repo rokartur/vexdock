@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-	IconApps,
 	IconBox,
 	IconCpu,
 	IconDatabase,
@@ -21,7 +20,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
-import { NewTemplateForm } from '../components/new-template-form'
 import {
 	Button,
 	Cell,
@@ -37,24 +35,18 @@ import { deploymentLink } from '../lib/deployment-link'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent, since } from '../lib/format'
 
-/**
- * What the New service menu opens. The three service kinds are what the form
- * builds; a template is a whole stack the manager assembles, so it gets its own
- * form and sits at the end of the menu.
- */
-type Creating = ServiceKind | 'import' | 'template'
+/** What the New service menu opens: the three service kinds, plus the import escape hatch. */
+type Creating = ServiceKind | 'import'
 
-/** The menu, in the order it reads: the two everyday kinds, the escape hatch, the catalog. */
+/** The menu, in the order it reads: the two everyday kinds, then the escape hatch. */
 const creatable: { kind: Creating; label: string; icon: TablerIcon }[] = [
 	{ kind: 'application', label: 'Application', icon: IconBox },
 	{ kind: 'database', label: 'Database', icon: IconDatabase },
 	{ kind: 'compose', label: 'Compose', icon: IconFileCode },
-	{ kind: 'template', label: 'From template', icon: IconApps },
 ]
 
 function dialogTitle(creating: Creating | null) {
 	if (creating === null || creating === 'import') return 'Import services'
-	if (creating === 'template') return 'New from template'
 	return newServiceTitle(creating)
 }
 
@@ -291,21 +283,7 @@ function ProjectServices() {
 								onCancel={() => setCreating(null)}
 							/>
 						) : null}
-						{creating === 'template' ? (
-							<NewTemplateForm
-								projectId={projectId}
-								onDone={async service => {
-									setCreating(null)
-									await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
-									await navigate({
-										to: '/projects/$projectId/services/$serviceId',
-										params: { projectId, serviceId: service.id },
-									})
-								}}
-								onCancel={() => setCreating(null)}
-							/>
-						) : null}
-						{creating !== null && creating !== 'import' && creating !== 'template' ? (
+						{creating !== null && creating !== 'import' ? (
 							<NewServiceForm
 								projectId={projectId}
 								kind={creating}
