@@ -3,8 +3,9 @@
 Vexdock: a self-hosted deployment platform for one Linux server. Three
 containers — a Go manager that owns the Docker socket, better-auth on Bun, and
 Nginx as the only public entry point. [README.md](README.md) says what it does,
-[CONTRIBUTING.md](CONTRIBUTING.md) has the package layout and the language
-conventions. Read the one that matches the change before making it.
+[docs/codebase.md](docs/codebase.md) has the package layout,
+[CONTRIBUTING.md](CONTRIBUTING.md) the language conventions. Read the one
+that matches the change before making it.
 
 ## Orient
 
@@ -15,6 +16,7 @@ conventions. Read the one that matches the change before making it.
 | Trust boundary, CSRF, secrets, encryption | [docs/security.md](docs/security.md) |
 | Install, update, uninstall, installer flags | [docs/install.md](docs/install.md), `installer/install.sh` |
 | Something is broken | [docs/troubleshooting.md](docs/troubleshooting.md) |
+| Which package owns a thing, what a word means, how a request travels | [docs/codebase.md](docs/codebase.md) |
 
 ## Gate
 
@@ -93,7 +95,8 @@ The doc edit ships in the same change as the behaviour, not after it.
 | Auth, CSRF, secret handling, validation, a destructive action | `docs/security.md` |
 | Installer flags, ports, the `/opt/vexdock` layout | `docs/install.md` and the state tree in `README.md` |
 | A new failure mode with a known fix | `docs/troubleshooting.md` |
-| Package layout, conventions, test policy | `CONTRIBUTING.md` |
+| A package, a dashboard file or a domain word added, removed or renamed | `docs/codebase.md` |
+| Conventions, test policy | `CONTRIBUTING.md` |
 | Anything above that changes how an agent works in this repo | this file |
 
 ## Local only
