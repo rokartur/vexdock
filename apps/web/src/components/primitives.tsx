@@ -131,7 +131,10 @@ export function IconButton({
 			>
 				<Icon />
 			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
+			{/* Base UI marks a tooltip opened inside the group's window as instant; a
+			    toolbar of these should then read as one label following the cursor,
+			    not as five separate entrances. */}
+			<TooltipContent className='data-instant:duration-0'>{label}</TooltipContent>
 		</Tooltip>
 	)
 }

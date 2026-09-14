@@ -362,6 +362,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/auth-client.ts` | better-auth client: `signIn`, `signUp`, `signOut`, `useSession` |
 | `src/lib/sse.ts` | `useEventSource` for one stream, `useSystemEvents` for cache invalidation |
 | `src/lib/format.ts`, `dotenv.ts`, `breadcrumb.ts` | Pure helpers, each with a test beside it |
+| `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
 | `src/styles.css` | Every design token. A reskin is an edit here, never on a page |
 
 A page is: `useQuery({ queryKey, queryFn: api.something })`, a `useMutation`

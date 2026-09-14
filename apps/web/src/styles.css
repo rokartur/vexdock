@@ -19,6 +19,20 @@
 	--text-title: 15px;
 	/* The one size that is allowed to be big: a live reading in a Cells grid. */
 	--text-reading: 22px;
+
+	/* Motion. Tailwind's own curves are too soft to read at the 100-200ms a
+	 * dashboard animates in, so both are the stronger variants. Overriding
+	 * tw-animate-css's --animate-in/--animate-out is what puts ease-out under
+	 * every popover, menu, select, dialog and tooltip in one place: they enter
+	 * fast and settle, instead of easing in and feeling late. */
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+	--animate-in: enter var(--tw-animation-duration, var(--tw-duration, 0.15s)) var(--tw-ease, var(--ease-out))
+		var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
+	--animate-out: exit var(--tw-animation-duration, var(--tw-duration, 0.15s)) var(--tw-ease, var(--ease-out))
+		var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
+		var(--tw-animation-fill-mode, none);
 }
 
 /* Dark-only app: <html class="dark"> is hardcoded in routes/__root.tsx and there
@@ -295,4 +309,24 @@ body,
 
 .terminal-host .xterm {
 	padding: 8px;
+}
+
+/* Reduced motion drops movement, not feedback: the fades that say a thing
+ * opened or closed stay, the travel and the scaling that cause motion sickness
+ * go. Zeroing tw-animate-css's enter/exit variables leaves the keyframe in
+ * place with only its opacity step. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	::before,
+	::after {
+		--tw-enter-translate-x: 0 !important;
+		--tw-enter-translate-y: 0 !important;
+		--tw-enter-scale: 1 !important;
+		--tw-enter-rotate: 0 !important;
+		--tw-exit-translate-x: 0 !important;
+		--tw-exit-translate-y: 0 !important;
+		--tw-exit-scale: 1 !important;
+		--tw-exit-rotate: 0 !important;
+		transition-property: opacity, color, background-color, border-color, fill, stroke !important;
+	}
 }

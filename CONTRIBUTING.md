@@ -99,6 +99,13 @@ attributes are read as a `Facts` list: label left, value right, a rule between
 rows. The type scale is custom `text-*` tokens; `utils/cn.ts` registers them
 with tailwind-merge so they never clobber a text colour.
 
+Motion is a token too. `--ease-out` is the strong curve, not Tailwind's, and
+`--animate-in`/`--animate-out` are redefined to pick it up, so every popover,
+menu, select, dialog and tooltip enters on the same curve without a page
+naming it. Anything a keyboard opens does not animate at all: the command
+palette is `animate-none`, because at dozens of opens a day an entrance reads
+as lag. Reduced motion drops travel and scaling and keeps the fades.
+
 ## Tests
 
 Focused tests for logic that can break silently: the Nginx generator, the
