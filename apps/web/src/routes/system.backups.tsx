@@ -20,7 +20,7 @@ function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 				</span>
 			),
 		}),
-		cell.accessor(backup => (backup.has_volumes ? 'platform + volumes' : 'platform'), {
+		cell.accessor(backup => (backup.has_volumes ? 'config + data' : 'config'), {
 			id: 'contents',
 			header: 'Contents',
 		}),
@@ -82,11 +82,11 @@ function BackupsPage() {
 					<div className='flex items-center gap-2'>
 						<Button onClick={() => create.mutate(false)} disabled={create.isPending}>
 							<IconArchive />
-							Platform only
+							Config only
 						</Button>
 						<Button variant='primary' onClick={() => create.mutate(true)} disabled={create.isPending}>
 							<IconDatabase />
-							{create.isPending ? 'Creating…' : 'Include volumes'}
+							{create.isPending ? 'Creating…' : 'Config + data'}
 						</Button>
 						<Refresh onClick={() => backups.refetch()} busy={backups.isFetching} />
 					</div>

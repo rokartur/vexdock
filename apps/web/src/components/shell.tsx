@@ -109,7 +109,9 @@ function SectionMenu({
 	const active = items.some(item => isActive(item, pathname))
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger render={<button type='button' aria-label={label} data-on={active} className={navItem} />}>
+			<DropdownMenuTrigger
+				render={<button type='button' aria-label={label} data-on={active} className={navItem} />}
+			>
 				<Icon stroke={1.5} className='size-4' />
 				{label}
 				<IconChevronDown className='size-3.5! text-muted-foreground' />
@@ -284,7 +286,10 @@ export function Shell({ children }: { children: ReactNode }) {
 				<Link
 					to='/system/settings/about'
 					draggable={false}
-					className={cn('my-auto ml-auto flex shrink-0 items-center gap-1.5 pl-3 font-mono text-meta', versionClass)}
+					className={cn(
+						'my-auto ml-auto flex shrink-0 items-center gap-1.5 pl-3 font-mono text-meta',
+						versionClass,
+					)}
 				>
 					{updateDot ? <span aria-hidden className={cn('size-1.5 rounded-full', updateDot)} /> : null}
 					{versionText}

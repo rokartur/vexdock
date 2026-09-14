@@ -2,28 +2,72 @@ import { useMemo } from 'react'
 import { IconStack2, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { Badge } from '@/components/ui/badge'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
 import { Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
 import { api, type ImageSummary } from '../lib/api'
 import { bytes, since } from '../lib/format'
 
+function shortId(image: ImageSummary) {
+	return image.id.replace('sha256:', '').slice(0, 12)
+}
+
+/** `repo:tag`, minding that a registry host may carry a port: `localhost:5000/app`. */
+function splitTag(reference: string) {
+	const colon = reference.lastIndexOf(':')
+	return colon > reference.lastIndexOf('/')
+		? { repository: reference.slice(0, colon), tag: reference.slice(colon + 1) }
+		: { repository: reference, tag: '<none>' }
+}
+
+function imageTags(image: ImageSummary) {
+	const tags = image.repo_tags?.map(splitTag) ?? []
+	return tags.length > 0 ? tags : [{ repository: '<none>', tag: '<none>' }]
+}
+
 function imageName(image: ImageSummary) {
-	return image.repo_tags?.join(', ') || image.id.replace('sha256:', '').slice(0, 12)
+	return image.repo_tags?.join(', ') || shortId(image)
 }
 
 function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> {
 	const cell = columnsFor<ImageSummary>()
 	return [
-		cell.accessor(imageName, {
-			id: 'repository',
-			header: 'Repository',
-			cell: ({ row }) => (
-				<span className='inline-flex items-center gap-2'>
-					<IconStack2 className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{imageName(row.original)}</span>
-				</span>
-			),
-		}),
+		cell.accessor(
+			image =>
+				imageTags(image)
+					.map(({ repository }) => repository)
+					.join(', '),
+			{
+				id: 'repository',
+				header: 'Repository',
+				cell: ({ getValue }) => (
+					<span className='inline-flex items-center gap-2'>
+						<IconStack2 className='size-4 text-muted-foreground' />
+						<span className='font-mono text-label'>{getValue()}</span>
+					</span>
+				),
+			},
+		),
+		cell.accessor(
+			image =>
+				imageTags(image)
+					.map(({ tag }) => tag)
+					.join(', '),
+			{
+				id: 'tag',
+				header: 'Tag',
+				cell: ({ row }) => (
+					<span className='flex flex-wrap gap-1'>
+						{imageTags(row.original).map(({ tag }) => (
+							<Badge key={tag} variant='outline'>
+								{tag}
+							</Badge>
+						))}
+					</span>
+				),
+			},
+		),
+		cell.accessor(shortId, { id: 'image_id', header: 'Image ID', meta: { mono: true } }),
 		cell.accessor(image => image.size, {
 			id: 'size',
 			header: 'Size',

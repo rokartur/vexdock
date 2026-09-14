@@ -93,7 +93,7 @@ logs survive, until the next update replaces it.
 
 Backups live in `/opt/vexdock/backups/<timestamp>/`, containing `app.db`,
 `auth.db`, `master.key`, the generated proxy configuration and the certificates.
-A backup created with **Include volumes** also has a `volumes/<name>.tar.gz` per
+A backup created with **Config + data** also has a `volumes/<name>.tar.gz` per
 application volume. Restoring one is in
 [install.md](install.md#restoring-a-backup); note that `master.key` is required
 to read anything encrypted in `app.db`.

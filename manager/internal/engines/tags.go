@@ -31,6 +31,11 @@ func Versions(ctx context.Context, engine Engine) ([]string, error) {
 	if engine.Repository == "" {
 		return nil, fmt.Errorf("engine %q has no curated repository", engine.Slug)
 	}
+	// A repository qualified with its own registry host is not on Docker Hub, so
+	// the curated list is all there is to offer.
+	if strings.Contains(strings.SplitN(engine.Repository, "/", 2)[0], ".") {
+		return engine.Versions, nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, tagLookupTimeout)
 	defer cancel()
 

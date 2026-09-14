@@ -255,8 +255,9 @@ export function NewServiceForm({
 }
 
 /**
- * Brand marks for the catalog. Tabler ships only two of the five, so all of
- * them are inline paths instead, to keep one weight across the row.
+ * Brand marks for the catalog. Tabler ships only two of them, so all the marks
+ * are inline paths instead, to keep one weight across the row. An engine
+ * without one falls back to the generic database glyph.
  */
 const marks: Record<string, { fill: string; d: string }> = {
 	postgres: {

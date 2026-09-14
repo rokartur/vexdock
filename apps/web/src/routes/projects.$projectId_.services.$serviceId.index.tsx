@@ -189,8 +189,10 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 					<Fact label='Port' value={data.port} />
 					{data.database ? <Fact label='Database' value={data.database} /> : null}
 					{data.user ? <Fact label='User' value={data.user} /> : null}
-					<Fact label='Password' value={mask(data.password)} />
-					<Fact label='URL' value={revealed ? data.url : data.url.replace(data.password, '•••')} />
+					{data.password ? <Fact label='Password' value={mask(data.password)} /> : null}
+					{data.url ? (
+						<Fact label='URL' value={revealed ? data.url : data.url.replace(data.password, '•••')} />
+					) : null}
 				</Facts>
 			</FormSection>
 			<FormSection

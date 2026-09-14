@@ -202,6 +202,23 @@ var Catalog = []Engine{
       retries: 5`,
 	},
 	{
+		Slug:       "libsql",
+		Name:       "libSQL",
+		Repository: "ghcr.io/tursodatabase/libsql-server",
+		DefaultTag: "latest",
+		Versions:   []string{"latest", "v0.24.33", "v0.24.32", "v0.24.31"},
+		Port:       8080,
+		Scheme:     "http",
+		// sqld serves one SQLite file over HTTP: no database to name, no user,
+		// and its auth is a JWT key rather than a password, so the catalog seeds
+		// no credentials and the service is reachable to its project network only.
+		fragment: `    image: {{ .Image }}
+    restart: unless-stopped
+    env_file: ["{{ .EnvFile }}"]
+    volumes:
+      - {{ .Volume }}:/var/lib/sqld`,
+	},
+	{
 		Slug: Custom,
 		Name: "Other image",
 		fragment: `    image: {{ .Image }}

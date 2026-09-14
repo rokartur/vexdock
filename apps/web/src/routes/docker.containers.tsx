@@ -82,7 +82,12 @@ function containerTableColumns({ showLogs, act }: ContainerActions): Columns<Con
 	]
 }
 
-export const Route = createFileRoute('/docker/containers')({ component: ContainersPage })
+export const Route = createFileRoute('/docker/containers')({
+	validateSearch: (search: Record<string, unknown>) => ({
+		q: typeof search.q === 'string' ? search.q : undefined,
+	}),
+	component: ContainersPage,
+})
 
 /**
  * Every container on the host, managed or not. Foreign stacks are visible but
@@ -90,6 +95,7 @@ export const Route = createFileRoute('/docker/containers')({ component: Containe
  */
 function ContainersPage() {
 	const queryClient = useQueryClient()
+	const { q } = Route.useSearch()
 	const [logsFor, setLogsFor] = useState<string | null>(null)
 
 	const containers = useQuery({ queryKey: ['containers'], queryFn: api.containers })
@@ -116,6 +122,9 @@ function ContainersPage() {
 			>
 				<ErrorText error={act.error} />
 				<DataTable
+					// Arriving from another page with a different term has to re-seed the filter box.
+					key={q}
+					initialFilter={q}
 					data={data}
 					columns={columns}
 					loading={containers.isLoading}
