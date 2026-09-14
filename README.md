@@ -122,7 +122,7 @@ make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 - [docs/api.md](docs/api.md) REST API and API tokens
 - [docs/security.md](docs/security.md) the security model
 - [docs/troubleshooting.md](docs/troubleshooting.md) when something breaks
-- [docs/codebase.md](docs/codebase.md) reading the code: layout, vocabulary, one request end to end
+- [docs/codebase.md](docs/codebase.md) reading the code: layout, vocabulary, sequence diagrams of deploy, domains, reconcile, sign-in and self-update
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License

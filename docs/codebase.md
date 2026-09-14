@@ -43,6 +43,46 @@ Every Go package opens with a comment naming what it owns and why it exists.
 
 Pressing **Deploy** on a project page.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Page as routes/projects.$projectId.index.tsx
+    participant API as lib/api.ts
+    participant Nginx
+    participant Protected as api.go protected()
+    participant Handler as handleDeploy
+    participant Engine as deployments.Engine
+    participant DB as database
+    participant Bus as events.Bus
+    participant SSE as api/sse.go
+
+    Page->>API: api.deploy(projectId, environmentId)
+    API->>Nginx: POST /api/projects/{id}/deploy?environment= (cookie)
+    Nginx->>Protected: proxy to manager:8080
+    Protected->>DB: Auth.Authenticate (auth.db, read-only)
+    Protected->>Protected: auth.SameOrigin (cookie + mutation)
+    Protected->>Handler: next
+    Handler->>DB: projectEnv: project + environment
+    Handler->>Engine: Trigger(env, scope)
+    Engine->>DB: CreateDeployment(status=queued)
+    Engine->>Bus: deployment.queued
+    Engine-->>Handler: row (run() started in a goroutine)
+    Handler-->>API: 202 deployment
+    Protected->>DB: audit row
+    API-->>Page: navigate to /deployments/{id}
+
+    Page->>SSE: GET /api/deployments/{id}/events
+    SSE->>Bus: Subscribe(deployment topic)
+    loop each step: clone, checkout, validate, pull, build, start, healthcheck, proxy, finish
+        Engine->>DB: step status + output
+        Engine->>Bus: step event
+        Bus-->>SSE: event
+        SSE-->>Page: SSE frame
+    end
+    Engine->>Bus: deployment.success | deployment.failed (system topic)
+    Bus-->>Page: /api/system/events, useSystemEvents invalidates the query cache
+```
+
 1. `routes/projects.$projectId.index.tsx` calls `api.deploy(projectId, environmentId)`
    inside a `useMutation`.
 2. `lib/api.ts` `request()` sends `POST /api/projects/{id}/deploy?environment=...`
@@ -77,6 +117,179 @@ Pressing **Deploy** on a project page.
 Reads are the same path minus the same-origin check and the audit row.
 Anything with a bearer token skips the same-origin check too: a browser never
 attaches one on its own.
+
+### Adding a domain
+
+The path from a hostname in a form to a certificate on disk. Everything after
+`CreateDomain` is best-effort: the mapping exists even if the proxy or ACME
+part fails, and the error tells the user which one did.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Handler as handleCreateDomain
+    participant Domains as domains.Service
+    participant Sec as security
+    participant DB as database
+    participant Docker as docker.Client
+    participant Nginx as nginx.Manager
+    participant ACME as certificates.Issuer
+
+    Handler->>Domains: Create(hostname, service, port, https)
+    Domains->>Sec: ValidateHostname, ValidatePort, ValidateServiceName
+    Domains->>DB: ProjectByID, EnvironmentOrDefault, ServiceByName
+    Domains->>DB: CreateDomain (unique hostname)
+    Domains->>Domains: Reconcile()
+    Domains->>Docker: EnsureNetwork(vexdock-proxy)
+    Domains->>Docker: ConnectWithAlias(container, p_<env>_<service>)
+    Domains->>Nginx: Apply(desired vhosts, HTTP only: no cert yet)
+    Nginx->>Nginx: write files, nginx -t, reload (restore old files on failure)
+    alt https
+        Domains->>ACME: EnsureCertificate -> Issue(hostname)
+        ACME->>Nginx: HTTP-01 token under /acme-challenge (or Cloudflare DNS-01)
+        ACME-->>Domains: certificate + key written to /certificates/<host>/
+        Domains->>DB: UpsertCertificate(status=issued)
+        Domains->>Domains: Reconcile() again, vhost now has TLS
+    end
+    Domains-->>Handler: domain (and the first error, if any)
+```
+
+### Reconcile on a Docker event
+
+Why a recreated container keeps its domain without anyone doing anything.
+The same `Reconcile` runs from the deploy pipeline's `proxy` step, from every
+domain mutation, and from here.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Docker as Docker daemon
+    participant Rec as events.Reconciler
+    participant Bus as events.Bus
+    participant Domains as domains.Service
+    participant Nginx as nginx.Manager
+
+    par watchDocker
+        Docker-->>Rec: container start | die | stop | destroy | health_status
+        Rec->>Bus: container.<action> (system topic)
+        Rec->>Rec: notify(trigger)
+        Docker-->>Rec: network connect | disconnect
+        Rec->>Rec: notify(trigger)
+    and tick
+        Rec->>Rec: notify(trigger) on boot and every sweep interval
+    end
+    Rec->>Rec: debounce, one Reconcile per burst
+    Rec->>Domains: Reconcile()
+    Domains->>Domains: lock, list every domain
+    loop each domain
+        Domains->>Docker: find the service container, attach with alias
+        Domains->>Domains: render vhost (TLS only if the cert file exists)
+    end
+    Domains->>Nginx: Apply(desired)
+    Nginx->>Nginx: diff against disk, nginx -t, reload or roll back
+```
+
+A stopped container is skipped with a debug log, not an error, so one dead
+service never blocks the config for the rest.
+
+### First boot and sign-in
+
+The auth service owns accounts; the manager only reads them. The setup token
+is the whole defence of a fresh panel on a public IP: without it the first
+visitor would own the Docker socket.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Browser
+    participant Gate as components/auth-gate.tsx
+    participant Nginx
+    participant Auth as apps/auth server.ts
+    participant AuthDB as auth.db
+    participant Manager as manager protected()
+
+    Browser->>Gate: load any route
+    Gate->>Nginx: GET /api/auth/platform-status
+    Nginx->>Auth: /api/auth/* goes to auth:8081
+    Auth->>AuthDB: SELECT COUNT(*) FROM user
+    Auth-->>Gate: {needs_setup}
+    Gate->>Auth: useSession (GET /api/auth/get-session)
+
+    alt needs_setup
+        Gate->>Browser: redirect /setup
+        Browser->>Auth: POST /api/auth/sign-up/email + x-setup-token
+        Auth->>Auth: 409 SETUP_CLOSED if a user exists, 403 if the token differs (timingSafeEqual)
+        Auth->>AuthDB: create user + session
+        Auth-->>Browser: Set-Cookie better-auth.session_token
+    else no session
+        Gate->>Browser: redirect /login
+        Browser->>Auth: POST /api/auth/sign-in/email
+        Auth->>AuthDB: verify password, create session
+        Auth-->>Browser: Set-Cookie
+    end
+
+    Browser->>Gate: redirect / (Shell mounts, queries start)
+    Browser->>Nginx: GET /api/projects (cookie)
+    Nginx->>Manager: everything else under /api/ goes to manager:8080
+    Manager->>AuthDB: read-only: SELECT user, session WHERE token = cookie value before the dot
+    Manager-->>Browser: 200, or 401 which the gate turns into /login
+```
+
+The gate holds the route back until both queries answer, so an unauthenticated
+visitor never mounts the shell and fires a burst of 401s. A bearer
+`Authorization` header takes the other branch in `auth.Authenticate`: the
+token hash is looked up in the manager's own `api_tokens` table, and the user
+row is read from `auth.db` for its current name.
+
+### Self-update
+
+The manager cannot replace its own container, so it launches a detached one
+that does. Progress lives in `system/update-state.json`, which is why the
+panel can keep rendering while the manager itself is being recreated.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Page as routes/system.settings.about.tsx
+    participant Handler as handleUpdate
+    participant Upd as updater.Service
+    participant Backup as backup.Service
+    participant Docker as docker CLI
+    participant Script as vexdock-updater (update.sh)
+    participant State as system/update-state.json
+
+    Page->>Handler: POST /api/system/update {version}
+    Handler->>Upd: Start(version, prerelease, cleanupOldImages)
+    Upd->>Upd: version matches ^v?N.N.N(-pre)?$, no update Active()
+    Upd->>State: phase=backup
+    Upd->>Backup: Create(platform state only, no app volumes)
+    Upd->>Upd: write update.sh under the platform root
+    Upd->>Docker: docker run --detach --name vexdock-updater docker:28-cli sh update.sh VERSION
+    Upd-->>Page: 202
+
+    loop refetchInterval 2s while active
+        Page->>Handler: GET /api/system/update/status
+        Handler->>State: read phase
+    end
+
+    Script->>State: phase=pulling
+    Script->>Script: back up compose.yml, write VERSION to .env, fetch compose.yml for the tag, compose config -q
+    Script->>Docker: compose pull
+    Script->>State: phase=restarting
+    Script->>Docker: compose up -d --remove-orphans (manager restarts here)
+    Script->>Docker: wait_healthy: inspect manager health
+    alt healthy
+        Script->>State: phase=done
+        Script->>Docker: docker rm -f vexdock-updater (its own container)
+    else any failure after VERSION was written
+        Script->>State: phase=rolled-back, error
+        Script->>Script: rollback: restore VERSION and compose.yml, compose up -d, wait_healthy
+        Note over Script: the container stays so docker logs vexdock-updater and LogTail can explain it
+    end
+```
+
+Every error before `docker run` resets the state file to `idle`; every error
+after `VERSION` is written goes through `rollback`, never through `set -e`.
 
 ## Manager
 
