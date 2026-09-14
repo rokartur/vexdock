@@ -39,23 +39,9 @@ make web-dev   # dashboard on :5173 with HMR
 
 ## Layout
 
-| Path | What lives there |
-|---|---|
-| `manager/internal/api` | HTTP handlers, routing, middleware |
-| `manager/internal/database` | SQLite connection, models and every query |
-| `manager/internal/deployments` | The deploy pipeline |
-| `manager/internal/domains` | Domain to service mapping and proxy reconciliation |
-| `manager/internal/engines` | The database engine catalogue and its compose fragments |
-| `manager/internal/projects` | Projects, environments, managed services and the compose overlay |
-| `manager/internal/nginx` | Configuration generation and safe reload |
-| `manager/internal/security` | Validation, encryption, path confinement |
-| `apps/web/src/routes` | One file per page |
-| `apps/web/src/lib/api.ts` | The typed API client |
-| `apps/web/src/lib/auth-client.ts` | better-auth client: sign-in, sign-up, session |
-| `apps/auth/src` | The better-auth service |
-
-`database` depends on nothing but the driver, so the import graph stays acyclic:
-business packages depend on it, never the other way round.
+[docs/codebase.md](docs/codebase.md) is the map: every package and what it
+owns, the dashboard's files, the words the code uses, and one request traced
+from a button to the database and back. Read it before your first change.
 
 ## Conventions
 

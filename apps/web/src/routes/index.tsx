@@ -3,7 +3,6 @@ import {
 	IconBox,
 	IconCpu,
 	IconDatabase,
-	IconFileText,
 	IconFolder,
 	IconPlayerPlay,
 	IconServer,
@@ -11,11 +10,11 @@ import {
 	IconTag,
 } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Progress } from '@/components/ui/progress'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Cell, Cells, IconButton, Page, Refresh, Section, Status } from '../components/primitives'
+import { Cell, Cells, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
 import { deploymentLink } from '../lib/deployment-link'
 import { bytes, percent, since } from '../lib/format'
@@ -58,24 +57,13 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 				<span className='text-muted-foreground'>{since(row.original.deployment.created_at)}</span>
 			),
 		}),
-		cell.display({
-			id: 'logs',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row: { original } }) => (
-				<IconButton
-					icon={IconFileText}
-					label='Logs'
-					render={<Link {...deploymentLink(original.deployment.project_id, original.deployment.id)} />}
-				/>
-			),
-		}),
 	]
 }
 
 export const Route = createFileRoute('/')({ component: DashboardPage })
 
 function DashboardPage() {
+	const navigate = useNavigate()
 	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo })
 	const recorded = useQuery({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
 	// Same key the shell uses, so this rides its cache instead of re-fetching.
@@ -222,6 +210,7 @@ function DashboardPage() {
 					columns={deploymentColumns}
 					loading={info.isLoading}
 					getRowId={({ deployment }) => deployment.id}
+					onRowClick={({ deployment }) => navigate(deploymentLink(deployment.project_id, deployment.id))}
 					empty='No deployments yet'
 				/>
 			</Section>

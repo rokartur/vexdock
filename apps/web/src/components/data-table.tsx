@@ -78,6 +78,8 @@ type DataTableProps<TData extends RowData> = {
 	 * values contain what was typed. The string is the placeholder.
 	 */
 	filter?: string
+	/** Makes the whole row activatable. A cell with its own handler must stop propagation. */
+	onRowClick?: (row: TData) => void
 	/**
 	 * Makes rows expandable: clicking one renders `render` underneath it. Which
 	 * row is open belongs to the caller, so it can live in the URL. Needs
@@ -98,6 +100,7 @@ export function DataTable<TData extends RowData>({
 	getRowId,
 	pageSize = 20,
 	filter,
+	onRowClick,
 	detail,
 }: DataTableProps<TData>) {
 	const [sorting, setSorting] = useState<SortingState>([])
@@ -200,22 +203,25 @@ export function DataTable<TData extends RowData>({
 						) : (
 							rows.map(row => {
 								const open = detail?.openId === row.id
+								const activate = detail
+									? () => detail.onOpenChange(open ? null : row.id)
+									: onRowClick && (() => onRowClick(row.original))
 								return (
 									<Fragment key={row.id}>
-										{/* An expandable row is the control: focusable, and Enter or
+										{/* An activatable row is the control: focusable, and Enter or
 										    Space does what the click does. */}
 										<TableRow
 											data-state={open ? 'selected' : undefined}
-											className={cn(detail && 'cursor-pointer')}
-											tabIndex={detail ? 0 : undefined}
+											className={cn(activate && 'cursor-pointer')}
+											tabIndex={activate ? 0 : undefined}
 											aria-expanded={detail ? open : undefined}
-											onClick={detail && (() => detail.onOpenChange(open ? null : row.id))}
+											onClick={activate}
 											onKeyDown={
-												detail &&
+												activate &&
 												(event => {
 													if (event.key !== 'Enter' && event.key !== ' ') return
 													event.preventDefault()
-													detail.onOpenChange(open ? null : row.id)
+													activate()
 												})
 											}
 										>

@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import { IconExternalLink, IconWorld } from '@tabler/icons-react'
+import { IconExternalLink, IconSettings, IconWorld } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Page, Refresh, Section, Status } from '../components/primitives'
+import { IconButton, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type Certificate, type Domain } from '../lib/api'
 
 /** A domain joined with the two lookups the table renders alongside it. */
@@ -62,6 +62,20 @@ function domainTableColumns(): Columns<DomainRow> {
 				</span>
 			),
 			meta: { mono: true },
+		}),
+		cell.display({
+			id: 'settings',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row: { original } }) => (
+				<IconButton
+					icon={IconSettings}
+					label='Domain settings'
+					render={
+						<Link to='/projects/$projectId/domains' params={{ projectId: original.domain.project_id }} />
+					}
+				/>
+			),
 		}),
 	]
 }
