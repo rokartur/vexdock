@@ -87,6 +87,7 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 			Password: in.Database.Password,
 			Image:    in.Database.Image,
 			DataPath: in.Database.DataPath,
+			Sqld:     in.Database.Sqld,
 			Name:     name,
 			// Only rendered to validate the spec here; the real file is written
 			// by WriteOverlay once the row exists.

@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { DialogFooter } from '@/components/ui/dialog'
 import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { Button, ErrorText, Field, IconButton, Input, Textarea } from './primitives'
+import { Button, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
 
 /**
  * What the menu asked for. An application is created as a bare name: whether it
@@ -24,6 +24,15 @@ const providers: Record<ServiceKind, ServiceProvider> = {
 	database: 'image',
 	compose: 'raw',
 }
+
+/** What sqld can be started as. Only libSQL offers the choice. */
+type SqldNode = 'primary' | 'replica' | 'standalone'
+
+const sqldNodes: readonly { value: SqldNode; label: string }[] = [
+	{ value: 'primary', label: 'Primary' },
+	{ value: 'replica', label: 'Replica' },
+	{ value: 'standalone', label: 'Standalone' },
+]
 
 /** Hex, so it can never carry the whitespace or quotes the manager rejects. */
 const generatePassword = () => crypto.randomUUID().replaceAll('-', '')
@@ -59,10 +68,17 @@ export function NewServiceForm({
 	const [dataPath, setDataPath] = useState('')
 	const [password, setPassword] = useState(generatePassword)
 	const [revealed, setRevealed] = useState(false)
+	const [sqldNode, setSqldNode] = useState<SqldNode>('primary')
+	const [sqldPrimaryURL, setSqldPrimaryURL] = useState('')
+	const [sqldNamespaces, setSqldNamespaces] = useState(false)
 
 	const engines = useQuery({ queryKey: ['engines'], queryFn: api.engines, enabled: kind === 'database' })
 	const selected = engines.data?.find(option => option.slug === engine)
 	const isCustom = engine === 'custom'
+	// sqld has no database to name and keeps its credentials in one encoded
+	// variable, so its fields are named here rather than derived from the
+	// catalogue's user_var and password_var.
+	const isLibsql = engine === 'libsql'
 
 	// The version list is a suggestion, not a constraint: the field stays free
 	// text so a tag the registry has not published yet still works.
@@ -91,6 +107,13 @@ export function NewServiceForm({
 									password,
 									image: isCustom ? image : undefined,
 									data_path: isCustom ? dataPath : undefined,
+									...(isLibsql
+										? {
+												sqld_node: sqldNode,
+												sqld_primary_url: sqldNode === 'replica' ? sqldPrimaryURL : undefined,
+												sqld_namespaces: sqldNamespaces,
+											}
+										: {}),
 								},
 							}
 						: {}),
@@ -115,6 +138,7 @@ export function NewServiceForm({
 						onChange={next => {
 							setEngine(next)
 							setVersion('')
+							setUser(next === 'libsql' ? 'libsql' : 'app')
 						}}
 					/>
 				</Field>
@@ -184,12 +208,33 @@ export function NewServiceForm({
 								<Input value={databaseName} onChange={event => setDatabaseName(event.target.value)} />
 							</Field>
 						) : null}
-						{selected?.user_var ? (
+						{isLibsql ? (
+							<>
+								<Field
+									label='Node'
+									hint='A replica follows a primary; a standalone replicates to nothing.'
+								>
+									<Select value={sqldNode} options={sqldNodes} onChange={setSqldNode} />
+								</Field>
+								{sqldNode === 'replica' ? (
+									<Field label='Primary URL' hint='The gRPC address of the primary.'>
+										<Input
+											required
+											value={sqldPrimaryURL}
+											onChange={event => setSqldPrimaryURL(event.target.value)}
+											placeholder='http://primary:5001'
+											spellCheck={false}
+										/>
+									</Field>
+								) : null}
+							</>
+						) : null}
+						{selected?.user_var || isLibsql ? (
 							<Field label='User'>
 								<Input value={user} onChange={event => setUser(event.target.value)} />
 							</Field>
 						) : null}
-						{selected?.password_var ? (
+						{selected?.password_var || isLibsql ? (
 							<Field
 								label='Password'
 								hint='Seeded into this service’s environment, where it can be changed later.'
@@ -218,6 +263,17 @@ export function NewServiceForm({
 					</>
 				) : null}
 			</div>
+
+			{isLibsql ? (
+				<div className='mb-3'>
+					<Switch
+						label='Namespaces'
+						hint='Serve more than one database from this server.'
+						checked={sqldNamespaces}
+						onChange={setSqldNamespaces}
+					/>
+				</div>
+			) : null}
 
 			{kind === 'compose' ? (
 				<Field

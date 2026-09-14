@@ -221,6 +221,15 @@ all optional except `engine`; what you leave out is defaulted or generated. The
 `custom` engine takes `image` and `data_path` instead of `version`, since the
 catalogue knows neither for an image it has never seen.
 
+`libsql` takes three more: `sqld_node` (`primary`, the default, `replica` or
+`standalone`), `sqld_primary_url`, which a replica needs and nothing else reads,
+and `sqld_namespaces`. They end up in the service's environment as `SQLD_NODE`,
+`SQLD_PRIMARY_URL` and `SQLD_ENABLE_NAMESPACES`, and `user` and `password`
+become the one value sqld understands, `SQLD_HTTP_AUTH`. `SQLD_ENABLE_NAMESPACES`
+is the manager's own: sqld takes namespaces as a command-line flag, so the
+variable is what the overlay reads to decide whether to pass it, and editing it
+in the Environment tab changes the flag on the next deploy.
+
 `image` is accepted for every engine, not only `custom`, and it wins over
 `version` when both are sent. That is what lets an export be replayed without
 re-resolving anything. A stored service keeps the exact image it was created

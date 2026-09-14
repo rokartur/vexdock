@@ -663,6 +663,10 @@ export const api = {
 				password?: string
 				image?: string
 				data_path?: string
+				/** libSQL only: sqld's node mode, the primary a replica follows, its namespace switch. */
+				sqld_node?: 'primary' | 'replica' | 'standalone'
+				sqld_primary_url?: string
+				sqld_namespaces?: boolean
 			}
 		},
 		environmentId?: string,

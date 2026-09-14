@@ -118,6 +118,44 @@ func TestDescribeHandlesAnEngineWithoutAUser(t *testing.T) {
 	}
 }
 
+// libSQL is the one engine whose options are not all environment variables:
+// namespaces are a flag, and the credentials are one encoded value that the
+// connection panel has to be able to read back.
+func TestLibSQL(t *testing.T) {
+	spec := Spec{
+		Engine: LibSQL, Name: "edge", EnvFile: "/e.env", User: "reader", Password: "s3cret",
+		Sqld: SqldSpec{Node: SqldReplica, PrimaryURL: "http://primary:5001", Namespaces: true},
+	}
+	out, err := Render(spec)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(out.Fragment, `command: ["/bin/sqld", "--enable-namespaces"]`) {
+		t.Errorf("namespaces did not reach the fragment:\n%s", out.Fragment)
+	}
+	env := map[string]string{}
+	for _, v := range out.Env {
+		env[v.Key] = v.Value
+	}
+	if env["SQLD_NODE"] != SqldReplica || env["SQLD_PRIMARY_URL"] != "http://primary:5001" {
+		t.Errorf("replica is not configured: %v", env)
+	}
+	if env["SQLD_ENABLE_NAMESPACES"] != "true" {
+		t.Error("the namespace switch is not stored, so a re-render would drop the flag")
+	}
+
+	engine, _ := BySlug(LibSQL)
+	got := Describe(engine, "edge", "libsql-server:v0.24.33", env)
+	if got.User != "reader" || got.Password != "s3cret" {
+		t.Fatalf("credentials did not survive the round trip: %+v", got)
+	}
+
+	spec.Sqld.PrimaryURL = ""
+	if _, err := Render(spec); err == nil {
+		t.Error("a replica without a primary would start and serve nothing")
+	}
+}
+
 func withTag(s Spec, tag string) Spec     { s.Tag = tag; return s }
 func withDatabase(s Spec, db string) Spec { s.Database = db; return s }
 func withUser(s Spec, user string) Spec   { s.User = user; return s }
