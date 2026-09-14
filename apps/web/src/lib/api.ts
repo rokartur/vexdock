@@ -265,6 +265,7 @@ export type NetworkSummary = {
 	name: string
 	driver: string
 	scope: string
+	subnets: string[]
 	labels: Record<string, string> | null
 	containers: { id: string; name: string; ipv4: string }[]
 }

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { IconArrowRight, IconFolder, IconPlus, IconX } from '@tabler/icons-react'
+import { IconFolder, IconPlus, IconX } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, ErrorText, Field, IconButton, Input, Page, Refresh, Section, Status } from '../components/primitives'
+import { Button, ErrorText, Field, Input, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type Project } from '../lib/api'
 import { since } from '../lib/format'
 
@@ -16,14 +16,10 @@ const projectTableColumns: Columns<Project> = (() => {
 			id: 'name',
 			header: 'Name',
 			cell: ({ row }) => (
-				<Link
-					to='/projects/$projectId'
-					params={{ projectId: row.original.id }}
-					className='inline-flex items-center gap-2 font-medium underline-offset-4 hover:underline'
-				>
+				<span className='inline-flex items-center gap-2 font-medium'>
 					<IconFolder className='size-4 text-muted-foreground' />
 					{row.original.name}
-				</Link>
+				</span>
 			),
 		}),
 		cell.accessor(project => tagsOf(project).join(' '), {
@@ -68,24 +64,13 @@ const projectTableColumns: Columns<Project> = (() => {
 					<span className='text-muted-foreground'>never</span>
 				),
 		}),
-		cell.display({
-			id: 'open',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<IconButton
-					icon={IconArrowRight}
-					label='Open'
-					render={<Link to='/projects/$projectId' params={{ projectId: row.original.id }} />}
-				/>
-			),
-		}),
 	]
 })()
 
 export const Route = createFileRoute('/projects/')({ component: ProjectsPage })
 
 function ProjectsPage() {
+	const navigate = useNavigate()
 	const [creating, setCreating] = useState(false)
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
@@ -120,6 +105,7 @@ function ProjectsPage() {
 					columns={projectTableColumns}
 					loading={projects.isLoading}
 					getRowId={project => project.id}
+					onRowClick={project => navigate({ to: '/projects/$projectId', params: { projectId: project.id } })}
 					filter='Filter projects'
 					empty='No projects yet. Create one, then add services to it.'
 				/>

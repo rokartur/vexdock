@@ -205,6 +205,7 @@ type networkView struct {
 	Name       string             `json:"name"`
 	Driver     string             `json:"driver"`
 	Scope      string             `json:"scope"`
+	Subnets    []string           `json:"subnets"`
 	Labels     map[string]string  `json:"labels"`
 	Containers []networkContainer `json:"containers"`
 }
@@ -226,12 +227,18 @@ func (s *Server) handleListNetworks(w http.ResponseWriter, r *http.Request) {
 		view := networkView{
 			ID: n.ID, Name: n.Name, Driver: n.Driver, Scope: n.Scope, Labels: n.Labels,
 			Containers: []networkContainer{},
+			Subnets:    []string{},
 		}
 		// A network that cannot be inspected still belongs in the list; it just
 		// has no membership to show.
 		if inspect, err := s.Docker.InspectNetwork(r.Context(), n.ID); err == nil {
 			for id, c := range inspect.Containers {
 				view.Containers = append(view.Containers, networkContainer{ID: id, Name: c.Name, IPv4: c.IPv4Address})
+			}
+			for _, cfg := range inspect.IPAM.Config {
+				if cfg.Subnet != "" {
+					view.Subnets = append(view.Subnets, cfg.Subnet)
+				}
 			}
 		}
 		out = append(out, view)

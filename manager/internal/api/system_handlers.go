@@ -187,7 +187,7 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	recent, err := s.DB.RecentDeployments(r.Context(), 10)
+	recent, err := s.DB.RecentDeployments(r.Context(), 20)
 	if err != nil {
 		serverError(w, err)
 		return

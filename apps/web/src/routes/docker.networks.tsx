@@ -21,6 +21,16 @@ function networkTableColumns(): Columns<NetworkSummary> {
 		}),
 		cell.accessor(network => network.driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
 		cell.accessor(network => network.scope, { id: 'scope', header: 'Scope', meta: { mono: true } }),
+		cell.accessor(network => network.subnets.join(', ') || '-', {
+			id: 'subnet',
+			header: 'Subnet',
+			meta: { mono: true },
+		}),
+		cell.accessor(network => network.containers.length, {
+			id: 'ips',
+			header: 'IPs in use',
+			meta: { mono: true, align: 'right' },
+		}),
 		cell.accessor(network => network.containers?.map(container => container.name).join(', ') || '-', {
 			id: 'containers',
 			header: 'Connected containers',
