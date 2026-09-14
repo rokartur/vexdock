@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+	IconApps,
 	IconBox,
 	IconCpu,
 	IconDatabase,
@@ -23,6 +24,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
+import { NewTemplateForm } from '../components/new-template-form'
 import {
 	Button,
 	Cell,
@@ -39,12 +41,26 @@ import { deploymentLink } from '../lib/deployment-link'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent, since } from '../lib/format'
 
-/** The menu, in the order it reads: the two everyday kinds, then the escape hatch. */
-const creatable: { kind: ServiceKind; label: string; icon: TablerIcon }[] = [
+/**
+ * What the New service menu opens. The three service kinds are what the form
+ * builds; a template is a whole stack the manager assembles, so it gets its own
+ * form and sits at the end of the menu.
+ */
+type Creating = ServiceKind | 'import' | 'template'
+
+/** The menu, in the order it reads: the two everyday kinds, the escape hatch, the catalog. */
+const creatable: { kind: Creating; label: string; icon: TablerIcon }[] = [
 	{ kind: 'application', label: 'Application', icon: IconBox },
 	{ kind: 'database', label: 'Database', icon: IconDatabase },
 	{ kind: 'compose', label: 'Compose', icon: IconFileCode },
+	{ kind: 'template', label: 'From template', icon: IconApps },
 ]
+
+function dialogTitle(creating: Creating | null) {
+	if (creating === null || creating === 'import') return 'Import services'
+	if (creating === 'template') return 'New from template'
+	return newServiceTitle(creating)
+}
 
 /** A service row: the service plus the hostnames the domains query attached to it. */
 type ServiceRow = { service: Service; hostnames: string[] }
@@ -194,7 +210,7 @@ function ProjectServices() {
 	const { projectId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const [creating, setCreating] = useState<ServiceKind | 'import' | null>(null)
+	const [creating, setCreating] = useState<Creating | null>(null)
 
 	const environmentId = useEnvironmentId()
 	const services = useQuery({
@@ -325,11 +341,7 @@ function ProjectServices() {
 				<Dialog open={creating !== null} onOpenChange={open => !open && setCreating(null)}>
 					<DialogContent className='sm:max-w-lg'>
 						<DialogHeader>
-							<DialogTitle>
-								{creating === null || creating === 'import'
-									? 'Import services'
-									: newServiceTitle(creating)}
-							</DialogTitle>
+							<DialogTitle>{dialogTitle(creating)}</DialogTitle>
 						</DialogHeader>
 						{creating === 'import' ? (
 							<ImportServicesForm
@@ -342,7 +354,21 @@ function ProjectServices() {
 								onCancel={() => setCreating(null)}
 							/>
 						) : null}
-						{creating !== null && creating !== 'import' ? (
+						{creating === 'template' ? (
+							<NewTemplateForm
+								projectId={projectId}
+								onDone={async service => {
+									setCreating(null)
+									await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
+									await navigate({
+										to: '/projects/$projectId/services/$serviceId',
+										params: { projectId, serviceId: service.id },
+									})
+								}}
+								onCancel={() => setCreating(null)}
+							/>
+						) : null}
+						{creating !== null && creating !== 'import' && creating !== 'template' ? (
 							<NewServiceForm
 								projectId={projectId}
 								kind={creating}

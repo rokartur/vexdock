@@ -164,6 +164,7 @@ last three minutes, so the list never shows a dead container's last numbers.
 | Endpoint | Does |
 |---|---|
 | `POST /api/projects/{id}/services` | Adds a service |
+| `POST /api/projects/{id}/services/template` | Installs a [template](#templates) |
 | `GET /api/projects/{id}/services/export` | The project's services as a base64 blob |
 | `PATCH /api/services/{id}` | Changes its provider, repository, image or fragment |
 | `DELETE /api/services/{id}` | Removes it; its named volume is kept, its generated password is not |
@@ -237,6 +238,36 @@ Create and edit do not start a container. `POST /api/services/{id}/deploy` runs
 the pipeline for that service alone; `POST /api/projects/{id}/deploy` still
 deploys every service in the project (used by CI, webhooks, and the dashboard's
 Deploy all, which it offers while a project has no services yet).
+
+### Templates
+
+A template is a curated application: the compose services it takes to run it,
+the values it needs generated, and the port its hostname reaches.
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/templates` | The application catalogue |
+| `POST /api/projects/{id}/services/template` | `{"slug", "hostname"}`; installs one |
+
+Installing does three things in one request: the values the stack needs are
+seeded as the environment's variables (a key the environment already holds keeps
+its value), each compose service becomes a `raw` service, and the hostname is
+pointed at the service the catalogue says serves it. The answer is
+`{"services": [...], "domain": {...}}`.
+
+The hostname is required, because these applications write their own URL into
+their configuration on first boot. Fragments reach their generated values
+through `${VAR}`, which compose interpolates from the same `.env` the
+[environment](#environments) writes, so two services of one template share a
+password and the user can change it afterwards.
+
+Nothing records that a service came from a template: the result is ordinary
+services, editable like any pasted fragment, and deploying them is
+`POST /api/projects/{id}/deploy` like anything else. A name already taken in the
+environment is `400`, and the services that were already created are removed
+again rather than left as half a stack. A `warning` alongside the services means
+they exist but the domain or its certificate did not come up, which is expected
+when DNS does not point here yet.
 
 ### Moving services between projects
 

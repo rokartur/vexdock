@@ -86,6 +86,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/projects/{id}/environments", s.protected(s.handleCreateEnvironment))
 	mux.Handle("GET /api/projects/{id}/services", s.protected(s.handleListServices))
 	mux.Handle("POST /api/projects/{id}/services", s.protected(s.handleCreateService))
+	mux.Handle("POST /api/projects/{id}/services/template", s.protected(s.handleCreateFromTemplate))
 	mux.Handle("GET /api/projects/{id}/services/export", s.protected(s.handleExportServices))
 	mux.Handle("GET /api/projects/{id}/deployments", s.protected(s.handleListDeployments))
 	mux.Handle("GET /api/projects/{id}/domains", s.protected(s.handleListProjectDomains))
@@ -172,6 +173,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/tokens", s.protected(s.handleListTokens))
 	mux.Handle("POST /api/tokens", s.protected(s.handleCreateToken))
 	mux.Handle("DELETE /api/tokens/{id}", s.protected(s.handleDeleteToken))
+
+	mux.Handle("GET /api/templates", s.protected(s.handleListTemplates))
 
 	mux.Handle("GET /api/engines", s.protected(s.handleListEngines))
 	mux.Handle("GET /api/engines/{slug}/versions", s.protected(s.handleEngineVersions))

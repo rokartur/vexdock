@@ -44,6 +44,9 @@ token and create the administrator account.
 - **Managed databases.** PostgreSQL, MySQL, MariaDB, MongoDB, Valkey and libSQL
   added to a project with their image, volume and credentials generated, or any
   other image you name.
+- **Templates.** n8n, Ghost, WordPress, Umami, Metabase, Grafana, Uptime Kuma
+  and Vaultwarden installed from a catalogue: the services, the passwords and
+  the domain in one step, ordinary services afterwards.
 - **API tokens.** The same REST API the dashboard uses, for CI.
 
 ## What it deliberately does not do
