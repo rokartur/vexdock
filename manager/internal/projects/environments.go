@@ -81,6 +81,12 @@ func (s *Service) seedServices(ctx context.Context, p *database.Project, env *da
 			return err
 		}
 		svc.ID, svc.EnvironmentID = database.NewID(), env.ID
+		// The copy cannot answer to the container name the original already
+		// holds, so it takes this environment's own.
+		svc.ContainerName, err = s.containerName(ctx, env, svc.ComposeServiceName, "")
+		if err != nil {
+			return err
+		}
 		if err := s.db.CreateService(ctx, &svc); err != nil {
 			return err
 		}

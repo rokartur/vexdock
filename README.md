@@ -41,9 +41,12 @@ token and create the administrator account.
   run inside its container. No crontab on the host; every run keeps its exit
   code and output. One page lists every task on the server, with what is due
   next and what failed last.
-- **Managed databases.** PostgreSQL, MySQL, MariaDB, MongoDB and Valkey added
-  to a project with their image, volume and credentials generated, or any other
-  image you name.
+- **Managed databases.** PostgreSQL, MySQL, MariaDB, MongoDB, Valkey and libSQL
+  added to a project with their image, volume and credentials generated, or any
+  other image you name.
+- **Templates.** n8n, Ghost, WordPress, Umami, Metabase, Grafana, Uptime Kuma
+  and Vaultwarden installed from a catalogue: the services, the passwords and
+  the domain in one step, ordinary services afterwards.
 - **API tokens.** The same REST API the dashboard uses, for CI.
 
 ## What it deliberately does not do

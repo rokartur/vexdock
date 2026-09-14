@@ -101,9 +101,13 @@ type Service struct {
 	// have their own row for the same compose service name.
 	EnvironmentID      string `json:"environment_id"`
 	ComposeServiceName string `json:"compose_service_name"`
-	DisplayName        string `json:"display_name"`
-	Type               string `json:"type"`
-	Provider           string `json:"provider"`
+	// ContainerName is what docker ps shows. Empty on services created before
+	// the column existed, which keeps compose's own name for them rather than
+	// recreating a running container to rename it.
+	ContainerName string `json:"container_name"`
+	DisplayName   string `json:"display_name"`
+	Type          string `json:"type"`
+	Provider      string `json:"provider"`
 	// RepositoryURL is the remote of a plain git source, the only source that
 	// still is a URL. A provider-sourced service names its repository the way
 	// its provider does, through GitProviderID, Owner and Repository, and its

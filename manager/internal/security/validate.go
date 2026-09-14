@@ -14,7 +14,10 @@ var (
 	envKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	// Compose service names follow the same rules docker compose enforces.
 	servicePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
-	sshRepoPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9._/-]+$`)
+	// Docker's own rule for a container name, which is the compose one with a
+	// minimum of two characters.
+	containerPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]+$`)
+	sshRepoPattern   = regexp.MustCompile(`^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+:[a-zA-Z0-9._/-]+$`)
 	// An owner or repository name is interpolated into a clone URL and into an
 	// API path, so anything that could add a query, a fragment or another host
 	// has to be refused here.
@@ -89,6 +92,14 @@ func ValidateSlug(slug string) error {
 func ValidateServiceName(name string) error {
 	if !servicePattern.MatchString(name) {
 		return fmt.Errorf("invalid compose service name %q", name)
+	}
+	return nil
+}
+
+// ValidateContainerName checks the name a container is given on the host.
+func ValidateContainerName(name string) error {
+	if len(name) > 63 || !containerPattern.MatchString(name) {
+		return fmt.Errorf("invalid container name %q", name)
 	}
 	return nil
 }

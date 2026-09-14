@@ -124,6 +124,8 @@ export type Service = {
 	id: string
 	project_id: string
 	compose_service_name: string
+	/** What docker ps shows. Empty on services created before the manager named them. */
+	container_name: string
 	display_name: string
 	type: ServiceType
 	provider: ServiceProvider
@@ -470,6 +472,18 @@ export type Engine = {
 	password_var: string
 }
 
+/** One entry of the built-in application catalog. */
+export type Template = {
+	slug: string
+	name: string
+	description: string
+	tags: string[]
+	/** The compose services it installs, in the order they are created. */
+	services: { name: string }[]
+	/** Where the hostname points. Every catalog entry has one so far. */
+	domain: { service: string; port: number } | null
+}
+
 /** The connection panel of a database service. */
 export type DatabaseConnection = {
 	engine: string
@@ -631,6 +645,8 @@ export const api = {
 		projectId: string,
 		body: {
 			name: string
+			/** Overrides the host container name; empty takes `<project>-<service>`. */
+			container_name?: string
 			provider: ServiceProvider
 			repository_url?: string
 			branch?: string
@@ -651,6 +667,10 @@ export const api = {
 				password?: string
 				image?: string
 				data_path?: string
+				/** libSQL only: sqld's node mode, the primary a replica follows, its namespace switch. */
+				sqld_node?: 'primary' | 'replica' | 'standalone'
+				sqld_primary_url?: string
+				sqld_namespaces?: boolean
 			}
 		},
 		environmentId?: string,
@@ -659,6 +679,17 @@ export const api = {
 			method: 'POST',
 			body,
 		}),
+	/**
+	 * Installs a catalog application: one raw service per compose service, its
+	 * generated values seeded into the environment, and the domain pointed at
+	 * whichever service serves it. A `warning` means the services exist but the
+	 * domain or its certificate did not come up.
+	 */
+	createFromTemplate: (projectId: string, body: { slug: string; hostname: string }, environmentId?: string) =>
+		request<{ services: Service[]; domain?: Domain; warning?: string }>(
+			`/api/projects/${projectId}/services/template${environmentQuery(environmentId)}`,
+			{ method: 'POST', body },
+		),
 	/**
 	 * Renders the project's managed services as base64 for another project's
 	 * import. Secret values stay behind unless asked for: the blob is encoded,
@@ -852,6 +883,8 @@ export const api = {
 	createToken: (name: string) =>
 		request<{ token: ApiToken; value: string }>('/api/tokens', { method: 'POST', body: { name } }),
 	deleteToken: (id: string) => request<{ ok: boolean }>(`/api/tokens/${id}`, { method: 'DELETE' }),
+
+	templates: () => request<Template[]>('/api/templates'),
 
 	engines: () => request<Engine[]>('/api/engines'),
 	engineVersions: (slug: string) => request<{ versions: string[]; live: boolean }>(`/api/engines/${slug}/versions`),

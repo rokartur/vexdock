@@ -164,6 +164,7 @@ last three minutes, so the list never shows a dead container's last numbers.
 | Endpoint | Does |
 |---|---|
 | `POST /api/projects/{id}/services` | Adds a service |
+| `POST /api/projects/{id}/services/template` | Installs a [template](#templates) |
 | `GET /api/projects/{id}/services/export` | The project's services as a base64 blob |
 | `PATCH /api/services/{id}` | Changes its provider, repository, image or fragment |
 | `DELETE /api/services/{id}` | Removes it; its named volume is kept, its generated password is not |
@@ -189,6 +190,14 @@ credential; clearing it (`""`) drops `owner` and `repository` and hands the URL
 and credential fields back. Sending
 a `database` object instead picks the engine catalogue: the image, the volume
 and the credentials are generated for you, and `provider` is forced to `image`.
+
+`container_name` is what the container is called on the host. Left out, the
+manager names it after the project and the service, `rokartur-db`, with the
+environment in between when it is not the default one. It is unique across the
+whole host, so a name another service already holds is a 400. Services created
+before the manager named containers keep compose's own name until they are
+recreated, and a `raw` service is never renamed because its fragment is the
+user's own YAML.
 
 `unconfigured` is an application that is so far only a name. It is skipped when
 the compose file is written, so it neither deploys nor breaks the deploy of its
@@ -220,6 +229,15 @@ all optional except `engine`; what you leave out is defaulted or generated. The
 `custom` engine takes `image` and `data_path` instead of `version`, since the
 catalogue knows neither for an image it has never seen.
 
+`libsql` takes three more: `sqld_node` (`primary`, the default, `replica` or
+`standalone`), `sqld_primary_url`, which a replica needs and nothing else reads,
+and `sqld_namespaces`. They end up in the service's environment as `SQLD_NODE`,
+`SQLD_PRIMARY_URL` and `SQLD_ENABLE_NAMESPACES`, and `user` and `password`
+become the one value sqld understands, `SQLD_HTTP_AUTH`. `SQLD_ENABLE_NAMESPACES`
+is the manager's own: sqld takes namespaces as a command-line flag, so the
+variable is what the overlay reads to decide whether to pass it, and editing it
+in the Environment tab changes the flag on the next deploy.
+
 `image` is accepted for every engine, not only `custom`, and it wins over
 `version` when both are sent. That is what lets an export be replayed without
 re-resolving anything. A stored service keeps the exact image it was created
@@ -237,6 +255,36 @@ Create and edit do not start a container. `POST /api/services/{id}/deploy` runs
 the pipeline for that service alone; `POST /api/projects/{id}/deploy` still
 deploys every service in the project (used by CI, webhooks, and the dashboard's
 Deploy all, which it offers while a project has no services yet).
+
+### Templates
+
+A template is a curated application: the compose services it takes to run it,
+the values it needs generated, and the port its hostname reaches.
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/templates` | The application catalogue |
+| `POST /api/projects/{id}/services/template` | `{"slug", "hostname"}`; installs one |
+
+Installing does three things in one request: the values the stack needs are
+seeded as the environment's variables (a key the environment already holds keeps
+its value), each compose service becomes a `raw` service, and the hostname is
+pointed at the service the catalogue says serves it. The answer is
+`{"services": [...], "domain": {...}}`.
+
+The hostname is required, because these applications write their own URL into
+their configuration on first boot. Fragments reach their generated values
+through `${VAR}`, which compose interpolates from the same `.env` the
+[environment](#environments) writes, so two services of one template share a
+password and the user can change it afterwards.
+
+Nothing records that a service came from a template: the result is ordinary
+services, editable like any pasted fragment, and deploying them is
+`POST /api/projects/{id}/deploy` like anything else. A name already taken in the
+environment is `400`, and the services that were already created are removed
+again rather than left as half a stack. A `warning` alongside the services means
+they exist but the domain or its certificate did not come up, which is expected
+when DNS does not point here yet.
 
 ### Moving services between projects
 

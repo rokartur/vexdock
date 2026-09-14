@@ -1,15 +1,13 @@
 import { useMemo, useState } from 'react'
 import {
+	IconApps,
 	IconBox,
 	IconCpu,
 	IconDatabase,
 	IconDownload,
 	IconExternalLink,
 	IconFileCode,
-	IconFileText,
-	IconPlayerPlay,
 	IconPlus,
-	IconRefresh,
 	IconRocket,
 	IconServer,
 	IconWorld,
@@ -23,13 +21,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
+import { NewTemplateForm } from '../components/new-template-form'
 import {
 	Button,
 	Cell,
 	Cells,
 	EmptyState,
 	ErrorText,
-	IconButton,
 	Refresh,
 	Section,
 	Status,
@@ -39,21 +37,29 @@ import { deploymentLink } from '../lib/deployment-link'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent, since } from '../lib/format'
 
-/** The menu, in the order it reads: the two everyday kinds, then the escape hatch. */
-const creatable: { kind: ServiceKind; label: string; icon: TablerIcon }[] = [
+/**
+ * What the New service menu opens. The three service kinds are what the form
+ * builds; a template is a whole stack the manager assembles, so it gets its own
+ * form and sits at the end of the menu.
+ */
+type Creating = ServiceKind | 'import' | 'template'
+
+/** The menu, in the order it reads: the two everyday kinds, the escape hatch, the catalog. */
+const creatable: { kind: Creating; label: string; icon: TablerIcon }[] = [
 	{ kind: 'application', label: 'Application', icon: IconBox },
 	{ kind: 'database', label: 'Database', icon: IconDatabase },
 	{ kind: 'compose', label: 'Compose', icon: IconFileCode },
+	{ kind: 'template', label: 'From template', icon: IconApps },
 ]
+
+function dialogTitle(creating: Creating | null) {
+	if (creating === null || creating === 'import') return 'Import services'
+	if (creating === 'template') return 'New from template'
+	return newServiceTitle(creating)
+}
 
 /** A service row: the service plus the hostnames the domains query attached to it. */
 type ServiceRow = { service: Service; hostnames: string[] }
-
-type ServiceActions = {
-	projectId: string
-	deploy: (serviceId: string) => void
-	act: (serviceId: string, action: 'start' | 'restart') => void
-}
 
 /**
  * One service per row with the facts you check before opening it: whether it
@@ -62,7 +68,7 @@ type ServiceActions = {
  * reading as broken, and the image falls back to what the container was
  * actually started from so a derived service still shows something.
  */
-function serviceTableColumns({ projectId, deploy, act }: ServiceActions): Columns<ServiceRow> {
+const serviceTableColumns: Columns<ServiceRow> = (() => {
 	const cell = columnsFor<ServiceRow>()
 	return [
 		cell.accessor(({ service }) => service.compose_service_name, {
@@ -71,15 +77,11 @@ function serviceTableColumns({ projectId, deploy, act }: ServiceActions): Column
 			cell: ({ row: { original } }) => {
 				const Icon = original.service.type === 'database' ? IconDatabase : IconBox
 				return (
-					<Link
-						to='/projects/$projectId/services/$serviceId'
-						params={{ projectId, serviceId: original.service.id }}
-						className='inline-flex items-center gap-2 font-medium underline-offset-4 hover:underline'
-					>
+					<span className='inline-flex items-center gap-2 font-medium'>
 						<Icon className='size-4 text-muted-foreground' />
 						{original.service.compose_service_name}
 						<Badge variant='outline'>{original.service.type === 'database' ? 'db' : 'app'}</Badge>
-					</Link>
+					</span>
 				)
 			},
 		}),
@@ -120,6 +122,7 @@ function serviceTableColumns({ projectId, deploy, act }: ServiceActions): Column
 							href={`https://${hostname}`}
 							target='_blank'
 							rel='noreferrer'
+							onClick={event => event.stopPropagation()}
 							className='group inline-flex items-center gap-1 underline-offset-4 hover:underline'
 						>
 							{hostname}
@@ -155,38 +158,8 @@ function serviceTableColumns({ projectId, deploy, act }: ServiceActions): Column
 				</span>
 			),
 		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row: { original } }) => {
-				const { service } = original
-				const running = service.state === 'running'
-				const params = { projectId, serviceId: service.id }
-				return (
-					<span className='flex justify-end gap-0.5'>
-						<IconButton
-							icon={IconRocket}
-							label='Deploy'
-							onClick={() => deploy(service.id)}
-							disabled={service.provider === 'unconfigured'}
-						/>
-						<IconButton
-							icon={IconFileText}
-							label='Logs'
-							render={<Link to='/projects/$projectId/services/$serviceId/logs' params={params} />}
-						/>
-						<IconButton
-							icon={running ? IconRefresh : IconPlayerPlay}
-							label={running ? 'Restart' : 'Start'}
-							onClick={() => act(service.id, running ? 'restart' : 'start')}
-						/>
-					</span>
-				)
-			},
-		}),
 	]
-}
+})()
 
 export const Route = createFileRoute('/projects/$projectId/')({ component: ProjectServices })
 
@@ -194,7 +167,7 @@ function ProjectServices() {
 	const { projectId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const [creating, setCreating] = useState<ServiceKind | 'import' | null>(null)
+	const [creating, setCreating] = useState<Creating | null>(null)
 
 	const environmentId = useEnvironmentId()
 	const services = useQuery({
@@ -217,15 +190,6 @@ function ProjectServices() {
 			await navigate(deploymentLink(projectId, deployment.id))
 		},
 	})
-	const deployOne = useMutation({
-		mutationFn: (serviceId: string) => api.deployService(serviceId),
-		onSuccess: deployment => navigate(deploymentLink(projectId, deployment.id)),
-	})
-	const act = useMutation({
-		mutationFn: ({ serviceId, action }: { serviceId: string; action: 'start' | 'restart' }) =>
-			api.serviceAction(serviceId, action),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['services', projectId] }),
-	})
 
 	const data = useMemo(() => services.data ?? [], [services.data])
 	const running = data.filter(service => service.state === 'running').length
@@ -236,17 +200,6 @@ function ProjectServices() {
 		const hostnames = hostnamesByService(domains.data ?? [])
 		return data.map(service => ({ service, hostnames: hostnames.get(service.id) ?? [] }))
 	}, [data, domains.data])
-	const { mutate: deployService } = deployOne
-	const { mutate: runAction } = act
-	const columns = useMemo(
-		() =>
-			serviceTableColumns({
-				projectId,
-				deploy: deployService,
-				act: (serviceId, action) => runAction({ serviceId, action }),
-			}),
-		[projectId, deployService, runAction],
-	)
 	const empty = data.length === 0 && !services.isLoading
 
 	return (
@@ -321,15 +274,11 @@ function ProjectServices() {
 					</>
 				}
 			>
-				<ErrorText error={deployAll.error ?? deployOne.error ?? act.error} />
+				<ErrorText error={deployAll.error} />
 				<Dialog open={creating !== null} onOpenChange={open => !open && setCreating(null)}>
 					<DialogContent className='sm:max-w-lg'>
 						<DialogHeader>
-							<DialogTitle>
-								{creating === null || creating === 'import'
-									? 'Import services'
-									: newServiceTitle(creating)}
-							</DialogTitle>
+							<DialogTitle>{dialogTitle(creating)}</DialogTitle>
 						</DialogHeader>
 						{creating === 'import' ? (
 							<ImportServicesForm
@@ -342,7 +291,21 @@ function ProjectServices() {
 								onCancel={() => setCreating(null)}
 							/>
 						) : null}
-						{creating !== null && creating !== 'import' ? (
+						{creating === 'template' ? (
+							<NewTemplateForm
+								projectId={projectId}
+								onDone={async service => {
+									setCreating(null)
+									await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
+									await navigate({
+										to: '/projects/$projectId/services/$serviceId',
+										params: { projectId, serviceId: service.id },
+									})
+								}}
+								onCancel={() => setCreating(null)}
+							/>
+						) : null}
+						{creating !== null && creating !== 'import' && creating !== 'template' ? (
 							<NewServiceForm
 								projectId={projectId}
 								kind={creating}
@@ -362,9 +325,15 @@ function ProjectServices() {
 
 				<DataTable
 					data={rows}
-					columns={columns}
+					columns={serviceTableColumns}
 					loading={services.isLoading}
 					getRowId={({ service }) => service.id}
+					onRowClick={({ service }) =>
+						navigate({
+							to: '/projects/$projectId/services/$serviceId',
+							params: { projectId, serviceId: service.id },
+						})
+					}
 					empty={
 						<EmptyState
 							icon={IconBox}

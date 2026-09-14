@@ -28,7 +28,8 @@ Every Go package opens with a comment naming what it owns and why it exists.
 | **Project** | A grouping with a name and tags. Has no source and no containers of its own. |
 | **Environment** | A deployable copy of a project (production, staging). Owns the compose project name `p_<ULID>`, the directory under `projects/<id>/` and the services. Every project has a default environment that carries the project's own id. |
 | **Service** | One compose service inside an environment. Its `provider` says where it comes from: a git host (`github`, `gitlab`, `bitbucket`, `gitea`, `git`), a published `image`, a pasted `raw` compose fragment, or `unconfigured` (a name and nothing else, skipped on deploy). |
-| **Engine** | A catalogue entry for a one-click database: PostgreSQL, MySQL, MariaDB, MongoDB, Valkey. Picking one creates an `image` service with a volume and generated credentials. |
+| **Engine** | A catalogue entry for a one-click database: PostgreSQL, MySQL, MariaDB, MongoDB, Valkey, libSQL. Picking one creates an `image` service with a volume and generated credentials, except libSQL, which authenticates with a JWT key rather than a password and starts open to its project network. |
+| **Template** | A catalogue entry for a one-click application: n8n, Ghost, WordPress, Umami, Metabase, Grafana, Uptime Kuma, Vaultwarden. Installing one creates a `raw` service per compose service it declares, seeds the passwords and hostname it needs as environment variables, and points the hostname at the service that serves it. Nothing records that a service came from a template. |
 | **`managed.yml`** | The one compose file the platform generates per environment from every configured service. The only file ever passed to `docker compose`. |
 | **Deployment** | One run of the pipeline for one environment, optionally scoped to one service. Has steps, each with a status and captured output. |
 | **Step** | A stage of the pipeline: `clone`, `checkout`, `validate`, `pull`, `build`, `start`, `healthcheck`, `proxy`, `finish`. |
@@ -319,6 +320,7 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | `internal/projects` | Project and environment lifecycle, on-disk layout, `managed.yml` rendering, import/export |
 | `internal/schedule` | Cron parsing and the task runner |
 | `internal/security` | Validation of anything that reaches a command line, AES-GCM cipher, path confinement, webhook signatures |
+| `internal/templates` | The application catalogue: the compose services one entry installs and the values it seeds |
 | `internal/updater` | Self-update: state file, the detached updater container, `update.sh` |
 | `migrations` | `000N_name.sql`, embedded, applied in order on boot |
 

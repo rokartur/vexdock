@@ -39,6 +39,32 @@ func (s *Service) applyGit(ctx context.Context, svc *database.Service, in Servic
 	return s.SetCredential(svc, in.CredentialKind, in.CredentialSecret)
 }
 
+// containerName settles what the service's container is called on the host.
+// Without one compose falls back to the environment's opaque id, so the default
+// is the project's slug and the service's name, the way a person would say it:
+// "rokartur-db". A second environment puts its own name in between, because a
+// container name is unique across the whole host, not within a project.
+func (s *Service) containerName(ctx context.Context, env *database.Environment, service, override string) (string, error) {
+	name := strings.TrimSpace(override)
+	if name == "" {
+		project, err := s.db.ProjectByID(ctx, env.ProjectID)
+		if err != nil {
+			return "", err
+		}
+		name = project.Slug + "-" + service
+		if !env.IsDefault {
+			name = project.Slug + "-" + env.Slug + "-" + service
+		}
+	}
+	if err := security.ValidateContainerName(name); err != nil {
+		return "", err
+	}
+	if taken, err := s.db.ServiceByContainerName(ctx, name); err == nil && taken != nil {
+		return "", fmt.Errorf("another service already runs a container named %q", name)
+	}
+	return name, nil
+}
+
 // CreateService adds a service the manager owns to a project. A database is
 // rendered from the catalog before the row is written, so an invalid engine or
 // version fails without leaving a half-created service behind.
@@ -50,12 +76,17 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 	if existing, err := s.db.ServiceByName(ctx, env.ID, name); err == nil && existing != nil {
 		return nil, fmt.Errorf("this environment already has a service named %q", name)
 	}
+	container, err := s.containerName(ctx, env, name, in.ContainerName)
+	if err != nil {
+		return nil, err
+	}
 
 	svc := &database.Service{
 		ID:                 database.NewID(),
 		ProjectID:          env.ProjectID,
 		EnvironmentID:      env.ID,
 		ComposeServiceName: name,
+		ContainerName:      container,
 		Type:               database.ServiceApplication,
 		Provider:           in.Provider,
 		CredentialKind:     database.GitCredentialNone,
@@ -87,6 +118,7 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 			Password: in.Database.Password,
 			Image:    in.Database.Image,
 			DataPath: in.Database.DataPath,
+			Sqld:     in.Database.Sqld,
 			Name:     name,
 			// Only rendered to validate the spec here; the real file is written
 			// by WriteOverlay once the row exists.

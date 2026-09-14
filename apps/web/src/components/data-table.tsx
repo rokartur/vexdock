@@ -78,6 +78,8 @@ type DataTableProps<TData extends RowData> = {
 	 * values contain what was typed. The string is the placeholder.
 	 */
 	filter?: string
+	/** Seeds the filter box, for a page reached with a term already in its URL. */
+	initialFilter?: string
 	/** Makes the whole row activatable. A cell with its own handler must stop propagation. */
 	onRowClick?: (row: TData) => void
 	/**
@@ -100,11 +102,12 @@ export function DataTable<TData extends RowData>({
 	getRowId,
 	pageSize = 20,
 	filter,
+	initialFilter = '',
 	onRowClick,
 	detail,
 }: DataTableProps<TData>) {
 	const [sorting, setSorting] = useState<SortingState>([])
-	const [globalFilter, setGlobalFilter] = useState('')
+	const [globalFilter, setGlobalFilter] = useState(initialFilter)
 	const [pageIndex, setPageIndex] = useState(0)
 
 	const table = useTable({

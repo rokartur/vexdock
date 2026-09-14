@@ -1,10 +1,20 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { IconAffiliate } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Page, Refresh, Section } from '../components/primitives'
 import { api, type NetworkSummary } from '../lib/api'
+
+/** Usable IPv4 hosts across a network's subnets; null when it has none (IPv6-only or unconfigured). */
+function usableHosts(subnets: string[]): number | null {
+	const total = subnets.reduce((sum, subnet) => {
+		const [address, prefix] = subnet.split('/')
+		if (!(address?.includes('.') && prefix)) return sum
+		return sum + 2 ** (32 - Number(prefix)) - 2
+	}, 0)
+	return total > 0 ? total : null
+}
 
 function networkTableColumns(): Columns<NetworkSummary> {
 	const cell = columnsFor<NetworkSummary>()
@@ -26,15 +36,38 @@ function networkTableColumns(): Columns<NetworkSummary> {
 			header: 'Subnet',
 			meta: { mono: true },
 		}),
-		cell.accessor(network => network.containers.length, {
-			id: 'ips',
-			header: 'IPs in use',
-			meta: { mono: true, align: 'right' },
-		}),
-		cell.accessor(network => network.containers?.map(container => container.name).join(', ') || '-', {
+		cell.accessor(
+			network => {
+				const capacity = usableHosts(network.subnets)
+				return capacity === null
+					? String(network.containers.length)
+					: `${network.containers.length} / ${capacity}`
+			},
+			{ id: 'ips', header: 'IPs in use', meta: { mono: true, align: 'right' } },
+		),
+		cell.accessor(network => network.containers.map(container => container.name).join(', ') || '-', {
 			id: 'containers',
 			header: 'Connected containers',
 			meta: { mono: true },
+			cell: ({ row }) =>
+				row.original.containers.length === 0 ? (
+					'-'
+				) : (
+					<span>
+						{row.original.containers.map((container, index) => (
+							<Fragment key={container.id}>
+								{index > 0 ? ', ' : null}
+								<Link
+									to='/docker/containers'
+									search={{ q: container.name }}
+									className='underline-offset-2 hover:text-foreground hover:underline'
+								>
+									{container.name}
+								</Link>
+							</Fragment>
+						))}
+					</span>
+				),
 		}),
 	]
 }

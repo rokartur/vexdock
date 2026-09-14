@@ -9,8 +9,11 @@
 package engines
 
 import (
+	"encoding/base64"
 	"fmt"
+	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -20,6 +23,17 @@ import (
 // Custom is the engine slug for "any other image". It has no curated template,
 // so the caller must supply both the image and the path its data lives on.
 const Custom = "custom"
+
+// LibSQL is the one engine with options of its own, so its slug is named.
+const LibSQL = "libsql"
+
+// The kinds of node sqld runs as. A replica follows a primary over gRPC; a
+// standalone serves HTTP and replicates to nothing.
+const (
+	SqldPrimary    = "primary"
+	SqldReplica    = "replica"
+	SqldStandalone = "standalone"
+)
 
 // Engine is one entry of the catalog.
 type Engine struct {
@@ -66,6 +80,18 @@ type Spec struct {
 	// EnvFile is the absolute path of the file holding this service's
 	// environment, which the fragment points compose at.
 	EnvFile string
+	// Sqld is the libSQL-only part of the form: which kind of node to run, the
+	// primary a replica follows, and whether namespaces are on.
+	Sqld SqldSpec
+}
+
+// SqldSpec configures a libSQL server. Everything here but Namespaces reaches
+// sqld as an environment variable; namespaces are a command-line flag, which is
+// why the value has to reach the fragment as well.
+type SqldSpec struct {
+	Node       string
+	PrimaryURL string
+	Namespaces bool
 }
 
 // Variable is one seeded environment entry.
@@ -202,6 +228,27 @@ var Catalog = []Engine{
       retries: 5`,
 	},
 	{
+		Slug:       LibSQL,
+		Name:       "libSQL",
+		Repository: "ghcr.io/tursodatabase/libsql-server",
+		DefaultTag: "latest",
+		Versions:   []string{"latest", "v0.24.33", "v0.24.32", "v0.24.31"},
+		Port:       8080,
+		Scheme:     "http",
+		// sqld serves one SQLite file over HTTP: there is no database to name and
+		// no user or password variable, because its basic auth is one encoded
+		// SQLD_HTTP_AUTH. Render seeds that, the node mode and the namespace
+		// switch; Describe reads the credentials back out of it.
+		fragment: `    image: {{ .Image }}
+    restart: unless-stopped
+    env_file: ["{{ .EnvFile }}"]
+{{- if .Namespaces }}
+    command: ["/bin/sqld", "--enable-namespaces"]
+{{- end }}
+    volumes:
+      - {{ .Volume }}:/var/lib/sqld`,
+	},
+	{
 		Slug: Custom,
 		Name: "Other image",
 		fragment: `    image: {{ .Image }}
@@ -297,6 +344,13 @@ func Render(spec Spec) (Rendered, error) {
 		}
 		env = append(env, Variable{Key: engine.UserVar, Value: user})
 	}
+	if engine.Slug == LibSQL {
+		sqld, err := sqldVariables(spec, password)
+		if err != nil {
+			return Rendered{}, err
+		}
+		env = append(env, sqld...)
+	}
 
 	tmpl, err := template.New(engine.Slug).Parse(engine.fragment)
 	if err != nil {
@@ -304,15 +358,80 @@ func Render(spec Spec) (Rendered, error) {
 	}
 	volume := spec.Name + "-data"
 	var out strings.Builder
-	if err := tmpl.Execute(&out, map[string]string{
-		"Image":    image,
-		"Volume":   volume,
-		"EnvFile":  spec.EnvFile,
-		"DataPath": dataPath,
+	if err := tmpl.Execute(&out, fragmentData{
+		Image:      image,
+		Volume:     volume,
+		EnvFile:    spec.EnvFile,
+		DataPath:   dataPath,
+		Namespaces: spec.Sqld.Namespaces,
 	}); err != nil {
 		return Rendered{}, err
 	}
 	return Rendered{Fragment: out.String(), Volume: volume, Image: image, Env: env}, nil
+}
+
+// fragmentData is what a catalog fragment is rendered against.
+type fragmentData struct {
+	Image      string
+	Volume     string
+	EnvFile    string
+	DataPath   string
+	Namespaces bool
+}
+
+// sqldVariables is the libSQL half of the create form, as the environment the
+// container starts with.
+//
+// SQLD_ENABLE_NAMESPACES is the odd one out: sqld itself ignores it, because
+// the option exists only as the --enable-namespaces flag. The manager reads the
+// variable back when it re-renders the fragment, which is what keeps the switch
+// visible and editable next to the rest of the service's environment.
+func sqldVariables(spec Spec, password string) ([]Variable, error) {
+	node := defaulted(spec.Sqld.Node, SqldPrimary)
+	switch node {
+	case SqldPrimary, SqldReplica, SqldStandalone:
+	default:
+		return nil, fmt.Errorf("invalid sqld node %q; expected primary, replica or standalone", node)
+	}
+	user := defaulted(spec.User, "libsql")
+	if !identPattern.MatchString(user) {
+		return nil, fmt.Errorf("invalid database user %q", user)
+	}
+	if strings.ContainsAny(password, " \t\n\"'") {
+		return nil, fmt.Errorf("the password cannot contain whitespace or quotes")
+	}
+	vars := []Variable{
+		{Key: "SQLD_NODE", Value: node},
+		{Key: "SQLD_HTTP_AUTH", Value: encodeBasicAuth(user, password), Secret: true},
+		{Key: "SQLD_ENABLE_NAMESPACES", Value: strconv.FormatBool(spec.Sqld.Namespaces)},
+	}
+	if node != SqldReplica {
+		return vars, nil
+	}
+	// A replica with no primary starts and then serves nothing, so the URL is
+	// part of choosing the node kind rather than an extra.
+	primary, err := url.Parse(strings.TrimSpace(spec.Sqld.PrimaryURL))
+	if err != nil || primary.Host == "" || (primary.Scheme != "http" && primary.Scheme != "https") {
+		return nil, fmt.Errorf("a replica needs the primary's gRPC URL, like http://primary:5001")
+	}
+	return append(vars, Variable{Key: "SQLD_PRIMARY_URL", Value: primary.String()}), nil
+}
+
+// encodeBasicAuth builds the one value sqld understands as a credential:
+// `basic:` followed by base64 of `user:password`.
+func encodeBasicAuth(user, password string) string {
+	return "basic:" + base64.StdEncoding.EncodeToString([]byte(user+":"+password))
+}
+
+// decodeBasicAuth reads SQLD_HTTP_AUTH back, so the connection panel can show
+// the credentials the container is actually running with.
+func decodeBasicAuth(value string) (user, password string) {
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, "basic:"))
+	if err != nil {
+		return "", ""
+	}
+	user, password, _ = strings.Cut(string(raw), ":")
+	return user, password
 }
 
 // resolveImage turns a spec into the image reference the service will run. An
@@ -388,6 +507,9 @@ func Describe(engine Engine, alias, image string, env map[string]string) Connect
 		Database: env[engine.DatabaseVar],
 		User:     env[engine.UserVar],
 		Password: env[engine.PasswordVar],
+	}
+	if engine.Slug == LibSQL {
+		c.User, c.Password = decodeBasicAuth(env["SQLD_HTTP_AUTH"])
 	}
 	if engine.Scheme == "" || c.Password == "" {
 		return c

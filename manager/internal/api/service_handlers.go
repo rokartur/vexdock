@@ -85,6 +85,7 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Name             string `json:"name"`
+		ContainerName    string `json:"container_name"`
 		Provider         string `json:"provider"`
 		RepositoryURL    string `json:"repository_url"`
 		Branch           string `json:"branch"`
@@ -104,6 +105,10 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			Password string `json:"password"`
 			Image    string `json:"image"`
 			DataPath string `json:"data_path"`
+			// libSQL only.
+			SqldNode       string `json:"sqld_node"`
+			SqldPrimaryURL string `json:"sqld_primary_url"`
+			SqldNamespaces bool   `json:"sqld_namespaces"`
 		} `json:"database"`
 	}
 	if err := decode(r, &req); err != nil {
@@ -112,6 +117,7 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 	}
 	in := projects.ServiceInput{
 		Name:             req.Name,
+		ContainerName:    req.ContainerName,
 		Provider:         req.Provider,
 		RepositoryURL:    req.RepositoryURL,
 		Branch:           req.Branch,
@@ -134,6 +140,11 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 			Password: req.Database.Password,
 			Image:    req.Database.Image,
 			DataPath: req.Database.DataPath,
+			Sqld: engines.SqldSpec{
+				Node:       req.Database.SqldNode,
+				PrimaryURL: req.Database.SqldPrimaryURL,
+				Namespaces: req.Database.SqldNamespaces,
+			},
 		}
 	}
 	service, err := s.Projects.CreateService(r.Context(), env, in)

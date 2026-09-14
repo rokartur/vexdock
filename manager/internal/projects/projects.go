@@ -14,6 +14,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/compose"
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
+	"github.com/vexdock/platform/manager/internal/engines"
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
@@ -40,7 +41,10 @@ type CreateInput struct {
 // fields matter is decided by Provider, and Database is set only when the
 // service is a catalog database.
 type ServiceInput struct {
-	Name          string
+	Name string
+	// ContainerName overrides what the container is called on the host. Empty
+	// takes the project's own name for it.
+	ContainerName string
 	Provider      string
 	RepositoryURL string
 	Branch        string
@@ -73,6 +77,8 @@ type DatabaseInput struct {
 	// DataPath only applies to the "other image" engine.
 	Image    string
 	DataPath string
+	// Sqld is libSQL's own half of the form and ignored by every other engine.
+	Sqld engines.SqldSpec
 }
 
 // MaxTags caps how many labels one project can carry; the list is stored in a
