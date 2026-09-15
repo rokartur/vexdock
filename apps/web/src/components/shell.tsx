@@ -13,7 +13,6 @@ import {
 	IconHome,
 	IconLogout,
 	IconMenu2,
-	IconSearch,
 	IconSettings,
 	IconStack2,
 	IconTrash,
@@ -28,7 +27,6 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
-	DropdownMenuShortcut,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
@@ -37,8 +35,7 @@ import { signOut, useSession } from '../lib/auth-client'
 import { useBrandColor } from '../lib/brand'
 import { useEnvironmentId } from '../lib/environment'
 import { useSystemEvents } from '../lib/sse'
-import { CommandPalette } from './command-palette'
-import { Button, Keys, mod, PageChrome, stateTone } from './primitives'
+import { PageChrome, stateTone } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
@@ -64,8 +61,6 @@ const system: NavItem[] = [
 	{ to: '/system/backups', label: 'Backups', icon: IconArchive },
 	{ to: '/system/settings', label: 'Settings', icon: IconSettings },
 ]
-
-const links = [...home, projects, ...docker, ...system]
 
 const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
@@ -214,7 +209,6 @@ function BranchServices({ projectId, environmentId }: { projectId: string; envir
 
 /** The sidebar carries every destination and the project tree; the header above the page carries its breadcrumb and actions. */
 export function Shell({ children }: { children: ReactNode }) {
-	const [paletteOpen, setPaletteOpen] = useState(false)
 	const [navOpen, setNavOpen] = useState(false)
 	// Set from the ref during commit, so the page's breadcrumb lands in the bar
 	// before the first paint rather than a frame later.
@@ -266,11 +260,6 @@ export function Shell({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
-			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-				event.preventDefault()
-				setPaletteOpen(open => !open)
-				return
-			}
 			// Cmd/Ctrl+S submits the FormSection the caret is in (requestSubmit, so
 			// its `required` inputs are checked first); anywhere else it is swallowed
 			// so the browser never offers to save the page.
@@ -319,10 +308,6 @@ export function Shell({ children }: { children: ReactNode }) {
 						</Avatar>
 						<span className='truncate font-medium'>vexdock</span>
 					</Link>
-					<Button variant='ghost' aria-label='Search' onClick={() => setPaletteOpen(true)}>
-						<IconSearch />
-						<Keys keys={[mod, 'K']} />
-					</Button>
 				</div>
 
 				<nav className='min-h-0 flex-1 overflow-y-auto px-2 pb-2'>
@@ -381,13 +366,6 @@ export function Shell({ children }: { children: ReactNode }) {
 								<IconSettings />
 								Settings
 							</DropdownMenuItem>
-							<DropdownMenuItem onClick={() => setPaletteOpen(true)}>
-								<IconSearch />
-								Jump to
-								<DropdownMenuShortcut className='tracking-normal'>
-									<Keys keys={[mod, 'K']} />
-								</DropdownMenuShortcut>
-							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem onClick={() => logout.mutate()}>
 								<IconLogout />
@@ -423,8 +401,6 @@ export function Shell({ children }: { children: ReactNode }) {
 
 				<PageChrome value={header}>{children}</PageChrome>
 			</div>
-
-			<CommandPalette links={links} open={paletteOpen} onOpenChange={setPaletteOpen} />
 		</div>
 	)
 }
