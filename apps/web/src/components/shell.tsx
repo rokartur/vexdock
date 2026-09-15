@@ -13,6 +13,7 @@ import {
 	IconHome,
 	IconLogout,
 	IconMenu2,
+	IconPlus,
 	IconSettings,
 	IconStack2,
 	IconTrash,
@@ -34,6 +35,7 @@ import { signOut, useSession } from '../lib/auth-client'
 import { useBrandColor } from '../lib/brand'
 import { useEnvironmentId } from '../lib/environment'
 import { useSystemEvents } from '../lib/sse'
+import { NewProjectDialog } from './new-project'
 import { PageChrome, stateTone } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
@@ -208,6 +210,7 @@ function BranchServices({ projectId, environmentId }: { projectId: string; envir
 /** The sidebar carries every destination and the project tree; the header above the page carries its breadcrumb and actions. */
 export function Shell({ children }: { children: ReactNode }) {
 	const [navOpen, setNavOpen] = useState(false)
+	const [creating, setCreating] = useState(false)
 	// Set from the ref during commit, so the page's breadcrumb lands in the bar
 	// before the first paint rather than a frame later.
 	const [header, setHeader] = useState<HTMLElement | null>(null)
@@ -315,15 +318,26 @@ export function Shell({ children }: { children: ReactNode }) {
 						))}
 					</div>
 					<GroupLabel>
-						<Link
-							to='/projects'
-							draggable={false}
-							data-on={pathname === projects.to}
-							className='hover:text-foreground data-[on=true]:text-foreground'
-						>
-							Projects
-						</Link>
+						<div className='flex items-center justify-between gap-2'>
+							<Link
+								to='/projects'
+								draggable={false}
+								data-on={pathname === projects.to}
+								className='hover:text-foreground data-[on=true]:text-foreground'
+							>
+								Projects
+							</Link>
+							<button
+								type='button'
+								onClick={() => setCreating(true)}
+								aria-label='New project'
+								className='-my-1 rounded-md p-1 hover:bg-muted hover:text-foreground'
+							>
+								<IconPlus stroke={1.5} className='size-3.5' />
+							</button>
+						</div>
 					</GroupLabel>
+					<NewProjectDialog open={creating} onOpenChange={setCreating} />
 					<ProjectTree />
 					<GroupLabel>Docker</GroupLabel>
 					{docker.map(item => (
