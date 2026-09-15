@@ -293,6 +293,13 @@ func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
+	// Every deploy is scoped to one service, so no later deploy would ever
+	// remove this container as an orphan.
+	if id, err := s.Docker.ServiceContainer(r.Context(), env.ComposeProjectName, service.ComposeServiceName); err == nil {
+		if err := s.Docker.Remove(r.Context(), id, true); err != nil {
+			s.Log.Warn("remove container after service delete", "service", service.ID, "error", err)
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

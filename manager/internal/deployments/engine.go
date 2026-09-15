@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vexdock/platform/manager/internal/compose"
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/docker"
@@ -99,13 +98,18 @@ type Options struct {
 	Actor   string
 	// CommitSHA pins the checkout, used by rollback. Empty means the branch head.
 	CommitSHA string
-	// ServiceName scopes pull/build/up/health to one compose service. Empty means the whole project.
+	// ServiceName is the compose service this deploy runs for. A deployment
+	// always targets exactly one service; deploying a whole environment is one
+	// deployment per service.
 	ServiceName string
 }
 
 // Trigger enqueues a deployment and returns immediately; the pipeline runs in
 // the background so the HTTP request is never held open by a build.
 func (e *Engine) Trigger(ctx context.Context, project *database.Project, env *database.Environment, opts Options) (*database.Deployment, error) {
+	if opts.ServiceName == "" {
+		return nil, errors.New("a deployment needs a service to deploy")
+	}
 	// An environment can pin a branch of its own, overriding what each service
 	// asks for; staging deploying main is the default, not a rule.
 	ref := env.Branch
@@ -194,7 +198,7 @@ type pipeline struct {
 	deployment   *database.Deployment
 	project      *database.Project
 	environment  *database.Environment
-	// target is the compose service this deploy is limited to, or empty for all.
+	// target is the compose service this deploy runs for.
 	target   string
 	position int
 	current  *database.DeploymentStep
@@ -228,9 +232,9 @@ func (p *pipeline) execute(ctx context.Context) error {
 	}
 	p.publish("deployment.started", p.deployment)
 
-	// Each service can build from its own repository, so the checkouts have to
-	// exist before compose resolves the build contexts the compose file points at.
-	if err := p.serviceCheckouts(ctx); err != nil {
+	// The checkout has to exist before compose resolves the build context the
+	// compose file points at.
+	if err := p.checkout(ctx); err != nil {
 		return err
 	}
 
@@ -245,24 +249,15 @@ func (p *pipeline) execute(ctx context.Context) error {
 	if err != nil {
 		return p.fail(err)
 	}
-	names := cfg.ServiceNames()
-	if p.target != "" {
-		if _, ok := cfg.Services[p.target]; !ok {
-			return p.fail(fmt.Errorf("compose has no service %q", p.target))
-		}
-		p.printf("Compose is valid; deploying service %s", p.target)
-	} else {
-		p.printf("Compose is valid: %d service(s) - %s", len(names), strings.Join(names, ", "))
+	service, ok := cfg.Services[p.target]
+	if !ok {
+		return p.fail(fmt.Errorf("compose has no service %q", p.target))
 	}
+	p.printf("Compose is valid; deploying service %s", p.target)
 	p.complete()
 
-	var scope []string
-	if p.target != "" {
-		scope = []string{p.target}
-	}
-
 	p.begin(StepPull)
-	if err := composeProject.Pull(ctx, p, scope...); err != nil {
+	if err := composeProject.Pull(ctx, p, p.target); err != nil {
 		// A pull failure for a locally built image is not fatal; compose is told
 		// to ignore pull failures and the build step decides.
 		p.printf("pull reported: %v", err)
@@ -270,17 +265,17 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	p.begin(StepBuild)
-	if hasBuild(cfg, scope...) {
-		if err := composeProject.Build(ctx, p, scope...); err != nil {
+	if service.Build != nil {
+		if err := composeProject.Build(ctx, p, p.target); err != nil {
 			return p.fail(err)
 		}
 	} else {
-		p.printf("No services declare a build context, skipping")
+		p.printf("%s declares no build context, skipping", p.target)
 	}
 	p.complete()
 
 	p.begin(StepStart)
-	if err := composeProject.Up(ctx, p, scope...); err != nil {
+	if err := composeProject.Up(ctx, p, p.target); err != nil {
 		return p.fail(err)
 	}
 	p.complete()
@@ -301,98 +296,75 @@ func (p *pipeline) execute(ctx context.Context) error {
 	return nil
 }
 
-// serviceCheckouts syncs the repository of every git service in scope, each
-// with its own credential. The steps are skipped entirely when nothing in the
-// environment comes from a repository.
-//
-// The commit is recorded on the deployment only when exactly one repository was
-// fetched. Two services from two repositories have no single commit between
-// them, and picking one of them would be a lie on the deployment page.
-func (p *pipeline) serviceCheckouts(ctx context.Context) error {
+// checkout syncs the repository of the service being deployed and records the
+// commit it landed on. Both steps are skipped when the service does not come
+// from a repository.
+func (p *pipeline) checkout(ctx context.Context) error {
 	services, err := p.e.db.ListServices(ctx, p.environment.ID)
 	if err != nil {
 		p.begin(StepClone)
 		return p.fail(err)
 	}
-	sourced := make([]database.Service, 0, len(services))
-	for _, svc := range services {
-		if !database.ClonesFromGit(svc.Provider) {
-			continue
+	var svc *database.Service
+	for i := range services {
+		if services[i].ComposeServiceName == p.target && database.ClonesFromGit(services[i].Provider) {
+			svc = &services[i]
 		}
-		if p.target != "" && svc.ComposeServiceName != p.target {
-			continue
-		}
-		sourced = append(sourced, svc)
 	}
-	if len(sourced) == 0 {
+	if svc == nil {
 		return nil
 	}
 
 	p.begin(StepClone)
-	shas := make([]string, 0, len(sourced))
-	for _, svc := range sourced {
-		source, err := p.e.projects.GitSourceFor(ctx, &svc)
-		if err != nil {
-			return p.fail(err)
-		}
-		ref := svc.Branch
-		if p.ref != "" {
-			ref = p.ref
-		}
-		repo := git.Repo{
-			URL:        source.URL,
-			Ref:        ref,
-			Dir:        filepath.Join(p.e.projects.ServiceDir(p.environment, svc.ComposeServiceName), "repository"),
-			Cred:       source.Cred,
-			KnownHosts: filepath.Join(p.e.cfg.SecretsDir, "known_hosts"),
-		}
-		p.printf("Fetching %s @ %s for service %s", source.URL, ref, svc.ComposeServiceName)
-		sha, err := repo.Sync(ctx, p)
-		if err != nil {
-			return p.fail(err)
-		}
-		shas = append(shas, sha)
+	source, err := p.e.projects.GitSourceFor(ctx, svc)
+	if err != nil {
+		return p.fail(err)
+	}
+	ref := svc.Branch
+	if p.ref != "" {
+		ref = p.ref
+	}
+	repo := git.Repo{
+		URL:        source.URL,
+		Ref:        ref,
+		Dir:        filepath.Join(p.e.projects.ServiceDir(p.environment, svc.ComposeServiceName), "repository"),
+		Cred:       source.Cred,
+		KnownHosts: filepath.Join(p.e.cfg.SecretsDir, "known_hosts"),
+	}
+	p.printf("Fetching %s @ %s for service %s", source.URL, ref, svc.ComposeServiceName)
+	sha, err := repo.Sync(ctx, p)
+	if err != nil {
+		return p.fail(err)
 	}
 	p.complete()
 
 	p.begin(StepCheckout)
-	for i, svc := range sourced {
-		p.printf("%s checked out at %s", svc.ComposeServiceName, short(shas[i]))
-	}
-	if len(shas) == 1 {
-		p.deployment.CommitSHA = shas[0]
-		if err := p.e.db.UpdateDeployment(ctx, p.deployment); err != nil {
-			return p.fail(err)
-		}
+	p.printf("%s checked out at %s", svc.ComposeServiceName, short(sha))
+	p.deployment.CommitSHA = sha
+	if err := p.e.db.UpdateDeployment(ctx, p.deployment); err != nil {
+		return p.fail(err)
 	}
 	p.complete()
 	return nil
 }
 
-// waitHealthy polls compose containers until they are running and, when a
-// healthcheck is declared, until Docker reports them healthy. A scoped deploy
-// only waits on its target service.
+// waitHealthy polls the target's containers until they are running and, when a
+// healthcheck is declared, until Docker reports them healthy.
 func (p *pipeline) waitHealthy(ctx context.Context) error {
 	deadline := time.Now().Add(healthTimeout)
 	for {
-		containers, err := p.e.docker.ListContainers(ctx, p.environment.ComposeProjectName)
+		all, err := p.e.docker.ListContainers(ctx, p.environment.ComposeProjectName)
 		if err != nil {
 			return err
 		}
-		if p.target != "" {
-			filtered := containers[:0]
-			for _, c := range containers {
-				if c.Labels[docker.ComposeServiceLabel] == p.target {
-					filtered = append(filtered, c)
-				}
+		containers := all[:0]
+		for _, c := range all {
+			if c.Labels[docker.ComposeServiceLabel] == p.target {
+				containers = append(containers, c)
 			}
-			containers = filtered
 		}
 		if len(containers) == 0 {
-			if p.target != "" {
-				return fmt.Errorf("compose started no container for service %s", p.target)
-			}
-			return errors.New("compose started no containers")
+			return fmt.Errorf("compose started no container for service %s", p.target)
 		}
 		pending := []string{}
 		for _, c := range containers {
@@ -558,25 +530,6 @@ type logLine struct {
 	Step string `json:"step"`
 	Text string `json:"text"`
 	At   string `json:"at"`
-}
-
-// hasBuild reports whether any of the named services (or all, when none named)
-// declare a build context.
-func hasBuild(cfg *compose.Config, services ...string) bool {
-	if len(services) == 0 {
-		for _, svc := range cfg.Services {
-			if svc.Build != nil {
-				return true
-			}
-		}
-		return false
-	}
-	for _, name := range services {
-		if svc, ok := cfg.Services[name]; ok && svc.Build != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func short(sha string) string {

@@ -140,9 +140,9 @@ Both sets land in the same `.env`, with the environment's own winning on a
 collision. The default environment cannot be deleted; `DELETE` answers `400`.
 
 An environment's `branch` overrides every git service's for its own deploys.
-Empty means each service follows the branch it names itself. A push triggers
-every environment with a service on that repository and branch, so one webhook
-can deploy staging and production separately.
+Empty means each service follows the branch it names itself. A push deploys
+every service on that repository and branch, in whichever environment, so one
+webhook can deploy staging and production separately.
 
 These take `?environment={id}`: `deploy`, `stop`, `services`,
 `services/export` and `deployments`. `POST /api/domains` takes an
@@ -252,9 +252,9 @@ curl -fsS -X POST \
 ```
 
 Create and edit do not start a container. `POST /api/services/{id}/deploy` runs
-the pipeline for that service alone; `POST /api/projects/{id}/deploy` still
-deploys every service in the project (used by CI, webhooks, and the dashboard's
-Deploy all, which it offers while a project has no services yet).
+the pipeline for that service; `POST /api/projects/{id}/deploy` queues one such
+deployment per service of the environment (used by CI and the dashboard's
+Deploy all).
 
 ### Templates
 
@@ -561,7 +561,7 @@ login fails is not kept. The token is encrypted before storage and piped to
 
 | Endpoint | Does |
 |---|---|
-| `POST /api/projects/{id}/deploy` | Deploys every service of the environment. `202` with the deployment |
+| `POST /api/projects/{id}/deploy` | One deployment per service of the environment. `202` with the array, `400` when it has no service |
 | `POST /api/projects/{id}/redeploy` | The same call under the name the dashboard uses |
 | `POST /api/projects/{id}/stop` | `docker compose down` for the environment; volumes stay |
 | `GET /api/projects/{id}/deployments` | The environment's history, newest first, fifty deep |
@@ -590,11 +590,10 @@ curl -fsS -X POST \
   https://panel.example.com/api/services/$SERVICE_ID/deploy
 ```
 
-Both return `202` with the deployment id as soon as the pipeline is queued. A
-service deploy sets `service_name` on the deployment; a project deploy leaves it
-empty. Poll `GET /api/deployments/{id}` for the outcome, or subscribe to its
-event stream. Rollback of a service-scoped deployment redeploys that service
-only.
+A service deploy returns `202` with the deployment, a project deploy `202` with
+one deployment per service; every deployment carries the `service_name` it ran
+for. Poll `GET /api/deployments/{id}` for the outcome, or subscribe to its event
+stream. Rollback redeploys the same service at the recorded commit.
 
 ## Domains
 
@@ -627,7 +626,7 @@ provider at it and enable auto deploy.
   repository it came from and the branch have to be the service's, so a push to
   one repository never redeploys a service built from another. An environment
   with its own branch matches on that instead of the service's. The response
-  carries a `deployment_ids` array, one entry per environment that matched.
+  carries a `deployment_ids` array, one entry per service that matched.
 - A push no service follows is answered `202 ignored` so the provider does not
   disable the hook.
 - GitHub `ping` events are answered `202 pong`.
@@ -649,5 +648,5 @@ delivery is matched against the connections of that type, and only a push whose
 owner, repository and branch a service already tracks deploys anything.
 
 A verified push is offered to every project with auto deploy on, matched exactly
-as above, and answered the same way. A monorepo deploys its environment once, not
-once per service that lives in it.
+as above, and answered the same way. A monorepo deploys once per service that
+tracks it, since a deployment is always one service.

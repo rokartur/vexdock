@@ -15,7 +15,7 @@ export type Deployment = {
 	id: string
 	project_id: string
 	number: number
-	/** Compose service this deploy targeted; empty means the whole project. */
+	/** Compose service this deploy ran for; empty only on deploys that predate per-service scoping. */
 	service_name: string
 	commit_sha: string
 	branch: string
@@ -280,8 +280,6 @@ export type SystemInfo = {
 		deployment: Deployment
 		project_name: string
 		environment_name: string
-		/** Services a project-wide deployment covered; empty for an imported compose. */
-		environment_services: string[]
 	}[]
 	version: string
 }
@@ -600,8 +598,9 @@ export const api = {
 	) => request<Project>(`/api/projects/${id}`, { method: 'PATCH', body }),
 	deleteProject: (id: string, removeVolumes: boolean) =>
 		request<{ ok: boolean }>(`/api/projects/${id}?volumes=${removeVolumes}`, { method: 'DELETE' }),
+	/** Queues one deployment per service of the environment. */
 	deploy: (id: string, environmentId?: string) =>
-		request<Deployment>(`/api/projects/${id}/deploy${environmentQuery(environmentId)}`, { method: 'POST' }),
+		request<Deployment[]>(`/api/projects/${id}/deploy${environmentQuery(environmentId)}`, { method: 'POST' }),
 	/** Full-stack stop. Prefer serviceAction('stop') for one service. */
 	stopProject: (id: string, environmentId?: string) =>
 		request<{ ok: boolean }>(`/api/projects/${id}/stop${environmentQuery(environmentId)}`, { method: 'POST' }),

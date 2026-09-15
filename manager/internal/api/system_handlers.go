@@ -130,18 +130,10 @@ func (s *Server) cleanupOldImages(ctx context.Context) bool {
 	return s.setting(ctx, updater.SettingCleanupOldImages) == "true"
 }
 
-// deploymentEnvironment labels a deployment row: the environment it ran in and
-// the services it covered when it was not scoped to one.
-type deploymentEnvironment struct {
-	name     string
-	services []string
-}
-
-// deploymentEnvironments resolves those labels once per distinct environment.
-// The service list is today's, so a service added after the deployment ran is
-// still listed; naming a two-service environment beats printing "all".
-func (s *Server) deploymentEnvironments(ctx context.Context, recent []database.Deployment) map[string]deploymentEnvironment {
-	out := map[string]deploymentEnvironment{}
+// deploymentEnvironmentNames resolves the environment name of each deployment
+// row, once per distinct environment.
+func (s *Server) deploymentEnvironmentNames(ctx context.Context, recent []database.Deployment) map[string]string {
+	out := map[string]string{}
 	for _, d := range recent {
 		if _, seen := out[d.EnvironmentID]; seen || d.EnvironmentID == "" {
 			continue
@@ -150,21 +142,7 @@ func (s *Server) deploymentEnvironments(ctx context.Context, recent []database.D
 		if err != nil {
 			continue
 		}
-		label := deploymentEnvironment{name: env.Name, services: []string{}}
-		services, err := s.DB.ListServices(ctx, env.ID)
-		if err != nil {
-			// The name alone still labels the row; the rest of the list must not
-			// lose its labels over one failed read.
-			out[d.EnvironmentID] = label
-			continue
-		}
-		for _, svc := range services {
-			// The same set the compose file gets: what a deploy can bring up.
-			if svc.Provider != database.ProviderUnconfigured {
-				label.services = append(label.services, svc.ComposeServiceName)
-			}
-		}
-		out[d.EnvironmentID] = label
+		out[d.EnvironmentID] = env.Name
 	}
 	return out
 }
@@ -189,15 +167,13 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, r *http.Request) {
 	for _, p := range projects {
 		names[p.ID] = p.Name
 	}
-	environments := s.deploymentEnvironments(r.Context(), recent)
+	environments := s.deploymentEnvironmentNames(r.Context(), recent)
 	activity := make([]map[string]any, 0, len(recent))
 	for _, d := range recent {
-		env := environments[d.EnvironmentID]
 		activity = append(activity, map[string]any{
-			"deployment":           d,
-			"project_name":         names[d.ProjectID],
-			"environment_name":     env.name,
-			"environment_services": env.services,
+			"deployment":       d,
+			"project_name":     names[d.ProjectID],
+			"environment_name": environments[d.EnvironmentID],
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

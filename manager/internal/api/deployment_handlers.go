@@ -71,6 +71,10 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, errors.New("this deployment has no commit to roll back to"))
 		return
 	}
+	if target.ServiceName == "" {
+		badRequest(w, errors.New("this deployment ran before deploys were scoped to a service; deploy the service instead"))
+		return
+	}
 	project, err := s.DB.ProjectByID(r.Context(), target.ProjectID)
 	if lookupFailed(w, err) {
 		return

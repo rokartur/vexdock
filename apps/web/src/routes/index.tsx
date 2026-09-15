@@ -37,13 +37,11 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 			header: 'Status',
 			cell: ({ row }) => <Status value={row.original.deployment.status} />,
 		}),
-		// An unscoped deploy covers every service in the environment, so name them
-		// rather than printing "all".
-		cell.accessor(
-			({ deployment, environment_services }) =>
-				deployment.service_name || environment_services.join(', ') || 'all',
-			{ id: 'service', header: 'Service', meta: { mono: true } },
-		),
+		cell.accessor(({ deployment }) => deployment.service_name, {
+			id: 'service',
+			header: 'Service',
+			meta: { mono: true },
+		}),
 		cell.accessor(({ deployment, project_name }) => project_name || deployment.project_id, {
 			id: 'project',
 			header: 'Project',

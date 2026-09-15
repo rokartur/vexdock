@@ -165,9 +165,10 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 	return svc, nil
 }
 
-// DeleteService drops a managed service and rewrites the overlay so the next
-// deploy removes its container. The named volume is deliberately left behind:
-// deleting a database's data is a separate, explicit act.
+// DeleteService drops a managed service and rewrites the overlay without it.
+// Removing its container is the caller's job, since a deploy is scoped to one
+// service and never prunes another. The named volume is deliberately left
+// behind: deleting a database's data is a separate, explicit act.
 //
 // The row's secrets go with it though, so a generated password does not outlive
 // the delete even though the data does. Read it from the database endpoint
