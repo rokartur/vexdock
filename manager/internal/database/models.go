@@ -195,7 +195,8 @@ type Deployment struct {
 	ID            string `json:"id"`
 	ProjectID     string `json:"project_id"`
 	EnvironmentID string `json:"environment_id"`
-	Number        int    `json:"number"`
+	// Number counts this service's deploys in this environment, starting at 1.
+	Number int `json:"number"`
 	// ServiceName is the compose service the pipeline ran for. Empty only on
 	// rows written before deploys were scoped to a service.
 	ServiceName string `json:"service_name"`

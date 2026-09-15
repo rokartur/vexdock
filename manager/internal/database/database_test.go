@@ -78,7 +78,7 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 	project := newProject(t, db, "app")
 	// A second project must get its own independent numbering.
 	other := newProject(t, db, "other")
-	second := &Deployment{ProjectID: other.ID, EnvironmentID: other.ID, Trigger: "manual"}
+	second := &Deployment{ProjectID: other.ID, EnvironmentID: other.ID, ServiceName: "web", Trigger: "manual"}
 	if err := db.CreateDeployment(ctx, second); err != nil {
 		t.Fatalf("create deployment for second project: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 	}
 
 	for want := 1; want <= 3; want++ {
-		d := &Deployment{ProjectID: project.ID, EnvironmentID: project.ID, Trigger: "manual"}
+		d := &Deployment{ProjectID: project.ID, EnvironmentID: project.ID, ServiceName: "web", Trigger: "manual"}
 		if err := db.CreateDeployment(ctx, d); err != nil {
 			t.Fatalf("create deployment: %v", err)
 		}
@@ -99,7 +99,16 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 		}
 	}
 
-	running := &Deployment{ProjectID: project.ID, EnvironmentID: project.ID, Trigger: "manual", Status: DeploymentRunning}
+	// A service deployed for the first time starts at #1 next to a busy sibling.
+	fresh := &Deployment{ProjectID: project.ID, EnvironmentID: project.ID, ServiceName: "db", Trigger: "manual"}
+	if err := db.CreateDeployment(ctx, fresh); err != nil {
+		t.Fatalf("create deployment for second service: %v", err)
+	}
+	if fresh.Number != 1 {
+		t.Fatalf("numbering is not per service: got #%d", fresh.Number)
+	}
+
+	running := &Deployment{ProjectID: project.ID, EnvironmentID: project.ID, ServiceName: "web", Trigger: "manual", Status: DeploymentRunning}
 	if err := db.CreateDeployment(ctx, running); err != nil {
 		t.Fatalf("create running deployment: %v", err)
 	}
@@ -107,9 +116,9 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unfinished: %v", err)
 	}
-	// Three queued for this project, one queued for the other, one running.
-	if len(unfinished) != 5 {
-		t.Fatalf("expected 5 unfinished deployments, got %d", len(unfinished))
+	// Four queued for this project, one queued for the other, one running.
+	if len(unfinished) != 6 {
+		t.Fatalf("expected 6 unfinished deployments, got %d", len(unfinished))
 	}
 
 	running.Status = DeploymentSuccess
@@ -125,7 +134,7 @@ func TestDeploymentNumberingAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(list) != 4 || list[0].Number != 4 {
+	if len(list) != 5 || list[0].ID != running.ID {
 		t.Fatalf("history is not newest-first: %+v", list)
 	}
 }
