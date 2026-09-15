@@ -354,6 +354,7 @@ serves. React Query holds server state; component state stays local.
 | `src/components/shell.tsx` | Sidebar with the project tree, page header, the one `useSystemEvents` subscription |
 | `src/components/primitives.tsx` | The dashboard's vocabulary over shadcn: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... |
 | `src/components/data-table.tsx` | `DataTable` and `columnsFor`; every table on every page |
+| `src/components/new-project.tsx` | `NewProjectDialog`, reached from the projects page and the sidebar's Projects label |
 | `src/components/ui/*` | shadcn output. Pages reach for it only for what `primitives.tsx` has no word for |
 | `src/components/*-panel.tsx`, `*-form.tsx` | Pieces a route composes. Domains and deployments are service-scoped, so their panels take the service they belong to |
 | `src/components/service-bulk-actions.tsx` | What a selection of services does together. Every action is the single-service endpoint run once per row, duplicate and move being create plus copy the variables |
