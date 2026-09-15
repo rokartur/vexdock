@@ -22,13 +22,11 @@ token and create the administrator account.
 - **Deploy from Git or Docker Compose.** Push to your branch, the platform
   clones, validates, builds, starts and health checks the stack. Every step is
   streamed live.
-- **Domains with HTTPS.** Add `app.example.com`, choose the service and port.
+- **Domains with HTTPS.** Add `app.example.com` on the service, choose the port.
   Nginx is generated, validated and reloaded. Let's Encrypt issues and renews
   the certificate, or you upload your own and the platform leaves it alone.
   Add a Cloudflare API token to switch to the DNS-01 challenge and issue
   `*.example.com`.
-- **Deploy notifications.** One webhook URL, posted to when a deployment
-  succeeds or fails. Discord and Slack are detected automatically.
 - **Backups.** Snapshots of both databases, the proxy config, the certificates
   and the master key, with application volumes included on request.
 - **Instant rollback.** Every deployment records its commit. Redeploy any

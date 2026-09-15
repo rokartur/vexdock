@@ -8,11 +8,13 @@ import (
 
 const deploymentColumns = `id, project_id, environment_id, number, service_name, commit_sha, branch, status, trigger, created_by, error, started_at, finished_at, created_at`
 
-// CreateDeployment allocates the next per-project deployment number.
+// CreateDeployment allocates the next number for the service being deployed, so
+// a service's first deploy is #1 however long its neighbours have been running.
 func (db *DB) CreateDeployment(ctx context.Context, d *Deployment) error {
 	var next int
 	if err := db.QueryRowContext(ctx,
-		`SELECT COALESCE(MAX(number), 0) + 1 FROM deployments WHERE project_id = ?`, d.ProjectID).Scan(&next); err != nil {
+		`SELECT COALESCE(MAX(number), 0) + 1 FROM deployments WHERE environment_id = ? AND service_name = ?`,
+		d.EnvironmentID, d.ServiceName).Scan(&next); err != nil {
 		return err
 	}
 	d.ID, d.Number, d.CreatedAt = NewID(), next, Now()
@@ -37,14 +39,15 @@ func (db *DB) DeploymentByID(ctx context.Context, id string) (*Deployment, error
 	return scanDeployment(db.QueryRowContext(ctx, `SELECT `+deploymentColumns+` FROM deployments WHERE id = ?`, id))
 }
 
-// ListDeployments returns one environment's history: production and staging
-// each have their own, even though the numbers come from a per-project counter.
+// ListDeployments returns one environment's history, newest first. Numbers run
+// per service, so only time orders rows that span services.
 func (db *DB) ListDeployments(ctx context.Context, environmentID string, limit int) ([]Deployment, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	return db.queryDeployments(ctx,
-		`SELECT `+deploymentColumns+` FROM deployments WHERE environment_id = ? ORDER BY number DESC LIMIT ?`, environmentID, limit)
+		`SELECT `+deploymentColumns+` FROM deployments WHERE environment_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
+		environmentID, limit)
 }
 
 // ListProjectDeployments spans every environment, which is what a project's
@@ -54,7 +57,8 @@ func (db *DB) ListProjectDeployments(ctx context.Context, projectID string, limi
 		limit = 50
 	}
 	return db.queryDeployments(ctx,
-		`SELECT `+deploymentColumns+` FROM deployments WHERE project_id = ? ORDER BY number DESC LIMIT ?`, projectID, limit)
+		`SELECT `+deploymentColumns+` FROM deployments WHERE project_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
+		projectID, limit)
 }
 
 // RecentDeployments powers the dashboard activity list across all projects.

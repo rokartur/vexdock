@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DomainsRouteImport } from './routes/domains'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
@@ -26,8 +25,6 @@ import { Route as SystemCertificatesRouteImport } from './routes/system.certific
 import { Route as SystemDockerRouteImport } from './routes/system.docker'
 import { Route as SystemSettingsRouteImport } from './routes/system.settings'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects.$projectId.index'
-import { Route as ProjectsProjectIdDeploymentsRouteImport } from './routes/projects.$projectId.deployments'
-import { Route as ProjectsProjectIdDomainsRouteImport } from './routes/projects.$projectId.domains'
 import { Route as ProjectsProjectIdEnvironmentRouteImport } from './routes/projects.$projectId.environment'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects.$projectId.settings'
 import { Route as SystemSettingsIndexRouteImport } from './routes/system.settings.index'
@@ -49,11 +46,6 @@ import { Route as ProjectsProjectIdServicesServiceIdTerminalRouteImport } from '
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DomainsRoute = DomainsRouteImport.update({
-  id: '/domains',
-  path: '/domains',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -131,18 +123,6 @@ const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProjectsProjectIdRoute,
 } as any)
-const ProjectsProjectIdDeploymentsRoute =
-  ProjectsProjectIdDeploymentsRouteImport.update({
-    id: '/deployments',
-    path: '/deployments',
-    getParentRoute: () => ProjectsProjectIdRoute,
-  } as any)
-const ProjectsProjectIdDomainsRoute =
-  ProjectsProjectIdDomainsRouteImport.update({
-    id: '/domains',
-    path: '/domains',
-    getParentRoute: () => ProjectsProjectIdRoute,
-  } as any)
 const ProjectsProjectIdEnvironmentRoute =
   ProjectsProjectIdEnvironmentRouteImport.update({
     id: '/environment',
@@ -244,7 +224,6 @@ const ProjectsProjectIdServicesServiceIdTerminalRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/domains': typeof DomainsRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
@@ -259,8 +238,6 @@ export interface FileRoutesByFullPath {
   '/system/settings': typeof SystemSettingsRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
-  '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
-  '/projects/$projectId/domains': typeof ProjectsProjectIdDomainsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
@@ -282,7 +259,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/domains': typeof DomainsRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
@@ -295,8 +271,6 @@ export interface FileRoutesByTo {
   '/system/docker': typeof SystemDockerRoute
   '/projects': typeof ProjectsIndexRoute
   '/system': typeof SystemIndexRoute
-  '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
-  '/projects/$projectId/domains': typeof ProjectsProjectIdDomainsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
@@ -318,7 +292,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/domains': typeof DomainsRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
@@ -333,8 +306,6 @@ export interface FileRoutesById {
   '/system/settings': typeof SystemSettingsRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
-  '/projects/$projectId/deployments': typeof ProjectsProjectIdDeploymentsRoute
-  '/projects/$projectId/domains': typeof ProjectsProjectIdDomainsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
@@ -358,7 +329,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/domains'
     | '/login'
     | '/setup'
     | '/tasks'
@@ -373,8 +343,6 @@ export interface FileRouteTypes {
     | '/system/settings'
     | '/projects/'
     | '/system/'
-    | '/projects/$projectId/deployments'
-    | '/projects/$projectId/domains'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
@@ -396,7 +364,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/domains'
     | '/login'
     | '/setup'
     | '/tasks'
@@ -409,8 +376,6 @@ export interface FileRouteTypes {
     | '/system/docker'
     | '/projects'
     | '/system'
-    | '/projects/$projectId/deployments'
-    | '/projects/$projectId/domains'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
@@ -431,7 +396,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/domains'
     | '/login'
     | '/setup'
     | '/tasks'
@@ -446,8 +410,6 @@ export interface FileRouteTypes {
     | '/system/settings'
     | '/projects/'
     | '/system/'
-    | '/projects/$projectId/deployments'
-    | '/projects/$projectId/domains'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
@@ -470,7 +432,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DomainsRoute: typeof DomainsRoute
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
   TasksRoute: typeof TasksRoute
@@ -495,13 +456,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/domains': {
-      id: '/domains'
-      path: '/domains'
-      fullPath: '/domains'
-      preLoaderRoute: typeof DomainsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -607,20 +561,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/projects/$projectId/'
       preLoaderRoute: typeof ProjectsProjectIdIndexRouteImport
-      parentRoute: typeof ProjectsProjectIdRoute
-    }
-    '/projects/$projectId/deployments': {
-      id: '/projects/$projectId/deployments'
-      path: '/deployments'
-      fullPath: '/projects/$projectId/deployments'
-      preLoaderRoute: typeof ProjectsProjectIdDeploymentsRouteImport
-      parentRoute: typeof ProjectsProjectIdRoute
-    }
-    '/projects/$projectId/domains': {
-      id: '/projects/$projectId/domains'
-      path: '/domains'
-      fullPath: '/projects/$projectId/domains'
-      preLoaderRoute: typeof ProjectsProjectIdDomainsRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
     '/projects/$projectId/environment': {
@@ -746,16 +686,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface ProjectsProjectIdRouteChildren {
-  ProjectsProjectIdDeploymentsRoute: typeof ProjectsProjectIdDeploymentsRoute
-  ProjectsProjectIdDomainsRoute: typeof ProjectsProjectIdDomainsRoute
   ProjectsProjectIdEnvironmentRoute: typeof ProjectsProjectIdEnvironmentRoute
   ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
 }
 
 const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
-  ProjectsProjectIdDeploymentsRoute: ProjectsProjectIdDeploymentsRoute,
-  ProjectsProjectIdDomainsRoute: ProjectsProjectIdDomainsRoute,
   ProjectsProjectIdEnvironmentRoute: ProjectsProjectIdEnvironmentRoute,
   ProjectsProjectIdSettingsRoute: ProjectsProjectIdSettingsRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
@@ -825,7 +761,6 @@ const ProjectsProjectIdServicesServiceIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DomainsRoute: DomainsRoute,
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
   TasksRoute: TasksRoute,

@@ -11,7 +11,7 @@ import { ErrorText, IconButton, Refresh, Section, Status } from './primitives'
 
 /**
  * Which deployment is open lives in the URL, so anything that starts a deploy
- * can link straight at its log. Both routes that render the panel validate it.
+ * can link straight at its log. The route that renders the panel validates it.
  */
 export const deploymentSearch = {
 	validateSearch: (search: Record<string, unknown>): { deployment?: string } =>
@@ -31,11 +31,6 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			id: 'status',
 			header: 'Status',
 			cell: ({ row }) => <Status value={row.original.status} />,
-		}),
-		cell.accessor(deployment => deployment.service_name, {
-			id: 'service',
-			header: 'Service',
-			meta: { mono: true },
 		}),
 		cell.accessor(deployment => deployment.branch, {
 			id: 'branch',
@@ -94,8 +89,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 
 const renderDetail = (deployment: Deployment) => <DeploymentDetail deploymentId={deployment.id} />
 
-/** Given a service this narrows to the deploys that shipped it: its own, plus the whole-project ones. */
-export function DeploymentsPanel({ projectId, service }: { projectId: string; service?: Service }) {
+export function DeploymentsPanel({ projectId, service }: { projectId: string; service: Service }) {
 	const { deployment: openId = null } = useSearch({ strict: false })
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
@@ -122,14 +116,9 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 		},
 	})
 
-	const data = (deployments.data ?? []).filter(
-		deployment => !service || deployment.service_name === service.compose_service_name,
-	)
+	const data = (deployments.data ?? []).filter(deployment => deployment.service_name === service.compose_service_name)
 	const { mutate: redeploy } = rollback
-	const columns = useMemo(
-		() => deploymentTableColumns(redeploy).filter(column => !service || column.id !== 'service'),
-		[redeploy, service],
-	)
+	const columns = useMemo(() => deploymentTableColumns(redeploy), [redeploy])
 
 	return (
 		<Section

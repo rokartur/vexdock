@@ -10,13 +10,13 @@ import {
 	IconTag,
 } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Progress } from '@/components/ui/progress'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { DeploymentDetail } from '../components/deployment-detail'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
 import { Cell, Cells, Page, Refresh, Section, Status } from '../components/primitives'
 import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
-import { deploymentLink } from '../lib/deployment-link'
 import { bytes, percent, since } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
@@ -27,6 +27,8 @@ type HostSample = HostPoint & { load_average?: number }
 const toMillis = (point: HostPoint): HostSample => ({ ...point, at: point.at * 1000 })
 
 type RecentDeployment = SystemInfo['recent_deployments'][number]
+
+const renderDeploymentDetail = ({ deployment }: RecentDeployment) => <DeploymentDetail deploymentId={deployment.id} />
 
 // One machine runs everything, so the server column is the Docker host's name.
 function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
@@ -61,7 +63,6 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 export const Route = createFileRoute('/')({ component: DashboardPage })
 
 function DashboardPage() {
-	const navigate = useNavigate()
 	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo })
 	const recorded = useQuery({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
 	// Same key the shell uses, so this rides its cache instead of re-fetching.
@@ -69,6 +70,7 @@ function DashboardPage() {
 	// Same key the projects page uses.
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 	const [stats, setStats] = useState<HostSample | null>(null)
+	const [openDeployment, setOpenDeployment] = useState<string | null>(null)
 
 	useEventSource('/api/system/stats', {
 		stats: data => setStats({ ...(data as HostStats), at: Date.now() }),
@@ -208,7 +210,7 @@ function DashboardPage() {
 					columns={deploymentColumns}
 					loading={info.isLoading}
 					getRowId={({ deployment }) => deployment.id}
-					onRowClick={({ deployment }) => navigate(deploymentLink(deployment.project_id, deployment.id))}
+					detail={{ openId: openDeployment, onOpenChange: setOpenDeployment, render: renderDeploymentDetail }}
 					empty='No deployments yet'
 				/>
 			</Section>

@@ -22,7 +22,7 @@ func TestFinishSettlesEveryOutcome(t *testing.T) {
 	}
 	defer db.Close()
 	ctx := context.Background()
-	project := &database.Project{ID: "p1", Name: "P", Slug: "p", ComposeProjectName: "p_p1", WebhookToken: "t"}
+	project := &database.Project{ID: "p1", Name: "P", Slug: "p", ComposeProjectName: "p_p1"}
 	if err := db.CreateProject(ctx, project); err != nil {
 		t.Fatal(err)
 	}

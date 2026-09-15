@@ -11,5 +11,5 @@ function ServiceDomains() {
 	const service = useService(serviceId)
 	if (!service.data) return null
 	// Remounts on switch, so the add form's service follows the URL.
-	return <DomainsPanel key={service.data.id} projectId={projectId} scope={service.data} />
+	return <DomainsPanel key={service.data.id} projectId={projectId} service={service.data} />
 }

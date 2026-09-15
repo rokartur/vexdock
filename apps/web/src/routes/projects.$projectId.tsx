@@ -14,8 +14,6 @@ export const Route = createFileRoute('/projects/$projectId')({
 
 const tabs = [
 	{ suffix: '', label: 'Services' },
-	{ suffix: '/deployments', label: 'Deployments' },
-	{ suffix: '/domains', label: 'Domains' },
 	{ suffix: '/environment', label: 'Variables' },
 	{ suffix: '/settings', label: 'Settings' },
 ]

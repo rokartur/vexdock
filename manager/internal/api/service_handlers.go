@@ -219,6 +219,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		Repository       *string `json:"repository"`
 		Image            *string `json:"image"`
 		ComposeFragment  *string `json:"compose_fragment"`
+		AutoDeploy       *bool   `json:"auto_deploy"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
@@ -230,6 +231,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 	}
 	assign(&service.DisplayName, req.DisplayName)
 	assign(&service.ComposeFragment, req.ComposeFragment)
+	assign(&service.AutoDeploy, req.AutoDeploy)
 	for _, err := range []error{
 		assignValid(&service.RepositoryURL, req.RepositoryURL, security.ValidateGitURL),
 		assignValid(&service.Branch, req.Branch, security.ValidateGitRef),
@@ -303,6 +305,86 @@ func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleDuplicateService puts the copy in the requested environment, or beside
+// the original when the body names none.
+func (s *Server) handleDuplicateService(w http.ResponseWriter, r *http.Request) {
+	service, _, env, err := s.lookupService(r)
+	if lookupFailed(w, err) {
+		return
+	}
+	var req struct {
+		Name          string `json:"name"`
+		EnvironmentID string `json:"environment_id"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	target := env
+	if req.EnvironmentID != "" {
+		target, err = s.DB.EnvironmentByID(r.Context(), req.EnvironmentID)
+		if lookupFailed(w, err) {
+			return
+		}
+	}
+	copied, err := s.Projects.DuplicateService(r.Context(), service, target, req.Name)
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, copied)
+}
+
+// handleMoveService carries the volume data across. The old container goes
+// first: it belongs to a compose project nothing will deploy again, and its
+// volumes have to hold still while they are copied. The source volumes are
+// kept, the same way delete keeps them.
+func (s *Server) handleMoveService(w http.ResponseWriter, r *http.Request) {
+	service, _, env, err := s.lookupService(r)
+	if lookupFailed(w, err) {
+		return
+	}
+	var req struct {
+		EnvironmentID string `json:"environment_id"`
+	}
+	if err := decode(r, &req); err != nil {
+		badRequest(w, err)
+		return
+	}
+	target, err := s.DB.EnvironmentByID(r.Context(), req.EnvironmentID)
+	if lookupFailed(w, err) {
+		return
+	}
+	volumes, err := s.Projects.ServiceVolumes(r.Context(), env, service)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	if id, err := s.Docker.ServiceContainer(r.Context(), env.ComposeProjectName, service.ComposeServiceName); err == nil {
+		if err := s.Docker.Remove(r.Context(), id, true); err != nil {
+			serverError(w, fmt.Errorf("remove the container before moving: %w", err))
+			return
+		}
+	}
+	for _, name := range volumes {
+		from := env.ComposeProjectName + "_" + name
+		to := target.ComposeProjectName + "_" + name
+		if err := s.Docker.CopyVolume(r.Context(), from, to); err != nil {
+			// Usually a service that was never deployed here, so there is no data.
+			s.Log.Warn("move service volume", "service", service.ID, "volume", from, "error", err)
+		}
+	}
+	if err := s.Projects.MoveService(r.Context(), service, env, target); err != nil {
+		badRequest(w, err)
+		return
+	}
+	if err := s.Domains.Reconcile(r.Context()); err != nil {
+		s.Log.Warn("reconcile proxy after service move", "service", service.ID, "error", err)
+	}
+	writeJSON(w, http.StatusOK, service)
+}
+
 func (s *Server) handleGetServiceEnvironment(w http.ResponseWriter, r *http.Request) {
 	service, _, _, err := s.lookupService(r)
 	if lookupFailed(w, err) {
@@ -342,7 +424,7 @@ func (s *Server) handlePutServiceEnvironment(w http.ResponseWriter, r *http.Requ
 
 // assign applies an optional request field, leaving the value untouched when
 // the caller omitted it.
-func assign(dst *string, src *string) {
+func assign[T any](dst *T, src *T) {
 	if src != nil {
 		*dst = *src
 	}

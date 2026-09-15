@@ -27,7 +27,7 @@ func (s *Service) backupVolumes(ctx context.Context, dir string) error {
 	if err != nil {
 		return err
 	}
-	image, err := s.selfImage(ctx)
+	image, err := s.docker.SelfImage(ctx)
 	if err != nil {
 		return err
 	}
@@ -44,22 +44,6 @@ func (s *Service) backupVolumes(ctx context.Context, dir string) error {
 		}
 	}
 	return nil
-}
-
-// selfImage returns the image this manager runs from, so the tar helper reuses
-// an image that is guaranteed to be present instead of pulling one.
-func (s *Service) selfImage(ctx context.Context) (string, error) {
-	// Inside a container the hostname is the container ID unless it was
-	// overridden, which the platform's own compose file never does.
-	host, err := os.Hostname()
-	if err != nil {
-		return "", err
-	}
-	self, err := s.docker.Inspect(ctx, host)
-	if err != nil {
-		return "", fmt.Errorf("could not identify the manager container: %w", err)
-	}
-	return self.Image, nil
 }
 
 // archiveVolume runs a throwaway container because a named volume is only

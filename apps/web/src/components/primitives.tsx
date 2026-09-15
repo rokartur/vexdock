@@ -621,6 +621,7 @@ export function Confirm({
 /** The only checkbox shape in the app. A <label> around it is safe: base-ui renders a hidden native input. */
 export function Check({
 	label,
+	name,
 	checked,
 	onChange,
 	disabled,
@@ -628,6 +629,8 @@ export function Check({
 	className,
 }: {
 	label: string
+	/** What names the box when `label` is empty, as in a table's selection column. */
+	name?: string
 	checked: boolean
 	onChange: (checked: boolean) => void
 	disabled?: boolean
@@ -637,7 +640,7 @@ export function Check({
 }) {
 	return (
 		<label className={cn('flex items-center gap-2 text-body', muted && 'text-muted-foreground', className)}>
-			<Checkbox checked={checked} disabled={disabled} onCheckedChange={onChange} />
+			<Checkbox aria-label={name} checked={checked} disabled={disabled} onCheckedChange={onChange} />
 			{label}
 		</label>
 	)

@@ -111,7 +111,7 @@ vx /api/system/info
 
 ```sh
 vx /api/projects -d '{"name":"shop"}'                                    # 201
-vx /api/projects/$PROJECT -X PATCH -d '{"auto_deploy":true}'
+vx /api/services/$SERVICE -X PATCH -d '{"auto_deploy":true}'
 vx /api/projects/$PROJECT -X DELETE                                      # add ?volumes=true to drop data
 
 # git application

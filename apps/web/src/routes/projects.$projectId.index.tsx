@@ -20,9 +20,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitles, type ServiceKind } from '../components/new-service-form'
-import { Button, Cell, Cells, EmptyState, ErrorText, Refresh, Section, Status } from '../components/primitives'
+import { Button, Cell, Cells, Check, EmptyState, ErrorText, Refresh, Section, Status } from '../components/primitives'
+import { ServiceBulkActions } from '../components/service-bulk-actions'
 import { api, type Domain, type Service } from '../lib/api'
-import { deploymentLink } from '../lib/deployment-link'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent, since } from '../lib/format'
 
@@ -48,9 +48,35 @@ type ServiceRow = { service: Service; hostnames: string[] }
  * A service whose source is still unanswered says so instead of reading as broken, and the image column falls back
  * to what the container was started from so a derived service still shows something.
  */
-const serviceTableColumns: Columns<ServiceRow> = (() => {
+function serviceTableColumns(selection: {
+	selected: string[]
+	toggle: (id: string) => void
+	toggleAll: () => void
+}): Columns<ServiceRow> {
 	const cell = columnsFor<ServiceRow>()
 	return [
+		cell.display({
+			id: 'select',
+			header: () => (
+				<Check
+					label=''
+					name='Select every service'
+					checked={selection.selected.length > 0}
+					onChange={() => selection.toggleAll()}
+				/>
+			),
+			// The row itself opens the service, so the checkbox has to keep its click.
+			cell: ({ row: { original } }) => (
+				<span onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+					<Check
+						label=''
+						name={`Select ${original.service.compose_service_name}`}
+						checked={selection.selected.includes(original.service.id)}
+						onChange={() => selection.toggle(original.service.id)}
+					/>
+				</span>
+			),
+		}),
 		cell.accessor(({ service }) => service.compose_service_name, {
 			id: 'name',
 			header: 'Name',
@@ -139,7 +165,7 @@ const serviceTableColumns: Columns<ServiceRow> = (() => {
 			),
 		}),
 	]
-})()
+}
 
 export const Route = createFileRoute('/projects/$projectId/')({ component: ProjectServices })
 
@@ -148,6 +174,7 @@ function ProjectServices() {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const [creating, setCreating] = useState<Creating | null>(null)
+	const [selected, setSelected] = useState<string[]>([])
 
 	const environmentId = useEnvironmentId()
 	const services = useQuery({
@@ -160,25 +187,38 @@ function ProjectServices() {
 	})
 	const domains = useQuery({ queryKey: ['domains', projectId], queryFn: () => api.projectDomains(projectId) })
 
-	// One deployment per service, so the log to open is the list, not a single run.
+	// One deployment per service, so there is no single log to open; each
+	// service's own tab has its own.
 	const deployAll = useMutation({
 		mutationFn: () => api.deploy(projectId, environmentId),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
-			await navigate({ to: '/projects/$projectId/deployments', params: { projectId } })
+			await queryClient.invalidateQueries({ queryKey: ['deployments', projectId] })
 		},
 	})
 
 	const data = useMemo(() => services.data ?? [], [services.data])
 	const running = data.filter(service => service.state === 'running').length
 	const latest = deployments.data?.[0]
+	const latestService = data.find(service => service.compose_service_name === latest?.service_name)
 	const cpu = data.reduce((total, service) => total + service.cpu_percent, 0)
 	const memory = data.reduce((total, service) => total + service.memory_usage, 0)
 	const rows = useMemo<ServiceRow[]>(() => {
 		const hostnames = hostnamesByService(domains.data ?? [])
 		return data.map(service => ({ service, hostnames: hostnames.get(service.id) ?? [] }))
 	}, [data, domains.data])
-	const empty = data.length === 0 && !services.isLoading
+	const columns = useMemo(
+		() =>
+			serviceTableColumns({
+				selected,
+				toggle: id =>
+					setSelected(current =>
+						current.includes(id) ? current.filter(other => other !== id) : [...current, id],
+					),
+				toggleAll: () => setSelected(current => (current.length > 0 ? [] : data.map(service => service.id))),
+			}),
+		[selected, data],
+	)
 
 	return (
 		<>
@@ -188,9 +228,11 @@ function ProjectServices() {
 					label='Last deploy'
 					icon={IconRocket}
 					value={
-						latest ? (
+						latest && latestService ? (
 							<Link
-								{...deploymentLink(projectId, latest.id)}
+								to='/projects/$projectId/services/$serviceId/deployments'
+								params={{ projectId, serviceId: latestService.id }}
+								search={{ deployment: latest.id }}
 								className='underline-offset-4 hover:underline'
 							>
 								#{latest.number}
@@ -253,6 +295,9 @@ function ProjectServices() {
 				}
 			>
 				<ErrorText error={deployAll.error} />
+				{selected.length > 0 ? (
+					<ServiceBulkActions services={data} selected={selected} onDone={() => setSelected([])} />
+				) : null}
 				<Dialog open={creating !== null} onOpenChange={open => !open && setCreating(null)}>
 					<DialogContent className='sm:max-w-lg'>
 						<DialogHeader>
@@ -289,7 +334,7 @@ function ProjectServices() {
 
 				<DataTable
 					data={rows}
-					columns={serviceTableColumns}
+					columns={columns}
 					loading={services.isLoading}
 					getRowId={({ service }) => service.id}
 					onRowClick={({ service }) =>

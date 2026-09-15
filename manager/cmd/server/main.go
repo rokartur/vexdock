@@ -32,7 +32,6 @@ import (
 	"github.com/vexdock/platform/manager/internal/events"
 	"github.com/vexdock/platform/manager/internal/metrics"
 	"github.com/vexdock/platform/manager/internal/nginx"
-	"github.com/vexdock/platform/manager/internal/notify"
 	"github.com/vexdock/platform/manager/internal/projects"
 	"github.com/vexdock/platform/manager/internal/schedule"
 	"github.com/vexdock/platform/manager/internal/security"
@@ -139,7 +138,6 @@ func run() error {
 	reconciler := events.NewReconciler(dockerClient, domainService, bus, log.With("component", "reconciler"))
 	go reconciler.Run(ctx)
 	go scheduler(ctx, db, domainService, backupService, log.With("component", "scheduler"))
-	go notify.New(db, bus, log.With("component", "notify")).Run(ctx)
 	go metrics.NewSampler(db, dockerClient, cfg.Root, log.With("component", "metrics")).Run(ctx)
 	go taskRunner.Run(ctx)
 

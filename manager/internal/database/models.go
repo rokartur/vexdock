@@ -23,9 +23,7 @@ type Project struct {
 	Name               string   `json:"name"`
 	Slug               string   `json:"slug"`
 	ComposeProjectName string   `json:"compose_project_name"`
-	AutoDeploy         bool     `json:"auto_deploy"`
 	Tags               []string `json:"tags"`
-	WebhookToken       string   `json:"-"`
 	CreatedAt          string   `json:"created_at"`
 	UpdatedAt          string   `json:"updated_at"`
 }
@@ -137,8 +135,11 @@ type Service struct {
 	// ComposeFragment is the YAML body a raw service contributes,
 	// indented to sit under its own key in the overlay.
 	ComposeFragment string `json:"compose_fragment"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
+	// AutoDeploy arms this service for the webhook: a push to its repository and
+	// branch redeploys it only when this is on.
+	AutoDeploy bool   `json:"auto_deploy"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 type Domain struct {
@@ -195,7 +196,8 @@ type Deployment struct {
 	ID            string `json:"id"`
 	ProjectID     string `json:"project_id"`
 	EnvironmentID string `json:"environment_id"`
-	Number        int    `json:"number"`
+	// Number counts this service's deploys in this environment, starting at 1.
+	Number int `json:"number"`
 	// ServiceName is the compose service the pipeline ran for. Empty only on
 	// rows written before deploys were scoped to a service.
 	ServiceName string `json:"service_name"`

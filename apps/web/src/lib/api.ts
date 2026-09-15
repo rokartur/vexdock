@@ -59,7 +59,6 @@ export type Project = {
 	name: string
 	slug: string
 	compose_project_name: string
-	auto_deploy: boolean
 	/** Free-form labels, slugified by the manager. */
 	tags: string[]
 	created_at: string
@@ -72,8 +71,6 @@ export type Project = {
 	compose_count: number
 	domains: Domain[]
 	latest_deployment: Deployment | null
-	webhook_url: string
-	webhook_secret_set: boolean
 	/** Every deployable copy of the project, default first. */
 	environments: Environment[]
 }
@@ -135,6 +132,8 @@ export type Service = {
 	/** Where a custom engine's volume mounts. Empty for every curated engine. */
 	data_path: string
 	compose_fragment: string
+	/** A push to this service's repository and branch redeploys it only when this is on. */
+	auto_deploy: boolean
 	created_at: string
 	updated_at: string
 	container_id: string
@@ -491,7 +490,6 @@ export type Settings = {
 	dashboard_domain: string
 	dashboard_https: boolean
 	acme_email: string
-	notify_webhook_url: string
 	/** Dashboard accent as `#rrggbb`, or '' to keep the shipped orange. */
 	brand_color: string
 	/** True when a Cloudflare token is stored. The token itself is never read back. */
@@ -585,15 +583,13 @@ export const api = {
 
 	projects: () => request<Project[]>('/api/projects'),
 	project: (id: string) => request<Project>(`/api/projects/${id}`),
-	createProject: (body: { name: string; auto_deploy?: boolean; tags?: string[] }) =>
+	createProject: (body: { name: string; tags?: string[] }) =>
 		request<Project>('/api/projects', { method: 'POST', body }),
 	updateProject: (
 		id: string,
 		body: Partial<{
 			name: string
-			auto_deploy: boolean
 			tags: string[]
-			webhook_secret: string
 		}>,
 	) => request<Project>(`/api/projects/${id}`, { method: 'PATCH', body }),
 	deleteProject: (id: string, removeVolumes: boolean) =>
@@ -679,6 +675,7 @@ export const api = {
 	deployments: (id: string, environmentId?: string) =>
 		request<Deployment[]>(`/api/projects/${id}/deployments${environmentQuery(environmentId)}`),
 	projectDomains: (id: string) => request<Domain[]>(`/api/projects/${id}/domains`),
+	domains: () => request<Domain[]>('/api/domains'),
 
 	service: (id: string) => request<Service>(`/api/services/${id}`),
 	updateService: (
@@ -699,10 +696,17 @@ export const api = {
 			/** For a database this is the version switch: set it, then redeploy. */
 			image: string
 			compose_fragment: string
+			auto_deploy: boolean
 		}>,
 	) => request<Service>(`/api/services/${id}`, { method: 'PATCH', body }),
 	/** The named volume survives; dropping a database's data stays explicit. */
 	deleteService: (id: string) => request<undefined>(`/api/services/${id}`, { method: 'DELETE' }),
+	/** Copies the service, its variables and its tasks onto empty volumes. Without an environment, beside the original. */
+	duplicateService: (id: string, body: { name: string; environment_id?: string }) =>
+		request<Service>(`/api/services/${id}/duplicate`, { method: 'POST', body }),
+	/** Hands the service to another environment with its volume data, domains and tasks. */
+	moveService: (id: string, environmentId: string) =>
+		request<Service>(`/api/services/${id}/move`, { method: 'POST', body: { environment_id: environmentId } }),
 	serviceDatabase: (id: string) => request<DatabaseConnection>(`/api/services/${id}/database`),
 	serviceVariables: (id: string) => request<EnvVar[]>(`/api/services/${id}/variables`),
 	saveServiceVariables: (id: string, variables: EnvVar[]) =>
@@ -727,7 +731,6 @@ export const api = {
 	runTask: (id: string) => request<TaskRun>(`/api/tasks/${id}/run`, { method: 'POST' }),
 	taskRuns: (id: string) => request<TaskRun[]>(`/api/tasks/${id}/runs`),
 
-	domains: () => request<Domain[]>('/api/domains'),
 	createDomain: (body: {
 		project_id: string
 		/** Which copy of the project serves it. Omitted means the default one. */

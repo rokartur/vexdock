@@ -112,9 +112,9 @@ its event names are a contract: `deployment.queued`, `deployment.success`,
 | Endpoint | Does |
 |---|---|
 | `GET /api/projects` | Every project with its environments, counts, domains and latest deployment |
-| `POST /api/projects` | `{"name", "auto_deploy"?, "tags"?}`. `201` |
+| `POST /api/projects` | `{"name", "tags"?}`. `201` |
 | `GET /api/projects/{id}` | One project, same shape |
-| `PATCH /api/projects/{id}` | Any of `name`, `auto_deploy`, `tags`, `webhook_secret`; omitted fields are left alone |
+| `PATCH /api/projects/{id}` | Any of `name`, `tags`; omitted fields are left alone |
 | `DELETE /api/projects/{id}` | Stops every environment and drops the project; `?volumes=true` takes its data too |
 
 ## Environments
@@ -142,7 +142,7 @@ collision. The default environment cannot be deleted; `DELETE` answers `400`.
 An environment's `branch` overrides every git service's for its own deploys.
 Empty means each service follows the branch it names itself. A push deploys
 every service on that repository and branch, in whichever environment, so one
-webhook can deploy staging and production separately.
+delivery can deploy staging and production separately.
 
 These take `?environment={id}`: `deploy`, `stop`, `services`,
 `services/export` and `deployments`. `POST /api/domains` takes an
@@ -168,6 +168,8 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `GET /api/projects/{id}/services/export` | The project's services as a base64 blob |
 | `PATCH /api/services/{id}` | Changes its provider, repository, image or fragment |
 | `DELETE /api/services/{id}` | Removes it; its named volume is kept, its generated password is not |
+| `POST /api/services/{id}/duplicate` | `{"name", "environment_id"?}`; copies the service with its variables and scheduled tasks, by default beside the original |
+| `POST /api/services/{id}/move` | `{"environment_id"}`; hands it to another environment with its volume data, domains and tasks |
 | `GET /api/services/{id}/database` | Connection details, database services only |
 | `GET \| PUT /api/services/{id}/variables` | Its own variables |
 | `POST /api/services/{id}/deploy` | Deploy this service only |
@@ -190,6 +192,10 @@ credential; clearing it (`""`) drops `owner` and `repository` and hands the URL
 and credential fields back. Sending
 a `database` object instead picks the engine catalogue: the image, the volume
 and the credentials are generated for you, and `provider` is forced to `image`.
+
+`auto_deploy` arms the service for [provider deliveries](#webhooks): a push to its
+repository and branch redeploys it only when it is on. It is off on a new
+service and toggled through `PATCH /api/services/{id}`.
 
 `container_name` is what the container is called on the host. Left out, the
 manager names it after the project and the service, `rokartur-db`, with the
@@ -255,6 +261,14 @@ Create and edit do not start a container. `POST /api/services/{id}/deploy` runs
 the pipeline for that service; `POST /api/projects/{id}/deploy` queues one such
 deployment per service of the environment (used by CI and the dashboard's
 Deploy all).
+
+A duplicate is the same definition on its own storage: the row, the variables
+and the scheduled tasks are copied, the volumes are not, and neither are the
+domains, since a hostname answers in one place only. A move keeps the service's
+id and its name, and copies its volume data under the target environment's
+compose project name; the originals stay where they are. It also removes the
+container it leaves behind, so the service is down until the next deploy. Both
+refuse a name the target environment already uses.
 
 ### Templates
 
@@ -417,7 +431,7 @@ and keeps polling until the manager returns.
 |---|---|
 | `GET /api/system/info` | Host and Docker facts, project and container counts, the twenty most recent deployments |
 | `GET /api/system/metrics` | Recorded host usage over `?window=`, which seeds the charts before live samples arrive |
-| `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, notification webhook, brand colour, Cloudflare token |
+| `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, brand colour, Cloudflare token |
 | `GET /api/system/certificates` | Every issued certificate |
 | `POST /api/system/backup` | Takes a snapshot; `?volumes=true` includes volume archives. `201` |
 | `GET /api/system/backups` | The snapshots on disk |
@@ -617,26 +631,11 @@ so the domain serves over HTTP and TLS can be retried through `certificate`.
 
 ## Webhooks
 
-Each Git project exposes an auto-deploy URL containing a random token, shown in
-**Project → Settings**. It is `POST /api/webhooks/projects/{token}`, and the
-token is the only credential: no session or bearer token is involved. Point your
-provider at it and enable auto deploy.
-
-- The push is matched against every git service of every environment: both the
-  repository it came from and the branch have to be the service's, so a push to
-  one repository never redeploys a service built from another. An environment
-  with its own branch matches on that instead of the service's. The response
-  carries a `deployment_ids` array, one entry per service that matched.
-- A push no service follows is answered `202 ignored` so the provider does not
-  disable the hook.
-- GitHub `ping` events are answered `202 pong`.
-- When a webhook secret is configured, `X-Hub-Signature-256` is verified before
-  anything else happens.
-
-A connection brings its own hook instead: `POST /api/deploy/{provider}`, one per
-host, with `{provider}` being `github`, `gitlab`, `bitbucket` or `gitea`. Each
-names repositories and signs deliveries its own way, which is why there is an
-endpoint each rather than one. All four are public, like the project token URL.
+Auto deploy runs through the connection, not through a per-project URL: `POST
+/api/deploy/{provider}`, one per host, with `{provider}` being `github`,
+`gitlab`, `bitbucket` or `gitea`. Each names repositories and signs deliveries
+its own way, which is why there is an endpoint each rather than one. All four
+are public.
 
 A GitHub App is wired to its endpoint when it is created, so there is nothing to
 configure per project: the delivery names its installation, which selects the
@@ -647,6 +646,10 @@ signature-verified, because those hosts do not sign App-style deliveries: the
 delivery is matched against the connections of that type, and only a push whose
 owner, repository and branch a service already tracks deploys anything.
 
-A verified push is offered to every project with auto deploy on, matched exactly
-as above, and answered the same way. A monorepo deploys once per service that
-tracks it, since a deployment is always one service.
+A verified push is offered to every service with auto deploy on: both the
+repository it came from and the branch have to be the service's, and an
+environment with its own branch matches on that instead. The response carries a
+`deployment_ids` array, one entry per service that matched, and a push no
+service follows is answered `202 ignored` so the provider does not disable the
+hook. A monorepo deploys once per service that tracks it, since a deployment is
+always one service.
