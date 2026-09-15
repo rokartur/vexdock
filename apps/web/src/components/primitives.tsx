@@ -169,11 +169,16 @@ const stateColor: Record<string, string> = {
 	paused: 'text-muted-foreground',
 }
 
+/** The colour a state reads in, for the places that show the dot without the word. */
+export function stateTone(value: string) {
+	return stateColor[value] ?? 'text-muted-foreground'
+}
+
 /** A status word rendered in the colour that matches its meaning. */
 export function Status({ value }: { value: string }) {
 	if (!value) return <span className='text-muted-foreground'>-</span>
 	return (
-		<span className={cn('inline-flex items-center gap-1.5', stateColor[value] ?? 'text-muted-foreground')}>
+		<span className={cn('inline-flex items-center gap-1.5', stateTone(value))}>
 			<span aria-hidden className='inline-block size-1.5 rounded-full bg-current' />
 			{value}
 		</span>
@@ -187,7 +192,7 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 
 const ChromeContext = createContext<HTMLElement | null>(null)
 
-/** Carries the shell's workspace bar element, which Page portals its breadcrumb and actions into. */
+/** Carries the shell's header element, which Page portals its breadcrumb and actions into. */
 export function PageChrome({ value, children }: { value: HTMLElement | null; children: ReactNode }) {
 	return <ChromeContext.Provider value={value}>{children}</ChromeContext.Provider>
 }
@@ -260,9 +265,14 @@ export function Page({
 						return (
 							<Fragment key={to}>
 								{index > 0 ? (
-									<BreadcrumbSeparator className='text-muted-foreground/60'>/</BreadcrumbSeparator>
+									<BreadcrumbSeparator className='hidden text-muted-foreground/60 sm:block'>
+										/
+									</BreadcrumbSeparator>
 								) : null}
-								<BreadcrumbItem className='min-w-0 gap-2'>{crumb}</BreadcrumbItem>
+								{/* Phone widths only fit the page's own crumb next to the actions. */}
+								<BreadcrumbItem className={cn('min-w-0 gap-2', last ? '' : 'hidden sm:inline-flex')}>
+									{crumb}
+								</BreadcrumbItem>
 							</Fragment>
 						)
 					})}
