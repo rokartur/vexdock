@@ -187,13 +187,9 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 }
 
 /**
- * Cron jobs that exec inside a service's container, with the same reach as the
- * terminal tab. The manager ticks once a minute, reads each expression in the
- * task's own timezone, and skips a task whose previous run is still going.
- *
- * Without a service this is every task on the server, which is the same table
- * plus the column naming the owner, minus the button that would not know which
- * service to create in.
+ * Cron jobs that exec inside a service's container. The manager ticks once a minute, reads each expression in the
+ * task's own timezone, and skips a task whose previous run is still going. Without a service this lists every task
+ * on the server, with the owner column and without the create button.
  */
 export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 	const queryClient = useQueryClient()
@@ -230,7 +226,7 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 		},
 	})
 	const run = useMutation({
-		mutationFn: (id: string) => api.runTask(id),
+		mutationFn: api.runTask,
 		onSuccess: async (_result, id) => {
 			setSelected(id)
 			await queryClient.invalidateQueries({ queryKey: ['task', id, 'runs'] })
@@ -242,7 +238,7 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 		onSuccess: invalidate,
 	})
 	const remove = useMutation({
-		mutationFn: (id: string) => api.deleteTask(id),
+		mutationFn: api.deleteTask,
 		onSuccess: async (_result, id) => {
 			if (selected === id) setSelected(null)
 			if (form?.id === id) setForm(null)

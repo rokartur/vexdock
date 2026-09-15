@@ -57,10 +57,7 @@ const credentialOptions: { value: CredentialKind; label: string }[] = [
 	{ value: 'ssh_key', label: 'SSH private key' },
 ]
 
-/**
- * Dokploy's General tab: how it deploys, then where the code comes from. A
- * database leads with its credentials, which is what it is opened for.
- */
+/** How it deploys, then where the code comes from. A database leads with the credentials it is opened for. */
 function ServiceGeneral() {
 	const { projectId, serviceId } = Route.useParams()
 	const service = useService(serviceId)
@@ -78,10 +75,7 @@ function ServiceGeneral() {
 	)
 }
 
-/**
- * What happens on a push and what happened last. Auto deploy is the project's
- * setting, so it is read here and changed where every service can see it.
- */
+/** Auto deploy is the project's setting, so it is read here and changed where every service can see it. */
 function DeploySection({ projectId, service }: { projectId: string; service: Service }) {
 	const environmentId = useEnvironmentId()
 	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
@@ -152,10 +146,8 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 }
 
 /**
- * The credentials to reach a database, and the image it runs. The credentials
- * are read back out of the service's own environment and the image off the
- * service itself, so both are what the container will actually start with
- * rather than what the catalogue currently defaults to.
+ * Credentials are read back out of the service's own environment and the image off the service itself, so both are
+ * what the container will start with rather than what the catalogue now defaults to.
  */
 function DatabaseSections({ serviceId }: { serviceId: string }) {
 	const [revealed, setRevealed] = useState(false)

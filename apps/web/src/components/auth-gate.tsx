@@ -54,8 +54,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 /**
- * A healthy manager answers in well under a second, so the boot screen stays
- * hidden at first and only appears once the wait is long enough to notice.
+ * A healthy manager answers in well under a second, so the boot screen only appears once the wait is worth showing.
  * Silence past eight seconds is reported as a fault instead of waited out.
  */
 function useBootScreenPhase() {

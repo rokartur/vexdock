@@ -120,9 +120,7 @@ func (e *Engine) Trigger(ctx context.Context, project *database.Project, env *da
 		Status:        database.DeploymentQueued,
 		Trigger:       opts.Trigger,
 		CreatedBy:     opts.Actor,
-	}
-	if opts.CommitSHA != "" {
-		d.CommitSHA = opts.CommitSHA
+		CommitSHA:     opts.CommitSHA,
 	}
 	if err := e.db.CreateDeployment(ctx, d); err != nil {
 		return nil, err
@@ -146,7 +144,7 @@ func (e *Engine) Cancel(deploymentID string) error {
 }
 
 // lockFor returns the per-environment mutex; the same environment never deploys
-// twice concurrently, a queued deployment simply waits here. Production and
+// twice concurrently, a queued deployment waits here. Production and
 // staging own separate directories and separate containers, so they are free to
 // deploy at the same time.
 // ponytail: in-process lock, sufficient while the manager is a single process.
@@ -258,7 +256,10 @@ func (p *pipeline) execute(ctx context.Context) error {
 	}
 	p.complete()
 
-	scope := p.serviceArgs()
+	var scope []string
+	if p.target != "" {
+		scope = []string{p.target}
+	}
 
 	p.begin(StepPull)
 	if err := composeProject.Pull(ctx, p, scope...); err != nil {
@@ -298,14 +299,6 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	return nil
-}
-
-// serviceArgs is the compose service list for scoped steps, or nil for all.
-func (p *pipeline) serviceArgs() []string {
-	if p.target == "" {
-		return nil
-	}
-	return []string{p.target}
 }
 
 // serviceCheckouts syncs the repository of every git service in scope, each

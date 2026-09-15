@@ -90,7 +90,6 @@ func (r Repo) checkout(ctx context.Context, log io.Writer, env []string) error {
 	return nil
 }
 
-// HeadSHA reports the currently checked-out commit.
 func (r Repo) HeadSHA(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", "-C", r.Dir, "rev-parse", "HEAD")
 	out, err := cmd.Output()
@@ -100,8 +99,7 @@ func (r Repo) HeadSHA(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// environment builds credential plumbing and returns a cleanup that shreds any
-// temporary secret material.
+// The cleanup deletes the token script or the key file, so it has to run.
 func (r Repo) environment() ([]string, func(), error) {
 	env := append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0",
@@ -155,8 +153,6 @@ func (r Repo) environment() ([]string, func(), error) {
 	return env, cleanup, nil
 }
 
-// run executes git and mirrors its output into the deployment log with the
-// secret value redacted defensively.
 func run(ctx context.Context, log io.Writer, dir string, env []string, args ...string) error {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir

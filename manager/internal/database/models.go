@@ -182,7 +182,7 @@ type Certificate struct {
 	Source        string `json:"source"`
 }
 
-// Deployment statuses form the state machine described in the plan.
+// Deployment statuses.
 const (
 	DeploymentQueued    = "queued"
 	DeploymentRunning   = "running"

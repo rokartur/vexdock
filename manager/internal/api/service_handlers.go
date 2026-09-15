@@ -54,11 +54,11 @@ func (s *Server) resolveServiceContainer(ctx context.Context, serviceID string) 
 
 func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
 	service, err := s.DB.ServiceByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	env, err := s.DB.EnvironmentByID(r.Context(), service.EnvironmentID)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	views, err := s.serviceViews(r.Context(), env)
@@ -203,7 +203,7 @@ func requireCompleteProvider(service *database.Service) error {
 
 func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 	service, _, env, err := s.lookupService(r)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	var req struct {
@@ -286,7 +286,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 // purpose: dropping a database's data is a separate, explicit act.
 func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 	service, _, env, err := s.lookupService(r)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	if err := s.Projects.DeleteService(r.Context(), service, env); err != nil {
@@ -298,7 +298,7 @@ func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetServiceEnvironment(w http.ResponseWriter, r *http.Request) {
 	service, _, _, err := s.lookupService(r)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	// Unmasked: this is the editor, and handing the value over is the point.
@@ -312,7 +312,7 @@ func (s *Server) handleGetServiceEnvironment(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handlePutServiceEnvironment(w http.ResponseWriter, r *http.Request) {
 	service, _, env, err := s.lookupService(r)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	var req struct {
@@ -368,7 +368,7 @@ func assignValid(dst *string, src *string, validate func(string) (string, error)
 // handleDeployService runs the deploy pipeline for one compose service only.
 func (s *Server) handleDeployService(w http.ResponseWriter, r *http.Request) {
 	service, project, env, err := s.lookupService(r)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	if service.Provider == database.ProviderUnconfigured {

@@ -21,12 +21,9 @@ import (
 	"time"
 )
 
-// GitHub connects as a GitHub App, never as a personal access token. A personal
-// token reaches everything its owner reaches; an App reaches only the
-// repositories its owner ticked during the install. The App is created through
-// GitHub's manifest flow, so nobody types a client secret or pastes a private
-// key: the manager posts a manifest, GitHub creates the App and hands back the
-// credentials, and the owner then picks which repositories it may read.
+// GitHub connects as a GitHub App, never as a personal access token: an App
+// reaches only the repositories its owner ticked, and the manifest flow hands
+// back the credentials so nobody pastes a private key.
 
 // AppManifest is the App description posted to GitHub.
 type AppManifest struct {
@@ -115,7 +112,6 @@ func InstallURL(host, slug, state string) string {
 		strings.TrimSuffix(host, "/"), url.PathEscape(slug), url.QueryEscape(state))
 }
 
-// installationToken is one minted token and the moment it stops being usable.
 type installationToken struct {
 	value   string
 	expires time.Time
@@ -166,9 +162,8 @@ func InstallationToken(ctx context.Context, host, appID, privateKey, installatio
 // nothing usable behind in memory.
 func ForgetInstallation(installationID string) { tokenCache.Delete(installationID) }
 
-// githubCall performs one GitHub API request with the headers GitHub requires
-// and decodes the body into out. bearer is an App JWT, an installation token,
-// or empty for the unauthenticated manifest exchange.
+// bearer is an App JWT, an installation token, or empty for the manifest
+// exchange, which is unauthenticated.
 func githubCall(ctx context.Context, method, endpoint, bearer string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil)
 	if err != nil {

@@ -18,11 +18,7 @@ export type Stamped = { at: number }
 /** One plotted reading. */
 export type Point = { at: number; value: number }
 
-/**
- * Merges recorded history with the live SSE stream. `seed` comes from the
- * metrics endpoint, `sample` is the newest push; both are trimmed to the window,
- * so neither the buffer nor the chart grows without bound.
- */
+/** `seed` is recorded history, `sample` the newest SSE push. Both are trimmed to the window so neither grows. */
 export function useHistory<TSample extends Stamped>(sample: TSample | null, seed: TSample[] = []) {
 	const [live, setLive] = useState<TSample[]>([])
 
@@ -45,10 +41,8 @@ export function useHistory<TSample extends Stamped>(sample: TSample | null, seed
 }
 
 /**
- * Per-second deltas of a cumulative counter (network and block i/o report totals
- * since container start, so the raw numbers only ever climb). A container
- * restart resets its counters, which would read as a negative rate; those clamp
- * to zero rather than spiking the chart downwards.
+ * Per-second deltas of a counter that only climbs (network and block i/o are totals since container start).
+ * A restart resets the counter, so the negative rate that follows clamps to zero instead of spiking downwards.
  */
 export function ratesOf<TSample extends Stamped>(history: TSample[], total: (sample: TSample) => number): Point[] {
 	const rates: Point[] = []
@@ -76,11 +70,7 @@ type Row = { at: number; [series: string]: number }
 
 const columnOf = (index: number) => `s${index}`
 
-/**
- * Series are separate arrays but recharts plots one row set, so they are joined
- * on the timestamp. Series that skip a stamp leave a hole, which `connectNulls`
- * bridges rather than breaking the line.
- */
+/** Recharts plots one row set, so series are joined on the timestamp. A skipped stamp is a hole for `connectNulls`. */
 export function joinSeries(series: Point[][]): Row[] {
 	const rows = new Map<number, Row>()
 	for (const [index, points] of series.entries()) {

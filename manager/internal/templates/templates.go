@@ -2,12 +2,11 @@
 // of compose services, the variables it needs seeded and where its domain
 // points.
 //
-// A template is rendered into ordinary raw services, one row per compose
-// service, so nothing downstream knows a template existed. The values the
-// stack needs (a database password, the hostname it answers on) are seeded as
-// environment variables and reached from the fragments through ${VAR}, which
-// compose interpolates from the environment's own .env file. That is what lets
-// two services of one template share a password and the user edit it after.
+// A template renders into ordinary raw services, one row per compose service,
+// so nothing downstream knows a template existed. Its values are seeded as
+// environment variables and reached through ${VAR}, which compose interpolates
+// from the environment's .env file; that is what lets two services of one
+// template share a password the user can still edit.
 package templates
 
 import (

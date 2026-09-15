@@ -1,14 +1,9 @@
 import type { Database } from 'bun:sqlite'
 
 /**
- * better-auth 1.7 scopes account identity by issuer. Its migration refuses to
- * add that column to a populated `account` table, because it cannot invent a
- * value for rows written before the column existed, so an upgraded install
- * crash-loops on boot instead of starting.
- *
- * The value is knowable here: this platform authenticates with email and
- * password only, so every existing row is a local credential account and gets
- * the same `local:<providerId>` the library now writes itself.
+ * better-auth 1.7 scopes account identity by issuer, and its migration refuses to add that column to a populated
+ * `account` table, so an upgraded install crash-loops on boot. The value is knowable here: this platform
+ * authenticates with email and password only, so every row gets the `local:<providerId>` the library now writes.
  *
  * ponytail: the column stays nullable, since SQLite cannot add a NOT NULL
  * column without a default. better-auth logs one warning per boot about that

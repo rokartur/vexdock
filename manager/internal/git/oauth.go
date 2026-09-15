@@ -10,11 +10,9 @@ import (
 	"time"
 )
 
-// GitLab and Gitea connect as OAuth applications. The owner registers the
-// application on their instance, pastes its id and secret here, and authorises
-// it once; after that the refresh token keeps the connection alive without
-// anyone touching it again. Both speak the same authorization-code flow, so the
-// only per-provider details are the two endpoint paths and the scope names.
+// GitLab and Gitea connect as OAuth applications. Both speak the same
+// authorization-code flow, so the only per-provider details are the two
+// endpoint paths and the scope names.
 
 // GitLabScopes is what a connection needs: read the user to confirm who
 // authorised, read repositories to clone them, api to list projects.
@@ -89,8 +87,6 @@ func RefreshTokens(ctx context.Context, providerType, host, clientID, clientSecr
 	})
 }
 
-// oauthToken posts to whichever token endpoint the provider uses and reads the
-// grant back.
 func oauthToken(ctx context.Context, providerType, host string, form url.Values) (Tokens, error) {
 	endpoint, err := tokenEndpoint(providerType, host)
 	if err != nil {
@@ -138,7 +134,6 @@ func oauthToken(ctx context.Context, providerType, host string, form url.Values)
 	return tokens, nil
 }
 
-// tokenEndpoint is where each provider exchanges codes and refresh tokens.
 func tokenEndpoint(providerType, host string) (string, error) {
 	base := strings.TrimSuffix(host, "/")
 	switch providerType {
@@ -158,8 +153,7 @@ func (a Account) AuthenticatedUser(ctx context.Context) (string, error) {
 		Username string `json:"username"`
 		Login    string `json:"login"`
 	}
-	path := "/user"
-	if err := a.get(ctx, a.apiURL(path), &user); err != nil {
+	if err := a.get(ctx, a.apiURL("/user"), &user); err != nil {
 		return "", err
 	}
 	if user.Username != "" {

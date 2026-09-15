@@ -88,13 +88,10 @@ func (db *DB) migrate(ctx context.Context) error {
 
 // rebuildMarker opts a migration out of foreign key enforcement while it runs.
 //
-// SQLite cannot drop a table level constraint, so a migration that changes one
-// has to rebuild the table: copy the rows into a new table, drop the old one,
-// rename. With foreign keys enforced that DROP performs an implicit DELETE, so
-// every ON DELETE CASCADE child row goes with it and the rebuild silently
-// deletes the data it exists to preserve. Turning the pragma off is the
-// documented remedy, and it only works outside a transaction, which is why the
-// runner has to know before it opens one.
+// A migration that changes a table level constraint has to rebuild the table,
+// and with foreign keys on, the DROP cascade-deletes every child row the
+// rebuild exists to preserve. The pragma only takes effect outside a
+// transaction, which is why the runner has to know before it opens one.
 const rebuildMarker = "-- vexdock:rebuild"
 
 func (db *DB) apply(ctx context.Context, name, body string) error {

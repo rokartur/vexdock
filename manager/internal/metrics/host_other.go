@@ -3,7 +3,7 @@
 package metrics
 
 // The platform targets Linux hosts; on other systems (developer machines) the
-// dashboard simply shows no host metrics rather than wrong ones.
+// dashboard shows no host metrics rather than wrong ones.
 
 func cpuPercent() float64 { return 0 }
 

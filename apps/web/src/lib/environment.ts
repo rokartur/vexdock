@@ -1,14 +1,7 @@
 import { retainSearchParams, useSearch } from '@tanstack/react-router'
 
-/**
- * What puts `env` in the URL and keeps it there. Spread into the two route
- * branches that act on an environment: the project layout and the service
- * layout beneath it.
- *
- * In the URL rather than in a store, so a pasted link lands on the same
- * environment it was copied from. Retaining it keeps every tab click from
- * silently falling back to the default one.
- */
+/** Spread into the project and service route branches. In the URL, not a store, so a pasted link lands where it
+ * was copied from. */
 export const environmentSearch = {
 	validateSearch: (search: Record<string, unknown>): EnvironmentSearch =>
 		typeof search.env === 'string' ? { env: search.env } : {},
@@ -17,14 +10,7 @@ export const environmentSearch = {
 
 type EnvironmentSearch = { env?: string }
 
-/**
- * The environment a project page acts on, read from the URL so a link to
- * staging stays a link to staging.
- *
- * `undefined` means the project's default environment. That is what every
- * link written before environments existed resolves to, and what the manager
- * falls back to when the query string omits one.
- */
+/** `undefined` means the project's default environment, which is what the manager falls back to. */
 export function useEnvironmentId(): string | undefined {
 	// Read loosely: the project's pages and the service pages below them are
 	// separate route branches, and both carry `env`.

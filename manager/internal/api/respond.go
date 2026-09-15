@@ -48,8 +48,8 @@ func serverError(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusInternalServerError, "INTERNAL", err.Error(), nil)
 }
 
-// notFound maps database.ErrNotFound consistently.
-func handleLookupError(w http.ResponseWriter, err error) bool {
+// True means the response is already written and the caller must return.
+func lookupFailed(w http.ResponseWriter, err error) bool {
 	if err == nil {
 		return false
 	}

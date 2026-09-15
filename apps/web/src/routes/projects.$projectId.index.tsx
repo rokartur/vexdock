@@ -19,17 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
-import { NewServiceForm, newServiceTitle, type ServiceKind } from '../components/new-service-form'
-import {
-	Button,
-	Cell,
-	Cells,
-	EmptyState,
-	ErrorText,
-	Refresh,
-	Section,
-	Status,
-} from '../components/primitives'
+import { NewServiceForm, newServiceTitles, type ServiceKind } from '../components/new-service-form'
+import { Button, Cell, Cells, EmptyState, ErrorText, Refresh, Section, Status } from '../components/primitives'
 import { api, type Domain, type Service } from '../lib/api'
 import { deploymentLink } from '../lib/deployment-link'
 import { useEnvironmentId } from '../lib/environment'
@@ -47,18 +38,15 @@ const creatable: { kind: Creating; label: string; icon: TablerIcon }[] = [
 
 function dialogTitle(creating: Creating | null) {
 	if (creating === null || creating === 'import') return 'Import services'
-	return newServiceTitle(creating)
+	return newServiceTitles[creating]
 }
 
 /** A service row: the service plus the hostnames the domains query attached to it. */
 type ServiceRow = { service: Service; hostnames: string[] }
 
 /**
- * One service per row with the facts you check before opening it: whether it
- * is up, what it runs, where it answers, what it costs, how long it has been
- * that way. A service whose source is still unanswered says so instead of
- * reading as broken, and the image falls back to what the container was
- * actually started from so a derived service still shows something.
+ * A service whose source is still unanswered says so instead of reading as broken, and the image column falls back
+ * to what the container was started from so a derived service still shows something.
  */
 const serviceTableColumns: Columns<ServiceRow> = (() => {
 	const cell = columnsFor<ServiceRow>()

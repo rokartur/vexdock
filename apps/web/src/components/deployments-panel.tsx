@@ -94,11 +94,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 
 const renderDetail = (deployment: Deployment) => <DeploymentDetail deploymentId={deployment.id} />
 
-/**
- * The environment's deployment history. Given a service it narrows to the
- * deploys that shipped it: its own, and the whole-project ones, which ship
- * every service.
- */
+/** Given a service this narrows to the deploys that shipped it: its own, plus the whole-project ones. */
 export function DeploymentsPanel({ projectId, service }: { projectId: string; service?: Service }) {
 	const { deployment: openId = null } = useSearch({ strict: false })
 	const navigate = useNavigate()
@@ -119,7 +115,7 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 	})
 
 	const rollback = useMutation({
-		mutationFn: (id: string) => api.rollback(id),
+		mutationFn: api.rollback,
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['deployments', projectId] })
 			open(deployment.id)

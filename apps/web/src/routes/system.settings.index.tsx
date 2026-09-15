@@ -10,10 +10,8 @@ import { cn } from '../utils/cn'
 export const Route = createFileRoute('/system/settings/')({ component: GeneralSettings })
 
 /**
- * The whole tab is one form because the API writes settings as a single object:
- * saving from any card writes every card, so each Save is the same call and the
- * fields it does not own are replayed as they stand. acme_email has no field
- * yet and is replayed as it was read.
+ * The API writes settings as one object, so every Save is the same call and replays the fields its card does not own.
+ * acme_email has no field yet and is replayed as it was read.
  */
 function GeneralSettings() {
 	const queryClient = useQueryClient()

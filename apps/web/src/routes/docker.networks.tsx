@@ -8,11 +8,12 @@ import { api, type NetworkSummary } from '../lib/api'
 
 /** Usable IPv4 hosts across a network's subnets; null when it has none (IPv6-only or unconfigured). */
 function usableHosts(subnets: string[]): number | null {
-	const total = subnets.reduce((sum, subnet) => {
+	let total = 0
+	for (const subnet of subnets) {
 		const [address, prefix] = subnet.split('/')
-		if (!(address?.includes('.') && prefix)) return sum
-		return sum + 2 ** (32 - Number(prefix)) - 2
-	}, 0)
+		if (!(address?.includes('.') && prefix)) continue
+		total += 2 ** (32 - Number(prefix)) - 2
+	}
 	return total > 0 ? total : null
 }
 

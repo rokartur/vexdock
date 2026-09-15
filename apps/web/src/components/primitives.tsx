@@ -58,18 +58,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { labelOf, trailOf } from '@/lib/breadcrumb'
 import { cn } from '@/utils/cn'
 
-/**
- * The vocabulary every page speaks. Each one wraps a shadcn component so the
- * whole panel inherits one design system, while keeping the dense, flat layout
- * the dashboard needs. Vercel's rules: one black canvas, a hairline border
- * instead of a shadow, white on black for the one primary action, sentence
- * case everywhere, an icon on every action.
- */
+// The rules every primitive below follows: one black canvas, a hairline border
+// instead of a shadow, white on black for the one primary action, sentence case
+// everywhere, an icon on every action.
 
 type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost'
 
-// Local intent names map onto shadcn variants, so pages never spell out
-// "destructive" or "outline" and the mapping can change in one place.
+// Intent names, so pages never spell out shadcn's "destructive" or "outline".
 const buttonVariants = {
 	default: 'outline',
 	primary: 'default',
@@ -92,11 +87,7 @@ export function Button({ variant = 'default', type = 'button', ...props }: Butto
 	)
 }
 
-/**
- * An icon-only action with its name in a tooltip: row actions, the refresh in a
- * section header, the rail's buttons. `sm` is the row size; `default` matches
- * the buttons it sits next to in a header.
- */
+/** An icon-only action with its name in a tooltip. `sm` is the row size, `default` matches the buttons in a header. */
 export function IconButton({
 	icon: Icon,
 	label,
@@ -139,11 +130,7 @@ export function IconButton({
 	)
 }
 
-/**
- * The modifier the platform expects: ⌘ on Apple hardware, Ctrl elsewhere.
- * navigator.platform is deprecated but still the one signal every browser
- * ships. Unset during the prerender, which never renders the shell anyway.
- */
+/** navigator.platform is deprecated but still the one signal every browser ships. Unset during the prerender. */
 export const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/u.test(navigator.platform) ? '⌘' : 'Ctrl'
 
 /**
@@ -200,26 +187,15 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 
 const ChromeContext = createContext<HTMLElement | null>(null)
 
-/**
- * The shell lending its workspace bar to the page inside it. A page renders
- * its breadcrumb and actions into it, so the top of the window says where you
- * are without the page drawing a header of its own.
- */
+/** Carries the shell's workspace bar element, which Page portals its breadcrumb and actions into. */
 export function PageChrome({ value, children }: { value: HTMLElement | null; children: ReactNode }) {
 	return <ChromeContext.Provider value={value}>{children}</ChromeContext.Provider>
 }
 
 /**
- * The scrolling body of the shell, plus what the page puts in the shell's
- * bars. Every page is a Page; nothing else scrolls.
- *
- * The header trail is read off the URL, so a page never spells out its own
- * ancestors: /projects/api/settings renders Projects / api / Settings. Pass
- * `labels` to name segments the URL cannot, keyed by segment: an id becomes
- * the project's name, and that same label is reused once the page is an
- * ancestor of a deeper one. A labelled segment is never wrapped in a link,
- * so the label can carry its own interaction. A label of `null` drops its
- * segment from the trail, for path parts that exist only to nest routes.
+ * The scrolling body of the shell. Every page is a Page, nothing else scrolls, and the header trail is read off the
+ * URL. `labels` names segments the URL cannot, keyed by segment: a labelled segment is never wrapped in a link so the
+ * label can carry its own interaction, and `null` drops the segment for path parts that only exist to nest routes.
  */
 export function Page({
 	labels,
@@ -263,11 +239,8 @@ export function Page({
 					{trail.map(({ segment, to, linkable }, index) => {
 						const label = labels?.[segment]
 						const last = index === trail.length - 1
-						// A supplied label owns its own interaction: the pickers render a
-						// button, and wrapping that in a link would navigate on the click
-						// that opens the popover. Only a plain last segment is the "page"
-						// (aria-current); a picker or an ancestor is a bare span, never a
-						// disabled link.
+						// A labelled segment renders a picker button, and a link around it would navigate on the
+						// click that opens the popover. Only a plain last segment is aria-current.
 						const crumbClass = cn(
 							'flex min-w-0 items-center gap-2 truncate',
 							last ? 'font-medium text-foreground' : 'text-muted-foreground',
@@ -317,11 +290,8 @@ export function Page({
 }
 
 /**
- * Sub-navigation for a Page's `toolbar`, underlined tabs: the active one is
- * white over a 2px line on the band's own hairline, the same state the nav
- * bar draws one row above. A tab links to
- * `base + suffix`; the empty suffix is the layout's index route and only
- * matches the base itself.
+ * Sub-navigation for a Page's `toolbar`. A tab links to `base + suffix`; the
+ * empty suffix is the layout's index route and only matches the base itself.
  */
 export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; label: string }[] }) {
 	const pathname = useRouterState({ select: state => state.location.pathname })
@@ -348,12 +318,8 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	)
 }
 
-/**
- * A joined row of options switching a value instead of the URL: ranges,
- * filters, modes. An option may carry an icon, which is how a row of sources
- * (GitHub, GitLab, an image) reads as the brands it names rather than a list
- * of words.
- */
+/** A joined row of options switching a value instead of the URL. An option may carry an icon, so a row of sources
+ * reads as brands. */
 export function Segmented<TValue extends string>({
 	value,
 	options,
@@ -427,15 +393,9 @@ export function Section({
 }
 
 /**
- * One group of a settings page, Vercel's card: what it is on top, its controls
- * in the body, and a footer strip with a hint on the left and the group's own
- * Save on the right. Each group saves on its own, so its Save goes in
- * `actions`, never in a page-wide bar.
- *
- * With `onSave` the card is a form: its submit button, Enter in a field and
- * Cmd/Ctrl+S all run the browser's own validation (`required`, `min`) and then
- * `onSave`. Any other button inside must stay `type='button'`, which the
- * primitives already are.
+ * One group of a settings page: title on top, controls in the body, a hint and the group's own Save in the footer.
+ * With `onSave` the card is a form, so its submit button, Enter in a field and Cmd/Ctrl+S all run the browser's
+ * validation then `onSave`. Any other button inside must stay `type='button'`, which the primitives already are.
  */
 export function FormSection({
 	title,
@@ -491,10 +451,8 @@ export function FormSection({
 }
 
 /**
- * A row of readings sharing hairlines: one bordered card whose cells split it
- * into equal readings. Children supply their own padding and must not draw
- * their own border: each cell outlines itself into the 1px gap, so a short
- * last row leaves plain card behind it rather than a slab of border colour.
+ * A bordered card split into equal readings. Children supply their own padding and must not draw their own border:
+ * each cell outlines itself into the 1px gap, so a short last row leaves plain card behind it, not a slab of border.
  */
 export function Cells({ children, className }: { children: ReactNode; className?: string }) {
 	return (
@@ -512,11 +470,7 @@ export function Cells({ children, className }: { children: ReactNode; className?
 	)
 }
 
-/**
- * One reading in a `Cells` grid: a label, the number, an optional line under it.
- * `children` is for whatever the reading draws below itself, like a sparkline or
- * a fill bar. Borderless, because the grid owns the hairlines.
- */
+/** One reading in a `Cells` grid. `children` is a sparkline or a fill bar under it. The grid owns the hairlines. */
 export function Cell({
 	label,
 	icon: Icon,
@@ -546,10 +500,7 @@ export function Cell({
 	)
 }
 
-/**
- * A list of facts: label on the left, value on the right, one hairline per row.
- * The shape the panel uses wherever a set of attributes is read, not edited.
- */
+/** Label left, value right, one hairline per row. The shape for attributes that are read, not edited. */
 export function Facts({ children, className }: { children: ReactNode; className?: string }) {
 	return (
 		<ItemGroup
@@ -588,10 +539,7 @@ export function ErrorText({ error }: { error: unknown }) {
 	)
 }
 
-/**
- * What a list shows when it has nothing to list: an icon, a line, and
- * optionally the action that fills it.
- */
+/** What a list shows when it has nothing to list, with optionally the action that fills it. */
 export function EmptyState({
 	icon: Icon = IconInbox,
 	title,
@@ -617,10 +565,7 @@ export function EmptyState({
 	)
 }
 
-/**
- * The one way to ask before something unrecoverable. The trigger is whatever
- * `children` renders; the dialog names the action and does it on confirm.
- */
+/** The one way to ask before something unrecoverable. The trigger is whatever `children` renders. */
 export function Confirm({
 	title,
 	description,
@@ -663,11 +608,7 @@ export function Confirm({
 	)
 }
 
-/**
- * The only checkbox shape in the app, for picking things out of a list.
- * Wrapping in a <label> is safe: base-ui's Checkbox renders a visually hidden
- * native input, so clicking the text toggles it.
- */
+/** The only checkbox shape in the app. A <label> around it is safe: base-ui renders a hidden native input. */
 export function Check({
 	label,
 	checked,
@@ -762,11 +703,7 @@ export function Select<TValue extends string>({
 	)
 }
 
-/**
- * A Select that is typed into. Same props, plus a search box over the options:
- * the shape for a list that arrives from a provider and can be long, like
- * repositories or branches. Under a hundred fixed choices, use Select.
- */
+/** A Select with a search box, for a long list from a provider. Under a hundred fixed choices, use Select. */
 export function Combo<TValue extends string>({
 	value,
 	options,

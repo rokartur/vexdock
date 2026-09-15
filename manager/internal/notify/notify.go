@@ -1,7 +1,7 @@
 // Package notify posts deployment outcomes to one outgoing webhook so an
 // operator learns about a failed deploy without watching the dashboard.
 //
-// One URL, no per-provider plugin surface: Discord and Slack get the body
+// One URL, no per-provider plugins: Discord and Slack get the body
 // shape they require, everything else gets the raw event as JSON.
 package notify
 

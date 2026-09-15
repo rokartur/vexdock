@@ -22,16 +22,10 @@ const (
 	ProviderGitea     = "gitea"
 )
 
-// ProviderTypes lists every connection kind, in the order the dashboard offers
-// them.
-var ProviderTypes = []string{ProviderGitHub, ProviderGitLab, ProviderBitbucket, ProviderGitea}
-
-// IsProviderType reports whether s names a connected provider.
 func IsProviderType(s string) bool {
-	for _, t := range ProviderTypes {
-		if t == s {
-			return true
-		}
+	switch s {
+	case ProviderGitHub, ProviderGitLab, ProviderBitbucket, ProviderGitea:
+		return true
 	}
 	return false
 }
@@ -62,14 +56,12 @@ type Account struct {
 	Scope string
 }
 
-// Repository is one repository the account can reach.
 type Repository struct {
 	Name  string `json:"name"`
 	Owner string `json:"owner"`
 	URL   string `json:"url"`
 }
 
-// Credential is how this account authenticates a clone.
 func (a Account) Credential() Credential {
 	if a.Type == ProviderBitbucket {
 		return Credential{Kind: KindToken, Value: a.Password, User: a.Username}
@@ -102,7 +94,6 @@ func (a Account) Repositories(ctx context.Context) ([]Repository, error) {
 	return nil, fmt.Errorf("unknown git provider %q", a.Type)
 }
 
-// Branches lists the branches of one repository.
 func (a Account) Branches(ctx context.Context, owner, repository string) ([]string, error) {
 	if owner == "" || repository == "" {
 		return nil, fmt.Errorf("owner and repository are required")
@@ -122,16 +113,12 @@ func (a Account) Branches(ctx context.Context, owner, repository string) ([]stri
 }
 
 // apiURL turns a provider-relative path into an absolute one. Every provider
-// roots its API somewhere different, and GitHub roots it on a different host
-// entirely unless it is an Enterprise install.
+// roots its API somewhere different.
 func (a Account) apiURL(path string) string {
 	host := strings.TrimSuffix(a.Host, "/")
 	switch a.Type {
 	case ProviderGitHub:
-		if host == "https://github.com" || host == "" {
-			return "https://api.github.com" + path
-		}
-		return host + "/api/v3" + path
+		return apiRoot(host) + path
 	case ProviderGitLab:
 		return host + "/api/v4" + path
 	case ProviderBitbucket:
@@ -158,7 +145,6 @@ func (a Account) namedBranches(ctx context.Context, endpoint string) ([]string, 
 	return branches, nil
 }
 
-// get performs one authenticated GET and decodes the body into out.
 func (a Account) get(ctx context.Context, endpoint string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -176,7 +162,6 @@ func (a Account) get(ctx context.Context, endpoint string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// authorize applies whichever authentication scheme the provider expects.
 func (a Account) authorize(req *http.Request) {
 	switch a.Type {
 	case ProviderBitbucket:
@@ -208,8 +193,6 @@ func apiError(provider string, resp *http.Response) error {
 	return fmt.Errorf("%s api: %s: %s", provider, resp.Status, detail)
 }
 
-// --- GitHub ---------------------------------------------------------------
-
 // githubRepositories lists what the App installation was granted, which is the
 // set the owner ticked when installing. A personal token would see everything
 // the person can see; an installation sees only what it was given.
@@ -232,8 +215,6 @@ func (a Account) githubRepositories(ctx context.Context) ([]Repository, error) {
 	}
 	return repos, nil
 }
-
-// --- GitLab ---------------------------------------------------------------
 
 // gitlabRepositories lists the projects the authorising user is a member of,
 // narrowed to one group when the connection names one.
@@ -269,8 +250,6 @@ func (a Account) gitlabRepositories(ctx context.Context) ([]Repository, error) {
 	}
 	return repos, nil
 }
-
-// --- Bitbucket ------------------------------------------------------------
 
 // bitbucketRepositories lists a workspace's repositories, or every repository
 // the credential is a member of when no workspace is named.
@@ -322,8 +301,6 @@ func (a Account) bitbucketBranches(ctx context.Context, owner, repository string
 	}
 	return branches, nil
 }
-
-// --- Gitea ----------------------------------------------------------------
 
 // giteaRepositories lists the authorising user's repositories, or one
 // organization's when the connection names one.
