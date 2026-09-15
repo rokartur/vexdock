@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { IconLayersLinked, IconVariable, type Icon as TablerIcon } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { ErrorText, FormSection, SaveButton, Textarea } from '../components/primitives'
+import { EnvEditor } from '../components/env-editor'
+import { ErrorText, FormSection, SaveButton } from '../components/primitives'
 import { api, type EnvVar } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
 import { useEnvironmentId } from '../lib/environment'
@@ -84,13 +85,7 @@ function VariablesEditor({
 			actions={<SaveButton pending={write.isPending} />}
 		>
 			<ErrorText error={write.error} />
-			<Textarea
-				rows={12}
-				value={text}
-				placeholder='KEY=value'
-				onChange={event => setText(event.target.value)}
-				spellCheck={false}
-			/>
+			<EnvEditor value={text} onChange={setText} />
 		</FormSection>
 	)
 }
