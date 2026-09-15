@@ -14,7 +14,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { api, type Certificate, type CertificateSource, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { cn } from '../utils/cn'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import {
 	Button,
@@ -27,7 +26,6 @@ import {
 	Refresh,
 	Section,
 	Segmented,
-	Select,
 	Status,
 	Switch,
 	Textarea,
@@ -40,21 +38,13 @@ const certificateSources = [
 
 type DomainTableDeps = {
 	certificateFor: (domainId: string) => Certificate | undefined
-	serviceName: (serviceId: string | null) => string
 	renew: (domainId: string) => void
 	renewing: boolean
 	replace: (domain: Domain) => void
 	remove: (domainId: string) => void
 }
 
-function domainTableColumns({
-	certificateFor,
-	serviceName,
-	renew,
-	renewing,
-	replace,
-	remove,
-}: DomainTableDeps): Columns<Domain> {
+function domainTableColumns({ certificateFor, renew, renewing, replace, remove }: DomainTableDeps): Columns<Domain> {
 	const cell = columnsFor<Domain>()
 	return [
 		cell.accessor(domain => domain.hostname, {
@@ -72,11 +62,6 @@ function domainTableColumns({
 					<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100' />
 				</a>
 			),
-		}),
-		cell.accessor(domain => serviceName(domain.service_id), {
-			id: 'service',
-			header: 'Service',
-			meta: { mono: true },
 		}),
 		cell.accessor(domain => domain.container_port, { id: 'port', header: 'Port', meta: { mono: true } }),
 		cell.accessor(domain => (domain.https_enabled ? 'on' : 'off'), { id: 'https', header: 'HTTPS' }),
@@ -137,21 +122,15 @@ function domainTableColumns({
 	]
 }
 
-/** Given a service this narrows to that service's hostnames and drops the service column and picker. */
-export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: Service }) {
+export function DomainsPanel({ projectId, service }: { projectId: string; service: Service }) {
 	const queryClient = useQueryClient()
 	const [warning, setWarning] = useState('')
 
 	const domains = useQuery({ queryKey: ['domains', projectId], queryFn: () => api.projectDomains(projectId) })
 	const environmentId = useEnvironmentId()
-	const services = useQuery({
-		queryKey: ['services', projectId, environmentId],
-		queryFn: () => api.services(projectId, environmentId),
-	})
 	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
 
 	const [hostname, setHostname] = useState('')
-	const [service, setService] = useState(scope?.compose_service_name ?? '')
 	const [port, setPort] = useState(3000)
 	const [https, setHttps] = useState(true)
 	const [redirect, setRedirect] = useState(true)
@@ -173,7 +152,7 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 			api.createDomain({
 				project_id: projectId,
 				environment_id: environmentId,
-				service,
+				service: service.compose_service_name,
 				hostname,
 				container_port: port,
 				https_enabled: https,
@@ -218,21 +197,19 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 
 	const { mutate: issueCertificate, isPending: issuing } = issue
 	const { mutate: removeDomain } = remove
-	const { data: serviceList } = services
 	const { data: certificateList } = certificates
 	const columns = useMemo(
 		() =>
 			domainTableColumns({
 				certificateFor: domainId => certificateList?.find(cert => cert.domain_id === domainId),
-				serviceName: serviceId => serviceList?.find(item => item.id === serviceId)?.compose_service_name ?? '-',
 				renew: issueCertificate,
 				renewing: issuing,
 				replace: setReplacing,
 				remove: removeDomain,
-			}).filter(column => !scope || column.id !== 'service'),
-		[certificateList, serviceList, issueCertificate, issuing, removeDomain, scope],
+			}),
+		[certificateList, issueCertificate, issuing, removeDomain],
 	)
-	const rows = (domains.data ?? []).filter(domain => !scope || domain.service_id === scope.id)
+	const rows = (domains.data ?? []).filter(domain => domain.service_id === service.id)
 
 	return (
 		<>
@@ -322,7 +299,7 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 						<AlertDescription>{warning}</AlertDescription>
 					</Alert>
 				) : null}
-				<div className={cn('grid gap-x-6', scope ? 'md:grid-cols-3' : 'md:grid-cols-4')}>
+				<div className='grid gap-x-6 md:grid-cols-3'>
 					<Field label='Domain'>
 						<Input
 							required
@@ -331,22 +308,6 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 							onChange={event => setHostname(event.target.value)}
 						/>
 					</Field>
-					{scope ? null : (
-						<Field label='Service'>
-							<Select
-								required
-								value={service}
-								onChange={setService}
-								options={[
-									{ value: '', label: 'Select…' },
-									...(services.data ?? []).map(item => ({
-										value: item.compose_service_name,
-										label: item.compose_service_name,
-									})),
-								]}
-							/>
-						</Field>
-					)}
 					<Field label='Container port'>
 						<Input
 							type='number'

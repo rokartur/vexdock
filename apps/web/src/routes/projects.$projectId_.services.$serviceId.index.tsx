@@ -30,6 +30,7 @@ import {
 	Segmented,
 	Select,
 	Status,
+	Switch,
 	Textarea,
 } from '../components/primitives'
 import { api, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
@@ -75,23 +76,26 @@ function ServiceGeneral() {
 	)
 }
 
-/** Auto deploy is the project's setting, so it is read here and changed where every service can see it. */
 function DeploySection({ projectId, service }: { projectId: string; service: Service }) {
 	const environmentId = useEnvironmentId()
-	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
+	const queryClient = useQueryClient()
 	const deployments = useQuery({
 		queryKey: ['deployments', projectId, environmentId],
 		queryFn: () => api.deployments(projectId, environmentId),
 	})
 	const latest = deployments.data?.find(deployment => deployment.service_name === service.compose_service_name)
 	const params = { projectId, serviceId: service.id }
+	const autoDeploy = useMutation({
+		mutationFn: (on: boolean) => api.updateService(service.id, { auto_deploy: on }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
+	})
 
 	return (
 		<FormSection
 			title='Deploy'
 			description='Deploy, restart and stop are in the header. Their log opens under Deployments.'
 			icon={IconRocket}
-			hint='Auto deploy is the project’s setting.'
+			hint='Auto deploy watches this service’s own repository and branch.'
 			actions={
 				<Button render={<Link to='/projects/$projectId/services/$serviceId/terminal' params={params} />}>
 					<IconTerminal2 />
@@ -122,23 +126,13 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 						)
 					}
 				/>
-				<Fact
-					label='Auto deploy on push'
-					value={
-						<span className='inline-flex items-center gap-2'>
-							{project.data?.auto_deploy ? 'on' : 'off'}
-							<Link
-								to='/projects/$projectId/settings'
-								params={{ projectId }}
-								className='font-sans underline-offset-4 hover:underline'
-							>
-								project settings
-							</Link>
-						</span>
-					}
-				/>
-				<Fact label='Webhook' value={project.data?.webhook_url ?? '-'} />
 			</Facts>
+			<ErrorText error={autoDeploy.error} />
+			<Switch
+				label='Deploy automatically when this service’s branch is pushed'
+				checked={service.auto_deploy}
+				onChange={on => autoDeploy.mutate(on)}
+			/>
 		</FormSection>
 	)
 }

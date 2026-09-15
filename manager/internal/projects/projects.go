@@ -32,9 +32,8 @@ func New(db *database.DB, cfg *config.Config, cipher *security.Cipher) *Service 
 // a grouping, so this is a name and its labels; what gets deployed is decided
 // per service.
 type CreateInput struct {
-	Name       string
-	AutoDeploy bool
-	Tags       []string
+	Name string
+	Tags []string
 }
 
 // ServiceInput is the create form of one service inside a project. Which
@@ -134,12 +133,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 	}
 
 	p := &database.Project{
-		ID:           database.NewID(),
-		Name:         name,
-		Slug:         slug,
-		AutoDeploy:   in.AutoDeploy,
-		Tags:         in.Tags,
-		WebhookToken: security.RandomToken(24),
+		ID:   database.NewID(),
+		Name: name,
+		Slug: slug,
+		Tags: in.Tags,
 	}
 	p.ComposeProjectName = ComposeProjectName(p.ID)
 
@@ -435,9 +432,4 @@ func (s *Service) RemoveDirectory(id string) error {
 		return err
 	}
 	return os.RemoveAll(dir)
-}
-
-// WebhookURL is the auto-deploy endpoint shown in the UI.
-func (s *Service) WebhookURL(p *database.Project) string {
-	return s.cfg.PublicURL + "/api/webhooks/projects/" + p.WebhookToken
 }

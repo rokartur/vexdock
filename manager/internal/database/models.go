@@ -23,9 +23,7 @@ type Project struct {
 	Name               string   `json:"name"`
 	Slug               string   `json:"slug"`
 	ComposeProjectName string   `json:"compose_project_name"`
-	AutoDeploy         bool     `json:"auto_deploy"`
 	Tags               []string `json:"tags"`
-	WebhookToken       string   `json:"-"`
 	CreatedAt          string   `json:"created_at"`
 	UpdatedAt          string   `json:"updated_at"`
 }
@@ -137,8 +135,11 @@ type Service struct {
 	// ComposeFragment is the YAML body a raw service contributes,
 	// indented to sit under its own key in the overlay.
 	ComposeFragment string `json:"compose_fragment"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
+	// AutoDeploy arms this service for the webhook: a push to its repository and
+	// branch redeploys it only when this is on.
+	AutoDeploy bool   `json:"auto_deploy"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 type Domain struct {

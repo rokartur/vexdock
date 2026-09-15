@@ -8,7 +8,6 @@ import {
 	IconPlus,
 	IconTrash,
 	IconUpload,
-	IconWebhook,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -35,26 +34,15 @@ function ProjectSettings() {
 	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
 
 	const [name, setName] = useState('')
-	const [autoDeploy, setAutoDeploy] = useState(false)
-	const [webhookSecret, setWebhookSecret] = useState('')
 
 	useEffect(() => {
 		if (!project.data) return
 		setName(project.data.name)
-		setAutoDeploy(project.data.auto_deploy)
 	}, [project.data])
 
 	const save = useMutation({
-		mutationFn: () =>
-			api.updateProject(projectId, {
-				name,
-				auto_deploy: autoDeploy,
-				// Only send the webhook secret when the field was actually touched, so
-				// saving other settings never clears it.
-				...(webhookSecret === '' ? {} : { webhook_secret: webhookSecret }),
-			}),
+		mutationFn: () => api.updateProject(projectId, { name }),
 		onSuccess: () => {
-			setWebhookSecret('')
 			void queryClient.invalidateQueries({ queryKey: ['project', projectId] })
 		},
 	})
@@ -72,37 +60,6 @@ function ProjectSettings() {
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Name'>
 						<Input value={name} onChange={event => setName(event.target.value)} />
-					</Field>
-				</div>
-				<Switch
-					label='Deploy automatically when a service’s branch is pushed'
-					checked={autoDeploy}
-					onChange={setAutoDeploy}
-				/>
-			</FormSection>
-
-			<FormSection
-				title='Webhook'
-				description='Point your git provider here to auto deploy.'
-				icon={IconWebhook}
-				hint={
-					project.data?.webhook_secret_set
-						? 'A secret is set. Enter a new one to replace it, or a single space to disable verification.'
-						: 'Optional. When set, X-Hub-Signature-256 must match or the request is rejected.'
-				}
-				actions={<SaveButton pending={save.isPending} label='Save webhook secret' />}
-				onSave={() => save.mutate()}
-			>
-				<code className='mb-4 block rounded-md border bg-background px-3 py-2 font-mono text-label break-all'>
-					{project.data?.webhook_url}
-				</code>
-				<div className='max-w-md'>
-					<Field label='Signing secret'>
-						<Input
-							type='password'
-							value={webhookSecret}
-							onChange={event => setWebhookSecret(event.target.value)}
-						/>
 					</Field>
 				</div>
 			</FormSection>

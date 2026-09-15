@@ -35,7 +35,7 @@ func defaultEnv(t *testing.T, db *DB, projectID string) *Environment {
 func newProject(t *testing.T, db *DB, slug string) *Project {
 	t.Helper()
 	p := &Project{
-		ID: NewID(), Name: slug, Slug: slug, WebhookToken: "tok-" + NewID(),
+		ID: NewID(), Name: slug, Slug: slug,
 	}
 	p.ComposeProjectName = "p_" + p.ID
 	if err := db.CreateProject(context.Background(), p); err != nil {

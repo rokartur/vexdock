@@ -56,7 +56,7 @@ func New(d Deps) *Server {
 	return &Server{Deps: d}
 }
 
-// Handler builds the router. The four routes registered straight on the mux
+// Handler builds the router. The three routes registered straight on the mux
 // are public; everything behind protected needs a session cookie or a bearer
 // API token.
 func (s *Server) Handler() http.Handler {
@@ -64,7 +64,6 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/system/version", s.handleVersion)
-	mux.HandleFunc("POST /api/webhooks/projects/{token}", s.handleWebhook)
 	// One deploy endpoint per provider, because each signs its payload its own
 	// way and names the repository in its own shape.
 	mux.HandleFunc("POST /api/deploy/{provider}", s.handleProviderWebhook)
@@ -93,6 +92,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/services/{id}", s.protected(s.handleGetService))
 	mux.Handle("PATCH /api/services/{id}", s.protected(s.handleUpdateService))
 	mux.Handle("DELETE /api/services/{id}", s.protected(s.handleDeleteService))
+	mux.Handle("POST /api/services/{id}/duplicate", s.protected(s.handleDuplicateService))
+	mux.Handle("POST /api/services/{id}/move", s.protected(s.handleMoveService))
 	mux.Handle("GET /api/services/{id}/database", s.protected(s.handleServiceDatabase))
 	mux.Handle("GET /api/services/{id}/variables", s.protected(s.handleGetServiceEnvironment))
 	mux.Handle("PUT /api/services/{id}/variables", s.protected(s.handlePutServiceEnvironment))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/vexdock/platform/manager/internal/database"
@@ -163,6 +164,118 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 		return nil, err
 	}
 	return svc, nil
+}
+
+// copyService writes src into an environment under a new name, with the
+// variables it cannot start without. The git credential travels encrypted as
+// it is, since the same manager holds the key.
+func (s *Service) copyService(ctx context.Context, src database.Service, env *database.Environment, name string) (*database.Service, error) {
+	name = strings.TrimSpace(name)
+	if err := security.ValidateServiceName(name); err != nil {
+		return nil, err
+	}
+	if existing, err := s.db.ServiceByName(ctx, env.ID, name); err == nil && existing != nil {
+		return nil, fmt.Errorf("this environment already has a service named %q", name)
+	}
+	vars, err := s.ServiceVariables(ctx, src.ID)
+	if err != nil {
+		return nil, err
+	}
+	// The copy cannot answer to the container name the original already holds,
+	// so it takes the one its own environment would have given it.
+	container, err := s.containerName(ctx, env, name, "")
+	if err != nil {
+		return nil, err
+	}
+
+	copied := src
+	copied.ID, copied.ProjectID, copied.EnvironmentID = database.NewID(), env.ProjectID, env.ID
+	copied.ComposeServiceName, copied.ContainerName = name, container
+	if err := s.db.CreateService(ctx, &copied); err != nil {
+		return nil, err
+	}
+	if err := s.SetServiceVariables(ctx, copied.ID, vars); err != nil {
+		_ = s.db.DeleteService(ctx, copied.ID)
+		return nil, err
+	}
+	return &copied, nil
+}
+
+// DuplicateService copies a service under a new name, with its variables and
+// its scheduled tasks. Not its volumes, so the copy starts on empty data, and
+// not its domains, since a hostname answers in one place only.
+func (s *Service) DuplicateService(ctx context.Context, src *database.Service, env *database.Environment, name string) (*database.Service, error) {
+	copied, err := s.copyService(ctx, *src, env, name)
+	if err != nil {
+		return nil, err
+	}
+	tasks, err := s.db.ScheduledTasksByService(ctx, src.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, task := range tasks {
+		task.ServiceID = copied.ID
+		if err := s.db.CreateScheduledTask(ctx, &task); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := s.WriteOverlay(ctx, env); err != nil {
+		_ = s.db.DeleteService(ctx, copied.ID)
+		return nil, err
+	}
+	return copied, nil
+}
+
+// MoveService hands a service to another environment: the row changes owner,
+// the container takes the name that environment would give it, the git checkout
+// follows on disk and both overlays are rewritten. Copying the volume data and
+// removing the old container are the caller's job; both need docker.
+func (s *Service) MoveService(ctx context.Context, svc *database.Service, from, to *database.Environment) error {
+	if from.ID == to.ID {
+		return fmt.Errorf("this service is already in that environment")
+	}
+	if existing, err := s.db.ServiceByName(ctx, to.ID, svc.ComposeServiceName); err == nil && existing != nil {
+		return fmt.Errorf("the target environment already has a service named %q", svc.ComposeServiceName)
+	}
+	container, err := s.containerName(ctx, to, svc.ComposeServiceName, "")
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Join(s.cfg.ProjectDir(to.ID), servicesDirName), 0o750); err != nil {
+		return err
+	}
+	if err := os.Rename(s.ServiceDir(from, svc.ComposeServiceName), s.ServiceDir(to, svc.ComposeServiceName)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Remove(s.ServiceEnvFilePath(from, svc.ComposeServiceName)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	svc.ProjectID, svc.EnvironmentID, svc.ContainerName = to.ProjectID, to.ID, container
+	if err := s.db.MoveService(ctx, svc); err != nil {
+		return err
+	}
+	if _, err := s.WriteOverlay(ctx, from); err != nil {
+		return err
+	}
+	_, err = s.WriteOverlay(ctx, to)
+	return err
+}
+
+// ServiceVolumes names the volumes a service's compose body declares, before
+// compose prefixes each of them with the environment's compose project name.
+func (s *Service) ServiceVolumes(ctx context.Context, env *database.Environment, svc *database.Service) ([]string, error) {
+	// A service nobody configured yet has no body to render.
+	if svc.Provider == database.ProviderUnconfigured {
+		return nil, nil
+	}
+	vars, err := s.ServiceVariables(ctx, svc.ID)
+	if err != nil {
+		return nil, err
+	}
+	_, volumes, err := s.renderService(env, *svc, vars)
+	return volumes, err
 }
 
 // DeleteService drops a managed service and rewrites the overlay without it.

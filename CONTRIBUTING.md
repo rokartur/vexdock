@@ -109,7 +109,7 @@ as lag. Reduced motion drops travel and scaling and keeps the fades.
 ## Tests
 
 Focused tests for logic that can break silently: the Nginx generator, the
-compose parser, validation, encryption, path confinement, webhook signatures and
+compose parser, validation, encryption, path confinement, delivery signatures and
 the deployment's terminal states. `scripts/smoke-test.sh` covers the real path
 through a running stack. Please do not add tests that only restate the
 implementation.

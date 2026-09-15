@@ -16,7 +16,6 @@ import {
 	IconSettings,
 	IconStack2,
 	IconTrash,
-	IconWorld,
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -43,7 +42,6 @@ const projects: NavItem = { to: '/projects', label: 'Projects', icon: IconFolder
 
 const home: NavItem[] = [
 	{ to: '/', label: 'Dashboard', icon: IconHome, exact: true },
-	{ to: '/domains', label: 'Domains', icon: IconWorld },
 	{ to: '/tasks', label: 'Tasks', icon: IconClock },
 ]
 

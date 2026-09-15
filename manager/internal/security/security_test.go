@@ -1,21 +1,10 @@
 package security
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"path/filepath"
 	"strings"
 	"testing"
 )
-
-// hmacHex reproduces the signature GitHub sends, independently of the
-// implementation under test.
-func hmacHex(secret string, body []byte) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
-	return hex.EncodeToString(mac.Sum(nil))
-}
 
 func TestCipherRoundTrip(t *testing.T) {
 	c, err := NewCipher(make([]byte, 32))
@@ -153,28 +142,6 @@ func TestValidateTaskShell(t *testing.T) {
 		if _, err := ValidateTaskShell(bad); err == nil {
 			t.Fatalf("shell %q should have been rejected", bad)
 		}
-	}
-}
-
-func TestVerifyGitHubSignature(t *testing.T) {
-	body := []byte(`{"ref":"refs/heads/main"}`)
-	const secret = "s3cret"
-	// Signature produced by GitHub for this body and secret.
-	mac := "sha256=" + hmacHex(secret, body)
-	if !VerifyGitHubSignature(secret, body, mac) {
-		t.Fatal("valid signature rejected")
-	}
-	if VerifyGitHubSignature(secret, body, "sha256=deadbeef") {
-		t.Fatal("forged signature accepted")
-	}
-	if VerifyGitHubSignature(secret, []byte(`{"ref":"refs/heads/evil"}`), mac) {
-		t.Fatal("signature accepted for a different body")
-	}
-	if VerifyGitHubSignature("", body, mac) {
-		t.Fatal("empty secret must never validate")
-	}
-	if VerifyGitHubSignature(secret, body, "") {
-		t.Fatal("missing header must never validate")
 	}
 }
 

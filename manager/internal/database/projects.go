@@ -8,14 +8,14 @@ import (
 )
 
 const projectColumns = `id, name, slug, compose_project_name,
-	auto_deploy, webhook_token, created_at, updated_at, tags`
+	created_at, updated_at, tags`
 
 func (db *DB) CreateProject(ctx context.Context, p *Project) error {
 	p.CreatedAt, p.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		p.ID, p.Name, p.Slug, p.ComposeProjectName,
-		boolToInt(p.AutoDeploy), p.WebhookToken, p.CreatedAt, p.UpdatedAt,
+		p.CreatedAt, p.UpdatedAt,
 		strings.Join(p.Tags, ","))
 	return err
 }
@@ -23,8 +23,8 @@ func (db *DB) CreateProject(ctx context.Context, p *Project) error {
 func (db *DB) UpdateProject(ctx context.Context, p *Project) error {
 	p.UpdatedAt = Now()
 	_, err := db.ExecContext(ctx,
-		`UPDATE projects SET name=?, slug=?, auto_deploy=?, updated_at=?, tags=? WHERE id=?`,
-		p.Name, p.Slug, boolToInt(p.AutoDeploy), p.UpdatedAt, strings.Join(p.Tags, ","), p.ID)
+		`UPDATE projects SET name=?, slug=?, updated_at=?, tags=? WHERE id=?`,
+		p.Name, p.Slug, p.UpdatedAt, strings.Join(p.Tags, ","), p.ID)
 	return err
 }
 
@@ -54,29 +54,19 @@ func (db *DB) ProjectByID(ctx context.Context, id string) (*Project, error) {
 	return scanProject(db.QueryRowContext(ctx, `SELECT `+projectColumns+` FROM projects WHERE id = ?`, id))
 }
 
-// ProjectByWebhookToken backs the auto-deploy endpoint; the token is the only
-// credential the caller presents, so it must be long and random.
-func (db *DB) ProjectByWebhookToken(ctx context.Context, token string) (*Project, error) {
-	return scanProject(db.QueryRowContext(ctx,
-		`SELECT `+projectColumns+` FROM projects WHERE webhook_token = ? AND webhook_token != ''`, token))
-}
-
 type scanner interface{ Scan(dest ...any) error }
 
 func scanProject(row scanner) (*Project, error) {
 	var p Project
-	var autoDeploy int
 	var tags string
 	err := row.Scan(&p.ID, &p.Name, &p.Slug,
-		&p.ComposeProjectName, &autoDeploy, &p.WebhookToken,
-		&p.CreatedAt, &p.UpdatedAt, &tags)
+		&p.ComposeProjectName, &p.CreatedAt, &p.UpdatedAt, &tags)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	p.AutoDeploy = autoDeploy != 0
 	p.Tags = []string{}
 	if tags != "" {
 		p.Tags = strings.Split(tags, ",")
@@ -145,17 +135,17 @@ func (db *DB) ListSecrets(ctx context.Context, sc SecretScope, ownerID string) (
 // The container id is deliberately not stored: it changes on every recreate.
 const serviceColumns = `id, project_id, environment_id, compose_service_name, container_name, display_name, type, provider,
 	repository_url, branch, build_path, credential_kind, credential_enc, git_provider_id, owner, repository, image,
-	engine, data_path, compose_fragment, created_at, updated_at`
+	engine, data_path, compose_fragment, auto_deploy, created_at, updated_at`
 
 // CreateService records a service the dashboard owns. Its definition is
 // rendered into the environment's compose file rather than read out of one.
 func (db *DB) CreateService(ctx context.Context, s *Service) error {
 	s.CreatedAt, s.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.ContainerName, s.DisplayName, s.Type, s.Provider,
 		s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind, s.CredentialEnc, s.GitProviderID, s.Owner,
-		s.Repository, s.Image, s.Engine, s.DataPath, s.ComposeFragment, s.CreatedAt, s.UpdatedAt)
+		s.Repository, s.Image, s.Engine, s.DataPath, s.ComposeFragment, boolToInt(s.AutoDeploy), s.CreatedAt, s.UpdatedAt)
 	return err
 }
 
@@ -164,11 +154,36 @@ func (db *DB) UpdateService(ctx context.Context, s *Service) error {
 	_, err := db.ExecContext(ctx,
 		`UPDATE services SET display_name = ?, type = ?, provider = ?, repository_url = ?, branch = ?,
 		 build_path = ?, credential_kind = ?, credential_enc = ?, git_provider_id = ?, owner = ?, repository = ?,
-		 image = ?, engine = ?, data_path = ?, compose_fragment = ?, updated_at = ? WHERE id = ?`,
+		 image = ?, engine = ?, data_path = ?, compose_fragment = ?, auto_deploy = ?, updated_at = ? WHERE id = ?`,
 		s.DisplayName, s.Type, s.Provider, s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind,
 		s.CredentialEnc, s.GitProviderID, s.Owner, s.Repository, s.Image, s.Engine, s.DataPath,
-		s.ComposeFragment, s.UpdatedAt, s.ID)
+		s.ComposeFragment, boolToInt(s.AutoDeploy), s.UpdatedAt, s.ID)
 	return err
+}
+
+// MoveService writes the three columns UpdateService leaves alone, plus the
+// service's domains, which repeat the project and environment as columns of
+// their own. Scheduled tasks key on the service id, so they follow by
+// themselves.
+func (db *DB) MoveService(ctx context.Context, s *Service) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	s.UpdatedAt = Now()
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE services SET project_id = ?, environment_id = ?, container_name = ?, updated_at = ? WHERE id = ?`,
+		s.ProjectID, s.EnvironmentID, s.ContainerName, s.UpdatedAt, s.ID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE domains SET project_id = ?, environment_id = ?, updated_at = ? WHERE service_id = ?`,
+		s.ProjectID, s.EnvironmentID, s.UpdatedAt, s.ID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (db *DB) DeleteService(ctx context.Context, id string) error {
@@ -195,15 +210,17 @@ func (db *DB) ServiceByID(ctx context.Context, id string) (*Service, error) {
 
 func scanService(row scanner) (*Service, error) {
 	var s Service
+	var autoDeploy int
 	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.ContainerName, &s.DisplayName, &s.Type, &s.Provider,
 		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.CredentialKind, &s.CredentialEnc, &s.GitProviderID, &s.Owner,
-		&s.Repository, &s.Image, &s.Engine, &s.DataPath, &s.ComposeFragment, &s.CreatedAt, &s.UpdatedAt)
+		&s.Repository, &s.Image, &s.Engine, &s.DataPath, &s.ComposeFragment, &autoDeploy, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	s.AutoDeploy = autoDeploy != 0
 	return &s, nil
 }
 

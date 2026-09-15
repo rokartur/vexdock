@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconBell, IconCloud, IconPalette, IconTrash, IconWorld } from '@tabler/icons-react'
+import { IconCloud, IconPalette, IconTrash, IconWorld } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Button, ErrorText, Field, FormSection, Input, SaveButton, Switch } from '../components/primitives'
@@ -16,7 +16,7 @@ export const Route = createFileRoute('/system/settings/')({ component: GeneralSe
 function GeneralSettings() {
 	const queryClient = useQueryClient()
 	const settings = useQuery({ queryKey: ['settings'], queryFn: api.settings })
-	const [draft, setDraft] = useState({ domain: '', https: true, webhook: '', token: '', brand: '' })
+	const [draft, setDraft] = useState({ domain: '', https: true, token: '', brand: '' })
 
 	useEffect(() => {
 		const loaded = settings.data
@@ -24,7 +24,6 @@ function GeneralSettings() {
 		setDraft({
 			domain: loaded.dashboard_domain,
 			https: loaded.dashboard_https,
-			webhook: loaded.notify_webhook_url,
 			token: '',
 			brand: loaded.brand_color,
 		})
@@ -39,7 +38,6 @@ function GeneralSettings() {
 						acme_email: settings.data.acme_email,
 						dashboard_domain: draft.domain,
 						dashboard_https: draft.https,
-						notify_webhook_url: draft.webhook,
 						brand_color: draft.brand,
 						cloudflare_api_token: cloudflareToken,
 					})
@@ -111,24 +109,6 @@ function GeneralSettings() {
 						)
 					})}
 				</div>
-			</FormSection>
-
-			<FormSection
-				title='Deploy notifications'
-				description='Posted when a deployment succeeds or fails.'
-				icon={IconBell}
-				hint='Discord and Slack webhook URLs are detected automatically. Anything else receives the raw event as JSON. Leave empty to disable.'
-				actions={saveButton}
-				onSave={apply}
-			>
-				<Field label='Webhook URL'>
-					<Input
-						type='url'
-						value={draft.webhook}
-						placeholder='https://discord.com/api/webhooks/…'
-						onChange={event => setDraft({ ...draft, webhook: event.target.value })}
-					/>
-				</Field>
 			</FormSection>
 
 			<FormSection

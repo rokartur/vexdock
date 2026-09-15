@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -35,10 +34,6 @@ type projectView struct {
 	ComposeCount     int                  `json:"compose_count"`
 	Domains          []database.Domain    `json:"domains"`
 	LatestDeployment *database.Deployment `json:"latest_deployment"`
-	WebhookURL       string               `json:"webhook_url"`
-	// WebhookSecretSet reports whether HMAC verification is on; the secret
-	// itself is never returned.
-	WebhookSecretSet bool `json:"webhook_secret_set"`
 }
 
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
@@ -89,12 +84,10 @@ func (s *Server) projectView(ctx context.Context, p *database.Project, container
 		return nil, err
 	}
 	view := &projectView{
-		Project:          *p,
-		Environments:     envs,
-		ServiceCount:     len(services),
-		Domains:          domainList,
-		WebhookURL:       s.Projects.WebhookURL(p),
-		WebhookSecretSet: s.setting(ctx, webhookSecretKey(p.ID)) != "",
+		Project:      *p,
+		Environments: envs,
+		ServiceCount: len(services),
+		Domains:      domainList,
 	}
 	for _, svc := range services {
 		switch {
@@ -126,9 +119,8 @@ func (s *Server) projectView(ctx context.Context, p *database.Project, container
 }
 
 type createProjectRequest struct {
-	Name       string   `json:"name"`
-	AutoDeploy bool     `json:"auto_deploy"`
-	Tags       []string `json:"tags"`
+	Name string   `json:"name"`
+	Tags []string `json:"tags"`
 }
 
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
@@ -137,11 +129,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	project, err := s.Projects.Create(r.Context(), projects.CreateInput{
-		Name:       req.Name,
-		AutoDeploy: req.AutoDeploy,
-		Tags:       req.Tags,
-	})
+	project, err := s.Projects.Create(r.Context(), projects.CreateInput{Name: req.Name, Tags: req.Tags})
 	if err != nil {
 		badRequest(w, err)
 		return
@@ -173,12 +161,8 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name       *string   `json:"name"`
-		AutoDeploy *bool     `json:"auto_deploy"`
-		Tags       *[]string `json:"tags"`
-		// WebhookSecret enables HMAC verification of incoming webhooks.
-		// An empty string turns verification off again.
-		WebhookSecret *string `json:"webhook_secret"`
+		Name *string   `json:"name"`
+		Tags *[]string `json:"tags"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
@@ -191,21 +175,9 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	if req.Tags != nil {
 		project.Tags = *req.Tags
 	}
-	if req.AutoDeploy != nil {
-		project.AutoDeploy = *req.AutoDeploy
-	}
 	if err := s.Projects.Validate(project); err != nil {
 		badRequest(w, err)
 		return
-	}
-	if req.WebhookSecret != nil {
-		// Trimming makes a whitespace-only value mean "turn verification off",
-		// which is the only way to clear it from a password field.
-		secret := strings.TrimSpace(*req.WebhookSecret)
-		if err := s.DB.SetSetting(r.Context(), webhookSecretKey(project.ID), secret); err != nil {
-			serverError(w, err)
-			return
-		}
 	}
 	if err := s.DB.UpdateProject(r.Context(), project); err != nil {
 		serverError(w, err)

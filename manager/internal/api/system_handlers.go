@@ -20,7 +20,6 @@ import (
 	"github.com/vexdock/platform/manager/internal/domains"
 	"github.com/vexdock/platform/manager/internal/events"
 	"github.com/vexdock/platform/manager/internal/metrics"
-	"github.com/vexdock/platform/manager/internal/notify"
 	"github.com/vexdock/platform/manager/internal/security"
 	"github.com/vexdock/platform/manager/internal/updater"
 )
@@ -283,10 +282,9 @@ const settingBrandColor = "brand_color"
 var brandColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 type settingsPayload struct {
-	DashboardDomain  string `json:"dashboard_domain"`
-	DashboardHTTPS   bool   `json:"dashboard_https"`
-	ACMEEmail        string `json:"acme_email"`
-	NotifyWebhookURL string `json:"notify_webhook_url"`
+	DashboardDomain string `json:"dashboard_domain"`
+	DashboardHTTPS  bool   `json:"dashboard_https"`
+	ACMEEmail       string `json:"acme_email"`
 	// BrandColor is empty when the panel should keep its shipped accent.
 	BrandColor string `json:"brand_color"`
 
@@ -301,7 +299,6 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		DashboardDomain:    s.setting(r.Context(), domains.SettingDashboardDomain),
 		DashboardHTTPS:     s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
 		ACMEEmail:          s.Config.ACMEEmail,
-		NotifyWebhookURL:   s.setting(r.Context(), notify.SettingWebhookURL),
 		BrandColor:         s.setting(r.Context(), settingBrandColor),
 		CloudflareTokenSet: s.Certs.DNS01Enabled(),
 	})
@@ -321,20 +318,12 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := notify.ValidateURL(req.NotifyWebhookURL); err != nil {
-		badRequest(w, err)
-		return
-	}
 	if req.BrandColor != "" && !brandColorPattern.MatchString(req.BrandColor) {
 		badRequest(w, fmt.Errorf("brand color must be a hex colour like #e16540, got %q", req.BrandColor))
 		return
 	}
 	if err := s.Domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
 		badRequest(w, err)
-		return
-	}
-	if err := s.DB.SetSetting(r.Context(), notify.SettingWebhookURL, req.NotifyWebhookURL); err != nil {
-		serverError(w, err)
 		return
 	}
 	if err := s.DB.SetSetting(r.Context(), settingBrandColor, strings.ToLower(req.BrandColor)); err != nil {
