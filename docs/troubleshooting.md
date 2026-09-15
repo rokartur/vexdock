@@ -58,18 +58,18 @@ of five failures per hostname per hour.
 Open the service's **Tasks** tab and press **logs** on the task; every attempt is
 listed with its exit code and the output it produced.
 
-- **`this service has no container yet - deploy it first`** — the task execs into
+- **`this service has no container yet - deploy it first`.** The task execs into
   the service's own container, so the service has to be deployed and present.
-- **Nothing in the list at all** — the task is off, or its schedule has not come
+- **Nothing in the list at all.** The task is off, or its schedule has not come
   round yet. The **Next run** column says when it is due; if that reads wrong,
   the task's timezone is not the one you meant. A tick that passed while the
   manager was down is not replayed. **run now** executes it immediately and
   reports the same output the schedule would.
-- **`bash: not found`** — the task asked for bash and the image only ships sh.
+- **`bash: not found`.** The task asked for bash and the image only ships sh.
   Switch the task's shell, or install bash in the image.
-- **`interrupted by a manager restart`** — the manager stopped mid-run. The
+- **`interrupted by a manager restart`.** The manager stopped mid-run. The
   command may have half finished; the next tick is unaffected.
-- **The run list says the previous run is still going** — a task never overlaps
+- **The run list says the previous run is still going.** A task never overlaps
   itself. A command that takes longer than its interval is skipped, not queued,
   and one that hangs is killed after 30 minutes.
 

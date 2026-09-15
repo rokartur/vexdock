@@ -1,12 +1,6 @@
 import type { EnvVar } from './api'
 
-/**
- * The project environment as editable .env text, so a whole file can be pasted
- * in or copied out in one go.
- *
- * Secret values arrive masked. Sending the mask back means "unchanged", so a
- * round trip through this editor never overwrites a stored secret.
- */
+/** Secret values arrive masked, and sending the mask back means "unchanged", so a round trip never overwrites one. */
 const MASK = '••••••••••••'
 
 /** Quoted only when the value would not survive a bare .env line. */

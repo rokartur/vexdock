@@ -60,12 +60,12 @@ function BackupsPage() {
 	const backups = useQuery({ queryKey: ['backups'], queryFn: api.backups })
 
 	const create = useMutation({
-		mutationFn: (includeVolumes: boolean) => api.createBackup(includeVolumes),
+		mutationFn: api.createBackup,
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
 	})
 
 	const remove = useMutation({
-		mutationFn: (name: string) => api.deleteBackup(name),
+		mutationFn: api.deleteBackup,
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
 	})
 

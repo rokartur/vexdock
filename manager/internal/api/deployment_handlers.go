@@ -11,7 +11,7 @@ import (
 
 func (s *Server) handleGetDeployment(w http.ResponseWriter, r *http.Request) {
 	deployment, err := s.DB.DeploymentByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	steps, err := s.DB.ListSteps(r.Context(), deployment.ID)
@@ -26,7 +26,7 @@ func (s *Server) handleGetDeployment(w http.ResponseWriter, r *http.Request) {
 // already recorded so a late subscriber still sees the whole deployment.
 func (s *Server) handleDeploymentEvents(w http.ResponseWriter, r *http.Request) {
 	deployment, err := s.DB.DeploymentByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	// Subscribe before replaying so nothing is lost in between.
@@ -64,7 +64,7 @@ func (s *Server) handleCancelDeployment(w http.ResponseWriter, r *http.Request) 
 // handleRollback redeploys the exact commit of a previous successful deployment.
 func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 	target, err := s.DB.DeploymentByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	if target.CommitSHA == "" {
@@ -72,12 +72,12 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	project, err := s.DB.ProjectByID(r.Context(), target.ProjectID)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	// A rollback redeploys the environment the original deployment ran in.
 	env, err := s.DB.EnvironmentByID(r.Context(), target.EnvironmentID)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{

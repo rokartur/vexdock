@@ -44,12 +44,8 @@ const levelColor: Record<string, string> = {
 }
 
 /**
- * The console every log in the panel is read in: search, follow, colouring by
- * level or HTTP status, download.
- *
- * `url` tails an SSE endpoint — streamed logs are never stored, so the buffer is
- * capped here. `lines` renders output someone else already has (a deployment's
- * own event stream, a task run's recorded output).
+ * `url` tails an SSE endpoint; streamed logs are never stored, so the buffer is
+ * capped here. `lines` renders output the caller already holds.
  */
 export function LogViewer({
 	url,

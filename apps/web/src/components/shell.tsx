@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
 	IconActivity,
 	IconAffiliate,
@@ -61,11 +61,7 @@ const system: NavItem[] = [
 	{ to: '/system/settings', label: 'Settings', icon: IconSettings },
 ]
 
-const groups = [
-	{ label: 'Home', items: home },
-	{ label: 'Docker', items: docker },
-	{ label: 'System', items: system },
-]
+const links = [...home, ...docker, ...system]
 
 const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
@@ -74,7 +70,6 @@ const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname ===
 const navItem =
 	'relative flex h-full shrink-0 items-center gap-1.5 px-2.5 text-body whitespace-nowrap transition-colors data-[on=false]:text-muted-foreground data-[on=false]:hover:text-foreground data-[on=true]:font-medium data-[on=true]:text-foreground data-[on=true]:after:absolute data-[on=true]:after:inset-x-0 data-[on=true]:after:-bottom-px data-[on=true]:after:h-0.5 data-[on=true]:after:bg-foreground'
 
-/** One destination in the nav bar. */
 function SectionLink({ item, active }: { item: NavItem; active: boolean }) {
 	return (
 		<Link
@@ -90,11 +85,7 @@ function SectionLink({ item, active }: { item: NavItem; active: boolean }) {
 	)
 }
 
-/**
- * A group of pages under one name in the nav bar. Docker and System are whole
- * sections, and a menu keeps them one click away without the bar changing
- * meaning once you are inside them.
- */
+/** A group of pages under one name in the nav bar, so the bar never changes meaning once you are inside a section. */
 function SectionMenu({
 	label,
 	icon: Icon,
@@ -128,12 +119,7 @@ function SectionMenu({
 	)
 }
 
-/**
- * The panel's chrome: a workspace bar carrying the page's own breadcrumb and
- * actions, and a nav bar under it that is the same on every page. A page's own
- * sub-navigation is drawn by the page, under both.
- * Cmd/Ctrl+K opens the palette, which is what reaches everything else.
- */
+/** The workspace bar carries the page's breadcrumb and actions; the nav bar under it never changes. */
 export function Shell({ children }: { children: ReactNode }) {
 	const [paletteOpen, setPaletteOpen] = useState(false)
 	// Set from the ref during commit, so the page's breadcrumb lands in the bar
@@ -204,7 +190,6 @@ export function Shell({ children }: { children: ReactNode }) {
 		return () => window.removeEventListener('keydown', onKey)
 	}, [])
 
-	const links = useMemo(() => groups.flatMap(group => group.items), [])
 	const email = session.data?.user.email ?? ''
 	const name = session.data?.user.name || 'Account'
 

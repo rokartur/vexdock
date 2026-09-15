@@ -1,8 +1,8 @@
 # Auth service: better-auth on Bun. It owns users and sessions; the Go manager
 # only reads the session table to authenticate API requests.
 #
-# The install has to be the whole workspace — the lockfile is one file for all
-# of it — so it happens in a stage that is thrown away. Only the bundle ships.
+# The lockfile covers the whole workspace, so the install has to be the whole
+# workspace. It happens in a stage that is thrown away; only the bundle ships.
 FROM oven/bun:1-alpine AS build
 
 WORKDIR /app

@@ -316,14 +316,10 @@ type EnvVar struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-// Variables come in three layers. A project's are shared by every environment,
-// an environment's belong to that copy of the project alone, and a service's
-// reach only itself. They are read separately and merged at deploy time by
-// WriteEnvFile, narrowest last.
-//
-// None of these mask. The editor is the one place a secret is meant to be
-// legible (docs/security.md); what protects it is the write side, where a value
-// that arrives already masked means "unchanged".
+// Variables come in three layers: a project's reach every environment, an
+// environment's only that copy, a service's only itself. WriteEnvFile merges
+// them at deploy time, narrowest last. None of the three mask on read, the
+// editor is where a secret is meant to be legible (docs/security.md).
 
 // ProjectVariables returns the set shared by every environment of a project.
 func (s *Service) ProjectVariables(ctx context.Context, projectID string) ([]EnvVar, error) {
@@ -443,6 +439,5 @@ func (s *Service) RemoveDirectory(id string) error {
 
 // WebhookURL is the auto-deploy endpoint shown in the UI.
 func (s *Service) WebhookURL(p *database.Project) string {
-	base := s.cfg.PublicURL
-	return base + "/api/webhooks/projects/" + p.WebhookToken
+	return s.cfg.PublicURL + "/api/webhooks/projects/" + p.WebhookToken
 }

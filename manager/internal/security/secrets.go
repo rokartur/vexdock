@@ -1,6 +1,6 @@
-// Package security holds the primitives every privileged path in the manager
-// depends on: secret encryption, path confinement, input validation and
-// webhook signature verification.
+// Package security holds what every privileged path in the manager depends on:
+// secret encryption, path confinement, input validation and webhook signature
+// verification.
 package security
 
 import (

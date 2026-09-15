@@ -61,9 +61,6 @@ func TestAliasIsStableAndSafe(t *testing.T) {
 	if got != "p_01jabcxyz_web-app" {
 		t.Fatalf("unexpected alias %q", got)
 	}
-	if Alias("01JABCXYZ", "web") != Alias("01JABCXYZ", "web") {
-		t.Fatal("alias is not deterministic")
-	}
 	// Anything that could break an Nginx upstream name must be normalised away.
 	if strings.ContainsAny(Alias("01J", "we$b/../x"), "$/.") {
 		t.Fatal("alias leaked unsafe characters")

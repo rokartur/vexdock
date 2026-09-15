@@ -1,4 +1,4 @@
-// Package api exposes the REST surface. Nginx is the only thing in front of
+// Package api is the REST API. Nginx is the only thing in front of
 // it; the manager itself never listens on a public interface.
 package api
 
@@ -56,12 +56,12 @@ func New(d Deps) *Server {
 	return &Server{Deps: d}
 }
 
-// Handler builds the router. Public routes are listed explicitly; everything
-// else requires a session cookie or a bearer API token.
+// Handler builds the router. The four routes registered straight on the mux
+// are public; everything behind protected needs a session cookie or a bearer
+// API token.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	// Public.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/system/version", s.handleVersion)
 	mux.HandleFunc("POST /api/webhooks/projects/{token}", s.handleWebhook)
@@ -69,7 +69,6 @@ func (s *Server) Handler() http.Handler {
 	// way and names the repository in its own shape.
 	mux.HandleFunc("POST /api/deploy/{provider}", s.handleProviderWebhook)
 
-	// Authenticated.
 	mux.Handle("GET /api/me", s.protected(s.handleMe))
 
 	mux.Handle("GET /api/projects", s.protected(s.handleListProjects))
@@ -245,7 +244,7 @@ func clientIP(r *http.Request) string {
 // actor names the authenticated caller for a deployment record, or "" when
 // the request carried no user.
 func actor(ctx context.Context) string {
-	if user, ok := auth.UserFrom(ctx); ok && user != nil {
+	if user, ok := auth.UserFrom(ctx); ok {
 		return user.Email
 	}
 	return ""
@@ -259,7 +258,7 @@ func (s *Server) audit(r *http.Request, user *auth.User, status int, viaCookie b
 		credential = "session"
 	}
 	actor := "unknown"
-	if user != nil && user.Email != "" {
+	if user.Email != "" {
 		actor = user.Email
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)

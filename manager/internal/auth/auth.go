@@ -143,15 +143,6 @@ func (s *Service) userByID(ctx context.Context, id string) (*User, error) {
 	return &user, nil
 }
 
-// NeedsSetup reports whether the first administrator still has to be created.
-func (s *Service) NeedsSetup(ctx context.Context) bool {
-	var n int
-	if err := s.auth.QueryRowContext(ctx, `SELECT COUNT(*) FROM user`).Scan(&n); err != nil {
-		return true
-	}
-	return n == 0
-}
-
 type contextKey string
 
 const userKey contextKey = "user"

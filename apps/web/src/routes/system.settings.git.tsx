@@ -120,7 +120,7 @@ function providerColumns(edit: (provider: GitProvider) => void, remove: (id: str
 
 /** Every field any of the four asks for, so one form covers all of them. */
 const emptyForm = {
-	id: '' as string,
+	id: '',
 	kind: 'github' as GitProviderType,
 	name: '',
 	host: '',
@@ -136,12 +136,8 @@ const emptyForm = {
 
 type Form = typeof emptyForm
 
-/**
- * GitHub creates the App from a manifest posted by the browser, not by the
- * manager: it is the owner's session that is allowed to create it. So the
- * manifest goes into a throwaway form and is submitted, which leaves the panel
- * for GitHub and comes back through the callback.
- */
+/** GitHub creates the App from the owner's own session, so a throwaway form posts the manifest and the callback
+ * brings it back. */
 function postManifest(url: string, manifest: unknown) {
 	const form = document.createElement('form')
 	form.method = 'post'
@@ -155,11 +151,7 @@ function postManifest(url: string, manifest: unknown) {
 	form.submit()
 }
 
-/**
- * The host to authorise at is built by the manager from the origin the owner
- * typed, so the scheme check is all that is left to assert: a mangled response
- * must not turn into a javascript: navigation.
- */
+/** The manager builds the host from the origin the owner typed, so only the scheme is left to check. */
 function leaveFor(url: string) {
 	const target = new URL(url)
 	if (target.protocol !== 'https:' && target.protocol !== 'http:') {
@@ -168,11 +160,7 @@ function leaveFor(url: string) {
 	window.location.assign(target.href)
 }
 
-/**
- * Saving is a different request per host, and three of the four end by leaving
- * the panel: GitHub to create the App, GitLab and Gitea to authorise it.
- * Bitbucket is the only one finished by the time the request answers.
- */
+/** GitHub, GitLab and Gitea end by leaving the panel. Bitbucket is the only one done when the request answers. */
 async function saveProvider(form: Form) {
 	const id = form.id || undefined
 	if (form.kind === 'bitbucket') {
@@ -216,10 +204,8 @@ async function saveProvider(form: Form) {
 }
 
 /**
- * What each host needs registered, and where the owner registers it. GitLab and
- * Gitea refuse an authorisation whose redirect URI they were not told about, so
- * the hint spells out the one this panel will send, built from the address the
- * browser is on because that is the address a provider comes back to.
+ * GitLab and Gitea refuse an authorisation whose redirect URI they were not told about, so the hint spells out the
+ * one this panel sends, built from the address the browser is on because that is where the provider comes back to.
  */
 function hintFor(kind: GitProviderType, origin: string) {
 	switch (kind) {
@@ -275,7 +261,7 @@ function GitProviders() {
 	})
 
 	const remove = useMutation({
-		mutationFn: (id: string) => api.deleteGitProvider(id),
+		mutationFn: api.deleteGitProvider,
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['git-providers'] }),
 	})
 

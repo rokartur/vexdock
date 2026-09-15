@@ -184,10 +184,9 @@ resolve_version() {
 }
 
 # The compose file must come from the same ref as the images it references, or a
-# pinned install runs new images against main's topology.
-# It lands beside the live file and is moved over by install_compose once it is
-# whole: an update downloads while the stack still runs and stops it only after
-# the download succeeded, so a dead transfer never leaves the platform down.
+# pinned install runs new images against main's topology. It lands beside the
+# live file and install_compose moves it over once whole, so a dead transfer
+# never leaves the platform down.
 fetch_compose() {
     if [ -n "${PLATFORM_LOCAL_COMPOSE:-}" ]; then
         cp "$PLATFORM_LOCAL_COMPOSE" "$ROOT/compose.yml.new" \
@@ -217,9 +216,7 @@ env_set() {
 
 write_env() {
     env_file="$ROOT/.env"
-    if [ ! -f "$env_file" ]; then
-        : > "$env_file"
-    fi
+    touch "$env_file"
     chmod 600 "$env_file"
     env_set VERSION "$VERSION"
     env_set REGISTRY "$REGISTRY"
@@ -265,11 +262,7 @@ wait_healthy() {
     info "Waiting for the health check…"
     i=0
     while [ "$i" -lt 60 ]; do
-        if container_healthy; then
-            ok "Health check passed"
-            return 0
-        fi
-        if curl -fsS "http://127.0.0.1:$DASHBOARD_PORT/api/health" >/dev/null 2>&1; then
+        if container_healthy || curl -fsS "http://127.0.0.1:$DASHBOARD_PORT/api/health" >/dev/null 2>&1; then
             ok "Health check passed"
             return 0
         fi

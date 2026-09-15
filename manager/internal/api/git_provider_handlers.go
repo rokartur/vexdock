@@ -30,7 +30,7 @@ func (s *Server) handleListGitProviders(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleGetGitProvider(w http.ResponseWriter, r *http.Request) {
 	provider, err := s.DB.GitProviderByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, provider)
@@ -49,7 +49,7 @@ func (s *Server) handleRenameGitProvider(w http.ResponseWriter, r *http.Request)
 		badRequest(w, fmt.Errorf("name is required"))
 		return
 	}
-	if err := s.DB.RenameGitProvider(r.Context(), r.PathValue("id"), name); handleLookupError(w, err) {
+	if err := s.DB.RenameGitProvider(r.Context(), r.PathValue("id"), name); lookupFailed(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -61,7 +61,7 @@ func (s *Server) handleRenameGitProvider(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleDeleteGitProvider(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	provider, err := s.DB.GitProviderByID(r.Context(), id)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	services, err := s.DB.ServicesForRepository(r.Context(), id, "", "", "")
@@ -75,7 +75,7 @@ func (s *Server) handleDeleteGitProvider(w http.ResponseWriter, r *http.Request)
 			map[string]any{"services": len(services)})
 		return
 	}
-	if err := s.DB.DeleteGitProvider(r.Context(), id); handleLookupError(w, err) {
+	if err := s.DB.DeleteGitProvider(r.Context(), id); lookupFailed(w, err) {
 		return
 	}
 	// The cached installation token outlives the row otherwise, and would keep
@@ -184,7 +184,7 @@ func (s *Server) handleGitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	provider, err := s.DB.GitProviderByID(r.Context(), state)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	if provider.GitHub == nil {
@@ -227,7 +227,7 @@ func (s *Server) handleGitHubInstalled(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, fmt.Errorf("github returned no installation"))
 		return
 	}
-	if err := s.DB.SetGitHubInstallation(r.Context(), state, installationID); handleLookupError(w, err) {
+	if err := s.DB.SetGitHubInstallation(r.Context(), state, installationID); lookupFailed(w, err) {
 		return
 	}
 	git.ForgetInstallation(installationID)
@@ -278,7 +278,7 @@ func (s *Server) handleSaveGitLabProvider(w http.ResponseWriter, r *http.Request
 			return
 		}
 		g.GitProviderID = provider.ID
-	} else if err := s.DB.UpdateGitLabApp(r.Context(), g); handleLookupError(w, err) {
+	} else if err := s.DB.UpdateGitLabApp(r.Context(), g); lookupFailed(w, err) {
 		return
 	}
 	authorize, err := git.AuthorizeURL(database.ProviderGitLab, host, g.ApplicationID, redirectURI,
@@ -333,7 +333,7 @@ func (s *Server) handleSaveGiteaProvider(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		g.GitProviderID = provider.ID
-	} else if err := s.DB.UpdateGiteaApp(r.Context(), g); handleLookupError(w, err) {
+	} else if err := s.DB.UpdateGiteaApp(r.Context(), g); lookupFailed(w, err) {
 		return
 	}
 	authorize, err := git.AuthorizeURL(database.ProviderGitea, host, g.ClientID, redirectURI,
@@ -398,7 +398,7 @@ func (s *Server) handleSaveBitbucketProvider(w http.ResponseWriter, r *http.Requ
 		writeJSON(w, http.StatusCreated, map[string]any{"git_provider_id": provider.ID})
 		return
 	}
-	if err := s.DB.UpdateBitbucketCredentials(r.Context(), g); handleLookupError(w, err) {
+	if err := s.DB.UpdateBitbucketCredentials(r.Context(), g); lookupFailed(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"git_provider_id": g.GitProviderID})
@@ -415,7 +415,7 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	provider, err := s.DB.GitProviderByID(r.Context(), state)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	if provider.ProviderType != providerType {

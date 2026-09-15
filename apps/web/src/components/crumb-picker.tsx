@@ -8,12 +8,7 @@ import { api } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { Status } from './primitives'
 
-/**
- * A breadcrumb segment that is also a switcher: the current name plus a
- * searchable list of its siblings. Pages hand one of these to `Page`'s
- * `labels`, so the trail stays derived from the URL and only its rendering
- * changes.
- */
+/** A breadcrumb segment that switches: the current name plus a searchable list of siblings. For `Page`'s `labels`. */
 function CrumbPicker({
 	label,
 	placeholder,

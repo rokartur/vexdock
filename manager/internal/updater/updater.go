@@ -232,8 +232,6 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease, 
 	if err != nil {
 		return fail(err)
 	}
-	// Each argument is passed separately; nothing is concatenated into a shell
-	// command line.
 	// A successful update removes its own container; a failed one is kept so
 	// `docker logs vexdock-updater` can explain it, and cleared here.
 	_ = exec.CommandContext(ctx, "docker", "rm", "-f", "vexdock-updater").Run()

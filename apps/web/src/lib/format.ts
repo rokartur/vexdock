@@ -1,5 +1,3 @@
-/** Presentation helpers shared by every dense table in the panel. */
-
 export function bytes(value: number | undefined | null): string {
 	if (!value || value < 0) return '0 B'
 	const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -78,11 +76,7 @@ const ANSI = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*[A-Za-z]`, 'gu')
 const NGINX_ACCESS =
 	/^(?<client>\S+) \S+ \S+ \[[^\]]+\] "(?<method>\S+) (?<path>\S+)[^"]*" (?<status>\d{3}) (?<sent>\d+|-)/u
 
-/**
- * Recognises an nginx access line so the console can lay it out in columns.
- * Returns null for anything else, including nginx error-log lines, which read
- * fine as prose.
- */
+/** Null for anything that is not an access line, including nginx's error log, which reads fine as prose. */
 export function parseAccessLine(text: string) {
 	const groups = NGINX_ACCESS.exec(text)?.groups
 	if (!groups) return null
@@ -90,11 +84,7 @@ export function parseAccessLine(text: string) {
 	return { client, method, path, status, bytes: sent === '-' ? 0 : Number(sent) }
 }
 
-/**
- * Splits one raw log line into the parts the console renders separately: the
- * engine timestamp as local wall clock, the message with ANSI escapes removed,
- * and the severity word the message announces itself with (used for colour).
- */
+/** Splits a raw line into the engine timestamp as wall clock, the body with ANSI removed, and its severity word. */
 export function parseLogLine(text: string) {
 	const stamp = LOG_TIMESTAMP.exec(text)
 	const timestamp = stamp?.groups?.at ?? null

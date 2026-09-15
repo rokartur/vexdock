@@ -113,11 +113,7 @@ function ProjectSettings() {
 	)
 }
 
-/**
- * Environments are created and destroyed here rather than from the breadcrumb
- * picker: switching is constant, and deleting one takes its containers and
- * volumes with it.
- */
+/** Not in the breadcrumb picker, where switching is constant: deleting one takes its containers and volumes. */
 function Environments({ projectId }: { projectId: string }) {
 	const queryClient = useQueryClient()
 	const [name, setName] = useState('')
@@ -196,11 +192,7 @@ function Environments({ projectId }: { projectId: string }) {
 	)
 }
 
-/**
- * The other half of a service import. Secret values stay behind unless asked
- * for, because the result is base64 and base64 is not encryption: it goes on a
- * clipboard, and from there wherever clipboards go.
- */
+/** Secrets stay behind unless asked for, because base64 is not encryption and this lands on a clipboard. */
 function ExportServices({ projectId }: { projectId: string }) {
 	const [secrets, setSecrets] = useState(false)
 	const [copied, setCopied] = useState(false)

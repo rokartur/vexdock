@@ -333,7 +333,7 @@ until it has run once, and `next_run`, absent while the task is disabled or its
 expression never comes round again. A run carries `started_at`, `finished_at`,
 `exit_code` and `output`; output over 64 KB keeps its tail, which is the half
 that says why a command failed. The `last_run` on a task listing carries no
-`output` — read `runs` for that — so a list of tasks stays small. Both lists
+`output`, which `runs` carries instead, so a list of tasks stays small. Both lists
 carry `service_name`, `project_id` and `project_name` on top, so a row names and
 links its owner without a request per row.
 
@@ -343,7 +343,7 @@ is the wall clock the expression is read against: `0 3 * * *` in Warsaw fires at
 unknown zone is rejected with `400`. `shell` is `sh` or `bash`, defaulting to
 `sh`, which is the one an Alpine image is guaranteed to have.
 
-Schedules are five fields — minute, hour, day of month, month, day of week.
+Schedules are five fields: minute, hour, day of month, month, day of week.
 Each field takes `*`, a
 number, `a-b`, a `/step` suffix and comma separated lists; months and weekdays
 also take their three letter names, and `@hourly`, `@daily`, `@weekly`,
@@ -375,7 +375,7 @@ connection does not cancel it.
 | Endpoint | Does |
 |---|---|
 | `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `cleanup_old_images`, `update_available`, `release_url` (public) |
-| `PUT /api/system/version` | `{"beta", "cleanup_old_images"}` — both update preferences, sent together; returns the same payload |
+| `PUT /api/system/version` | `{"beta", "cleanup_old_images"}`, both update preferences, sent together; returns the same payload |
 | `POST /api/system/version/check` | Same payload, but queries GitHub instead of the cache |
 | `POST /api/system/update` | Start an in-place upgrade to `{"version"}` or to latest on the track |
 | `GET /api/system/update/status` | Progress of the running or last update |
@@ -397,7 +397,7 @@ API.
 
 `POST /api/system/update` refuses with `409 UNHEALTHY` while any `/api/health`
 check fails, naming the failing checks in the message and carrying the full
-`checks` map in `details` — recreating the stack on a platform that is already
+`checks` map in `details`. Recreating the stack on a platform that is already
 broken is how an update becomes an outage.
 
 `update/status` reads `system/update-state.json`, which the manager writes when
@@ -405,8 +405,8 @@ an update starts and the updater script rewrites as it moves:
 `{"phase", "target", "previous", "error", "at"}`. `phase` walks
 `backup → pulling → restarting` and settles on `done` or `rolled-back`
 (`error` says why); `idle` means no update was ever started, and an active
-phase older than 30 minutes also reads as `idle` — an updater that died
-without finishing. After a rollback the payload adds `log`, the tail of the
+phase older than 30 minutes also reads as `idle`, an updater that died without
+finishing. After a rollback the payload adds `log`, the tail of the
 kept updater container. The manager is recreated during `restarting`, so the
 panel treats a failing poll in an active phase as that step, not as an error,
 and keeps polling until the manager returns.

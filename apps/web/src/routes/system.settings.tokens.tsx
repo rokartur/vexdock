@@ -87,7 +87,7 @@ function ApiTokens() {
 	})
 
 	const remove = useMutation({
-		mutationFn: (id: string) => api.deleteToken(id),
+		mutationFn: api.deleteToken,
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tokens'] }),
 	})
 

@@ -10,14 +10,11 @@ import (
 	"github.com/vexdock/platform/manager/internal/security"
 )
 
-// CreateEnvironment adds a deployable copy of a project. It gets a fresh id, so
-// a directory and a docker namespace of its own, and starts with the compose
-// file the default environment is running: a new environment that deploys
-// nothing would be a form to fill in rather than a copy of the project.
-//
-// The services, variables and domains do not come with it. Those are what the
-// environment exists to differ in, and copying secrets into a second place is
-// not something to do behind the user's back.
+// CreateEnvironment adds a deployable copy of a project: a fresh id, so its own
+// directory and docker namespace, seeded with the compose file the default
+// environment is running. Services, variables and domains do not come with it,
+// since those are what the environment exists to differ in and copying secrets
+// into a second place behind the user's back is not worth the convenience.
 func (s *Service) CreateEnvironment(ctx context.Context, p *database.Project, name, branch string) (*database.Environment, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {

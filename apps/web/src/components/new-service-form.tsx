@@ -7,14 +7,10 @@ import { engineMarks } from '../lib/engine-marks'
 import { useEnvironmentId } from '../lib/environment'
 import { Button, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
 
-/**
- * What the menu asked for. An application is created as a bare name: whether it
- * builds from a repository or runs a published image is answered in its own
- * settings, once it exists and there is somewhere to answer it.
- */
+/** An application is created as a bare name. Repository or published image is answered later, in its own settings. */
 export type ServiceKind = 'application' | 'database' | 'compose'
 
-const titles: Record<ServiceKind, string> = {
+export const newServiceTitles: Record<ServiceKind, string> = {
 	application: 'New application',
 	database: 'New database',
 	compose: 'New compose service',
@@ -38,15 +34,8 @@ const sqldNodes: readonly { value: SqldNode; label: string }[] = [
 /** Hex, so it can never carry the whitespace or quotes the manager rejects. */
 const generatePassword = () => crypto.randomUUID().replaceAll('-', '')
 
-export function newServiceTitle(kind: ServiceKind) {
-	return titles[kind]
-}
-
-/**
- * Adds one service of an already-chosen kind. Application and compose are thin
- * pass-throughs; a database is generated, so it asks for an engine and a
- * version and lets the manager write the rest.
- */
+/** Application and compose pass straight through. A database is generated, so it asks for an engine and a version
+ * and lets the manager write the rest. */
 export function NewServiceForm({
 	projectId,
 	kind,

@@ -9,11 +9,7 @@ import { useEnvironmentId } from '../lib/environment'
 
 export const Route = createFileRoute('/projects/$projectId/environment')({ component: ProjectEnvironment })
 
-/**
- * Two sets of variables end up in one .env: the project's, which every
- * environment gets, and the environment's own, which win on a collision. They
- * are edited as .env text so a file can be pasted in whole.
- */
+/** The project's variables reach every environment, the environment's own win on a collision. Edited as .env text. */
 function ProjectEnvironment() {
 	const { projectId } = Route.useParams()
 	const selected = useEnvironmentId()

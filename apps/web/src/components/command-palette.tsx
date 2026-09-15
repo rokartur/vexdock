@@ -40,12 +40,8 @@ export function CommandPalette({
 			onOpenChange={onOpenChange}
 			title='Jump to'
 			description='Pages and projects'
-			// Opened and dismissed from the keyboard dozens of times a day, so the
-			// panel itself does not animate: at that frequency any entrance reads as
-			// lag. The overlay still fades, which is what stops the backdrop from
-			// snapping in. Important because tailwind-merge does not know the
-			// tw-animate-css utilities, so both classes survive and animate-out would
-			// otherwise win on source order.
+			// Opened dozens of times a day, where any entrance reads as lag, so only the overlay fades. Both classes
+			// are needed because tailwind-merge does not know the tw-animate-css utilities.
 			className='data-open:animate-none! data-closed:animate-none!'
 		>
 			{/* CommandDialog only supplies the dialog; the cmdk store that the input

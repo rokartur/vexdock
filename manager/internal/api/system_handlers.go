@@ -31,34 +31,28 @@ import (
 func (s *Server) healthChecks(ctx context.Context) (map[string]string, bool) {
 	checks := map[string]string{}
 	healthy := true
+	record := func(name string, err error) {
+		checks[name] = "ok"
+		if err != nil {
+			checks[name], healthy = err.Error(), false
+		}
+	}
 
-	if err := s.DB.PingContext(ctx); err != nil {
-		checks["database"], healthy = err.Error(), false
-	} else {
-		checks["database"] = "ok"
-	}
-	if err := s.Docker.Ping(ctx); err != nil {
-		checks["docker"], healthy = err.Error(), false
-	} else {
-		checks["docker"] = "ok"
-	}
-	if err := writable(s.Config.DataDir); err != nil {
-		checks["storage"], healthy = err.Error(), false
-	} else {
-		checks["storage"] = "ok"
-	}
+	record("database", s.DB.PingContext(ctx))
+	record("docker", s.Docker.Ping(ctx))
+	record("storage", writable(s.Config.DataDir))
+
+	checks["disk"] = "ok"
 	host := metrics.Read(s.Config.Root)
 	if host.DiskTotal > 0 && host.DiskTotal-host.DiskUsed < 512<<20 {
 		checks["disk"], healthy = "less than 512 MB free", false
-	} else {
-		checks["disk"] = "ok"
 	}
+
+	// A failing proxy is reported but does not make the manager unhealthy: the
+	// panel must stay reachable precisely so it can be fixed.
+	checks["nginx"] = "ok"
 	if _, err := s.Nginx.Test(ctx); err != nil {
-		// A failing proxy is reported but does not make the manager unhealthy:
-		// the panel must stay reachable precisely so it can be fixed.
 		checks["nginx"] = err.Error()
-	} else {
-		checks["nginx"] = "ok"
 	}
 	return checks, healthy
 }
@@ -136,7 +130,6 @@ func (s *Server) cleanupOldImages(ctx context.Context) bool {
 	return s.setting(ctx, updater.SettingCleanupOldImages) == "true"
 }
 
-// handleSystemInfo powers the dashboard summary.
 // deploymentEnvironment labels a deployment row: the environment it ran in and
 // the services it covered when it was not scoped to one.
 type deploymentEnvironment struct {

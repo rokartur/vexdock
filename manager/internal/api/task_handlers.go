@@ -160,7 +160,7 @@ func (s *Server) handleListAllTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListServiceTasks(w http.ResponseWriter, r *http.Request) {
 	service, err := s.DB.ServiceByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	tasks, err := s.DB.ScheduledTasksByService(r.Context(), r.PathValue("id"))
@@ -179,7 +179,7 @@ func (s *Server) handleListServiceTasks(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleCreateServiceTask(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.DB.ServiceByID(r.Context(), r.PathValue("id")); handleLookupError(w, err) {
+	if _, err := s.DB.ServiceByID(r.Context(), r.PathValue("id")); lookupFailed(w, err) {
 		return
 	}
 	var in taskInput
@@ -202,7 +202,7 @@ func (s *Server) handleCreateServiceTask(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	task, err := s.DB.ScheduledTaskByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	var in taskInput
@@ -223,7 +223,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.DB.ScheduledTaskByID(r.Context(), r.PathValue("id")); handleLookupError(w, err) {
+	if _, err := s.DB.ScheduledTaskByID(r.Context(), r.PathValue("id")); lookupFailed(w, err) {
 		return
 	}
 	if err := s.DB.DeleteScheduledTask(r.Context(), r.PathValue("id")); err != nil {
@@ -237,7 +237,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 // the run happened, and its result is in the payload.
 func (s *Server) handleRunTask(w http.ResponseWriter, r *http.Request) {
 	task, err := s.DB.ScheduledTaskByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	run, err := s.Tasks.Execute(r.Context(), *task)
@@ -253,7 +253,7 @@ func (s *Server) handleRunTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTaskRuns(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.DB.ScheduledTaskByID(r.Context(), r.PathValue("id")); handleLookupError(w, err) {
+	if _, err := s.DB.ScheduledTaskByID(r.Context(), r.PathValue("id")); lookupFailed(w, err) {
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))

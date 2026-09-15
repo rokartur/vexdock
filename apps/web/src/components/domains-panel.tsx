@@ -137,11 +137,7 @@ function domainTableColumns({
 	]
 }
 
-/**
- * The project's domains and the form that adds one. Given a service it shows
- * only that service's hostnames and adds new ones to it, so the service column
- * and picker have nothing left to say.
- */
+/** Given a service this narrows to that service's hostnames and drops the service column and picker. */
 export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: Service }) {
 	const queryClient = useQueryClient()
 	const [warning, setWarning] = useState('')
@@ -196,12 +192,12 @@ export function DomainsPanel({ projectId, scope }: { projectId: string; scope?: 
 	})
 
 	const remove = useMutation({
-		mutationFn: (id: string) => api.deleteDomain(id),
+		mutationFn: api.deleteDomain,
 		onSuccess: invalidate,
 	})
 
 	const issue = useMutation({
-		mutationFn: (id: string) => api.issueCertificate(id),
+		mutationFn: api.issueCertificate,
 		onSuccess: invalidate,
 	})
 

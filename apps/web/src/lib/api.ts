@@ -1,10 +1,5 @@
-/**
- * Typed client for the Go manager API.
- *
- * Requests carry the session cookie and nothing else. Cross-site forgery is
- * blocked by the manager comparing Origin against the request host, so the
- * dashboard has no token to hold: same-origin requests pass, others do not.
- */
+/** Requests carry the session cookie and nothing else. The manager blocks forgery by comparing Origin against the
+ * request host, so the dashboard has no CSRF token to hold. */
 
 export type User = {
 	id: string
@@ -84,11 +79,8 @@ export type Project = {
 }
 
 /**
- * A deployable copy of a project. It owns the docker namespace, so production
- * and staging never share a container, a volume or a network alias.
- *
- * The default environment carries its project's id, which is what makes an
- * install that predates environments keep running untouched.
+ * A deployable copy of a project, owning the docker namespace so production and staging share no container, volume or
+ * network alias. The default environment carries its project's id, which keeps older installs running.
  */
 export type Environment = {
 	id: string
@@ -107,10 +99,8 @@ export type Environment = {
 export type ServiceType = 'application' | 'database'
 
 /**
- * Where a service comes from. The five git providers clone the same way and
- * differ only in webhook dialect and label. 'image' pulls a tag, 'raw' is a
- * pasted compose fragment, and 'unconfigured' is still only a name, deploying
- * to nothing until its settings answer where it comes from.
+ * The five git providers clone alike and differ only in webhook dialect and label. 'image' pulls a tag, 'raw' is a
+ * pasted compose fragment, and 'unconfigured' is a name that deploys nothing until its settings answer.
  */
 export type ServiceProvider = 'unconfigured' | 'github' | 'gitlab' | 'bitbucket' | 'gitea' | 'git' | 'image' | 'raw'
 
@@ -548,13 +538,9 @@ type RequestOptions = {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-	const method = options.method ?? 'GET'
-	const headers: Record<string, string> = {}
-	if (options.body !== undefined) headers['Content-Type'] = 'application/json'
-
 	const response = await fetch(path, {
-		method,
-		headers,
+		method: options.method ?? 'GET',
+		headers: options.body === undefined ? {} : { 'Content-Type': 'application/json' },
 		credentials: 'same-origin',
 		body: options.body === undefined ? undefined : JSON.stringify(options.body),
 		signal: options.signal,
@@ -679,22 +665,14 @@ export const api = {
 			method: 'POST',
 			body,
 		}),
-	/**
-	 * Installs a catalog application: one raw service per compose service, its
-	 * generated values seeded into the environment, and the domain pointed at
-	 * whichever service serves it. A `warning` means the services exist but the
-	 * domain or its certificate did not come up.
-	 */
+	/** One raw service per compose service, its values seeded into the environment. A `warning` means the services
+	 * exist but the domain did not. */
 	createFromTemplate: (projectId: string, body: { slug: string; hostname: string }, environmentId?: string) =>
 		request<{ services: Service[]; domain?: Domain; warning?: string }>(
 			`/api/projects/${projectId}/services/template${environmentQuery(environmentId)}`,
 			{ method: 'POST', body },
 		),
-	/**
-	 * Renders the project's managed services as base64 for another project's
-	 * import. Secret values stay behind unless asked for: the blob is encoded,
-	 * not encrypted, and it is headed for a clipboard.
-	 */
+	/** Secrets stay behind unless asked for: the blob is base64, not encrypted, and headed for a clipboard. */
 	exportServices: (projectId: string, secrets: boolean, environmentId?: string) =>
 		request<{ payload: string; secrets: boolean }>(
 			`/api/projects/${projectId}/services/export?secrets=${secrets}${environmentId ? `&environment=${environmentId}` : ''}`,

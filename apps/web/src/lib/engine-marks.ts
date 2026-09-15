@@ -1,10 +1,6 @@
 /**
- * The brand marks the engine picker draws, taken from each project's own logo
- * rather than redrawn, so PostgreSQL looks like PostgreSQL. Each keeps the
- * viewBox its source ships with; MariaDB's official #003545 is invisible on
- * black, so it renders the way the brand does on dark backgrounds, in white.
- *
- * Sources: simple-icons (PostgreSQL, Turso for libSQL), devicon (MySQL,
+ * Each mark keeps the viewBox its source ships with. MariaDB's official #003545 is invisible on black, so it uses
+ * the white the brand itself uses on dark. Sources: simple-icons (PostgreSQL, Turso for libSQL), devicon (MySQL,
  * MariaDB, MongoDB), valkey.io (Valkey).
  */
 export const engineMarks: Record<string, { fill: string; viewBox: string; fillRule?: 'evenodd'; d: string }> = {

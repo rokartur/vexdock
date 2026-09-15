@@ -124,7 +124,7 @@ func waitForTXT(ctx context.Context, record, value string) error {
 
 // cloudflare is the single supported DNS-01 provider. It needs an API token
 // scoped to Zone:Read and DNS:Edit. Other providers are deliberately absent:
-// one covers the wildcard case for most self-hosters without a plugin surface.
+// one covers the wildcard case for most self-hosters without a plugin system.
 type cloudflare struct {
 	token   string
 	client  *http.Client

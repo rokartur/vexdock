@@ -63,7 +63,7 @@ function VolumesPage() {
 	const volumes = useQuery({ queryKey: ['volumes'], queryFn: api.volumes })
 
 	const remove = useMutation({
-		mutationFn: (name: string) => api.removeVolume(name),
+		mutationFn: api.removeVolume,
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['volumes'] }),
 	})
 

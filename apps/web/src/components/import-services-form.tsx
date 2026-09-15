@@ -28,11 +28,7 @@ type PortableService = {
 
 type Export = { version: number; project: string; services: PortableService[] }
 
-/**
- * Reads a pasted export without trusting it. Everything here is a display
- * decision; the manager validates each service again on the way in, so a
- * hand-edited blob fails at creation rather than slipping through.
- */
+/** Display only. The manager validates each service again, so a hand-edited blob fails at creation. */
 export function decodeExport(pasted: string): Export | Error {
 	const trimmed = pasted.trim()
 	if (!trimmed) {
@@ -64,13 +60,8 @@ export function decodeExport(pasted: string): Export | Error {
 }
 
 /**
- * Lays an export's variables over the ones creating the service generated.
- *
- * Saving an environment replaces it, so the naive replay would delete a fresh
- * database password whenever the export was taken without secrets. Withheld
- * values therefore defer: where the create seeded the same key, the masked row
- * goes back untouched and the manager reads that as “unchanged”; where it did
- * not, the key still lands, empty, so its name is there to fill in.
+ * Saving an environment replaces it, so replaying a secret-less export would wipe the password the create just
+ * seeded. A withheld value defers to the seeded one, and only lands empty when the key is new.
  */
 export function mergeEnv(seeded: EnvVar[], service: PortableService): EnvVar[] {
 	const merged = [...seeded]
@@ -115,11 +106,8 @@ export function ImportServicesForm({
 		(service.env ?? []).some(variable => variable.is_secret && variable.value === ''),
 	)
 
-	// Services are created one at a time through the same endpoint the forms
-	// use, so each one is validated exactly as if it had been typed. Sequential
-	// on purpose: every create rewrites the project's overlay, and in parallel
-	// they would race for that one file. A failure half way leaves the earlier
-	// ones in place, named in the error.
+	// Sequential because every create rewrites the project's overlay and parallel creates race for that one file.
+	// A failure half way leaves the earlier services in place, named in the error.
 	const run = useMutation({
 		mutationFn: async () => {
 			/* oxlint-disable no-await-in-loop -- sequential is the point, see above */

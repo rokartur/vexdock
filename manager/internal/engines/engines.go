@@ -1,11 +1,10 @@
 // Package engines is the catalog of one-click databases: which image a service
 // runs, which versions it offers and how to connect to it once it is up.
 //
-// A database is one service among the others in a project, so what an engine
-// renders is a compose service fragment rather than a file. Credentials reach
-// the container through that service's own env file instead of compose-level
-// interpolation, which is what lets two Postgres services in one project each
-// have their own POSTGRES_PASSWORD.
+// A database is one service among the others, so an engine renders a compose
+// service fragment rather than a file. Credentials reach the container through
+// that service's own env file instead of compose-level interpolation, which is
+// what lets two Postgres services in one project each have their own password.
 package engines
 
 import (

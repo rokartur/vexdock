@@ -155,7 +155,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	view, err := s.projectView(r.Context(), project, s.hostContainers(r.Context()))
@@ -168,7 +168,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	var req struct {
@@ -223,7 +223,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 // nothing points at any more.
 func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	envs, err := s.DB.ListEnvironments(r.Context(), project.ID)
@@ -328,7 +328,7 @@ func (s *Server) handleGetProjectVariables(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handlePutProjectVariables(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	var req struct {

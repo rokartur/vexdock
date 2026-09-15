@@ -59,7 +59,7 @@ func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 	domain, err := s.DB.DomainByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	var req struct {
@@ -115,7 +115,7 @@ func (s *Server) handleDeleteDomain(w http.ResponseWriter, r *http.Request) {
 // handleIssueCertificate retries or forces certificate issuance for a domain.
 func (s *Server) handleIssueCertificate(w http.ResponseWriter, r *http.Request) {
 	domain, err := s.DB.DomainByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	if err := s.Domains.EnsureCertificate(r.Context(), domain); err != nil {
@@ -123,7 +123,7 @@ func (s *Server) handleIssueCertificate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	cert, err := s.DB.CertificateByDomain(r.Context(), domain.ID)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, cert)

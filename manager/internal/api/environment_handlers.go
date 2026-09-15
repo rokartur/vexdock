@@ -17,11 +17,11 @@ import (
 // somewhere else is a 404 rather than a way across the boundary.
 func (s *Server) projectEnv(w http.ResponseWriter, r *http.Request) (*database.Project, *database.Environment, bool) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return nil, nil, false
 	}
 	env, err := s.DB.EnvironmentOrDefault(r.Context(), project.ID, r.URL.Query().Get("environment"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return nil, nil, false
 	}
 	return project, env, true
@@ -31,11 +31,11 @@ func (s *Server) projectEnv(w http.ResponseWriter, r *http.Request) (*database.P
 // the project it belongs to.
 func (s *Server) environmentAndProject(w http.ResponseWriter, r *http.Request) (*database.Environment, *database.Project, bool) {
 	env, err := s.DB.EnvironmentByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return nil, nil, false
 	}
 	project, err := s.DB.ProjectByID(r.Context(), env.ProjectID)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return nil, nil, false
 	}
 	return env, project, true
@@ -43,7 +43,7 @@ func (s *Server) environmentAndProject(w http.ResponseWriter, r *http.Request) (
 
 func (s *Server) handleListEnvironments(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	list, err := s.DB.ListEnvironments(r.Context(), project.ID)
@@ -56,7 +56,7 @@ func (s *Server) handleListEnvironments(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleCreateEnvironment(w http.ResponseWriter, r *http.Request) {
 	project, err := s.DB.ProjectByID(r.Context(), r.PathValue("id"))
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	var req struct {

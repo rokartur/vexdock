@@ -30,15 +30,11 @@ import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, Tab
 import { cn } from '@/utils/cn'
 import { EmptyState } from './primitives'
 
-/** Per-column rendering hints the DataTable understands. */
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
-/**
- * One feature set for the whole app: client-side sorting and filtering, nothing
- * else. Paging is a slice of the sorted, filtered rows done by the DataTable
- * itself, which is what lets it clamp the page without an effect.
- */
-export const tableFeatureSet = tableFeatures({
+/** Client-side sorting and filtering only. DataTable slices the result itself, which lets it clamp the page
+ * without an effect. */
+const tableFeatureSet = tableFeatures({
 	rowSortingFeature,
 	sortedRowModel: createSortedRowModel(),
 	sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text, basic: sortFn_basic },
@@ -73,20 +69,13 @@ type DataTableProps<TData extends RowData> = {
 	getRowId?: (row: TData, index: number) => string
 	/** Rows per page. The pager only appears when there is more than one page. */
 	pageSize?: number
-	/**
-	 * A text box above the rows that narrows them to the ones whose accessor
-	 * values contain what was typed. The string is the placeholder.
-	 */
+	/** Placeholder for a text box above the rows, which keeps the rows whose accessor values contain what was typed. */
 	filter?: string
 	/** Seeds the filter box, for a page reached with a term already in its URL. */
 	initialFilter?: string
 	/** Makes the whole row activatable. A cell with its own handler must stop propagation. */
 	onRowClick?: (row: TData) => void
-	/**
-	 * Makes rows expandable: clicking one renders `render` underneath it. Which
-	 * row is open belongs to the caller, so it can live in the URL. Needs
-	 * `getRowId`, and a cell with its own handler must stop propagation.
-	 */
+	/** Clicking a row renders `render` underneath it. The open row belongs to the caller, so it can live in the URL. */
 	detail?: {
 		openId: string | null
 		onOpenChange: (id: string | null) => void

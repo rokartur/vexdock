@@ -73,7 +73,7 @@ function Registries() {
 	})
 
 	const remove = useMutation({
-		mutationFn: (id: string) => api.deleteRegistry(id),
+		mutationFn: api.deleteRegistry,
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['registries'] }),
 	})
 

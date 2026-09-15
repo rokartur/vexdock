@@ -38,7 +38,7 @@ func (s *Server) handleEngineVersions(w http.ResponseWriter, r *http.Request) {
 // was started with, so an edited variable is reflected here immediately.
 func (s *Server) handleServiceDatabase(w http.ResponseWriter, r *http.Request) {
 	service, _, env, err := s.lookupService(r)
-	if handleLookupError(w, err) {
+	if lookupFailed(w, err) {
 		return
 	}
 	engine, ok := engines.BySlug(service.Engine)

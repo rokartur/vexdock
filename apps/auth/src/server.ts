@@ -3,12 +3,7 @@ import { getMigrations } from 'better-auth/db/migration'
 import { backfillAccountIssuer } from './account-issuer'
 import { auth, authOptions, database } from './auth'
 
-/**
- * Auth service. Nginx routes /api/auth/* here; everything else goes to the Go
- * manager. Only the first account may be created: the platform is single
- * tenant, so sign-up closes as soon as an administrator exists.
- */
-
+// Nginx routes /api/auth/* here; everything else goes to the Go manager.
 const port = Number(process.env.PORT ?? 8081)
 
 // A fresh panel is reachable on a public IP before anyone has signed up, so the

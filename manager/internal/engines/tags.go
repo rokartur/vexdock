@@ -18,15 +18,12 @@ const tagLookupTimeout = 5 * time.Second
 // popular image and none of the tail is a version anyone deliberately picks.
 const maxTags = 60
 
-// Versions lists the tags available for an engine: the catalog's curated ones
-// first, then everything else Docker Hub knows about. Hub orders by last push,
-// which puts an old patch release at the top of an unsorted list, so the
-// curated entries are what makes the picker's first suggestion a sane one.
-// When Hub cannot be reached the curated list is the answer on its own.
-//
-// The repository is taken from the catalog and never from the caller, so this
-// cannot be pointed at an arbitrary host. The custom engine has no repository
-// and therefore no lookup: the user types the image reference themselves.
+// Versions lists an engine's curated tags first, then everything else Docker
+// Hub knows about. Hub orders by last push, which would put an old patch
+// release at the top, and when Hub is unreachable the curated list is the whole
+// answer. The repository comes from the catalog and never from the caller, so
+// this cannot be pointed at an arbitrary host; the custom engine has none and
+// is never looked up.
 func Versions(ctx context.Context, engine Engine) ([]string, error) {
 	if engine.Repository == "" {
 		return nil, fmt.Errorf("engine %q has no curated repository", engine.Slug)

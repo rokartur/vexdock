@@ -130,7 +130,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 	}
 	if d.HTTPSEnabled {
 		if err := s.EnsureCertificate(ctx, d); err != nil {
-			// The domain exists and serves over HTTP; surface the TLS problem
+			// The domain exists and serves over HTTP; report the TLS problem
 			// without discarding the mapping the user just created.
 			return d, err
 		}
@@ -406,7 +406,7 @@ func (s *Service) RenewExpiring(ctx context.Context) {
 }
 
 // The panel's own hostname is a setting, not a row in `domains`, so the sweep
-// above cannot see it and its certificate would simply expire.
+// above cannot see it and its certificate would expire.
 func (s *Service) renewDashboardCertificate(ctx context.Context) {
 	host, err := s.db.Setting(ctx, SettingDashboardDomain)
 	if err != nil {

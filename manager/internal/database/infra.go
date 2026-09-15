@@ -38,20 +38,12 @@ func (db *DB) DomainByID(ctx context.Context, id string) (*Domain, error) {
 	return scanDomain(db.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM domains WHERE id = ?`, id))
 }
 
-func (db *DB) DomainByHostname(ctx context.Context, hostname string) (*Domain, error) {
-	return scanDomain(db.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM domains WHERE hostname = ?`, hostname))
-}
-
 func (db *DB) ListDomains(ctx context.Context) ([]Domain, error) {
 	return db.queryDomains(ctx, `SELECT `+domainColumns+` FROM domains ORDER BY hostname`)
 }
 
 func (db *DB) ListProjectDomains(ctx context.Context, projectID string) ([]Domain, error) {
 	return db.queryDomains(ctx, `SELECT `+domainColumns+` FROM domains WHERE project_id = ? ORDER BY hostname`, projectID)
-}
-
-func (db *DB) ListEnvironmentDomains(ctx context.Context, environmentID string) ([]Domain, error) {
-	return db.queryDomains(ctx, `SELECT `+domainColumns+` FROM domains WHERE environment_id = ? ORDER BY hostname`, environmentID)
 }
 
 func (db *DB) queryDomains(ctx context.Context, query string, args ...any) ([]Domain, error) {
