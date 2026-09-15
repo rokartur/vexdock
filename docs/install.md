@@ -40,7 +40,7 @@ Environment variables understood by the installer:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PLATFORM_ROOT` | `/opt/vexdock` | State directory. An install made before the rename keeps `/opt/platform`, since its projects bind-mount paths inside it |
+| `PLATFORM_ROOT` | `/opt/vexdock` | State directory. An install made before the rename still sits in `/opt/platform`; its next update moves it and leaves a symlink behind for projects that bind-mount paths inside the old root |
 | `DASHBOARD_PORT` | `3000` | Port the dashboard listens on |
 | `PLATFORM_VERSION` | `latest` | Version to install |
 | `ACME_EMAIL` | empty | Contact address for Let's Encrypt |

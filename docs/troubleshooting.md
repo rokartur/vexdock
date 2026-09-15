@@ -91,6 +91,11 @@ docker ps --filter name=vexdock
 A successful update deletes its own container. One that failed is kept so those
 logs survive, until the next update replaces it.
 
+An install older than the `/opt/platform` to `/opt/vexdock` rename moves during
+its next update, and the log says so. `could not move the state directory` means
+something already occupies `/opt/vexdock`: the update carries on in the old
+directory, so remove or rename the stray one and update again.
+
 Backups live in `/opt/vexdock/backups/<timestamp>/`, containing `app.db`,
 `auth.db`, `master.key`, the generated proxy configuration and the certificates.
 A backup created with **Config + data** also has a `volumes/<name>.tar.gz` per

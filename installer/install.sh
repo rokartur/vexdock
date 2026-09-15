@@ -13,11 +13,14 @@ set -eu
 REPO="${PLATFORM_REPO:-rokartur/vexdock}"
 RAW_BASE="${PLATFORM_RAW_BASE:-https://raw.githubusercontent.com/$REPO}"
 REGISTRY="${PLATFORM_REGISTRY:-ghcr.io/${REPO%%/*}}"
-# Installs made before the directory was renamed still live in /opt/platform,
-# and their deployed projects bind-mount paths inside it, so they are adopted
-# where they are rather than moved under the running containers.
+# Installs made before the directory was renamed still live in /opt/platform
+# until their next update moves them, so they are adopted where they are. After
+# that move /opt/platform is a symlink to /opt/vexdock, which is why the new
+# path is tested first.
 if [ -n "${PLATFORM_ROOT:-}" ]; then
     ROOT="$PLATFORM_ROOT"
+elif [ -f /opt/vexdock/compose.yml ]; then
+    ROOT=/opt/vexdock
 elif [ -f /opt/platform/compose.yml ]; then
     ROOT=/opt/platform
 else

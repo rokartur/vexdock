@@ -44,7 +44,7 @@ const SettingBeta = "updater.beta"
 // platform images after a successful update. "true" / "false"; empty is off.
 const SettingCleanupOldImages = "updater.cleanup_old_images"
 
-// semverTag normalises a release tag for semver.Compare, which requires the
+// semverTag normalizes a release tag for semver.Compare, which requires the
 // leading "v" that versionPattern treats as optional.
 func semverTag(v string) string {
 	if strings.HasPrefix(v, "v") {
@@ -243,6 +243,7 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease, 
 		"-w", s.cfg.Root,
 		"-e", "PLATFORM_ROOT=" + s.cfg.Root,
 		"-e", "PLATFORM_RAW_BASE=" + s.rawBase,
+		"-e", "PLATFORM_UPDATER_IMAGE=" + UpdaterImage,
 		UpdaterImage,
 		"sh", scriptPath, version, fmt.Sprintf("%t", cleanupOldImages),
 	}

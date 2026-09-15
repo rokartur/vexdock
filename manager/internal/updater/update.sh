@@ -66,6 +66,33 @@ compose() {
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
 }
 
+# An install made before the rename still lives in /opt/platform. Only a
+# container that mounts the host's /opt can rename it; the symlink left behind
+# keeps deployed projects that bind-mount paths inside the old root working.
+migrate_legacy_root() {
+    [ "$ROOT" = /opt/platform ] || return 0
+    log "moving /opt/platform to /opt/vexdock"
+    # The stack's containers are named and its compose project name comes from
+    # the directory, so it cannot be renamed under them.
+    if ! compose down --remove-orphans; then
+        log "stack did not stop; staying on /opt/platform"
+        return 0
+    fi
+    if ! docker run --rm -v /opt:/opt "$PLATFORM_UPDATER_IMAGE" \
+        sh -c '[ ! -e /opt/vexdock ] && mv /opt/platform /opt/vexdock'; then
+        log "could not move the state directory; staying on /opt/platform"
+        return 0
+    fi
+    docker run --rm -v /opt:/opt "$PLATFORM_UPDATER_IMAGE" ln -s /opt/vexdock /opt/platform ||
+        log "moved, but /opt/platform is gone: a project still naming it will fail to start"
+    sed -i 's|^PLATFORM_ROOT=.*|PLATFORM_ROOT=/opt/vexdock|' "$ENV_FILE"
+    # This run still drives compose through the old path, so the name the new
+    # directory would give it has to be set by hand.
+    COMPOSE_PROJECT_NAME=vexdock
+    export COMPOSE_PROJECT_NAME
+    log "state directory is now /opt/vexdock"
+}
+
 cleanup_old_images() {
     [ "$CLEANUP_OLD_IMAGES" = true ] || return 0
     if ! current_images="$(compose config --images)"; then
@@ -138,6 +165,7 @@ fi
 
 log "recreating stack"
 state restarting
+migrate_legacy_root
 if ! compose up -d --remove-orphans; then
     log "recreate failed"
     rollback "stack recreate failed"
