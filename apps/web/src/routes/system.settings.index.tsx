@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
-import { IconCloud, IconPalette, IconTrash, IconWorld } from '@tabler/icons-react'
+import { IconCloud, IconTrash, IconWorld } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Button, ErrorText, Field, FormSection, Input, SaveButton, Switch } from '../components/primitives'
-import { api } from '../lib/api'
-import { BRAND_COLORS, DEFAULT_BRAND } from '../lib/brand'
-import { cn } from '../utils/cn'
+import {
+	Button,
+	ErrorText,
+	Field,
+	FormSection,
+	Input,
+	RelativeTime,
+	SaveButton,
+	Switch,
+} from '../components/primitives'
+import { api, type Certificate } from '../lib/api'
 
 export const Route = createFileRoute('/system/settings/')({ component: GeneralSettings })
 
@@ -16,7 +23,8 @@ export const Route = createFileRoute('/system/settings/')({ component: GeneralSe
 function GeneralSettings() {
 	const queryClient = useQueryClient()
 	const settings = useQuery({ queryKey: ['settings'], queryFn: api.settings })
-	const [draft, setDraft] = useState({ domain: '', https: true, token: '', brand: '' })
+	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
+	const [draft, setDraft] = useState({ domain: '', https: true, token: '' })
 
 	useEffect(() => {
 		const loaded = settings.data
@@ -25,12 +33,11 @@ function GeneralSettings() {
 			domain: loaded.dashboard_domain,
 			https: loaded.dashboard_https,
 			token: '',
-			brand: loaded.brand_color,
 		})
 	}, [settings.data])
 
 	// The Cloudflare token is write-only: undefined keeps the stored one (the key
-	// is dropped on serialisation), '' clears it.
+	// is dropped on serialization), '' clears it.
 	const save = useMutation({
 		mutationFn: (cloudflareToken: string | undefined) =>
 			settings.data
@@ -38,7 +45,6 @@ function GeneralSettings() {
 						acme_email: settings.data.acme_email,
 						dashboard_domain: draft.domain,
 						dashboard_https: draft.https,
-						brand_color: draft.brand,
 						cloudflare_api_token: cloudflareToken,
 					})
 				: Promise.reject(new Error('settings not loaded yet')),
@@ -50,7 +56,9 @@ function GeneralSettings() {
 
 	const apply = () => save.mutate(draft.token || undefined)
 	const tokenStored = settings.data?.cloudflare_token_set ?? false
-	const saveButton = <SaveButton pending={save.isPending} />
+	const saveButton = <SaveButton mutation={save} />
+	const certificate = certificates.data?.find(cert => cert.hostname === settings.data?.dashboard_domain)
+	const wildcards = certificates.data?.filter(cert => cert.hostname.startsWith('*.')).length ?? 0
 
 	return (
 		<div className='max-w-3xl'>
@@ -61,6 +69,13 @@ function GeneralSettings() {
 				icon={IconWorld}
 				hint='Leave empty to keep using the server IP on port 3000.'
 				actions={saveButton}
+				aside={[
+					{
+						label: 'Reached at',
+						value: <span className='font-mono text-label'>{window.location.host}</span>,
+					},
+					{ label: 'Certificate', value: <CertificateFact certificate={certificate} /> },
+				]}
 				onSave={apply}
 			>
 				<div className='grid gap-x-6 md:grid-cols-2'>
@@ -82,44 +97,14 @@ function GeneralSettings() {
 			</FormSection>
 
 			<FormSection
-				title='Chart colour'
-				description='The accent the charts draw in.'
-				icon={IconPalette}
-				hint='The rest of the panel stays monochrome.'
-				actions={saveButton}
-				onSave={apply}
-			>
-				<div className='flex flex-wrap items-center gap-2'>
-					{BRAND_COLORS.map(color => {
-						// An empty setting means the shipped orange, so it selects that swatch.
-						const selected = (draft.brand || DEFAULT_BRAND).toLowerCase() === color
-						return (
-							<button
-								key={color}
-								type='button'
-								aria-label={color}
-								aria-pressed={selected}
-								onClick={() => setDraft({ ...draft, brand: color === DEFAULT_BRAND ? '' : color })}
-								style={{ background: color }}
-								className={cn(
-									'size-6 cursor-pointer rounded-full',
-									selected && 'ring-2 ring-foreground ring-offset-2 ring-offset-background',
-								)}
-							/>
-						)
-					})}
-				</div>
-			</FormSection>
-
-			<FormSection
 				title='DNS challenge'
 				description='Required for wildcard certificates.'
 				icon={IconCloud}
-				hint={
-					tokenStored
-						? 'A token is stored. Enter a new one to replace it.'
-						: 'Scoped to Zone:Read and DNS:Edit. Without it only HTTP-01 is used and *.example.com cannot be issued.'
-				}
+				hint='Scoped to Zone:Read and DNS:Edit. Without it only HTTP-01 is used and *.example.com cannot be issued.'
+				aside={[
+					{ label: 'Token', value: tokenStored ? 'stored' : 'not set' },
+					{ label: 'Wildcard certificates', value: wildcards },
+				]}
 				actions={
 					<>
 						{tokenStored ? (
@@ -133,7 +118,10 @@ function GeneralSettings() {
 				}
 				onSave={apply}
 			>
-				<Field label='Cloudflare API token'>
+				<Field
+					label='Cloudflare API token'
+					hint={tokenStored ? 'Entering one replaces the stored token.' : undefined}
+				>
 					<Input
 						type='password'
 						value={draft.token}
@@ -143,5 +131,15 @@ function GeneralSettings() {
 				</Field>
 			</FormSection>
 		</div>
+	)
+}
+
+function CertificateFact({ certificate }: { certificate: Certificate | undefined }) {
+	if (!certificate) return <span className='text-muted-foreground'>none issued</span>
+	if (certificate.status !== 'issued') return <span>{certificate.status}</span>
+	return (
+		<span>
+			expires <RelativeTime at={certificate.expires_at} />
+		</span>
 	)
 }

@@ -165,6 +165,51 @@ func (db *DB) LatestServiceMetrics(ctx context.Context, since time.Time) (map[st
 	return out, rows.Err()
 }
 
+// ContainerUsage is what one container's row on the containers list reads:
+// the newest bucket, plus every bucket in the window for the sparkline.
+type ContainerUsage struct {
+	CPUPercent  float64   `json:"cpu_percent"`
+	MemoryUsage uint64    `json:"memory_usage"`
+	MemoryLimit uint64    `json:"memory_limit"`
+	CPUSeries   []float64 `json:"cpu_series"`
+}
+
+// ContainerUsage returns usage per container id since `since`, bucketed like
+// HostMetrics. Keyed by container id rather than service id, so containers the
+// platform does not manage are in it too.
+func (db *DB) ContainerUsage(ctx context.Context, since time.Time, bucket int64) (map[string]ContainerUsage, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT container_id, AVG(cpu_percent), AVG(memory_usage), MAX(memory_limit)
+		 FROM container_metrics WHERE at >= ?
+		 GROUP BY container_id, at / ? ORDER BY container_id, MIN(at)`,
+		since.Unix(), clampBucket(bucket))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]ContainerUsage{}
+	for rows.Next() {
+		var (
+			id          string
+			cpu         float64
+			memoryUsage float64
+			memoryLimit uint64
+		)
+		if err := rows.Scan(&id, &cpu, &memoryUsage, &memoryLimit); err != nil {
+			return nil, err
+		}
+		// Ordered by bucket, so the last row for an id is the newest reading.
+		out[id] = ContainerUsage{
+			CPUPercent:  cpu,
+			MemoryUsage: uint64(memoryUsage),
+			MemoryLimit: memoryLimit,
+			CPUSeries:   append(out[id].CPUSeries, cpu),
+		}
+	}
+	return out, rows.Err()
+}
+
 // PruneMetrics drops readings older than `before`, keeping both tables bounded.
 func (db *DB) PruneMetrics(ctx context.Context, before time.Time) error {
 	cutoff := before.Unix()

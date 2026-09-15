@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { IconVariable } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { EnvEditor } from '../components/env-editor'
+import { VariablesEditor } from '../components/env-editor'
 import { ErrorText, FormSection, SaveButton } from '../components/primitives'
 import { api } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
@@ -40,12 +40,12 @@ function ServiceEnvironment() {
 				title='Environment variables'
 				description='Written to this service’s own .env with 0600 permissions.'
 				icon={IconVariable}
-				hint='One KEY=value per line. Redeploy to apply.'
+				hint='Redeploy to apply.'
 				onSave={() => save.mutate()}
-				actions={<SaveButton pending={save.isPending} />}
+				actions={<SaveButton mutation={save} />}
 			>
 				<ErrorText error={save.error} />
-				<EnvEditor rows={18} value={text} onChange={setText} />
+				<VariablesEditor rows={18} value={text} onChange={setText} stored={environment.data ?? []} />
 			</FormSection>
 		</div>
 	)

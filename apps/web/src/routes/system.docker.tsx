@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
+import { Confirm, ErrorText, IconButton, Meter, Page, Refresh, Section } from '../components/primitives'
 import { api } from '../lib/api'
 import { bytes } from '../lib/format'
 
@@ -27,7 +27,7 @@ const targets = [
 type CleanupTarget = (typeof targets)[number]
 type CleanupRow = { kind: CleanupTarget['kind']; label: string; icon: TablerIcon; size: number | undefined }
 
-function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void): Columns<CleanupRow> {
+function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void, total: number): Columns<CleanupRow> {
 	const cell = columnsFor<CleanupRow>()
 	return [
 		cell.accessor(row => row.label, {
@@ -43,8 +43,7 @@ function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void): Colu
 		cell.accessor(row => row.size ?? 0, {
 			id: 'size',
 			header: 'Size',
-			meta: { mono: true },
-			cell: ({ row }) => bytes(row.original.size),
+			cell: ({ row }) => <Meter label={bytes(row.original.size)} value={row.original.size ?? 0} max={total} />,
 		}),
 		cell.display({
 			id: 'actions',
@@ -87,13 +86,18 @@ function CleanupPage() {
 		[preview.data],
 	)
 	const { mutate: clean } = cleanup
-	const columns = useMemo(() => cleanupTableColumns(clean), [clean])
+	const total = rows.reduce((sum, row) => sum + (row.size ?? 0), 0)
+	const columns = useMemo(() => cleanupTableColumns(clean, total), [clean, total])
 
 	return (
 		<Page labels={{ docker: 'Docker cleanup' }}>
 			<Section
 				title='Reclaimable space'
-				description='review before removing anything'
+				description={
+					preview.data
+						? `${bytes(total)} reclaimable, review before removing anything`
+						: 'review before removing anything'
+				}
 				actions={<Refresh onClick={() => preview.refetch()} busy={preview.isFetching} />}
 			>
 				<ErrorText error={cleanup.error} />

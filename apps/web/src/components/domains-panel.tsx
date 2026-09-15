@@ -24,6 +24,7 @@ import {
 	IconButton,
 	Input,
 	Refresh,
+	RelativeTime,
 	Section,
 	Segmented,
 	Status,
@@ -80,7 +81,7 @@ function domainTableColumns({ certificateFor, renew, renewing, replace, remove }
 						<Status value={certificate.status} />
 						{certificate.expires_at ? (
 							<span className='text-label text-muted-foreground'>
-								until {certificate.expires_at.slice(0, 10)}
+								expires <RelativeTime at={certificate.expires_at} />
 							</span>
 						) : null}
 					</span>

@@ -5,7 +5,7 @@ import { type Line, LogViewer } from '../components/log-viewer'
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
 import { duration } from '../lib/format'
 import { useEventSource } from '../lib/sse'
-import { Button, ErrorText, Status } from './primitives'
+import { Button, ErrorText, Timeline } from './primitives'
 
 type LogLine = { step: string; text: string; at: string }
 
@@ -80,31 +80,30 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 			<ErrorText error={cancel.error} />
 			<ErrorText error={deployment?.error} />
 
-			<div className='flex flex-wrap items-center gap-x-6 gap-y-2'>
-				{steps.length === 0 ? (
-					<span className='text-body text-muted-foreground'>Waiting for the runner…</span>
-				) : (
-					steps.map(step => (
-						<span key={step.id} className='flex items-center gap-2'>
-							<span className='font-mono text-body'>{step.name}</span>
-							<Status value={step.status} />
-							<span className='font-mono text-label text-muted-foreground'>
-								{duration(step.started_at, step.finished_at)}
-							</span>
-						</span>
-					))
-				)}
-				{isRunning ? (
-					<span className='ml-auto'>
+			<div className='flex gap-4'>
+				<div className='flex w-52 shrink-0 flex-col gap-3'>
+					{steps.length === 0 ? (
+						<span className='text-body text-muted-foreground'>Waiting for the runner…</span>
+					) : (
+						<Timeline
+							steps={steps.map(step => ({
+								id: step.id,
+								name: step.name,
+								status: step.status,
+								detail: duration(step.started_at, step.finished_at),
+							}))}
+						/>
+					)}
+					{isRunning ? (
 						<Button variant='danger' onClick={() => cancel.mutate()}>
 							<IconX />
 							Cancel
 						</Button>
-					</span>
-				) : null}
-			</div>
+					) : null}
+				</div>
 
-			<LogViewer lines={logLines} className='h-80' />
+				<LogViewer lines={logLines} className='h-80 min-w-0 flex-1' />
+			</div>
 		</div>
 	)
 }

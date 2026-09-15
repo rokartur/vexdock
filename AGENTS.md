@@ -81,6 +81,27 @@ hand-roll a third switch. Every action has a Tabler icon: a row action is an
 a stack of `FormSection` cards, each with its hint and its own Save in the
 footer, the way a service's General tab does it.
 
+**Forms.** `SaveButton` takes the mutation, not a boolean, and turns into a
+"Saved" receipt for two seconds when it lands, so a card that writes tells you
+it wrote. `FormSection`'s `aside` is the read-only column beside the controls:
+facts the page already loaded that answer "did this take", never a field in
+disguise, and a card with nothing true to say omits it. A list that a card also
+adds to is a `DataTable` in the body with the add form in the footer `actions`,
+labelless and leaning on placeholders. Environment variables are
+`VariablesEditor`, a table of key and value with a Table/Text `Segmented`; the
+.env text stays the source of truth on both sides, so the two views cannot
+disagree.
+
+**Density.** A number that moves gets the word for how it moves: `Meter` for a
+value against a ceiling, `Sparkline` (`metric-chart.tsx`) for a series in a
+table cell, `StatStrip` for the line of facts above a page, `Timeline` for
+ordered steps, `RelativeTime` for a stamp that ticks on its own, past (`3m
+ago`) or future (`in 2h`); raw `since()` and `until()` stay for a stamp inside
+a sentence. A page carries one `StatStrip` and a tab inside a page that already
+has one does not add a second, and a strip with nothing to say does not render.
+A page shows what the API answers and nothing more; a field the backend does
+not send is a backend change, not a placeholder.
+
 **Environment-scoped work.** The environment, not the project, owns the compose
 project name, the directory and the services. A project route takes
 `?environment=`; `s.projectEnv(w, r)` resolves it and falls back to the default.
@@ -91,7 +112,7 @@ with every argument as its own slice element.
 
 ## Keep the docs in sync
 
-The doc edit ships in the same change as the behaviour, not after it.
+The doc edit ships in the same change as the behavior, not after it.
 
 | Changed | Update |
 |---|---|

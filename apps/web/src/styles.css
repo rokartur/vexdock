@@ -1,14 +1,14 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/geist';
+@import '@fontsource-variable/inter';
 @import '@xterm/xterm/css/xterm.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-	/* Geist Variable is the interface family, self-hosted. Mono is kept for the
-	 * surfaces that are literally machine output: console, code, ids. */
+	/* Mono is the system stack, kept for the surfaces that are literally machine
+	 * output: console, code, ids. */
 	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
 	/* The app's type scale. Font size only: line-height stays inherited, which is
@@ -37,12 +37,12 @@
 
 /* Dark-only app: <html class="dark"> is hardcoded in routes/__root.tsx and there
  * is no theme toggle, so the light palette shadcn ships would never render.
- * Only theme-independent tokens live here; every colour is in .dark below. */
+ * Only theme-independent tokens live here; every color is in .dark below. */
 :root {
-	/* The one radius knob. Every other step in the scale is derived from it in
-	 * the @theme inline block below, so corners stay in proportion. Vercel's
-	 * 6px on controls, 8px on cards. */
-	--radius: 0.375rem;
+	/* The one radius knob, set by the bY64 preset. Every other step in the scale
+	 * is derived from it in the @theme inline block below, so corners stay in
+	 * proportion: 10px on controls, 16px on cards. */
+	--radius: 0.625rem;
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.145 0 0);
 	--card: oklch(1 0 0);
@@ -79,51 +79,48 @@
 }
 
 .dark {
-	/* Vercel's dark palette: one true-black canvas, cards a shade lighter, a
-	 * hairline border on everything instead of shadows, white on black for the
-	 * primary button. Grays are Geist's gray scale. */
-	--background: #000000;
-	--foreground: #ededed;
-	--card: #0a0a0a;
-	--card-foreground: #ededed;
-	--popover: #0a0a0a;
-	--popover-foreground: #ededed;
-	--primary: #ededed;
-	--primary-foreground: #0a0a0a;
-	--secondary: #1a1a1a;
-	--secondary-foreground: #ededed;
-	--muted: #1a1a1a;
-	--muted-foreground: #a1a1a1;
-	--accent: #1a1a1a;
-	--accent-foreground: #ededed;
-	--destructive: #e5484d;
+	/* The bY64 palette: neutral, the canvas a shade off black, cards lighter
+	 * again, a hairline border on everything instead of shadows. Every value here
+	 * is what `shadcn apply --preset bY64` writes; do not hand-tune one. */
+	--background: oklch(0.145 0 0);
+	--foreground: oklch(0.985 0 0);
+	--card: oklch(0.205 0 0);
+	--card-foreground: oklch(0.985 0 0);
+	--popover: oklch(0.205 0 0);
+	--popover-foreground: oklch(0.985 0 0);
+	--primary: oklch(0.922 0 0);
+	--primary-foreground: oklch(0.205 0 0);
+	--secondary: oklch(0.269 0 0);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.269 0 0);
+	--muted-foreground: oklch(0.708 0 0);
+	--accent: oklch(0.269 0 0);
+	--accent-foreground: oklch(0.985 0 0);
+	--destructive: oklch(0.704 0.191 22.216);
 	--destructive-foreground: #ffffff;
 	/* Two weights of hairline. --border is a container's edge: the outline of a
 	 * card, a table, an input. --rule is a separator inside one, a table row or a
 	 * fact, and is quieter so a list does not read as a stack of boxes. */
-	--border: #262626;
-	--rule: #171717;
+	--border: oklch(1 0 0 / 10%);
+	--rule: oklch(1 0 0 / 6%);
 	/* A one-pixel inset highlight along the top of anything raised, which is what
 	 * makes a card read as lit from above without a shadow. */
 	--highlight: rgb(255 255 255 / 0.045);
-	--input: #262626;
-	--ring: #878787;
-	/* The one accent knob. Settings overrides --brand inline on <html>; it colours
-	 * the charts and nothing else, so the chrome stays monochrome. */
-	--brand: oklch(0.6531 0.1637 37.22); /* the shipped orange, #e16540 */
-	--chart-1: var(--brand);
-	--chart-2: #52a8ff;
-	--chart-3: #2eb9b9;
-	--chart-4: #46a758;
-	--chart-5: #ffb224;
-	--sidebar: #000000;
-	--sidebar-foreground: #ededed;
-	--sidebar-primary: #ededed;
-	--sidebar-primary-foreground: #0a0a0a;
-	--sidebar-accent: #1a1a1a;
-	--sidebar-accent-foreground: #ededed;
-	--sidebar-border: var(--border);
-	--sidebar-ring: #878787;
+	--input: oklch(1 0 0 / 15%);
+	--ring: oklch(0.556 0 0);
+	--chart-1: var(--foreground);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--sidebar: oklch(0.205 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.488 0.243 264.376);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.269 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
 
 	/* Console surfaces (log tail, container shell): darker than the cards
 	 * around them, framed by the same hairline. */
@@ -180,7 +177,7 @@
 	--color-code-key: var(--code-key);
 	--color-code-value: var(--code-value);
 	--font-heading: var(--font-sans);
-	--font-sans: 'Geist Variable', sans-serif;
+	--font-sans: 'Inter Variable', sans-serif;
 	/* One ladder off --radius, 2px a rung. md and lg are the control radius, so
 	 * every button, input and pill matches; xl and up are boxes, each rung the
 	 * one below it plus its padding, which is what keeps nested corners concentric. */
@@ -203,7 +200,7 @@
 		@apply border-border outline-ring/50;
 	}
 
-	/* Scrollbar thumbs are the text colour at low opacity and wake up while the
+	/* Scrollbar thumbs are the text color at low opacity and wake up while the
 	 * element is hovered. */
 	* {
 		scrollbar-color: color-mix(in oklch, currentColor 35%, transparent) transparent;
@@ -215,6 +212,7 @@
 
 	html {
 		-webkit-tap-highlight-color: transparent;
+		@apply font-sans;
 	}
 
 	code,
@@ -268,12 +266,6 @@
 		)
 		:not(:disabled) {
 		cursor: pointer;
-	}
-	* {
-		@apply border-border outline-ring/50;
-	}
-	html {
-		@apply font-sans;
 	}
 }
 

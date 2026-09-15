@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { IconLayersLinked, IconVariable, type Icon as TablerIcon } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { EnvEditor } from '../components/env-editor'
+import { VariablesEditor } from '../components/env-editor'
 import { ErrorText, FormSection, SaveButton } from '../components/primitives'
 import { api, type EnvVar } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
@@ -17,37 +17,44 @@ function ProjectEnvironment() {
 	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
 	const current = environments.data?.find(env => (selected ? env.id === selected : env.is_default))
 
+	// Same key as the card below, so the two share one fetch: the environment card needs the shared
+	// keys to mark the ones it overrides.
+	const sharedKey = ['variables', 'project', projectId]
+	const shared = useQuery({ queryKey: sharedKey, queryFn: () => api.projectVariables(projectId) })
+
 	return (
 		<div className='max-w-3xl'>
-			<VariablesEditor
+			<VariablesCard
 				title='Shared variables'
 				description='Every environment of this project gets these.'
 				icon={IconVariable}
-				queryKey={['variables', 'project', projectId]}
+				queryKey={sharedKey}
 				load={() => api.projectVariables(projectId)}
 				save={variables => api.saveProjectVariables(projectId, variables)}
 			/>
 			{current ? (
-				<VariablesEditor
+				<VariablesCard
 					title={`${current.name} variables`}
 					description='Override a shared value, or add one only this environment needs.'
 					icon={IconLayersLinked}
 					queryKey={['variables', 'environment', current.id]}
 					load={() => api.environmentVariables(current.id)}
 					save={variables => api.saveEnvironmentVariables(current.id, variables)}
+					shared={shared.data ?? []}
 				/>
 			) : null}
 		</div>
 	)
 }
 
-function VariablesEditor({
+function VariablesCard({
 	title,
 	description,
 	icon,
 	queryKey,
 	load,
 	save,
+	shared,
 }: {
 	title: string
 	description: string
@@ -55,6 +62,7 @@ function VariablesEditor({
 	queryKey: string[]
 	load: () => Promise<EnvVar[]>
 	save: (variables: EnvVar[]) => Promise<EnvVar[]>
+	shared?: EnvVar[]
 }) {
 	const queryClient = useQueryClient()
 	const [text, setText] = useState('')
@@ -80,12 +88,12 @@ function VariablesEditor({
 			title={title}
 			description={description}
 			icon={icon}
-			hint='One KEY=value per line. Redeploy to apply.'
+			hint='Redeploy to apply.'
 			onSave={() => write.mutate()}
-			actions={<SaveButton pending={write.isPending} />}
+			actions={<SaveButton mutation={write} />}
 		>
 			<ErrorText error={write.error} />
-			<EnvEditor value={text} onChange={setText} />
+			<VariablesEditor value={text} onChange={setText} stored={variables.data ?? []} shared={shared} />
 		</FormSection>
 	)
 }

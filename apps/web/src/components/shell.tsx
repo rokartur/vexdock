@@ -32,7 +32,6 @@ import {
 import { cn } from '@/utils/cn'
 import { api, updateActive, type Project } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
-import { useBrandColor } from '../lib/brand'
 import { useEnvironmentId } from '../lib/environment'
 import { useSystemEvents } from '../lib/sse'
 import { NewProjectDialog } from './new-project'
@@ -218,7 +217,6 @@ export function Shell({ children }: { children: ReactNode }) {
 	const queryClient = useQueryClient()
 	const pathname = useRouterState({ select: state => state.location.pathname })
 
-	useBrandColor()
 	// The whole panel's refresh loop: docker and deployment events invalidate the
 	// mounted queries, so pages do not poll for what the server can announce.
 	useSystemEvents()

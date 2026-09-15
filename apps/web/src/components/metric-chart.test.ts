@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { joinSeries, ratesOf } from './metric-chart'
+import { joinSeries, ratesOf, sparkPath } from './metric-chart'
 
 const total = (sample: { at: number; total: number }) => sample.total
 
@@ -27,6 +27,18 @@ test('joins series on the timestamp, in time order', () => {
 		{ at: 1000, s0: 3, s1: 7 },
 		{ at: 2000, s0: 1 },
 	])
+})
+
+test('draws a sparkline without a peak, a run or a reading to scale by', () => {
+	// Nothing recorded yet, and one reading has no run to spread over.
+	expect(sparkPath([], 40, 10)).toBe('')
+	expect(sparkPath([7], 40, 10)).toBe('M0,1 L40,1')
+	// Every reading zero would divide by a zero peak; it sits on the floor instead.
+	expect(sparkPath([0, 0, 0], 40, 10)).toBe('M0.0,9 L20.0,9 L40.0,9')
+	// A fixed ceiling reads level: half of 100 is the middle of the box.
+	expect(sparkPath([0, 50, 100], 40, 10, 100)).toBe('M0.0,9 L20.0,5 L40.0,1')
+	// Above the ceiling clamps rather than drawing outside the box.
+	expect(sparkPath([200, 200], 40, 10, 100)).toBe('M0.0,1 L40.0,1')
 })
 
 test('never reports a negative rate or divides by a zero interval', () => {

@@ -5,9 +5,16 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/vexdock/platform/manager/internal/database"
 	dockersdk "github.com/vexdock/platform/manager/internal/docker"
+	"github.com/vexdock/platform/manager/internal/metrics"
 )
+
+// usageWindow is how much recorded history the containers list carries per row,
+// bucketed at the sampler's own resolution so one bucket is one reading.
+const usageWindow = 30 * time.Minute
 
 // containerView is the shape the Docker Resources screens render. Foreign
 // containers are listed but flagged, so the platform never pretends to manage
@@ -24,6 +31,8 @@ type containerView struct {
 	Project  string            `json:"project"`
 	Service  string            `json:"service"`
 	Networks []string          `json:"networks"`
+	// Recorded by the sampler, so a container younger than one tick has none.
+	database.ContainerUsage
 }
 
 func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
@@ -37,20 +46,26 @@ func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
+	usage, err := s.DB.ContainerUsage(r.Context(), time.Now().Add(-usageWindow), int64(metrics.Interval.Seconds()))
+	if err != nil {
+		serverError(w, err)
+		return
+	}
 	out := make([]containerView, 0, len(containers))
 	for _, c := range containers {
 		project := c.Labels[dockersdk.ComposeProjectLabel]
 		view := containerView{
-			ID:      c.ID,
-			Names:   c.Names,
-			Image:   c.Image,
-			State:   c.State,
-			Status:  c.Status,
-			Created: c.Created,
-			Labels:  c.Labels,
-			Managed: managed[project],
-			Project: project,
-			Service: c.Labels[dockersdk.ComposeServiceLabel],
+			ID:             c.ID,
+			Names:          c.Names,
+			Image:          c.Image,
+			State:          c.State,
+			Status:         c.Status,
+			Created:        c.Created,
+			Labels:         c.Labels,
+			Managed:        managed[project],
+			Project:        project,
+			Service:        c.Labels[dockersdk.ComposeServiceLabel],
+			ContainerUsage: usage[c.ID],
 		}
 		if c.NetworkSettings != nil {
 			for name := range c.NetworkSettings.Networks {

@@ -3,9 +3,18 @@ import { IconDatabase, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
+import {
+	Confirm,
+	ErrorText,
+	IconButton,
+	Page,
+	Refresh,
+	RelativeTime,
+	Section,
+	StatStrip,
+} from '../components/primitives'
 import { api, type VolumeSummary } from '../lib/api'
-import { bytes, since } from '../lib/format'
+import { bytes } from '../lib/format'
 
 function volumeTableColumns(remove: (name: string) => void): Columns<VolumeSummary> {
 	const cell = columnsFor<VolumeSummary>()
@@ -36,7 +45,7 @@ function volumeTableColumns(remove: (name: string) => void): Columns<VolumeSumma
 		cell.accessor(volume => volume.created_at, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
 		}),
 		cell.display({
 			id: 'actions',
@@ -71,8 +80,22 @@ function VolumesPage() {
 	const { mutate: removeVolume } = remove
 	const columns = useMemo(() => volumeTableColumns(removeVolume), [removeVolume])
 
+	// A daemon that cannot count a volume's users or measure it answers -1, which is not zero.
+	const counted = data.filter(volume => volume.ref_count >= 0)
+	const measured = data.filter(volume => volume.size >= 0)
+	const stats = [
+		{ label: 'Volumes', value: data.length },
+		...(counted.length > 0
+			? [{ label: 'Unused', value: counted.filter(volume => volume.ref_count === 0).length }]
+			: []),
+		...(measured.length > 0
+			? [{ label: 'On disk', value: bytes(measured.reduce((total, volume) => total + volume.size, 0)) }]
+			: []),
+	]
+
 	return (
 		<Page>
+			{stats.length > 1 ? <StatStrip className='mb-4' items={stats} /> : null}
 			<Section
 				title='All volumes'
 				description='deleting a volume destroys its data'

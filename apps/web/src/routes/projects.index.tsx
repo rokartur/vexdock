@@ -5,9 +5,8 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { NewProjectDialog } from '../components/new-project'
-import { Button, Page, Refresh, Section, Status } from '../components/primitives'
+import { Button, Meter, Page, Refresh, RelativeTime, Section, StatStrip, Status } from '../components/primitives'
 import { api, type Project } from '../lib/api'
-import { since } from '../lib/format'
 
 const projectTableColumns: Columns<Project> = (() => {
 	const cell = columnsFor<Project>()
@@ -42,8 +41,13 @@ const projectTableColumns: Columns<Project> = (() => {
 		cell.accessor(project => project.running_count, {
 			id: 'services',
 			header: 'Services',
-			meta: { mono: true },
-			cell: ({ row: { original } }) => `${original.running_count}/${original.service_count}`,
+			cell: ({ row: { original } }) => (
+				<Meter
+					label={`${original.running_count}/${original.service_count}`}
+					value={original.running_count}
+					max={original.service_count}
+				/>
+			),
 		}),
 		cell.accessor(project => project.domains.length, {
 			id: 'domains',
@@ -58,7 +62,7 @@ const projectTableColumns: Columns<Project> = (() => {
 				original.latest_deployment ? (
 					<span className='flex items-center gap-2'>
 						<Status value={original.latest_deployment.status} />
-						<span className='text-muted-foreground'>{since(original.latest_deployment.created_at)}</span>
+						<RelativeTime at={original.latest_deployment.created_at} />
 					</span>
 				) : (
 					<span className='text-muted-foreground'>never</span>
@@ -75,6 +79,12 @@ function ProjectsPage() {
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
 	const data = projects.data ?? []
+	const services = data.reduce((total, project) => total + project.service_count, 0)
+	const latest = data
+		.map(project => project.latest_deployment?.created_at)
+		.filter(at => at !== undefined)
+		.toSorted()
+		.at(-1)
 
 	return (
 		<Page
@@ -86,6 +96,22 @@ function ProjectsPage() {
 			}
 		>
 			<NewProjectDialog open={creating} onOpenChange={setCreating} />
+
+			{data.length > 0 ? (
+				<StatStrip
+					className='mb-4'
+					items={[
+						{ label: 'Projects', value: data.length },
+						{ label: 'Services', value: services },
+						{
+							label: 'Running',
+							value: data.reduce((total, project) => total + project.running_count, 0),
+						},
+						{ label: 'Domains', value: data.reduce((total, project) => total + project.domains.length, 0) },
+						{ label: 'Last deploy', value: latest ? <RelativeTime at={latest} /> : 'never' },
+					]}
+				/>
+			) : null}
 
 			<Section
 				title='All projects'

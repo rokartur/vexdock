@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -273,20 +272,10 @@ func (s *Server) handleSystemEvents(w http.ResponseWriter, r *http.Request) {
 	streamBus(r.Context(), sse, ch)
 }
 
-// settingBrandColor holds the dashboard's accent as `#rrggbb`. It belongs to no
-// domain package: nothing on the server reads it, the panel is the only consumer.
-const settingBrandColor = "brand_color"
-
-// brandColorPattern is the whole validation. The value is written straight into
-// a CSS custom property by the panel, so only a literal hex colour is accepted.
-var brandColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
-
 type settingsPayload struct {
 	DashboardDomain string `json:"dashboard_domain"`
 	DashboardHTTPS  bool   `json:"dashboard_https"`
 	ACMEEmail       string `json:"acme_email"`
-	// BrandColor is empty when the panel should keep its shipped accent.
-	BrandColor string `json:"brand_color"`
 
 	// CloudflareAPIToken is write-only: nil leaves the stored token alone, ""
 	// clears it. Reads report only whether one is present.
@@ -299,7 +288,6 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		DashboardDomain:    s.setting(r.Context(), domains.SettingDashboardDomain),
 		DashboardHTTPS:     s.setting(r.Context(), domains.SettingDashboardHTTPS) == "true",
 		ACMEEmail:          s.Config.ACMEEmail,
-		BrandColor:         s.setting(r.Context(), settingBrandColor),
 		CloudflareTokenSet: s.Certs.DNS01Enabled(),
 	})
 }
@@ -318,16 +306,8 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if req.BrandColor != "" && !brandColorPattern.MatchString(req.BrandColor) {
-		badRequest(w, fmt.Errorf("brand color must be a hex colour like #e16540, got %q", req.BrandColor))
-		return
-	}
 	if err := s.Domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
 		badRequest(w, err)
-		return
-	}
-	if err := s.DB.SetSetting(r.Context(), settingBrandColor, strings.ToLower(req.BrandColor)); err != nil {
-		serverError(w, err)
 		return
 	}
 	if req.CloudflareAPIToken != nil {

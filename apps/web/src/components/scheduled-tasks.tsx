@@ -15,10 +15,23 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
-import { duration, since, until } from '../lib/format'
+import { duration, since } from '../lib/format'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { LogViewer } from './log-viewer'
-import { Button, Confirm, ErrorText, Field, IconButton, Input, Section, Select, Switch, Textarea } from './primitives'
+import {
+	Button,
+	Confirm,
+	ErrorText,
+	Field,
+	IconButton,
+	Input,
+	RelativeTime,
+	Section,
+	Select,
+	StatStrip,
+	Switch,
+	Textarea,
+} from './primitives'
 
 /** A task being written. `id` is null while it is still a new one. */
 type TaskForm = TaskInput & { id: string | null }
@@ -119,7 +132,7 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 			header: 'Next run',
 			cell: ({ row }) =>
 				row.original.next_run ? (
-					until(row.original.next_run)
+					<RelativeTime at={row.original.next_run} />
 				) : (
 					<span className='text-muted-foreground'>{row.original.enabled ? 'never' : 'paused'}</span>
 				),
@@ -144,7 +157,7 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 						className={`cursor-pointer hover:underline ${last.exit_code === 0 ? '' : 'text-red-400'}`}
 						onClick={() => select(row.original.id)}
 					>
-						{since(last.started_at)}
+						<RelativeTime at={last.started_at} />
 						<span className='ml-2 font-mono text-label text-muted-foreground'>
 							{last.finished_at ? duration(last.started_at, last.finished_at) : 'running'}
 						</span>
@@ -266,8 +279,29 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 		[runTask, toggleTask, removeTask, runningId, serviceId],
 	)
 
+	const listed = tasks.data ?? []
+	const soonest = listed
+		.map(task => task.next_run)
+		.filter(at => at !== null)
+		.toSorted()
+		.at(0)
+
 	return (
 		<>
+			{serviceId === undefined && listed.length > 0 ? (
+				<StatStrip
+					className='mb-4'
+					items={[
+						{ label: 'Tasks', value: listed.length },
+						{ label: 'Enabled', value: listed.filter(task => task.enabled).length },
+						{
+							label: 'Failing',
+							value: listed.filter(task => task.last_run && task.last_run.exit_code !== 0).length,
+						},
+						{ label: 'Next run', value: soonest ? <RelativeTime at={soonest} /> : '-' },
+					]}
+				/>
+			) : null}
 			<Section
 				title='Scheduled tasks'
 				description={serviceId ? 'run inside this service’s container' : 'across every project'}
@@ -281,7 +315,7 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 				}
 			>
 				<DataTable
-					data={tasks.data ?? []}
+					data={listed}
 					columns={columns}
 					loading={tasks.isLoading}
 					getRowId={task => task.id}

@@ -4,9 +4,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
-import { Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
+import {
+	Confirm,
+	ErrorText,
+	IconButton,
+	Meter,
+	Page,
+	Refresh,
+	RelativeTime,
+	Section,
+	StatStrip,
+} from '../components/primitives'
 import { api, type ImageSummary } from '../lib/api'
-import { bytes, since } from '../lib/format'
+import { bytes } from '../lib/format'
 
 function shortId(image: ImageSummary) {
 	return image.id.replace('sha256:', '').slice(0, 12)
@@ -29,7 +39,7 @@ function imageName(image: ImageSummary) {
 	return image.repo_tags?.join(', ') || shortId(image)
 }
 
-function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> {
+function imageTableColumns(remove: (id: string) => void, largest: number): Columns<ImageSummary> {
 	const cell = columnsFor<ImageSummary>()
 	return [
 		cell.accessor(
@@ -71,8 +81,8 @@ function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> 
 		cell.accessor(image => image.size, {
 			id: 'size',
 			header: 'Size',
-			cell: ({ row }) => bytes(row.original.size),
-			meta: { mono: true },
+			// Against the biggest image on the host, so the disk hogs stand out down the column.
+			cell: ({ row }) => <Meter label={bytes(row.original.size)} value={row.original.size} max={largest} />,
 		}),
 		cell.accessor(image => image.containers, {
 			id: 'containers',
@@ -83,7 +93,7 @@ function imageTableColumns(remove: (id: string) => void): Columns<ImageSummary> 
 		cell.accessor(image => image.created, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created} />,
 		}),
 		cell.display({
 			id: 'actions',
@@ -118,10 +128,28 @@ function ImagesPage() {
 
 	const data = images.data ?? []
 	const { mutate: removeImage } = remove
-	const columns = useMemo(() => imageTableColumns(removeImage), [removeImage])
+	const largest = Math.max(0, ...data.map(image => image.size))
+	const columns = useMemo(() => imageTableColumns(removeImage, largest), [removeImage, largest])
+
+	// A daemon that cannot count an image's containers answers -1, which is not zero.
+	const counted = data.filter(image => image.containers >= 0)
+	const unused = counted.filter(image => image.containers === 0)
+	const reclaimable = unused.reduce((total, image) => total + image.size, 0)
+	const stats = [
+		{ label: 'Images', value: data.length },
+		{ label: 'On disk', value: bytes(data.reduce((total, image) => total + image.size, 0)) },
+		...(counted.length > 0
+			? [
+					{ label: 'Unused', value: unused.length },
+					{ label: 'Reclaimable', value: bytes(reclaimable) },
+				]
+			: []),
+		{ label: 'Largest', value: bytes(largest) },
+	]
 
 	return (
 		<Page>
+			{data.length > 0 ? <StatStrip className='mb-4' items={stats} /> : null}
 			<Section
 				title='Local images'
 				description={`${data.length} total`}

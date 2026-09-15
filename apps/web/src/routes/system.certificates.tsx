@@ -9,14 +9,26 @@ import {
 	Field,
 	FormSection,
 	IconButton,
+	Meter,
 	Page,
 	Refresh,
 	Section,
 	Select,
+	StatStrip,
 	Status,
 	Textarea,
 } from '../components/primitives'
 import { api, type Certificate, type Domain } from '../lib/api'
+import { until } from '../lib/format'
+
+/** Days of validity left, over the horizon the bar drains across. */
+const RUNWAY_DAYS = 90
+
+function daysLeft(expires: string | null) {
+	if (!expires) return null
+	const at = Date.parse(expires)
+	return Number.isNaN(at) ? null : Math.max(0, Math.floor((at - Date.now()) / 86_400_000))
+}
 
 function certificateTableColumns(replace: (hostname: string) => void): Columns<Certificate> {
 	const cell = columnsFor<Certificate>()
@@ -40,12 +52,14 @@ function certificateTableColumns(replace: (hostname: string) => void): Columns<C
 		cell.accessor(row => row.expires_at ?? '', {
 			id: 'expires',
 			header: 'Expires',
-			meta: { mono: true },
-			cell: ({ row }) => (
-				<span className='text-muted-foreground'>
-					{row.original.expires_at ? row.original.expires_at.slice(0, 10) : '-'}
-				</span>
-			),
+			cell: ({ row }) => {
+				const left = daysLeft(row.original.expires_at)
+				return left === null ? (
+					'-'
+				) : (
+					<Meter label={until(row.original.expires_at)} value={left} max={RUNWAY_DAYS} />
+				)
+			},
 		}),
 		cell.display({
 			id: 'actions',
@@ -99,8 +113,24 @@ function Certificates() {
 	const columns = certificateTableColumns(openUpload)
 	const rows = (certificates.data ?? []).filter(certificate => certificate.source === 'custom')
 
+	const soonest = rows
+		.filter(certificate => certificate.expires_at)
+		.toSorted((a, b) => a.expires_at.localeCompare(b.expires_at))
+		.at(0)
+
 	return (
 		<Page>
+			{rows.length > 0 ? (
+				<StatStrip
+					className='mb-4'
+					items={[
+						{ label: 'Uploaded', value: rows.length },
+						{ label: 'Issued', value: rows.filter(row => row.status === 'issued').length },
+						{ label: 'Failed', value: rows.filter(row => row.status === 'failed').length },
+						{ label: 'Expires first', value: soonest ? until(soonest.expires_at) : '-' },
+					]}
+				/>
+			) : null}
 			<Section
 				title='Certificates'
 				description={`${rows.length} uploaded`}

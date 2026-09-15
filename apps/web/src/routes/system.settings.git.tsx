@@ -21,12 +21,13 @@ import {
 	IconButton,
 	Input,
 	Refresh,
+	RelativeTime,
 	Section,
 	Segmented,
+	StatStrip,
 	Status,
 } from '../components/primitives'
 import { api, type GitProvider, type GitProviderType } from '../lib/api'
-import { since } from '../lib/format'
 
 export const Route = createFileRoute('/system/settings/git')({
 	// A host that refuses the handshake sends the owner back here, and a redirect
@@ -81,7 +82,7 @@ function providerColumns(edit: (provider: GitProvider) => void, remove: (id: str
 		cell.accessor(provider => provider.created_at, {
 			id: 'added',
 			header: 'Added',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
 		}),
 		cell.display({
 			id: 'actions',
@@ -204,7 +205,7 @@ async function saveProvider(form: Form) {
 }
 
 /**
- * GitLab and Gitea refuse an authorisation whose redirect URI they were not told about, so the hint spells out the
+ * GitLab and Gitea refuse an authorization whose redirect URI they were not told about, so the hint spells out the
  * one this panel sends, built from the address the browser is on because that is where the provider comes back to.
  */
 function hintFor(kind: GitProviderType, origin: string) {
@@ -285,8 +286,27 @@ function GitProviders() {
 		[removeProvider],
 	)
 
+	const listed = providers.data ?? []
+	const connected = listed.filter(provider => provider.connected).length
+	// A GitHub App that was created but never pointed at a repository can clone nothing.
+	const unfinished = listed.filter(provider => provider.github && !provider.github.github_installation_id).length
+	// The list arrives oldest first, so the newest connection is the last one.
+	const newest = listed.at(-1)
+
 	return (
 		<div className='max-w-3xl'>
+			{newest ? (
+				<StatStrip
+					className='mb-4'
+					items={[
+						{ label: 'Connections', value: listed.length },
+						{ label: 'Connected', value: connected },
+						{ label: 'Pending', value: listed.length - connected },
+						{ label: 'Install unfinished', value: unfinished },
+						{ label: 'Newest', value: <RelativeTime at={newest.created_at} /> },
+					]}
+				/>
+			) : null}
 			<Section
 				title='Git connections'
 				description='connect once, then pick a repository instead of pasting a URL'
@@ -294,7 +314,7 @@ function GitProviders() {
 			>
 				<ErrorText error={remove.error ?? (redirectError ? new Error(redirectError) : null)} />
 				<DataTable
-					data={providers.data ?? []}
+					data={listed}
 					columns={columns}
 					loading={providers.isLoading}
 					getRowId={provider => provider.git_provider_id}

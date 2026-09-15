@@ -30,9 +30,9 @@ export function since(iso: string | number | undefined | null): string {
 }
 
 /** The mirror of `since`, for a time that has not arrived yet: in 12m, in 6h. */
-export function until(iso: string | undefined | null): string {
+export function until(iso: string | number | undefined | null): string {
 	if (!iso) return '-'
-	const then = Date.parse(iso)
+	const then = typeof iso === 'number' ? iso * 1000 : Date.parse(iso)
 	if (Number.isNaN(then)) return '-'
 	const seconds = Math.max(0, Math.floor((then - Date.now()) / 1000))
 	if (seconds < 60) return `in ${seconds}s`

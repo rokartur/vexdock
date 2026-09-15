@@ -4,10 +4,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { api, type Deployment, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { duration, shortSha, since } from '../lib/format'
+import { duration, shortSha } from '../lib/format'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { DeploymentDetail } from './deployment-detail'
-import { ErrorText, IconButton, Refresh, Section, Status } from './primitives'
+import { ErrorText, IconButton, Refresh, RelativeTime, Section, Status } from './primitives'
 
 /**
  * Which deployment is open lives in the URL, so anything that starts a deploy
@@ -66,7 +66,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 		cell.accessor(deployment => deployment.created_at, {
 			id: 'when',
 			header: 'When',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
 		}),
 		cell.display({
 			id: 'actions',
@@ -119,11 +119,12 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 	const data = (deployments.data ?? []).filter(deployment => deployment.service_name === service.compose_service_name)
 	const { mutate: redeploy } = rollback
 	const columns = useMemo(() => deploymentTableColumns(redeploy), [redeploy])
+	const failed = data.filter(deployment => deployment.status === 'failed').length
 
 	return (
 		<Section
 			title='Deployment history'
-			description={`${data.length} total`}
+			description={`${data.length} total, ${failed} failed`}
 			actions={<Refresh onClick={() => deployments.refetch()} busy={deployments.isFetching} />}
 		>
 			<ErrorText error={rollback.error} />

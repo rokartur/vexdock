@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
 	IconCheck,
 	IconCopy,
@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
+import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
 	Confirm,
@@ -20,10 +21,11 @@ import {
 	FormSection,
 	IconButton,
 	Input,
+	RelativeTime,
 	SaveButton,
 	Switch,
 } from '../components/primitives'
-import { api } from '../lib/api'
+import { api, type Environment } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 
 export const Route = createFileRoute('/projects/$projectId/settings')({ component: ProjectSettings })
@@ -53,8 +55,23 @@ function ProjectSettings() {
 			<FormSection
 				title='Project'
 				icon={IconFolder}
-				hint='The name is what the breadcrumb and the project list show.'
-				actions={<SaveButton pending={save.isPending} />}
+				hint='The name is what the breadcrumb and the project list show. The slug it was created with never moves.'
+				actions={<SaveButton mutation={save} />}
+				aside={
+					project.data
+						? [
+								{
+									label: 'Slug',
+									value: <span className='font-mono text-label'>{project.data.slug}</span>,
+								},
+								{
+									label: 'Services',
+									value: `${project.data.running_count} of ${project.data.service_count} running`,
+								},
+								{ label: 'Created', value: <RelativeTime at={project.data.created_at} /> },
+							]
+						: []
+				}
 				onSave={() => save.mutate()}
 			>
 				<div className='grid gap-x-6 md:grid-cols-2'>
@@ -68,6 +85,63 @@ function ProjectSettings() {
 			<ExportServices projectId={projectId} />
 		</div>
 	)
+}
+
+function environmentColumns(remove: (id: string) => void, removing: boolean): Columns<Environment> {
+	const cell = columnsFor<Environment>()
+	return [
+		cell.accessor(environment => environment.name, {
+			id: 'name',
+			header: 'Name',
+			cell: ({ row }) => (
+				<span className='inline-flex items-center gap-2 font-medium'>
+					<IconLayersLinked className='size-4 text-muted-foreground' />
+					{row.original.name}
+					{row.original.is_default ? <Badge variant='outline'>default</Badge> : null}
+				</span>
+			),
+		}),
+		cell.accessor(environment => environment.compose_project_name, {
+			id: 'compose',
+			header: 'Compose project',
+			meta: { mono: true },
+		}),
+		cell.accessor(environment => environment.branch, {
+			id: 'branch',
+			header: 'Branch',
+			cell: ({ row }) =>
+				row.original.branch ? (
+					<span className='inline-flex items-center gap-1 font-mono text-label'>
+						<IconGitBranch className='size-3 text-muted-foreground' />
+						{row.original.branch}
+					</span>
+				) : (
+					<span className='text-label text-muted-foreground'>service branch</span>
+				),
+		}),
+		cell.accessor(environment => environment.created_at, {
+			id: 'created',
+			header: 'Created',
+			meta: { align: 'right' },
+			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
+		}),
+		cell.display({
+			id: 'actions',
+			header: '',
+			meta: { align: 'right' },
+			cell: ({ row }) =>
+				row.original.is_default ? null : (
+					<Confirm
+						title={`Delete ${row.original.name}?`}
+						description='Its containers and volumes are removed with it.'
+						action='Delete with volumes'
+						onConfirm={() => remove(row.original.id)}
+					>
+						<IconButton icon={IconTrash} label='Delete' disabled={removing} />
+					</Confirm>
+				),
+		}),
+	]
 }
 
 /** Not in the breadcrumb picker, where switching is constant: deleting one takes its containers and volumes. */
@@ -92,59 +166,50 @@ function Environments({ projectId }: { projectId: string }) {
 		onSuccess: refresh,
 	})
 
+	const { mutate: removeEnvironment, isPending: removing } = remove
+	const columns = useMemo(() => environmentColumns(removeEnvironment, removing), [removeEnvironment, removing])
+
 	return (
 		<FormSection
 			title='Environments'
 			description='Each one deploys on its own, into its own containers.'
 			icon={IconLayersLinked}
-			hint='A name becomes the slug the API and the directory use. An empty branch lets each service follow its own.'
+			hint='A name becomes the slug the API and the directory use.'
 			actions={
-				<Button type='submit' variant='primary' disabled={create.isPending}>
-					<IconPlus />
-					{create.isPending ? 'Creating…' : 'Add environment'}
-				</Button>
+				<>
+					<div className='w-40'>
+						<Input
+							required
+							aria-label='Environment name'
+							value={name}
+							onChange={event => setName(event.target.value)}
+							placeholder='Staging'
+						/>
+					</div>
+					<div className='w-40'>
+						<Input
+							aria-label='Branch'
+							value={branch}
+							onChange={event => setBranch(event.target.value)}
+							placeholder='develop'
+						/>
+					</div>
+					<Button type='submit' variant='primary' disabled={create.isPending}>
+						<IconPlus />
+						{create.isPending ? 'Creating…' : 'Add environment'}
+					</Button>
+				</>
 			}
 			onSave={() => create.mutate()}
 		>
 			<ErrorText error={create.error ?? remove.error} />
-			<ul className='mb-4 rounded-md border bg-background'>
-				{environments.data?.map(env => (
-					<li key={env.id} className='flex h-9 items-center gap-3 border-b border-rule px-3 last:border-b-0'>
-						<IconLayersLinked className='size-4 text-muted-foreground' />
-						<span className='text-body'>{env.name}</span>
-						{env.is_default ? <Badge variant='outline'>default</Badge> : null}
-						<span className='inline-flex items-center gap-1 font-mono text-meta text-muted-foreground'>
-							<IconGitBranch className='size-3' />
-							{env.branch || 'service branch'}
-						</span>
-						{env.is_default ? null : (
-							<span className='ml-auto'>
-								<Confirm
-									title={`Delete ${env.name}?`}
-									description='Its containers and volumes are removed with it.'
-									action='Delete with volumes'
-									onConfirm={() => remove.mutate(env.id)}
-								>
-									<IconButton icon={IconTrash} label='Delete' disabled={remove.isPending} />
-								</Confirm>
-							</span>
-						)}
-					</li>
-				))}
-			</ul>
-			<div className='grid gap-x-6 md:grid-cols-2'>
-				<Field label='Name'>
-					<Input
-						required
-						value={name}
-						onChange={event => setName(event.target.value)}
-						placeholder='Staging'
-					/>
-				</Field>
-				<Field label='Branch'>
-					<Input value={branch} onChange={event => setBranch(event.target.value)} placeholder='develop' />
-				</Field>
-			</div>
+			<DataTable
+				data={environments.data ?? []}
+				columns={columns}
+				loading={environments.isLoading}
+				getRowId={environment => environment.id}
+				empty='No environments yet.'
+			/>
 		</FormSection>
 	)
 }

@@ -3,9 +3,19 @@ import { IconArchive, IconDatabase, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, Confirm, ErrorText, IconButton, Page, Refresh, Section } from '../components/primitives'
+import {
+	Button,
+	Confirm,
+	ErrorText,
+	IconButton,
+	Page,
+	Refresh,
+	RelativeTime,
+	Section,
+	StatStrip,
+} from '../components/primitives'
 import { api, type Backup } from '../lib/api'
-import { bytes, since } from '../lib/format'
+import { bytes } from '../lib/format'
 
 function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 	const cell = columnsFor<Backup>()
@@ -33,7 +43,7 @@ function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 		cell.accessor(backup => backup.created_at, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
 		}),
 		cell.accessor(backup => backup.path, { id: 'path', header: 'Path', meta: { mono: true } }),
 		cell.display({
@@ -73,8 +83,25 @@ function BackupsPage() {
 	const { mutate: removeBackup } = remove
 	const columns = useMemo(() => backupTableColumns(removeBackup), [removeBackup])
 
+	// A snapshot is named for the minute it was taken and the API sorts that name descending.
+	const newest = data.at(0)
+
 	return (
 		<Page>
+			{newest ? (
+				<StatStrip
+					className='mb-4'
+					items={[
+						{ label: 'Snapshots', value: data.length },
+						{ label: 'With data', value: data.filter(backup => backup.has_volumes).length },
+						{
+							label: 'On disk',
+							value: bytes(data.reduce((total, backup) => total + backup.size_bytes, 0)),
+						},
+						{ label: 'Newest', value: <RelativeTime at={newest.created_at} /> },
+					]}
+				/>
+			) : null}
 			<Section
 				title='Snapshots'
 				description='database, proxy config and certificates, optionally with application volumes'

@@ -3,7 +3,7 @@ import { IconActivity } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Fact, Facts, Page, Refresh, Section, Status } from '../components/primitives'
+import { Fact, Facts, Meter, Page, Refresh, Section, Status } from '../components/primitives'
 import { api } from '../lib/api'
 import { bytes } from '../lib/format'
 
@@ -68,8 +68,14 @@ function SystemOverview() {
 						<Fact label='CPUs' value={info.data?.host.cpus ?? '-'} />
 						<Fact label='Memory' value={bytes(info.data?.host.memory_total)} />
 						<Fact
-							label='Containers'
-							value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
+							label='Containers running'
+							value={
+								<Meter
+									label={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
+									value={info.data?.containers_running ?? 0}
+									max={info.data?.containers ?? 0}
+								/>
+							}
 						/>
 						<Fact label='Images' value={info.data?.images ?? 0} />
 					</Facts>

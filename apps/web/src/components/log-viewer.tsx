@@ -13,13 +13,13 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { cn } from '@/utils/cn'
 import { bytes, parseAccessLine, parseLogLine } from '../lib/format'
 import { useEventSource } from '../lib/sse'
-import { IconButton } from './primitives'
+import { IconButton, Segmented } from './primitives'
 
 export type Line = { stream: string; text: string }
 
 const MAX_LINES = 5000
 
-/** HTTP status classes read faster as colour than as three digits. */
+/** HTTP status classes read faster as color than as three digits. */
 const statusColor: Record<string, string> = {
 	'2': 'text-emerald-400',
 	'3': 'text-sky-400',
@@ -27,20 +27,61 @@ const statusColor: Record<string, string> = {
 	'5': 'text-red-400',
 }
 
-const levelColor: Record<string, string> = {
-	emerg: 'text-red-400',
-	alert: 'text-red-400',
-	crit: 'text-red-400',
-	fatal: 'text-red-400',
-	panic: 'text-red-400',
+type Severity = 'error' | 'warn' | 'info' | 'debug'
+
+/** One table, so the word's color and the line's gutter can never disagree. */
+const levelSeverity: Record<string, Severity> = {
+	emerg: 'error',
+	alert: 'error',
+	crit: 'error',
+	fatal: 'error',
+	panic: 'error',
+	error: 'error',
+	err: 'error',
+	warning: 'warn',
+	warn: 'warn',
+	notice: 'info',
+	info: 'info',
+	debug: 'debug',
+	trace: 'debug',
+}
+
+const severityColor: Record<Severity, string> = {
 	error: 'text-red-400',
-	err: 'text-red-400',
-	warning: 'text-amber-400',
 	warn: 'text-amber-400',
-	notice: 'text-sky-400',
 	info: 'text-sky-400',
 	debug: 'text-console-muted',
-	trace: 'text-console-muted',
+}
+
+/** Only the two that want attention get a gutter; the rest would be a stripe down the whole console. */
+const gutterColor: Partial<Record<Severity, string>> = {
+	error: 'bg-red-400',
+	warn: 'bg-amber-400',
+}
+
+const levelFilters = [
+	{ value: 'all', label: 'All' },
+	{ value: 'warn', label: 'Warn+' },
+	{ value: 'error', label: 'Errors' },
+] as const
+
+type LevelFilter = (typeof levelFilters)[number]['value']
+
+/**
+ * How loud a line is. A stderr line is an error whatever it says, an access log
+ * takes its class from the status code, everything else from its own level word.
+ */
+function severityFrom(stream: string, level: string | null, status: string | undefined): Severity | undefined {
+	if (stream === 'stderr') return 'error'
+	if (level) return levelSeverity[level]
+	if (status?.startsWith('5')) return 'error'
+	if (status?.startsWith('4')) return 'warn'
+	return undefined
+}
+
+export function severityOf(line: Line): Severity | undefined {
+	const { body, level } = parseLogLine(line.text)
+	return severityFrom(line.stream, level, parseAccessLine(body)?.status)
 }
 
 /**
@@ -55,6 +96,7 @@ export function LogViewer({
 	const [streamed, setStreamed] = useState<Line[]>([])
 	const [paused, setPaused] = useState(false)
 	const [filter, setFilter] = useState('')
+	const [level, setLevel] = useState<LevelFilter>('all')
 	const [follow, setFollow] = useState(true)
 	const [plain, setPlain] = useState(false)
 	const bottomRef = useRef<HTMLDivElement>(null)
@@ -75,7 +117,13 @@ export function LogViewer({
 	)
 
 	const lines = given ?? streamed
-	const visible = filter ? lines.filter(line => line.text.toLowerCase().includes(filter.toLowerCase())) : lines
+	const needle = filter.toLowerCase()
+	const visible = lines.filter(line => {
+		if (needle && !line.text.toLowerCase().includes(needle)) return false
+		if (level === 'all') return true
+		const severity = severityOf(line)
+		return level === 'error' ? severity === 'error' : severity === 'error' || severity === 'warn'
+	})
 
 	useEffect(() => {
 		if (follow) bottomRef.current?.scrollIntoView({ block: 'end' })
@@ -96,6 +144,7 @@ export function LogViewer({
 						className='text-body'
 					/>
 				</InputGroup>
+				<Segmented value={level} options={levelFilters} onChange={setLevel} />
 				<ButtonGroup>
 					{url ? (
 						<>
@@ -182,10 +231,16 @@ export function LogViewer({
 function LogLine({ line }: { line: Line }) {
 	const { time, timestamp, body, level } = parseLogLine(line.text)
 	const request = parseAccessLine(body)
-	const tone = line.stream === 'stderr' ? 'text-console-stderr' : levelColor[level ?? '']
+	const severity = severityFrom(line.stream, level, request?.status)
+	const tone =
+		line.stream === 'stderr' ? 'text-console-stderr' : level && severity ? severityColor[severity] : undefined
 
 	return (
 		<div className='flex gap-3'>
+			<span
+				aria-hidden
+				className={cn('-ml-1 w-[3px] shrink-0 rounded-full', severity && gutterColor[severity])}
+			/>
 			{time ? (
 				<span className='shrink-0 text-console-muted' title={timestamp ?? undefined}>
 					{time}

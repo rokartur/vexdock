@@ -5,13 +5,36 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
-import { Confirm, ErrorText, IconButton, Page, Refresh, Section, Status } from '../components/primitives'
+import { Sparkline } from '../components/metric-chart'
+import {
+	Confirm,
+	ErrorText,
+	IconButton,
+	Meter,
+	Page,
+	Refresh,
+	RelativeTime,
+	Section,
+	Status,
+} from '../components/primitives'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../components/ui/drawer'
 import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
-import { since } from '../lib/format'
+import { bytes, percent } from '../lib/format'
+
+/** The sampler records once a minute, so nothing is gained by asking faster. */
+const USAGE_TICK_MS = 60_000
 
 function containerName(container: ContainerSummary) {
 	return container.names[0]?.replace(/^\//u, '') ?? container.id.slice(0, 12)
+}
+
+/**
+ * Whether the usage columns have anything to say. A stopped container's last
+ * recorded minute is not its usage now, and one younger than the sampler's tick
+ * has no reading at all, which is not the same number as zero.
+ */
+function sampled(container: ContainerSummary) {
+	return container.state === 'running' && (container.cpu_series?.length ?? 0) > 0
 }
 
 type ContainerActions = {
@@ -44,10 +67,48 @@ function containerTableColumns({ showLogs, act }: ContainerActions): Columns<Con
 			header: 'Project',
 			meta: { mono: true },
 		}),
+		cell.accessor(container => (sampled(container) ? container.cpu_percent : -1), {
+			id: 'cpu',
+			header: 'CPU',
+			cell: ({ row: { original } }) =>
+				sampled(original) ? <Meter label={percent(original.cpu_percent)} value={original.cpu_percent} /> : '-',
+		}),
+		cell.accessor(container => (sampled(container) ? container.memory_usage : -1), {
+			id: 'memory',
+			header: 'Memory',
+			cell: ({ row: { original } }) =>
+				sampled(original) ? (
+					<Meter
+						label={
+							original.memory_limit > 0
+								? `${bytes(original.memory_usage)} / ${bytes(original.memory_limit)}`
+								: bytes(original.memory_usage)
+						}
+						value={original.memory_usage}
+						max={original.memory_limit}
+					/>
+				) : (
+					'-'
+				),
+		}),
+		cell.display({
+			id: 'trend',
+			header: '30m',
+			cell: ({ row: { original } }) =>
+				sampled(original) ? (
+					<Sparkline
+						values={original.cpu_series ?? []}
+						max={100}
+						label={`${containerName(original)} cpu, last 30 minutes`}
+					/>
+				) : (
+					'-'
+				),
+		}),
 		cell.accessor(container => container.created, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created} />,
 		}),
 		cell.display({
 			id: 'actions',
@@ -98,7 +159,11 @@ function ContainersPage() {
 	const { q } = Route.useSearch()
 	const [logsFor, setLogsFor] = useState<string | null>(null)
 
-	const containers = useQuery({ queryKey: ['containers'], queryFn: api.containers })
+	const containers = useQuery({
+		queryKey: ['containers'],
+		queryFn: api.containers,
+		refetchInterval: USAGE_TICK_MS,
+	})
 
 	const act = useMutation({
 		mutationFn: ({ id, action }: { id: string; action: ContainerAction }) => api.containerAction(id, action),

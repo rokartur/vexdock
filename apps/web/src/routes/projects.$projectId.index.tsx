@@ -20,11 +20,23 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitles, type ServiceKind } from '../components/new-service-form'
-import { Button, Cell, Cells, Check, EmptyState, ErrorText, Refresh, Section, Status } from '../components/primitives'
+import {
+	Button,
+	Cell,
+	Cells,
+	Check,
+	EmptyState,
+	ErrorText,
+	Meter,
+	Refresh,
+	RelativeTime,
+	Section,
+	Status,
+} from '../components/primitives'
 import { ServiceBulkActions } from '../components/service-bulk-actions'
 import { api, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { bytes, duration, percent, since } from '../lib/format'
+import { bytes, duration, percent } from '../lib/format'
 
 /** What the New service menu opens: the three service kinds, plus the import escape hatch. */
 type Creating = ServiceKind | 'import'
@@ -142,9 +154,12 @@ function serviceTableColumns(selection: {
 		cell.accessor(({ service }) => service.cpu_percent, {
 			id: 'cpu',
 			header: 'CPU',
-			meta: { align: 'right', mono: true },
 			cell: ({ row: { original } }) =>
-				original.service.state === 'running' ? percent(original.service.cpu_percent) : '-',
+				original.service.state === 'running' ? (
+					<Meter label={percent(original.service.cpu_percent)} value={original.service.cpu_percent} />
+				) : (
+					'-'
+				),
 		}),
 		cell.accessor(({ service }) => service.memory_usage, {
 			id: 'memory',
@@ -158,11 +173,12 @@ function serviceTableColumns(selection: {
 		cell.accessor(({ service }) => service.created_unix ?? 0, {
 			id: 'deployed',
 			header: 'Deployed',
-			cell: ({ row: { original } }) => (
-				<span className='text-muted-foreground'>
-					{original.service.created_unix ? since(original.service.created_unix) : 'never'}
-				</span>
-			),
+			cell: ({ row: { original } }) =>
+				original.service.created_unix ? (
+					<RelativeTime at={original.service.created_unix} />
+				) : (
+					<span className='text-muted-foreground'>never</span>
+				),
 		}),
 	]
 }
@@ -245,7 +261,7 @@ function ProjectServices() {
 						latest ? (
 							<span className='flex items-center gap-2'>
 								<Status value={latest.status} />
-								<span>{since(latest.created_at)}</span>
+								<RelativeTime at={latest.created_at} />
 								<span>{duration(latest.started_at, latest.finished_at)}</span>
 							</span>
 						) : null

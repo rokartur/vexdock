@@ -28,8 +28,8 @@ Every Go package opens with a comment naming what it owns and why it exists.
 | **Project** | A grouping with a name and tags. Has no source and no containers of its own. |
 | **Environment** | A deployable copy of a project (production, staging). Owns the compose project name `p_<ULID>`, the directory under `projects/<id>/` and the services. Every project has a default environment that carries the project's own id. |
 | **Service** | One compose service inside an environment. Its `provider` says where it comes from: a git host (`github`, `gitlab`, `bitbucket`, `gitea`, `git`), a published `image`, a pasted `raw` compose fragment, or `unconfigured` (a name and nothing else, skipped on deploy). |
-| **Engine** | A catalogue entry for a one-click database: PostgreSQL, MySQL, MariaDB, MongoDB, Valkey, libSQL. Picking one creates an `image` service with a volume and generated credentials, except libSQL, which authenticates with a JWT key rather than a password and starts open to its project network. |
-| **Template** | A catalogue entry for a one-click application: n8n, Ghost, WordPress, Umami, Metabase, Grafana, Uptime Kuma, Vaultwarden. Installing one creates a `raw` service per compose service it declares, seeds the passwords and hostname it needs as environment variables, and points the hostname at the service that serves it. Nothing records that a service came from a template. |
+| **Engine** | A catalog entry for a one-click database: PostgreSQL, MySQL, MariaDB, MongoDB, Valkey, libSQL. Picking one creates an `image` service with a volume and generated credentials, except libSQL, which authenticates with a JWT key rather than a password and starts open to its project network. |
+| **Template** | A catalog entry for a one-click application: n8n, Ghost, WordPress, Umami, Metabase, Grafana, Uptime Kuma, Vaultwarden. Installing one creates a `raw` service per compose service it declares, seeds the passwords and hostname it needs as environment variables, and points the hostname at the service that serves it. Nothing records that a service came from a template. |
 | **`managed.yml`** | The one compose file the platform generates per environment from every configured service. The only file ever passed to `docker compose`. |
 | **Deployment** | One run of the pipeline for one service of one environment. Has steps, each with a status and captured output. Deploying an environment queues one per service. |
 | **Step** | A stage of the pipeline: `clone`, `checkout`, `validate`, `pull`, `build`, `start`, `healthcheck`, `proxy`, `finish`. |
@@ -195,7 +195,7 @@ service never blocks the config for the rest.
 ### First boot and sign-in
 
 The auth service owns accounts; the manager only reads them. The setup token
-is the whole defence of a fresh panel on a public IP: without it the first
+is the whole defense of a fresh panel on a public IP: without it the first
 visitor would own the Docker socket.
 
 ```mermaid
@@ -310,7 +310,7 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | `internal/deployments` | The pipeline |
 | `internal/docker` | Docker SDK wrapper: containers, images, volumes, networks, exec, stats |
 | `internal/domains` | Hostname to service, proxy attachment, vhost rendering, reconcile |
-| `internal/engines` | The database catalogue and the compose fragment each engine renders |
+| `internal/engines` | The database catalog and the compose fragment each engine renders |
 | `internal/events` | The bus and the Docker event reconciler |
 | `internal/git` | Clone with credentials, GitHub App JWTs, OAuth for the other hosts |
 | `internal/metrics` | Host and container sampling into the metrics tables |
@@ -318,7 +318,7 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | `internal/projects` | Project and environment lifecycle, on-disk layout, `managed.yml` rendering, import/export |
 | `internal/schedule` | Cron parsing and the task runner |
 | `internal/security` | Validation of anything that reaches a command line, AES-GCM cipher, path confinement, token hashing |
-| `internal/templates` | The application catalogue: the compose services one entry installs and the values it seeds |
+| `internal/templates` | The application catalog: the compose services one entry installs and the values it seeds |
 | `internal/updater` | Self-update: state file, the detached updater container, `update.sh` |
 | `migrations` | `000N_name.sql`, embedded, applied in order on boot |
 
@@ -352,13 +352,14 @@ serves. React Query holds server state; component state stays local.
 | `src/routes/__root.tsx` | Query client, `AuthGate`, `Shell` around every non-public route |
 | `src/components/auth-gate.tsx` | Sends the visitor to `/setup`, `/login` or the app |
 | `src/components/shell.tsx` | Sidebar with the project tree, page header, the one `useSystemEvents` subscription |
-| `src/components/primitives.tsx` | The dashboard's vocabulary over shadcn: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... |
+| `src/components/primitives.tsx` | The dashboard's vocabulary over shadcn: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... and the density words `Meter`, `StatStrip`, `Timeline`, `RelativeTime`. `SaveButton` takes its card's mutation and shows a two-second `Saved` receipt; `FormSection`'s `aside` is the read-only facts column beside the controls |
 | `src/components/data-table.tsx` | `DataTable` and `columnsFor`; every table on every page |
+| `src/components/metric-chart.tsx` | `MetricChart` for a page's own chart, `Sparkline` for the 30-minute trend that fits in a table cell |
 | `src/components/new-project.tsx` | `NewProjectDialog`, reached from the projects page and the sidebar's Projects label |
 | `src/components/ui/*` | shadcn output. Pages reach for it only for what `primitives.tsx` has no word for |
 | `src/components/*-panel.tsx`, `*-form.tsx` | Pieces a route composes. Domains and deployments are service-scoped, so their panels take the service they belong to |
 | `src/components/service-bulk-actions.tsx` | What a selection of services does together. Every action is the single-service endpoint run once per row, duplicate and move being create plus copy the variables |
-| `src/components/env-editor.tsx` | `EnvEditor`: the .env textarea with a line gutter and highlighting |
+| `src/components/env-editor.tsx` | `VariablesEditor`: the key/value table with a Table/Text switch, over `EnvEditor`, the .env textarea with a line gutter and highlighting |
 | `src/lib/api.ts` | Types for every response and one function per endpoint |
 | `src/lib/auth-client.ts` | better-auth client: `signIn`, `signUp`, `signOut`, `useSession` |
 | `src/lib/sse.ts` | `useEventSource` for one stream, `useSystemEvents` for cache invalidation |
@@ -369,7 +370,9 @@ serves. React Query holds server state; component state stays local.
 A page is: `useQuery({ queryKey, queryFn: api.something })`, a `useMutation`
 per action that invalidates the keys it changed, and a `Page` with the data
 inside primitives. Refetch-on-event comes from the shell, so a page never sets
-`refetchInterval` for anything the server can announce.
+`refetchInterval` for anything the server can announce. Sampled numbers are the
+exception: nothing announces a CPU reading, so the containers table polls on the
+sampler's own minute.
 
 Design rules (tokens, radius, hairlines, the Vercel look) are in
 [CONTRIBUTING.md](../CONTRIBUTING.md#conventions).

@@ -65,6 +65,56 @@ export function seriesOf<TSample extends Stamped>(history: TSample[], value: (sa
 	return history.map(sample => ({ at: sample.at, value: value(sample) }))
 }
 
+/** Half a stroke of headroom, so a reading at the floor or the ceiling is not clipped by its own line width. */
+const SPARK_INSET = 1
+
+/**
+ * An SVG polyline through `values`, left to right, oldest first. `max` is the
+ * ceiling to scale against; without one the window's own peak is the ceiling,
+ * which reads shape rather than level. Empty for nothing to draw.
+ */
+export function sparkPath(values: number[], width: number, height: number, max?: number): string {
+	if (values.length === 0) {
+		return ''
+	}
+	const peak = max ?? Math.max(...values)
+	const span = height - 2 * SPARK_INSET
+	const y = (value: number) =>
+		peak > 0 ? height - SPARK_INSET - Math.min(Math.max(value / peak, 0), 1) * span : height - SPARK_INSET
+	// A single reading has no run to spread over, so it draws as the flat line it is.
+	if (values.length === 1) {
+		return `M0,${y(values[0] ?? 0)} L${width},${y(values[0] ?? 0)}`
+	}
+	const step = width / (values.length - 1)
+	return values.map((value, index) => `${index === 0 ? 'M' : 'L'}${(index * step).toFixed(1)},${y(value)}`).join(' ')
+}
+
+/** A run of readings at row height: shape only, no axis, no tooltip. What a table cell has room for. */
+export function Sparkline({
+	values,
+	max,
+	label,
+	width = 56,
+	height = 16,
+}: {
+	values: number[]
+	max?: number
+	/** What the run is of, for anyone not reading the picture. */
+	label: string
+	width?: number
+	height?: number
+}) {
+	const path = sparkPath(values, width, height, max)
+	if (!path) {
+		return <span className='text-muted-foreground'>-</span>
+	}
+	return (
+		<svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role='img' aria-label={label}>
+			<path d={path} fill='none' stroke='var(--chart-1)' strokeWidth={1} vectorEffect='non-scaling-stroke' />
+		</svg>
+	)
+}
+
 /** One row of the recharts dataset: a timestamp plus one column per series. */
 type Row = { at: number; [series: string]: number }
 
@@ -142,7 +192,6 @@ export function MetricCard({
 							isAnimationActive={false}
 						/>
 						{series.map((_, index) => {
-							// The lead series draws in the brand colour, the one place the accent shows.
 							const color = index > 0 ? 'var(--muted-foreground)' : 'var(--chart-1)'
 							return (
 								<Area

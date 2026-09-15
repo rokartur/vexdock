@@ -13,10 +13,10 @@ import {
 	IconButton,
 	Input,
 	Refresh,
+	RelativeTime,
 	Section,
 } from '../components/primitives'
 import { api, type ApiToken } from '../lib/api'
-import { since } from '../lib/format'
 
 export const Route = createFileRoute('/system/settings/tokens')({ component: ApiTokens })
 
@@ -42,16 +42,17 @@ function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 		cell.accessor(token => token.last_used_at ?? '', {
 			id: 'last-used',
 			header: 'Last used',
-			cell: ({ row }) => (
-				<span className='text-muted-foreground'>
-					{row.original.last_used_at ? since(row.original.last_used_at) : 'never'}
-				</span>
-			),
+			cell: ({ row }) =>
+				row.original.last_used_at ? (
+					<RelativeTime at={row.original.last_used_at} />
+				) : (
+					<span className='text-muted-foreground'>never</span>
+				),
 		}),
 		cell.accessor(token => token.created_at, {
 			id: 'created',
 			header: 'Created',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
 		}),
 		cell.display({
 			id: 'actions',

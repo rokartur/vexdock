@@ -3,9 +3,9 @@ import { IconAffiliate, IconCpu, IconDatabase, IconServer } from '@tabler/icons-
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { MetricCard, type Point, ratesOf, seriesOf, useHistory } from '../components/metric-chart'
-import { Cells, Fact, Facts, Section } from '../components/primitives'
+import { Cells, Fact, Facts, RelativeTime, Section } from '../components/primitives'
 import { api, type ContainerStats, type ServicePoint } from '../lib/api'
-import { bytes, percent, since } from '../lib/format'
+import { bytes, percent } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
@@ -92,7 +92,10 @@ function ServiceMonitoring() {
 			<div className='mt-4 grid items-start gap-x-7 lg:grid-cols-2'>
 				<Facts>
 					<Fact label='Image' value={service.data?.running_image || service.data?.image || '-'} />
-					<Fact label='Created' value={service.data?.created_unix ? since(service.data.created_unix) : '-'} />
+					<Fact
+						label='Created'
+						value={service.data?.created_unix ? <RelativeTime at={service.data.created_unix} /> : '-'}
+					/>
 					<Fact label='Restarts' value={service.data?.restart_count ?? 0} />
 				</Facts>
 				<Facts>

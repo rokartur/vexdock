@@ -12,10 +12,10 @@ import {
 	IconButton,
 	Input,
 	Refresh,
+	RelativeTime,
 	Section,
 } from '../components/primitives'
 import { api, type Registry } from '../lib/api'
-import { since } from '../lib/format'
 
 export const Route = createFileRoute('/system/settings/registries')({ component: Registries })
 
@@ -37,7 +37,7 @@ function registryTableColumns(remove: (id: string) => void): Columns<Registry> {
 		cell.accessor(registry => registry.created_at, {
 			id: 'added',
 			header: 'Added',
-			cell: ({ row }) => <span className='text-muted-foreground'>{since(row.original.created_at)}</span>,
+			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
 		}),
 		cell.display({
 			id: 'actions',

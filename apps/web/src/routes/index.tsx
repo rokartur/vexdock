@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-	IconBox,
+	IconCertificate,
 	IconCpu,
 	IconDatabase,
 	IconFolder,
@@ -11,17 +11,55 @@ import {
 } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Progress } from '@/components/ui/progress'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Cell, Cells, Page, Refresh, Section, Status } from '../components/primitives'
-import { api, type HostPoint, type HostStats, type SystemInfo } from '../lib/api'
-import { bytes, percent, since } from '../lib/format'
+import { Cell, Cells, Meter, Page, Refresh, RelativeTime, Section, StatStrip, Status } from '../components/primitives'
+import { api, type Certificate, type HostPoint, type HostStats, type Project, type SystemInfo } from '../lib/api'
+import { bytes, percent, until } from '../lib/format'
 import { useEventSource } from '../lib/sse'
 
 /** The live stream carries a load average the recorded buckets do not. */
 type HostSample = HostPoint & { load_average?: number }
+
+/** Close enough to expiry that a renewal which has not happened yet is worth reading as a problem. */
+const EXPIRY_WARNING_DAYS = 21
+
+type Concern = { id: string; state: string; subject: string; detail: string; to: string }
+
+/** The two things on this page that are wrong rather than merely notable: services Docker gave up on, and certificates running out. */
+function concernsOf(projects: Project[], certificates: Certificate[]): Concern[] {
+	const deadline = Date.now() + EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000
+	const concerns: Concern[] = []
+	for (const project of projects) {
+		if (project.errored_count > 0) {
+			concerns.push({
+				id: project.id,
+				state: 'failed',
+				subject: project.name,
+				detail: `${project.errored_count} of ${project.service_count} services errored`,
+				to: `/projects/${project.id}`,
+			})
+		}
+	}
+	for (const certificate of certificates) {
+		const expiry = Date.parse(certificate.expires_at)
+		const expiring = !Number.isNaN(expiry) && expiry < deadline
+		if (certificate.status === 'failed' || expiring) {
+			concerns.push({
+				id: certificate.id,
+				state: certificate.status === 'failed' ? 'failed' : 'pending',
+				subject: certificate.hostname,
+				detail:
+					certificate.status === 'failed'
+						? certificate.last_error || 'certificate could not be issued'
+						: `certificate expires ${until(certificate.expires_at)}`,
+				to: '/system/certificates',
+			})
+		}
+	}
+	return concerns
+}
 
 /** Recorded buckets are stamped in unix seconds; live samples use the browser clock. */
 const toMillis = (point: HostPoint): HostSample => ({ ...point, at: point.at * 1000 })
@@ -53,9 +91,7 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 		cell.accessor(({ deployment }) => deployment.created_at, {
 			id: 'when',
 			header: 'When',
-			cell: ({ row }) => (
-				<span className='text-muted-foreground'>{since(row.original.deployment.created_at)}</span>
-			),
+			cell: ({ row }) => <RelativeTime at={row.original.deployment.created_at} />,
 		}),
 	]
 }
@@ -69,6 +105,8 @@ function DashboardPage() {
 	const version = useQuery({ queryKey: ['version'], queryFn: api.version })
 	// Same key the projects page uses.
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+	// Same key the certificates page uses.
+	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
 	const [stats, setStats] = useState<HostSample | null>(null)
 	const [openDeployment, setOpenDeployment] = useState<string | null>(null)
 
@@ -108,23 +146,55 @@ function DashboardPage() {
 	// The API already returns these newest-first, capped.
 	const deployments = info.data?.recent_deployments ?? []
 	const deploymentColumns = useMemo(() => recentDeploymentColumns(host?.name ?? ''), [host?.name])
+	const concerns = useMemo(
+		() => concernsOf(projects.data ?? [], certificates.data ?? []),
+		[projects.data, certificates.data],
+	)
+	const nextExpiry = (certificates.data ?? [])
+		.map(certificate => certificate.expires_at)
+		.toSorted()
+		.at(0)
 
 	return (
-		<Page
-			actions={
-				host ? (
-					<span className='truncate text-meta text-muted-foreground'>
-						{[
-							host.name,
-							`${host.os}/${host.architecture}`,
-							`${host.cpus} vCPU`,
-							bytes(host.memory_total),
-							`docker ${host.docker_version}`,
-						].join(' · ')}
-					</span>
-				) : null
-			}
-		>
+		<Page>
+			<StatStrip
+				className='mb-4'
+				items={[
+					{ label: 'Host', value: host?.name ?? '-' },
+					{ label: 'Platform', value: host ? `${host.os}/${host.architecture}` : '-' },
+					{ label: 'Docker', value: host?.docker_version ?? '-' },
+					{ label: 'Capacity', value: host ? `${host.cpus} vCPU · ${bytes(host.memory_total)}` : '-' },
+					{
+						label: 'Load',
+						value: stats?.load_average === undefined ? '-' : stats.load_average.toFixed(2),
+					},
+					{
+						label: 'Containers',
+						value: `${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`,
+					},
+					{ label: 'Stopped', value: info.data?.containers_stopped ?? 0 },
+				]}
+			/>
+
+			{concerns.length > 0 ? (
+				<Section title='Needs attention' description={`${concerns.length} open`}>
+					<ul className='divide-y divide-rule rounded-xl border bg-card raised'>
+						{concerns.map(concern => (
+							<li key={concern.id}>
+								<Link
+									to={concern.to}
+									className='flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40'
+								>
+									<Status dot value={concern.state} />
+									<span className='font-mono text-body'>{concern.subject}</span>
+									<span className='truncate text-label text-muted-foreground'>{concern.detail}</span>
+								</Link>
+							</li>
+						))}
+					</ul>
+				</Section>
+			) : null}
+
 			<Section title='Host' description='live, 30m history'>
 				{/* A host is judged on cpu and memory, so on the fleet page those two get
 				    a row to themselves and a chart big enough to read a trend off. */}
@@ -158,13 +228,18 @@ function DashboardPage() {
 						value={current ? bytes(current.disk_used) : '-'}
 						hint={`of ${bytes(current?.disk_total)} · ${percent(diskUsed * 100)}`}
 					>
-						<Progress value={diskUsed * 100} className='mt-2.5 h-0.5' />
+						<Meter
+							className='mt-2.5'
+							label=''
+							value={current?.disk_used ?? 0}
+							max={current?.disk_total ?? 0}
+						/>
 					</Cell>
 					<Cell
-						label='Containers'
-						icon={IconBox}
-						value={`${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`}
-						hint='running / total'
+						label='Certificates'
+						icon={IconCertificate}
+						value={certificates.data?.length ?? 0}
+						hint={nextExpiry ? `next renewal ${until(nextExpiry)}` : 'none issued'}
 					/>
 					<Cell label='Projects' icon={IconFolder} value={projects.data?.length ?? 0} hint='on this host' />
 					<Cell

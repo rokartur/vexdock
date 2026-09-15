@@ -2,9 +2,10 @@ import { IconPlayerStop, IconRefresh, IconRocket } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
-import { Button, ErrorText, Page, Tabs } from '../components/primitives'
+import { Button, ErrorText, Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 import { environmentSearch } from '../lib/environment'
+import { bytes, percent } from '../lib/format'
 
 // A service is not one of the project's tabs, so it hangs off `$projectId_`:
 // same URL, own header, own toolbar. The environment still travels with it, so
@@ -92,6 +93,21 @@ function ServiceLayout() {
 			toolbar={<Tabs base={`/projects/${projectId}/services/${serviceId}`} tabs={tabs} />}
 		>
 			<ErrorText error={deploy.error ?? act.error} />
+			{/* The same line under every tab, so what the service is doing never depends on which one is open. */}
+			{service.data ? (
+				<StatStrip
+					className='mb-4'
+					items={[
+						{ label: 'State', value: <Status value={service.data.state} /> },
+						{ label: 'Health', value: service.data.health || '-' },
+						{ label: 'Image', value: service.data.running_image || service.data.image || '-' },
+						{ label: 'Started', value: <RelativeTime at={service.data.created_unix} /> },
+						{ label: 'CPU', value: running ? percent(service.data.cpu_percent) : '-' },
+						{ label: 'Memory', value: running ? bytes(service.data.memory_usage) : '-' },
+						{ label: 'Restarts', value: service.data.restart_count },
+					]}
+				/>
+			) : null}
 			<Outlet />
 		</Page>
 	)

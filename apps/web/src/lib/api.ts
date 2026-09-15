@@ -122,7 +122,7 @@ export type Service = {
 	credential_kind: CredentialKind
 	/** The connection this service clones through, or empty for a plain git URL. */
 	git_provider_id: string
-	/** Owning user, organisation or group of the repository, on the connection. */
+	/** Owning user, organization or group of the repository, on the connection. */
 	owner: string
 	/** Repository name on the connection, which together with owner replaces the URL. */
 	repository: string
@@ -229,6 +229,13 @@ export type ContainerSummary = {
 	project: string
 	service: string
 	networks: string[] | null
+	/** The newest recorded minute. Zero on a container the sampler has not reached yet. */
+	cpu_percent: number
+	memory_usage: number
+	/** Zero when the container runs without a memory limit, which is most of them. */
+	memory_limit: number
+	/** One cpu reading per recorded minute over the last 30, oldest first. */
+	cpu_series: number[] | null
 }
 
 /** `remove` refuses a running container: the daemon wants force, which the dashboard never sends. */
@@ -490,8 +497,6 @@ export type Settings = {
 	dashboard_domain: string
 	dashboard_https: boolean
 	acme_email: string
-	/** Dashboard accent as `#rrggbb`, or '' to keep the shipped orange. */
-	brand_color: string
 	/** True when a Cloudflare token is stored. The token itself is never read back. */
 	cloudflare_token_set: boolean
 }
@@ -811,7 +816,7 @@ export const api = {
 			method: 'POST',
 			body,
 		}),
-	/** GitLab and Gitea answer with the URL the owner has to visit to authorise the app. */
+	/** GitLab and Gitea answer with the URL the owner has to visit to authorize the app. */
 	saveGitLabProvider: (
 		id: string | undefined,
 		body: { name: string; gitlab_url?: string; application_id: string; secret: string; group_name?: string },

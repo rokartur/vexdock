@@ -10,6 +10,7 @@ import {
 } from 'react'
 import {
 	IconAlertCircle,
+	IconCheck,
 	IconDeviceFloppy,
 	IconInbox,
 	IconRefresh,
@@ -49,6 +50,7 @@ import { Input as ShadcnInput } from '@/components/ui/input'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Progress } from '@/components/ui/progress'
 import { Select as ShadcnSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch as ShadcnSwitch } from '@/components/ui/switch'
 import { Tabs as ShadcnTabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -56,6 +58,7 @@ import { Textarea as ShadcnTextarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { labelOf, trailOf } from '@/lib/breadcrumb'
+import { since, until } from '@/lib/format'
 import { cn } from '@/utils/cn'
 
 // The rules every primitive below follows: one black canvas, a hairline border
@@ -135,7 +138,7 @@ export const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/u.t
 
 /**
  * A key combination shown next to the thing it triggers, one cap per key:
- * `<Keys keys={[mod, 'K']} />`. Inside a button it takes the button's colour.
+ * `<Keys keys={[mod, 'K']} />`. Inside a button it takes the button's color.
  */
 export function Keys({ keys }: { keys: string[] }) {
 	return (
@@ -169,14 +172,23 @@ const stateColor: Record<string, string> = {
 	paused: 'text-muted-foreground',
 }
 
-/** The colour a state reads in, for the places that show the dot without the word. */
+/** The color a state reads in, for the places that show the dot without the word. */
 export function stateTone(value: string) {
 	return stateColor[value] ?? 'text-muted-foreground'
 }
 
-/** A status word rendered in the colour that matches its meaning. */
-export function Status({ value }: { value: string }) {
+/** A status word rendered in the color that matches its meaning. `dot` drops the word for rows that are tight. */
+export function Status({ value, dot }: { value: string; dot?: boolean }) {
 	if (!value) return <span className='text-muted-foreground'>-</span>
+	if (dot) {
+		return (
+			<span
+				title={value}
+				aria-label={value}
+				className={cn('inline-block size-1.5 shrink-0 rounded-full bg-current', stateTone(value))}
+			/>
+		)
+	}
 	return (
 		<span className={cn('inline-flex items-center gap-1.5', stateTone(value))}>
 			<span aria-hidden className='inline-block size-1.5 rounded-full bg-current' />
@@ -199,7 +211,7 @@ export function PageChrome({ value, children }: { value: HTMLElement | null; chi
 
 /**
  * The scrolling body of the shell. Every page is a Page, nothing else scrolls, and the header trail is read off the
- * URL. `labels` names segments the URL cannot, keyed by segment: a labelled segment is never wrapped in a link so the
+ * URL. `labels` names segments the URL cannot, keyed by segment: a labeled segment is never wrapped in a link so the
  * label can carry its own interaction, and `null` drops the segment for path parts that only exist to nest routes.
  */
 export function Page({
@@ -244,7 +256,7 @@ export function Page({
 					{trail.map(({ segment, to, linkable }, index) => {
 						const label = labels?.[segment]
 						const last = index === trail.length - 1
-						// A labelled segment renders a picker button, and a link around it would navigate on the
+						// A labeled segment renders a picker button, and a link around it would navigate on the
 						// click that opens the popover. Only a plain last segment is aria-current.
 						const crumbClass = cn(
 							'flex min-w-0 items-center gap-2 truncate',
@@ -365,12 +377,41 @@ export function Segmented<TValue extends string>({
 	)
 }
 
-/** The Save a FormSection ends with: submits it, and shows the Cmd/Ctrl+S that does the same. */
-export function SaveButton({ pending, label = 'Save' }: { pending: boolean; label?: string }) {
+const RECEIPT_MS = 2000
+
+/** True for two seconds after each successful save. `savedAt` must change per save, or a repeat save shows nothing. */
+function useReceipt(savedAt: number) {
+	const [showing, setShowing] = useState(false)
+	useEffect(() => {
+		if (savedAt === 0) return
+		setShowing(true)
+		const timer = setTimeout(() => setShowing(false), RECEIPT_MS)
+		return () => clearTimeout(timer)
+	}, [savedAt])
+	return showing
+}
+
+/** The Save a FormSection ends with: submits it, shows the Cmd/Ctrl+S that does the same, then reports the result. */
+export function SaveButton({
+	mutation,
+	label = 'Save',
+}: {
+	mutation: { isPending: boolean; isSuccess: boolean; submittedAt: number }
+	label?: string
+}) {
+	const saved = useReceipt(mutation.isSuccess ? mutation.submittedAt : 0)
+	if (saved) {
+		return (
+			<Button type='submit' variant='default'>
+				<IconCheck className='text-emerald-400' />
+				Saved
+			</Button>
+		)
+	}
 	return (
-		<Button type='submit' variant='primary' disabled={pending}>
+		<Button type='submit' variant='primary' disabled={mutation.isPending}>
 			<IconDeviceFloppy />
-			{pending ? 'Saving…' : label}
+			{mutation.isPending ? 'Saving…' : label}
 			<Keys keys={[mod, 'S']} />
 		</Button>
 	)
@@ -413,6 +454,7 @@ export function FormSection({
 	icon: Icon,
 	hint,
 	actions,
+	aside,
 	onSave,
 	children,
 }: {
@@ -422,9 +464,27 @@ export function FormSection({
 	/** Footer text: what saving does, or what the group needs before it can. */
 	hint?: ReactNode
 	actions?: ReactNode
+	/** Read-only facts beside the fields: what the server currently answers about what they set. */
+	aside?: { label: string; value: ReactNode }[]
 	onSave?: () => void
 	children: ReactNode
 }) {
+	const body =
+		aside && aside.length > 0 ? (
+			<div className='grid gap-x-6 md:grid-cols-[minmax(0,1fr)_13rem]'>
+				<div className='min-w-0'>{children}</div>
+				<dl className='mt-4 grid content-start gap-2.5 border-t border-rule pt-3 md:mt-0 md:border-t-0 md:border-l md:pt-0 md:pl-5'>
+					{aside.map(fact => (
+						<div key={fact.label}>
+							<dt className='text-label text-muted-foreground'>{fact.label}</dt>
+							<dd className='text-body'>{fact.value}</dd>
+						</div>
+					))}
+				</dl>
+			</div>
+		) : (
+			children
+		)
 	const card = (
 		<Card className='mb-4 gap-0 py-0 raised ring-border'>
 			<CardHeader className='gap-0.5 px-5 pt-4'>
@@ -434,11 +494,11 @@ export function FormSection({
 				</CardTitle>
 				{description ? <CardDescription className='text-label'>{description}</CardDescription> : null}
 			</CardHeader>
-			<CardContent className='px-5 py-4'>{children}</CardContent>
+			<CardContent className='px-5 py-4'>{body}</CardContent>
 			{actions || hint ? (
-				<CardFooter className='min-h-12 justify-between gap-3 border-rule px-5 py-2.5 text-label text-muted-foreground'>
+				<CardFooter className='min-h-12 flex-wrap justify-between gap-3 border-rule px-5 py-2.5 text-label text-muted-foreground'>
 					<span>{hint}</span>
-					<div className='flex items-center gap-2'>{actions}</div>
+					<div className='ml-auto flex flex-wrap items-center gap-2'>{actions}</div>
 				</CardFooter>
 			) : null}
 		</Card>
@@ -535,6 +595,94 @@ export function Fact({ label, value }: { label: string; value: ReactNode }) {
 				{value}
 			</ItemActions>
 		</Item>
+	)
+}
+
+/**
+ * A reading and how full it is. `max` is what the bar fills against, so a
+ * container without a memory limit reports zero and gets the number alone: a
+ * bar with nothing to fill against says less than no bar at all.
+ */
+export function Meter({
+	label,
+	value,
+	max = 100,
+	className,
+}: {
+	/** What the row reads, e.g. `14%` or `412 MB / 1 GB`. */
+	label: ReactNode
+	value: number
+	max?: number
+	className?: string
+}) {
+	return (
+		<div className={cn('min-w-16', className)}>
+			<div className='truncate font-mono text-label leading-none tabular-nums'>{label}</div>
+			{max > 0 ? <Progress value={value} max={max} className='mt-1.5 gap-0' aria-label={String(label)} /> : null}
+		</div>
+	)
+}
+
+/** The page's headline numbers on one hairline row, above everything else it shows. */
+export function StatStrip({ items, className }: { items: { label: string; value: ReactNode }[]; className?: string }) {
+	return (
+		<dl
+			className={cn(
+				'flex flex-wrap items-start gap-x-8 gap-y-3 rounded-xl border bg-card px-4 py-2.5 raised',
+				className,
+			)}
+		>
+			{items.map(item => (
+				<div key={item.label} className='min-w-0'>
+					<dt className='text-meta text-muted-foreground'>{item.label}</dt>
+					<dd className='truncate text-body tabular-nums'>{item.value}</dd>
+				</div>
+			))}
+		</dl>
+	)
+}
+
+/** An ordered run of steps, each with the state it ended in. The shape for a pipeline that is watched while it runs. */
+export function Timeline({ steps }: { steps: { id: string; name: string; status: string; detail?: ReactNode }[] }) {
+	return (
+		<ol className='relative ml-[3px] border-l border-rule'>
+			{steps.map(step => (
+				<li key={step.id} className='flex items-center gap-3 py-1 pl-4 text-body'>
+					<span className='absolute -left-[3.5px]'>
+						<Status dot value={step.status} />
+					</span>
+					<span className='min-w-0 flex-1 truncate font-mono'>{step.name}</span>
+					{step.detail ? (
+						<span className='shrink-0 font-mono text-label text-muted-foreground tabular-nums'>
+							{step.detail}
+						</span>
+					) : null}
+				</li>
+			))}
+		</ol>
+	)
+}
+
+/** How often a relative stamp is redrawn. The shortest thing `since` says is seconds, so half a minute is enough. */
+const RELATIVE_TICK_MS = 30_000
+
+/** A stamp read as distance from now in either direction, re-read on a tick so a page left open does not keep claiming `2m ago`. */
+export function RelativeTime({ at }: { at: string | number | null | undefined }) {
+	const [, redraw] = useState(0)
+
+	useEffect(() => {
+		const timer = setInterval(() => redraw(count => count + 1), RELATIVE_TICK_MS)
+		return () => clearInterval(timer)
+	}, [])
+
+	if (!at) return <span className='text-muted-foreground'>-</span>
+	const parsed = typeof at === 'number' ? at * 1000 : Date.parse(at)
+	if (Number.isNaN(parsed)) return <span className='text-muted-foreground'>-</span>
+	const stamp = new Date(parsed)
+	return (
+		<time dateTime={stamp.toISOString()} title={stamp.toLocaleString()} className='text-muted-foreground'>
+			{parsed > Date.now() ? until(at) : since(at)}
+		</time>
 	)
 }
 
@@ -635,7 +783,7 @@ export function Check({
 	onChange: (checked: boolean) => void
 	disabled?: boolean
 	muted?: boolean
-	/** Layout only (sizing, shrink). Colour and spacing stay with the primitive. */
+	/** Layout only (sizing, shrink). Color and spacing stay with the primitive. */
 	className?: string
 }) {
 	return (
@@ -777,8 +925,9 @@ export function Combo<TValue extends string>({
 	)
 }
 
-export function Input(props: Omit<ComponentProps<typeof ShadcnInput>, 'className'>) {
-	return <ShadcnInput className='text-body md:text-body' {...props} />
+/** `mono` is for machine text typed by hand: a variable name, a value, an id. */
+export function Input({ mono, ...props }: Omit<ComponentProps<typeof ShadcnInput>, 'className'> & { mono?: boolean }) {
+	return <ShadcnInput className={cn('text-body md:text-body', mono && 'font-mono text-label')} {...props} />
 }
 
 export function Textarea(props: Omit<ComponentProps<typeof ShadcnTextarea>, 'className'>) {

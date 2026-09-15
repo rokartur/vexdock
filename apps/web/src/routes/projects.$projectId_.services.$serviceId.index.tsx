@@ -26,6 +26,7 @@ import {
 	Field,
 	FormSection,
 	Input,
+	RelativeTime,
 	SaveButton,
 	Segmented,
 	Select,
@@ -35,7 +36,7 @@ import {
 } from '../components/primitives'
 import { api, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { duration, since } from '../lib/format'
+import { duration } from '../lib/format'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/')({
@@ -118,7 +119,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 									#{latest.number}
 								</Link>
 								<Status value={latest.status} />
-								<span>{since(latest.created_at)}</span>
+								<RelativeTime at={latest.created_at} />
 								<span>{duration(latest.started_at, latest.finished_at)}</span>
 							</span>
 						) : (
@@ -139,7 +140,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 
 /**
  * Credentials are read back out of the service's own environment and the image off the service itself, so both are
- * what the container will start with rather than what the catalogue now defaults to.
+ * what the container will start with rather than what the catalog now defaults to.
  */
 function DatabaseSections({ serviceId }: { serviceId: string }) {
 	const [revealed, setRevealed] = useState(false)
@@ -294,7 +295,7 @@ function SourceSection({ service }: { service: Service }) {
 			icon={IconGitBranch}
 			hint='Applied on the next deploy.'
 			onSave={() => save.mutate()}
-			actions={<SaveButton pending={save.isPending} />}
+			actions={<SaveButton mutation={save} />}
 		>
 			<ErrorText error={save.error} />
 			{editable ? (

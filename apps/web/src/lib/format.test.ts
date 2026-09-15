@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { parseAccessLine, parseLogLine } from './format'
+import { parseAccessLine, parseLogLine, until } from './format'
 
 const esc = String.fromCodePoint(27)
 
@@ -47,4 +47,12 @@ test('breaks an nginx access line into columns', () => {
 
 test('leaves non-access lines to the plain renderer', () => {
 	expect(parseAccessLine('2026/08/18 10:33:13 [error] 12#12: *5 open() failed')).toBeNull()
+})
+
+test('counts down to a stamp given as an ISO string or as unix seconds', () => {
+	const target = Date.now() + 2 * 3600 * 1000 + 60_000
+
+	expect(until(new Date(target).toISOString())).toBe('in 2h')
+	expect(until(Math.floor(target / 1000))).toBe('in 2h')
+	expect(until(Math.floor(Date.now() / 1000) - 60)).toBe('in 0s')
 })

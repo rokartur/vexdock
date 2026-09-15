@@ -190,7 +190,7 @@ connection's token clones it and its repository list is what the name was picked
 from. Setting a connection clears the service's own `repository_url` and
 credential; clearing it (`""`) drops `owner` and `repository` and hands the URL
 and credential fields back. Sending
-a `database` object instead picks the engine catalogue: the image, the volume
+a `database` object instead picks the engine catalog: the image, the volume
 and the credentials are generated for you, and `provider` is forced to `image`.
 
 `auto_deploy` arms the service for [provider deliveries](#webhooks): a push to its
@@ -213,12 +213,12 @@ the `repository_url` (or a connection and `repository`), `image` or
 application may change provider later; a database answers `400`, because its
 volume and credentials were rendered from the engine it was created with.
 
-The catalogue itself is readable, which is what the dashboard's engine and
+The catalog itself is readable, which is what the dashboard's engine and
 version pickers use:
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/engines` | The engine catalogue |
+| `GET /api/engines` | The engine catalog |
 | `GET /api/engines/{slug}/versions` | `{"versions": [...], "live": true}` |
 
 Versions come from the registry, so the endpoint is a suggestion rather than a
@@ -227,13 +227,13 @@ curated versions come first, then whatever the registry adds, most recently
 pushed first rather than highest version. When
 the registry cannot be reached the curated list is returned on its own with
 `live` set to `false`, so the picker degrades instead of emptying. An unknown
-slug is `404`; `custom` is `400`, because an image the catalogue has never seen
+slug is `404`; `custom` is `400`, because an image the catalog has never seen
 has no version list to offer.
 
 The `database` object takes `engine`, `version`, `name`, `user` and `password`,
 all optional except `engine`; what you leave out is defaulted or generated. The
 `custom` engine takes `image` and `data_path` instead of `version`, since the
-catalogue knows neither for an image it has never seen.
+catalog knows neither for an image it has never seen.
 
 `libsql` takes three more: `sqld_node` (`primary`, the default, `replica` or
 `standalone`), `sqld_primary_url`, which a replica needs and nothing else reads,
@@ -247,7 +247,7 @@ in the Environment tab changes the flag on the next deploy.
 `image` is accepted for every engine, not only `custom`, and it wins over
 `version` when both are sent. That is what lets an export be replayed without
 re-resolving anything. A stored service keeps the exact image it was created
-with, so a later change to a catalogue default never moves a running database.
+with, so a later change to a catalog default never moves a running database.
 
 ```sh
 curl -fsS -X POST \
@@ -277,13 +277,13 @@ the values it needs generated, and the port its hostname reaches.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/templates` | The application catalogue |
+| `GET /api/templates` | The application catalog |
 | `POST /api/projects/{id}/services/template` | `{"slug", "hostname"}`; installs one |
 
 Installing does three things in one request: the values the stack needs are
 seeded as the environment's variables (a key the environment already holds keeps
 its value), each compose service becomes a `raw` service, and the hostname is
-pointed at the service the catalogue says serves it. The answer is
+pointed at the service the catalog says serves it. The answer is
 `{"services": [...], "domain": {...}}`.
 
 The hostname is required, because these applications write their own URL into
@@ -431,7 +431,7 @@ and keeps polling until the manager returns.
 |---|---|
 | `GET /api/system/info` | Host and Docker facts, project and container counts, the twenty most recent deployments |
 | `GET /api/system/metrics` | Recorded host usage over `?window=`, which seeds the charts before live samples arrive |
-| `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, brand colour, Cloudflare token |
+| `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, Cloudflare token |
 | `GET /api/system/certificates` | Every issued certificate |
 | `POST /api/system/backup` | Takes a snapshot; `?volumes=true` includes volume archives. `201` |
 | `GET /api/system/backups` | The snapshots on disk |
@@ -456,7 +456,7 @@ are listed too, with `managed` false, rather than being left out.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/docker/containers` | Every container, with its compose project and service |
+| `GET /api/docker/containers` | Every container, with its compose project, service and last half hour of usage |
 | `POST /api/docker/containers/{id}/{action}` | `start`, `stop`, `restart` or `remove`; remove takes `?force=true` |
 | `GET /api/docker/images` | Images with their size and how many containers use them |
 | `POST /api/docker/images/pull` | `{"reference"}`; answers with the daemon's output once the pull has finished |
@@ -466,6 +466,12 @@ are listed too, with `managed` false, rather than being left out.
 | `GET /api/docker/networks` | Networks and the containers on them |
 | `GET /api/docker/cleanup` | What a cleanup would reclaim, in bytes, touching nothing |
 | `POST /api/docker/cleanup/{kind}` | `containers`, `images`, `volumes`, `networks` or `build-cache` |
+
+Each container carries `cpu_percent`, `memory_usage`, `memory_limit` and a
+`cpu_series` of the last 30 minutes, read out of `container_metrics` in one
+grouped query rather than by asking the daemon. The sampler writes a row a
+minute, so a container younger than that, or one the sampler has not seen since
+it stopped, answers `null`.
 
 Nothing is pruned on a schedule. A cleanup answers
 `{"kind", "removed", "space_reclaimed"}`. `cleanup/volumes` wants `?confirm=true`
@@ -493,7 +499,7 @@ picked from a list instead of pasted as a URL.
 | `POST \| PUT /api/git-providers[/{id}]/bitbucket` | `{"name", "bitbucket_username", "app_password", "bitbucket_email", "api_token", "bitbucket_workspace_name"}` |
 | `GET /api/providers/github/callback` | Where GitHub returns once the App exists. Redirects |
 | `GET /api/providers/github/installed` | Where GitHub returns once it is installed. Redirects |
-| `GET /api/providers/{provider}/callback` | Where GitLab and Gitea return with an authorisation code. Redirects |
+| `GET /api/providers/{provider}/callback` | Where GitLab and Gitea return with an authorization code. Redirects |
 
 Every connection answers `connected`, which is false until the handshake with
 the host finished. Nothing can be listed before then, so the repository picker
@@ -584,7 +590,7 @@ login fails is not kept. The token is encrypted before storage and piped to
 | `POST /api/deployments/{id}/rollback` | Redeploys the commit that deployment recorded, scoped to the same service; `202`, or `400` when it recorded none |
 
 One environment deploys one pipeline at a time; a second request queues behind
-the first and can still be cancelled while it waits.
+the first and can still be canceled while it waits.
 
 ## Deploy from CI
 
