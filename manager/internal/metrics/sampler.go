@@ -37,7 +37,7 @@ func NewSampler(db *database.DB, dockerClient *docker.Client, root string, log *
 	return &Sampler{db: db, docker: dockerClient, root: root, log: log}
 }
 
-// Run samples until ctx is cancelled.
+// Run samples until ctx is canceled.
 func (s *Sampler) Run(ctx context.Context) {
 	ticker := time.NewTicker(Interval)
 	defer ticker.Stop()

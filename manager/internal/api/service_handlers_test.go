@@ -24,7 +24,7 @@ func TestScanLinesReturnsWhenClientGoesAwayMidSend(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("scanLines stayed parked on a send after the context was cancelled")
+		t.Fatal("scanLines stayed parked on a send after the context was canceled")
 	}
 }
 

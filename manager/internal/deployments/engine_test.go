@@ -38,7 +38,7 @@ func TestFinishSettlesEveryOutcome(t *testing.T) {
 		status string
 	}{
 		{"success", nil, database.DeploymentSuccess},
-		{"cancelled before it was read", context.Canceled, database.DeploymentCancelled},
+		{"canceled before it was read", context.Canceled, database.DeploymentCancelled},
 		{"failed", errors.New("compose config failed"), database.DeploymentFailed},
 	}
 	for _, tc := range cases {

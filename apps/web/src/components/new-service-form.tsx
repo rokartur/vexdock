@@ -68,7 +68,7 @@ export function NewServiceForm({
 	const isCustom = engine === 'custom'
 	// sqld has no database to name and keeps its credentials in one encoded
 	// variable, so its fields are named here rather than derived from the
-	// catalogue's user_var and password_var.
+	// catalog's user_var and password_var.
 	const isLibsql = engine === 'libsql'
 
 	// The version list is a suggestion, not a constraint: the field stays free

@@ -257,7 +257,7 @@ func (db *DB) UpdateGitLabApp(ctx context.Context, g *GitLabProvider) error {
 	return affectedOne(res)
 }
 
-// SetGitLabTokens stores a grant, whether it came from the first authorisation
+// SetGitLabTokens stores a grant, whether it came from the first authorization
 // or from a refresh. GitLab rotates the refresh token on every use, so this
 // runs on every refresh and not only at connect time.
 func (db *DB) SetGitLabTokens(ctx context.Context, id, accessEnc, refreshEnc string, expiresAt int64) error {

@@ -25,7 +25,7 @@ Everything in front of it is therefore treated as untrusted input.
   `https://panel` and `panel:443` are the same origin. The scheme the request
   arrived on is the `X-Forwarded-Proto` Nginx sets, falling back to plain HTTP
   for a manager reached directly on its published port. Browsers cannot forge
-  any of it, so this is the CSRF defence, on both the manager and the auth service.
+  any of it, so this is the CSRF defense, on both the manager and the auth service.
   A request carrying no `Origin` at all is let through: a browser always sends
   one on a cross-site mutation, so its absence means the caller was not a
   browser page and is authenticating with a token rather than a cookie. The
@@ -125,7 +125,7 @@ row every mutation gets.
   still connect. The request-derived form is only ever read from a request that
   already passed the session and same-origin checks, and what it produces is
   stored on the connection, so the exchange repeats the exact URI the
-  authorisation used rather than whatever a later request happens to claim.
+  authorization used rather than whatever a later request happens to claim.
 - Registry credentials are encrypted in the database and also handed to
   `docker login`, which writes them to `/opt/vexdock/system/docker/config.json`
   in Docker's own format. That directory is on the host so the login survives

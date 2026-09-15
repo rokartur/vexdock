@@ -16,7 +16,7 @@ export function Terminal({ url }: { url: string }) {
 		const host = hostRef.current
 		if (!host) return
 
-		// xterm paints on a canvas, so it needs literal colours: read them off the
+		// xterm paints on a canvas, so it needs literal colors: read them off the
 		// console tokens in styles.css instead of duplicating the palette here.
 		const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 		const term = new XTerm({

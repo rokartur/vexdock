@@ -176,7 +176,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Project
 // is what keeps production and staging from sharing a container or a volume.
 func ComposeProjectName(id string) string { return "p_" + strings.ToLower(id) }
 
-// Validate normalises and checks a project's mutable fields. Creation and every
+// Validate normalizes and checks a project's mutable fields. Creation and every
 // update run through it.
 func (s *Service) Validate(p *database.Project) error {
 	p.Tags = NormalizeTags(p.Tags)

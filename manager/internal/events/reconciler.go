@@ -38,7 +38,7 @@ func NewReconciler(dockerClient *docker.Client, domainSvc *domains.Service, bus 
 	}
 }
 
-// Run blocks until ctx is cancelled.
+// Run blocks until ctx is canceled.
 func (r *Reconciler) Run(ctx context.Context) {
 	trigger := make(chan struct{}, 1)
 	go r.watchDocker(ctx, trigger)

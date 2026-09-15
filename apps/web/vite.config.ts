@@ -36,7 +36,7 @@ export default defineConfig(({ command }) => ({
 			'/api': {
 				target: process.env.API_TARGET ?? 'http://127.0.0.1:3000',
 				// The Host header has to survive: the manager rejects a mutation whose
-				// Origin does not match it, and that is the CSRF defence for cookies.
+				// Origin does not match it, and that is the CSRF defense for cookies.
 				changeOrigin: false,
 				ws: true,
 			},

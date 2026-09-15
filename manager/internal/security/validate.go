@@ -27,7 +27,7 @@ var (
 	repoOwner = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,199}$`)
 )
 
-// ValidateRepositoryOwner checks the owning user, organisation or group of a
+// ValidateRepositoryOwner checks the owning user, organization or group of a
 // repository as reported by a git provider's API.
 func ValidateRepositoryOwner(owner string) error {
 	if !repoOwner.MatchString(owner) || strings.Contains(owner, "..") {

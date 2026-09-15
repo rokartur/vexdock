@@ -15,10 +15,10 @@ import (
 // endpoint paths and the scope names.
 
 // GitLabScopes is what a connection needs: read the user to confirm who
-// authorised, read repositories to clone them, api to list projects.
+// authorized, read repositories to clone them, api to list projects.
 const GitLabScopes = "api read_user read_repository"
 
-// GiteaScopes is Gitea's equivalent. Gitea rejects an authorisation whose
+// GiteaScopes is Gitea's equivalent. Gitea rejects an authorization whose
 // scopes are not a subset of what the application was registered with, so this
 // is also what the owner must tick when registering it.
 const GiteaScopes = "read:repository read:user read:organization"
@@ -57,10 +57,10 @@ func AuthorizeURL(providerType, host, clientID, redirectURI, state, scopes strin
 	case ProviderGitea:
 		return base + "/login/oauth/authorize?" + query.Encode(), nil
 	}
-	return "", fmt.Errorf("%s does not authorise through oauth", providerType)
+	return "", fmt.Errorf("%s does not authorize through oauth", providerType)
 }
 
-// ExchangeCode turns the authorisation code from the callback into tokens.
+// ExchangeCode turns the authorization code from the callback into tokens.
 func ExchangeCode(ctx context.Context, providerType, host, clientID, clientSecret, redirectURI, code string) (Tokens, error) {
 	return oauthToken(ctx, providerType, host, url.Values{
 		"client_id":     {clientID},
@@ -76,7 +76,7 @@ func ExchangeCode(ctx context.Context, providerType, host, clientID, clientSecre
 // connection breaks on the call after next.
 func RefreshTokens(ctx context.Context, providerType, host, clientID, clientSecret, redirectURI, refreshToken string) (Tokens, error) {
 	if refreshToken == "" {
-		return Tokens{}, fmt.Errorf("%s connection has not been authorised yet", providerType)
+		return Tokens{}, fmt.Errorf("%s connection has not been authorized yet", providerType)
 	}
 	return oauthToken(ctx, providerType, host, url.Values{
 		"client_id":     {clientID},
@@ -142,10 +142,10 @@ func tokenEndpoint(providerType, host string) (string, error) {
 	case ProviderGitea:
 		return base + "/login/oauth/access_token", nil
 	}
-	return "", fmt.Errorf("%s does not authorise through oauth", providerType)
+	return "", fmt.Errorf("%s does not authorize through oauth", providerType)
 }
 
-// AuthenticatedUser is the login name of whoever authorised the connection.
+// AuthenticatedUser is the login name of whoever authorized the connection.
 // GitLab and Gitea both expose it, and it is what the dashboard shows to make
 // a connection recognisable.
 func (a Account) AuthenticatedUser(ctx context.Context) (string, error) {

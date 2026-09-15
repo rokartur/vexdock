@@ -118,7 +118,7 @@ vx /api/projects/$PROJECT -X DELETE                                      # add ?
 vx /api/projects/$PROJECT/services -d '{"name":"web","provider":"github","repository_url":"https://github.com/o/r","branch":"main"}'
 # image
 vx /api/projects/$PROJECT/services -d '{"name":"cache","provider":"image","image":"redis:7-alpine"}'
-# database from the catalogue (image, volume, credentials generated)
+# database from the catalog (image, volume, credentials generated)
 vx /api/projects/$PROJECT/services -d '{"name":"db","database":{"engine":"postgres","version":"17-alpine"}}'
 vx /api/services/$SERVICE/database                                       # connection details
 # pasted compose fragment

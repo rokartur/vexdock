@@ -1,6 +1,6 @@
 -- vexdock:rebuild
 --
--- Git providers, modelled the way Dokploy models them: one parent row naming
+-- Git providers, modeled the way Dokploy models them: one parent row naming
 -- the connection and one child row per provider holding the credentials that
 -- provider actually uses. The old single git_accounts table pretended a
 -- personal access token was the shape of every provider, which is only true of
@@ -40,7 +40,7 @@ CREATE TABLE github (
 );
 
 -- A GitLab OAuth application. The owner registers it in GitLab, pastes the
--- application id and secret, and authorises it once; the refresh token keeps
+-- application id and secret, and authorizes it once; the refresh token keeps
 -- the connection alive after that.
 CREATE TABLE gitlab (
     git_provider_id TEXT PRIMARY KEY REFERENCES git_providers (id) ON DELETE CASCADE,
@@ -56,7 +56,7 @@ CREATE TABLE gitlab (
 );
 
 -- Bitbucket has no app to install; a credential pair is the whole connection,
--- and it both lists and clones. Atlassian is retiring app passwords in favour
+-- and it both lists and clones. Atlassian is retiring app passwords in favor
 -- of an account email and an API token, so both pairs are accepted and the API
 -- token wins when it is set.
 CREATE TABLE bitbucket (

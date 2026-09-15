@@ -59,7 +59,7 @@ func TestValidateHostname(t *testing.T) {
 		t.Fatalf("valid hostname rejected: %v", err)
 	}
 	if got != "app.example.com" {
-		t.Fatalf("hostname not normalised: %q", got)
+		t.Fatalf("hostname not normalized: %q", got)
 	}
 	if got, err := ValidateHostname("*.Example.com"); err != nil || got != "*.example.com" {
 		t.Fatalf("leftmost wildcard rejected: %q %v", got, err)

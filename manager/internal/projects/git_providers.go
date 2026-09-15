@@ -61,7 +61,7 @@ func (s *Service) githubAccount(ctx context.Context, g *database.GitHubProvider)
 // the new pair is written back before it is used.
 func (s *Service) gitlabAccount(ctx context.Context, g *database.GitLabProvider) (git.Account, error) {
 	if g.AccessTokenEnc == "" {
-		return git.Account{}, fmt.Errorf("this gitlab connection has not been authorised yet")
+		return git.Account{}, fmt.Errorf("this gitlab connection has not been authorized yet")
 	}
 	tokens, err := s.decryptTokens(g.AccessTokenEnc, g.RefreshEnc, g.ExpiresAt)
 	if err != nil {
@@ -121,7 +121,7 @@ func (s *Service) bitbucketAccount(g *database.BitbucketProvider) (git.Account, 
 // giteaAccount mirrors gitlabAccount; Gitea rotates refresh tokens the same way.
 func (s *Service) giteaAccount(ctx context.Context, g *database.GiteaProvider) (git.Account, error) {
 	if g.AccessTokenEnc == "" {
-		return git.Account{}, fmt.Errorf("this gitea connection has not been authorised yet")
+		return git.Account{}, fmt.Errorf("this gitea connection has not been authorized yet")
 	}
 	tokens, err := s.decryptTokens(g.AccessTokenEnc, g.RefreshEnc, g.ExpiresAt)
 	if err != nil {
@@ -179,7 +179,7 @@ func (s *Service) storeGitLabTokens(ctx context.Context, g *database.GitLabProvi
 	return s.db.SetGitLabTokens(ctx, g.GitProviderID, access, refresh, tokens.ExpiresAt)
 }
 
-// StoreGiteaTokens encrypts and persists a grant along with who authorised it.
+// StoreGiteaTokens encrypts and persists a grant along with who authorized it.
 func (s *Service) StoreGiteaTokens(ctx context.Context, g *database.GiteaProvider, tokens git.Tokens, username string) error {
 	access, refresh, err := s.encryptTokens(tokens)
 	if err != nil {
@@ -208,7 +208,7 @@ func (s *Service) Encrypt(plaintext string) (string, error) { return s.cipher.En
 // GitSource is the remote one service clones and the credential that opens it.
 // A provider-sourced service has no URL of its own: it names an owner and a
 // repository, and the connection decides the host and the token, which is what
-// lets a connection be re-authorised without touching any service.
+// lets a connection be re-authorized without touching any service.
 type GitSource struct {
 	URL  string
 	Cred git.Credential

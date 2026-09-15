@@ -135,7 +135,7 @@ func (e *Engine) Trigger(ctx context.Context, project *database.Project, env *da
 }
 
 // Cancel stops a queued or running deployment. The pipeline observes the
-// cancelled context, so compose is killed rather than left orphaned.
+// canceled context, so compose is killed rather than left orphaned.
 func (e *Engine) Cancel(deploymentID string) error {
 	e.mu.Lock()
 	cancel, ok := e.cancels[deploymentID]
@@ -418,7 +418,7 @@ func (p *pipeline) finish(err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if p.deployment == nil {
-		// execute failed, or was cancelled, before it read the row. Without this
+		// execute failed, or was canceled, before it read the row. Without this
 		// the deployment stays "queued" until the next restart marks it failed.
 		loaded, lerr := p.e.db.DeploymentByID(ctx, p.deploymentID)
 		if lerr != nil {

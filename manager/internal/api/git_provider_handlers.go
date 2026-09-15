@@ -235,7 +235,7 @@ func (s *Server) handleGitHubInstalled(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSaveGitLabProvider creates or re-registers a GitLab OAuth application.
-// It answers with the URL the owner has to visit to authorise it, because an
+// It answers with the URL the owner has to visit to authorize it, because an
 // application without a grant cannot read anything.
 func (s *Server) handleSaveGitLabProvider(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -404,14 +404,14 @@ func (s *Server) handleSaveBitbucketProvider(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]any{"git_provider_id": g.GitProviderID})
 }
 
-// handleOAuthCallback finishes a GitLab or Gitea authorisation. Both hosts
-// return an authorisation code that is exchanged for a grant, and both rotate
+// handleOAuthCallback finishes a GitLab or Gitea authorization. Both hosts
+// return an authorization code that is exchanged for a grant, and both rotate
 // their refresh token, so the pair is stored rather than just the access token.
 func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	providerType := r.PathValue("provider")
 	code, state := r.URL.Query().Get("code"), r.URL.Query().Get("state")
 	if code == "" || state == "" {
-		badRequest(w, fmt.Errorf("%s returned no authorisation code", providerType))
+		badRequest(w, fmt.Errorf("%s returned no authorization code", providerType))
 		return
 	}
 	provider, err := s.DB.GitProviderByID(r.Context(), state)
@@ -451,7 +451,7 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadGateway, "GIT_PROVIDER_ERROR", err.Error(), nil)
 			return
 		}
-		// Gitea's repository listing is per user, so who authorised decides
+		// Gitea's repository listing is per user, so who authorized decides
 		// what the connection can see and is worth recording.
 		username, err := git.Account{Type: database.ProviderGitea, Host: g.URL, Token: tokens.AccessToken}.
 			AuthenticatedUser(r.Context())
@@ -508,9 +508,9 @@ func (s *Server) publicOrigin(r *http.Request) string {
 }
 
 // redirectURI is what the owner registers with the host, so it has to match
-// byte for byte on both sides or the authorisation is refused. It is stored on
+// byte for byte on both sides or the authorization is refused. It is stored on
 // the connection for exactly that reason: the exchange has to repeat whatever
-// the authorisation used, even if the panel is reached differently later.
+// the authorization used, even if the panel is reached differently later.
 func (s *Server) redirectURI(r *http.Request, providerType string) string {
 	return fmt.Sprintf("%s/api/providers/%s/callback", s.publicOrigin(r), providerType)
 }

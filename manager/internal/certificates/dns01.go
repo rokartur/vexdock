@@ -71,7 +71,7 @@ func (i *Issuer) solveDNS01(ctx context.Context, client *acme.Client, authz *acm
 		return err
 	}
 	defer func() {
-		// Cleanup must survive a cancelled order, otherwise stale challenge
+		// Cleanup must survive a canceled order, otherwise stale challenge
 		// records pile up in the zone.
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()

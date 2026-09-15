@@ -158,7 +158,7 @@ func UserFrom(ctx context.Context) (*User, bool) {
 
 // SameOrigin reports whether a state-changing request came from the dashboard
 // itself. Browsers cannot forge Origin, and same-origin fetches always send it
-// for non-GET requests, so this is the CSRF defence for cookie sessions.
+// for non-GET requests, so this is the CSRF defense for cookie sessions.
 func SameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {

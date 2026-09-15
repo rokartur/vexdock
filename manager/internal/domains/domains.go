@@ -39,7 +39,7 @@ type Service struct {
 	certs  *certificates.Issuer
 	log    *slog.Logger
 
-	// reconcile is serialised: two concurrent reconciles would race on the
+	// reconcile is serialized: two concurrent reconciles would race on the
 	// generated directory and on network attachments.
 	mu sync.Mutex
 }
@@ -93,7 +93,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 		return nil, fmt.Errorf("environment %s has no service named %q", env.Slug, in.ServiceName)
 	}
 
-	source, err := normaliseSource(in.CertificateSource)
+	source, err := normalizeSource(in.CertificateSource)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +138,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*database.Domain,
 	return d, nil
 }
 
-// normaliseSource defaults to Let's Encrypt and rejects anything unknown.
-func normaliseSource(source string) (string, error) {
+// normalizeSource defaults to Let's Encrypt and rejects anything unknown.
+func normalizeSource(source string) (string, error) {
 	switch source {
 	case "", database.CertLetsEncrypt:
 		return database.CertLetsEncrypt, nil
@@ -200,7 +200,7 @@ func (s *Service) Update(ctx context.Context, d *database.Domain, in UpdateInput
 	if err := security.ValidatePort(d.ContainerPort); err != nil {
 		return err
 	}
-	source, err := normaliseSource(d.CertificateSource)
+	source, err := normalizeSource(d.CertificateSource)
 	if err != nil {
 		return err
 	}

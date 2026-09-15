@@ -63,7 +63,7 @@ every environment gets, and the environment's own, which win on a collision.
 An environment holds services, and each one answers where it comes from on its
 own: a `provider` of `github`, `gitlab`, `bitbucket`, `gitea` or plain `git`
 clones a repository, `image` runs a published image (which is what the engine
-catalogue's databases are), `raw` is a fragment of YAML you pasted, and
+catalog's databases are), `raw` is a fragment of YAML you pasted, and
 `unconfigured` is an application that is still only a name. A project is a
 grouping; it has no source of its own.
 

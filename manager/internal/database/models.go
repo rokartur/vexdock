@@ -57,7 +57,7 @@ const (
 
 // Provider enumerates where a service's compose definition comes from. The five
 // git values all clone over the same code path; which one is set decides how a
-// webhook from that host is read and how the repository is labelled. Raw is a
+// webhook from that host is read and how the repository is labeled. Raw is a
 // compose fragment pasted by hand, image is a published reference, and
 // unconfigured is a service that is so far only a name and renders into
 // nothing until someone settles the question.
@@ -238,7 +238,7 @@ type GitProvider struct {
 
 	// Connected reports whether the connection can actually reach repositories
 	// yet. Creating one is only the first half: GitHub still has to be
-	// installed and the OAuth providers still have to be authorised. It is a
+	// installed and the OAuth providers still have to be authorized. It is a
 	// field rather than a method so the dashboard sees it without every handler
 	// having to wrap the row.
 	Connected bool `json:"connected"`
@@ -265,7 +265,7 @@ func (p *GitProvider) markConnected() {
 // GitHubProvider is a GitHub App: created through the manifest flow, installed
 // by its owner on the repositories it may read, and cloning with an
 // installation token minted from the private key. Every secret is encrypted at
-// rest and none of them is serialised to the dashboard.
+// rest and none of them is serialized to the dashboard.
 type GitHubProvider struct {
 	GitProviderID   string `json:"git_provider_id"`
 	AppName         string `json:"github_app_name"`
@@ -281,7 +281,7 @@ type GitHubProvider struct {
 }
 
 // GitLabProvider is an OAuth application registered on a GitLab instance. The
-// owner pastes the application id and secret, authorises it once, and the
+// owner pastes the application id and secret, authorizes it once, and the
 // refresh token keeps it alive from then on.
 type GitLabProvider struct {
 	GitProviderID  string `json:"git_provider_id"`
@@ -292,13 +292,13 @@ type GitLabProvider struct {
 	AccessTokenEnc string `json:"-"`
 	RefreshEnc     string `json:"-"`
 	// GroupName narrows the repository listing to one group. Empty lists
-	// everything the authorising user is a member of.
+	// everything the authorizing user is a member of.
 	GroupName string `json:"group_name"`
 	ExpiresAt int64  `json:"expires_at"`
 }
 
 // BitbucketProvider is a credential pair rather than an app. Atlassian is
-// retiring app passwords in favour of an account email and an API token, so
+// retiring app passwords in favor of an account email and an API token, so
 // both pairs are accepted and the API token wins when it is set.
 type BitbucketProvider struct {
 	GitProviderID string `json:"git_provider_id"`

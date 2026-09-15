@@ -216,7 +216,7 @@ func (a Account) githubRepositories(ctx context.Context) ([]Repository, error) {
 	return repos, nil
 }
 
-// gitlabRepositories lists the projects the authorising user is a member of,
+// gitlabRepositories lists the projects the authorizing user is a member of,
 // narrowed to one group when the connection names one.
 func (a Account) gitlabRepositories(ctx context.Context) ([]Repository, error) {
 	var projects []struct {
@@ -302,7 +302,7 @@ func (a Account) bitbucketBranches(ctx context.Context, owner, repository string
 	return branches, nil
 }
 
-// giteaRepositories lists the authorising user's repositories, or one
+// giteaRepositories lists the authorizing user's repositories, or one
 // organization's when the connection names one.
 func (a Account) giteaRepositories(ctx context.Context) ([]Repository, error) {
 	endpoint := a.apiURL("/user/repos?limit=100")
