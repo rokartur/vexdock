@@ -8,32 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/vexdock/platform/manager/internal/compose"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/events"
 )
-
-func TestHasBuildScope(t *testing.T) {
-	cfg := &compose.Config{
-		Services: map[string]compose.ConfigService{
-			"web":    {Image: "nginx"},
-			"api":    {Build: map[string]any{"context": "."}},
-			"worker": {Image: "busybox"},
-		},
-	}
-	if !hasBuild(cfg) {
-		t.Fatal("full project must see api's build")
-	}
-	if !hasBuild(cfg, "api") {
-		t.Fatal("scoped to api must build")
-	}
-	if hasBuild(cfg, "web") {
-		t.Fatal("scoped to web must skip build")
-	}
-	if hasBuild(cfg, "missing") {
-		t.Fatal("unknown service must skip build")
-	}
-}
 
 // finish is the one place a deployment leaves queued or running. It has to
 // settle the row even when the pipeline never got as far as reading it, which

@@ -97,7 +97,7 @@ func (s *Server) handleProviderWebhook(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	queued, err := s.queueEnvironments(r.Context(), services)
+	queued, err := s.queueServices(r.Context(), services)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -147,17 +147,12 @@ var (
 	errSignatureMismatch = errors.New("Webhook signature mismatch")
 )
 
-// queueEnvironments deploys each environment the matched services live in,
-// once. Two services in one environment tracking the same repository is a
-// monorepo, and a monorepo deploys as one environment.
-func (s *Server) queueEnvironments(ctx context.Context, services []database.Service) ([]string, error) {
+// queueServices deploys every matched service. Two services of one environment
+// tracking the same repository is a monorepo, and each of them deploys on its
+// own.
+func (s *Server) queueServices(ctx context.Context, services []database.Service) ([]string, error) {
 	queued := []string{}
-	seen := map[string]bool{}
 	for _, svc := range services {
-		if seen[svc.EnvironmentID] {
-			continue
-		}
-		seen[svc.EnvironmentID] = true
 		project, err := s.DB.ProjectByID(ctx, svc.ProjectID)
 		if err != nil {
 			return nil, err
@@ -170,8 +165,9 @@ func (s *Server) queueEnvironments(ctx context.Context, services []database.Serv
 			return nil, err
 		}
 		deployment, err := s.Deployments.Trigger(ctx, project, env, deployments.Options{
-			Trigger: deployments.TriggerWebhook,
-			Actor:   "webhook",
+			Trigger:     deployments.TriggerWebhook,
+			Actor:       "webhook",
+			ServiceName: svc.ComposeServiceName,
 		})
 		if err != nil {
 			return nil, err
@@ -181,12 +177,12 @@ func (s *Server) queueEnvironments(ctx context.Context, services []database.Serv
 	return queued, nil
 }
 
-// queueFollowers deploys the environments of a project that track the pushed
-// repository and branch. One push can deploy more than one environment, and
-// usually deploys none of the others: production tracks main while staging
-// tracks its own branch. A project's services can come from different
-// repositories, so the payload's repository has to match too, or a push to one
-// would redeploy the other.
+// queueFollowers deploys the services of a project that track the pushed
+// repository and branch. One push can deploy services in more than one
+// environment, and usually deploys none of the others: production tracks main
+// while staging tracks its own branch. A project's services can come from
+// different repositories, so the payload's repository has to match too, or a
+// push to one would redeploy the other.
 func (s *Server) queueFollowers(ctx context.Context, project *database.Project, ref string, repos []string) ([]string, error) {
 	envs, err := s.DB.ListEnvironments(ctx, project.ID)
 	if err != nil {
@@ -195,21 +191,21 @@ func (s *Server) queueFollowers(ctx context.Context, project *database.Project, 
 	queued := []string{}
 	for i := range envs {
 		env := &envs[i]
-		matched, err := s.environmentFollows(ctx, env, ref, repos)
+		followers, err := s.followingServices(ctx, env, ref, repos)
 		if err != nil {
 			return nil, err
 		}
-		if !matched {
-			continue
+		for _, svc := range followers {
+			deployment, err := s.Deployments.Trigger(ctx, project, env, deployments.Options{
+				Trigger:     deployments.TriggerWebhook,
+				Actor:       "webhook",
+				ServiceName: svc.ComposeServiceName,
+			})
+			if err != nil {
+				return nil, err
+			}
+			queued = append(queued, deployment.ID)
 		}
-		deployment, err := s.Deployments.Trigger(ctx, project, env, deployments.Options{
-			Trigger: deployments.TriggerWebhook,
-			Actor:   "webhook",
-		})
-		if err != nil {
-			return nil, err
-		}
-		queued = append(queued, deployment.ID)
 	}
 	return queued, nil
 }
@@ -217,14 +213,15 @@ func (s *Server) queueFollowers(ctx context.Context, project *database.Project, 
 // webhookSecretKey namespaces a project's optional HMAC secret in settings.
 func webhookSecretKey(projectID string) string { return "webhook_secret:" + projectID }
 
-// environmentFollows reports whether a push should redeploy an environment: one
-// of its git services has to track both the pushed repository and the pushed
+// followingServices returns the services of an environment a push should
+// redeploy: a git service tracking both the pushed repository and the pushed
 // branch. An environment branch overrides what its services ask for.
-func (s *Server) environmentFollows(ctx context.Context, env *database.Environment, ref string, repos []string) (bool, error) {
+func (s *Server) followingServices(ctx context.Context, env *database.Environment, ref string, repos []string) ([]database.Service, error) {
 	services, err := s.DB.ListServices(ctx, env.ID)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	followers := make([]database.Service, 0, len(services))
 	for _, svc := range services {
 		if !database.ClonesFromGit(svc.Provider) {
 			continue
@@ -237,10 +234,10 @@ func (s *Server) environmentFollows(ctx context.Context, env *database.Environme
 			branch = svc.Branch
 		}
 		if ref == "" || refMatchesBranch(ref, branch) {
-			return true, nil
+			followers = append(followers, svc)
 		}
 	}
-	return false, nil
+	return followers, nil
 }
 
 // pushRef extracts the git ref from a GitHub/Gitea/GitLab push payload. An

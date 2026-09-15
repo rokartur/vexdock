@@ -103,26 +103,19 @@ func (p Project) Run(ctx context.Context, w io.Writer, extra ...string) error {
 	return nil
 }
 
-// services, when set, scope the command to those compose services only.
-func (p Project) Pull(ctx context.Context, w io.Writer, services ...string) error {
-	return p.Run(ctx, w, append([]string{"pull", "--ignore-pull-failures"}, services...)...)
+// Each of these acts on one compose service, the one being deployed.
+func (p Project) Pull(ctx context.Context, w io.Writer, service string) error {
+	return p.Run(ctx, w, "pull", "--ignore-pull-failures", service)
 }
 
-func (p Project) Build(ctx context.Context, w io.Writer, services ...string) error {
-	return p.Run(ctx, w, append([]string{"build"}, services...)...)
+func (p Project) Build(ctx context.Context, w io.Writer, service string) error {
+	return p.Run(ctx, w, "build", service)
 }
 
-func (p Project) Up(ctx context.Context, w io.Writer, services ...string) error {
-	return p.Run(ctx, w, upArgs(services...)...)
-}
-
-// upArgs drops --remove-orphans when scoped: a single-service deploy must not
-// tear siblings down just because they were not named.
-func upArgs(services ...string) []string {
-	if len(services) > 0 {
-		return append([]string{"up", "-d"}, services...)
-	}
-	return []string{"up", "-d", "--remove-orphans"}
+// Up carries no --remove-orphans: a single-service deploy must not tear
+// siblings down just because they were not named.
+func (p Project) Up(ctx context.Context, w io.Writer, service string) error {
+	return p.Run(ctx, w, "up", "-d", service)
 }
 
 func (p Project) Down(ctx context.Context, w io.Writer, removeVolumes bool) error {

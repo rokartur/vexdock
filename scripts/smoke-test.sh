@@ -94,8 +94,12 @@ auth_post -d '{"name":"web","provider":"image","image":"nginx:alpine"}' \
 pass 'image service added'
 
 step 'deployment'
+# A deployment is always one service, so deploying the project returns one per
+# service it owns.
 deployment=$(auth_post -X POST "$API/projects/$PROJECT_ID/deploy")
-DEPLOYMENT_ID=$(echo "$deployment" | json "d['id']")
+DEPLOYMENT_ID=$(echo "$deployment" | json "d[0]['id']")
+[ "$(echo "$deployment" | json "d[0]['service_name']")" = "web" ] ||
+    fail 'the queued deployment is not scoped to the service'
 for _ in $(seq 1 60); do
     state=$(curl -fsS -b "$COOKIES" "$API/deployments/$DEPLOYMENT_ID" | json "d['deployment']['status']")
     case "$state" in

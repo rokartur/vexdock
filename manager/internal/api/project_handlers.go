@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -260,7 +261,7 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	deployment, err := s.Deployments.Trigger(r.Context(), project, env, deployments.Options{
+	queued, err := s.deployEnvironment(r.Context(), project, env, deployments.Options{
 		Trigger: deployments.TriggerManual,
 		Actor:   actor(r.Context()),
 	})
@@ -268,7 +269,35 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, deployment)
+	if len(queued) == 0 {
+		badRequest(w, errors.New("this environment has no service to deploy"))
+		return
+	}
+	writeJSON(w, http.StatusAccepted, queued)
+}
+
+// deployEnvironment queues one deployment per service. A deployment always
+// targets a single service, so deploying an environment is that fan-out; the
+// engine's per-environment lock runs them one after another.
+func (s *Server) deployEnvironment(ctx context.Context, project *database.Project, env *database.Environment, opts deployments.Options) ([]*database.Deployment, error) {
+	services, err := s.DB.ListServices(ctx, env.ID)
+	if err != nil {
+		return nil, err
+	}
+	queued := make([]*database.Deployment, 0, len(services))
+	for _, svc := range services {
+		// A service whose source is still unanswered is not in the compose file.
+		if svc.Provider == database.ProviderUnconfigured || svc.Provider == "" {
+			continue
+		}
+		opts.ServiceName = svc.ComposeServiceName
+		deployment, err := s.Deployments.Trigger(ctx, project, env, opts)
+		if err != nil {
+			return nil, err
+		}
+		queued = append(queued, deployment)
+	}
+	return queued, nil
 }
 
 // handleStopProject stops the stack without deleting anything.

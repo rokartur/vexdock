@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { IconVariable } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { ErrorText, FormSection, SaveButton, Textarea } from '../components/primitives'
+import { EnvEditor } from '../components/env-editor'
+import { ErrorText, FormSection, SaveButton } from '../components/primitives'
 import { api } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
 
@@ -44,13 +45,7 @@ function ServiceEnvironment() {
 				actions={<SaveButton pending={save.isPending} />}
 			>
 				<ErrorText error={save.error} />
-				<Textarea
-					rows={18}
-					value={text}
-					placeholder='KEY=value'
-					onChange={event => setText(event.target.value)}
-					spellCheck={false}
-				/>
+				<EnvEditor rows={18} value={text} onChange={setText} />
 			</FormSection>
 		</div>
 	)

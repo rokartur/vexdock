@@ -32,7 +32,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			header: 'Status',
 			cell: ({ row }) => <Status value={row.original.status} />,
 		}),
-		cell.accessor(deployment => deployment.service_name || 'all', {
+		cell.accessor(deployment => deployment.service_name, {
 			id: 'service',
 			header: 'Service',
 			meta: { mono: true },
@@ -123,7 +123,7 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 	})
 
 	const data = (deployments.data ?? []).filter(
-		deployment => !service || !deployment.service_name || deployment.service_name === service.compose_service_name,
+		deployment => !service || deployment.service_name === service.compose_service_name,
 	)
 	const { mutate: redeploy } = rollback
 	const columns = useMemo(

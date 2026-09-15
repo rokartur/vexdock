@@ -196,7 +196,8 @@ type Deployment struct {
 	ProjectID     string `json:"project_id"`
 	EnvironmentID string `json:"environment_id"`
 	Number        int    `json:"number"`
-	// ServiceName scopes the pipeline to one compose service. Empty means all.
+	// ServiceName is the compose service the pipeline ran for. Empty only on
+	// rows written before deploys were scoped to a service.
 	ServiceName string `json:"service_name"`
 	CommitSHA   string `json:"commit_sha"`
 	Branch      string `json:"branch"`

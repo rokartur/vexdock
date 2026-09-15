@@ -83,9 +83,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 		queryKey: ['deployments', projectId, environmentId],
 		queryFn: () => api.deployments(projectId, environmentId),
 	})
-	const latest = deployments.data?.find(
-		deployment => !deployment.service_name || deployment.service_name === service.compose_service_name,
-	)
+	const latest = deployments.data?.find(deployment => deployment.service_name === service.compose_service_name)
 	const params = { projectId, serviceId: service.id }
 
 	return (

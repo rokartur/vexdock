@@ -129,18 +129,17 @@ deploy at once, since they share no directory and no container. A
 deployment interrupted by a manager restart is marked failed on the next boot,
 so the UI never shows a pipeline that nothing is running.
 
-`clone` and `checkout` sync every git service in scope into
-`services/<name>/repository`, each with its own credential. They are skipped
-entirely when nothing in the environment comes from a repository. The commit is
-recorded on the deployment only when exactly one repository was fetched: two
-services from two repositories have no single commit between them, and picking
-one would be a lie on the deployment page.
+`clone` and `checkout` sync the repository of the service being deployed into
+`services/<name>/repository` with its own credential, and record the commit on
+the deployment. Both steps are skipped when the service does not come from a
+repository.
 
-A deployment may target one compose service (`service_name` on the row). Pull,
-build, up and the health wait then name that service only; proxy reconcile still
-runs in full so domains stay attached. A full-project deploy leaves
-`service_name` empty and still prunes services that disappeared from compose. A
-scoped deploy never prunes siblings.
+A deployment always targets one compose service (`service_name` on the row):
+pull, build, up and the health wait name that service only, and proxy reconcile
+still runs in full so domains stay attached. Deploying an environment is one
+deployment per service, queued behind each other by the environment lock. No
+deploy prunes siblings, so removing a service's container is the delete
+handler's job.
 
 `healthcheck` waits for containers to be running and, where a healthcheck is
 declared, for Docker to report them healthy. A container that exits non-zero

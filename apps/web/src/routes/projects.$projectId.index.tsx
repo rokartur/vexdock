@@ -160,14 +160,12 @@ function ProjectServices() {
 	})
 	const domains = useQuery({ queryKey: ['domains', projectId], queryFn: () => api.projectDomains(projectId) })
 
-	// Whole-project deploy is the first-run path: it picks up what the compose
-	// file declares before any service exists. Day-to-day deploy/stop live on
-	// each service, so once there are services the button goes away.
+	// One deployment per service, so the log to open is the list, not a single run.
 	const deployAll = useMutation({
 		mutationFn: () => api.deploy(projectId, environmentId),
-		onSuccess: async deployment => {
+		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
-			await navigate(deploymentLink(projectId, deployment.id))
+			await navigate({ to: '/projects/$projectId/deployments', params: { projectId } })
 		},
 	})
 
@@ -226,12 +224,12 @@ function ProjectServices() {
 				description={`${data.length} in this environment`}
 				actions={
 					<>
-						{empty ? (
+						{data.length > 0 && (
 							<Button onClick={() => deployAll.mutate()} disabled={deployAll.isPending}>
 								<IconRocket />
 								{deployAll.isPending ? 'Starting…' : 'Deploy all'}
 							</Button>
-						) : null}
+						)}
 						<Button onClick={() => setCreating('import')}>
 							<IconDownload />
 							Import
