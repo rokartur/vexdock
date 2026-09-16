@@ -11,12 +11,14 @@ import {
 	IconEyeOff,
 	IconFileCode,
 	IconGitBranch,
+	IconPlayerStop,
 	IconPlug,
+	IconRefresh,
 	IconRocket,
 	IconTerminal2,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
 	Button,
 	Combo,
@@ -79,6 +81,7 @@ function ServiceGeneral() {
 
 function DeploySection({ projectId, service }: { projectId: string; service: Service }) {
 	const environmentId = useEnvironmentId()
+	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const deployments = useQuery({
 		queryKey: ['deployments', projectId, environmentId],
@@ -86,6 +89,24 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 	})
 	const latest = deployments.data?.find(deployment => deployment.service_name === service.compose_service_name)
 	const params = { projectId, serviceId: service.id }
+	const running = service.state === 'running'
+
+	const act = useMutation({
+		mutationFn: (action: 'stop' | 'restart') => api.serviceAction(service.id, action),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
+	})
+	const deploy = useMutation({
+		mutationFn: () => api.deployService(service.id),
+		onSuccess: async deployment => {
+			await queryClient.invalidateQueries({ queryKey: ['service', service.id] })
+			// The service's own deployments tab, so the log opens without leaving it.
+			await navigate({
+				to: '/projects/$projectId/services/$serviceId/deployments',
+				params,
+				search: previous => ({ ...previous, deployment: deployment.id }),
+			})
+		},
+	})
 	const autoDeploy = useMutation({
 		mutationFn: (on: boolean) => api.updateService(service.id, { auto_deploy: on }),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
@@ -94,46 +115,58 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 	return (
 		<FormSection
 			title='Deploy'
-			description='Deploy, restart and stop are in the header. Their log opens under Deployments.'
+			description='Run it, or stop it. The log opens under Deployments.'
 			icon={IconRocket}
 			hint='Auto deploy watches this service’s own repository and branch.'
-			actions={
+			aside={[
+				{
+					label: 'Last deploy',
+					value: latest ? (
+						<span className='inline-flex flex-wrap items-center gap-2'>
+							<Link
+								to='/projects/$projectId/services/$serviceId/deployments'
+								params={params}
+								search={{ deployment: latest.id }}
+								className='underline-offset-4 hover:underline'
+							>
+								#{latest.number}
+							</Link>
+							<Status value={latest.status} />
+							<RelativeTime at={latest.created_at} />
+							<span>{duration(latest.started_at, latest.finished_at)}</span>
+						</span>
+					) : (
+						'never'
+					),
+				},
+			]}
+		>
+			<ErrorText error={deploy.error ?? act.error ?? autoDeploy.error} />
+			<div className='flex flex-wrap items-center gap-2'>
+				<Button
+					variant='primary'
+					onClick={() => deploy.mutate()}
+					disabled={service.provider === 'unconfigured' || deploy.isPending}
+				>
+					<IconRocket />
+					{deploy.isPending ? 'Starting…' : 'Deploy'}
+				</Button>
+				<Button onClick={() => act.mutate('restart')} disabled={!running || act.isPending}>
+					<IconRefresh />
+					Restart
+				</Button>
+				<Button variant='danger' onClick={() => act.mutate('stop')} disabled={!running || act.isPending}>
+					<IconPlayerStop />
+					Stop
+				</Button>
 				<Button render={<Link to='/projects/$projectId/services/$serviceId/terminal' params={params} />}>
 					<IconTerminal2 />
 					Open terminal
 				</Button>
-			}
-		>
-			<Facts>
-				<Fact
-					label='Last deploy'
-					value={
-						latest ? (
-							<span className='inline-flex items-center gap-2'>
-								<Link
-									to='/projects/$projectId/services/$serviceId/deployments'
-									params={params}
-									search={{ deployment: latest.id }}
-									className='underline-offset-4 hover:underline'
-								>
-									#{latest.number}
-								</Link>
-								<Status value={latest.status} />
-								<RelativeTime at={latest.created_at} />
-								<span>{duration(latest.started_at, latest.finished_at)}</span>
-							</span>
-						) : (
-							'never'
-						)
-					}
-				/>
-			</Facts>
-			<ErrorText error={autoDeploy.error} />
-			<Switch
-				label='Deploy automatically when this service’s branch is pushed'
-				checked={service.auto_deploy}
-				onChange={on => autoDeploy.mutate(on)}
-			/>
+				<span className='ml-1 rounded-md border border-rule px-3 py-1.5'>
+					<Switch label='Auto deploy' checked={service.auto_deploy} onChange={on => autoDeploy.mutate(on)} />
+				</span>
+			</div>
 		</FormSection>
 	)
 }
