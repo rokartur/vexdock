@@ -1,8 +1,7 @@
-import { IconPlayerStop, IconRefresh, IconRocket } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
-import { Button, ErrorText, Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
+import { Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 import { environmentSearch } from '../lib/environment'
 import { bytes, percent } from '../lib/format'
@@ -35,29 +34,8 @@ const tabs = [
 
 function ServiceLayout() {
 	const { projectId, serviceId } = Route.useParams()
-	const navigate = useNavigate()
-	const queryClient = useQueryClient()
 	const service = useService(serviceId)
-
 	const running = service.data?.state === 'running'
-	const canDeploy = Boolean(service.data && service.data.provider !== 'unconfigured')
-
-	const act = useMutation({
-		mutationFn: (action: 'stop' | 'restart') => api.serviceAction(serviceId, action),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', serviceId] }),
-	})
-	const deploy = useMutation({
-		mutationFn: () => api.deployService(serviceId),
-		onSuccess: async deployment => {
-			await queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
-			// The service's own deployments tab, so the log opens without leaving it.
-			await navigate({
-				to: '/projects/$projectId/services/$serviceId/deployments',
-				params: { projectId, serviceId },
-				search: previous => ({ ...previous, deployment: deployment.id }),
-			})
-		},
-	})
 
 	return (
 		<Page
@@ -74,25 +52,8 @@ function ServiceLayout() {
 				services: null,
 				[serviceId]: <ServiceCrumb projectId={projectId} serviceId={serviceId} />,
 			}}
-			actions={
-				<>
-					<Button variant='primary' onClick={() => deploy.mutate()} disabled={!canDeploy || deploy.isPending}>
-						<IconRocket />
-						{deploy.isPending ? 'Starting…' : 'Deploy'}
-					</Button>
-					<Button onClick={() => act.mutate('restart')} disabled={!running}>
-						<IconRefresh />
-						Restart
-					</Button>
-					<Button onClick={() => act.mutate('stop')} disabled={!running || act.isPending}>
-						<IconPlayerStop />
-						Stop
-					</Button>
-				</>
-			}
 			toolbar={<Tabs base={`/projects/${projectId}/services/${serviceId}`} tabs={tabs} />}
 		>
-			<ErrorText error={deploy.error ?? act.error} />
 			{/* The same line under every tab, so what the service is doing never depends on which one is open. */}
 			{service.data ? (
 				<StatStrip
