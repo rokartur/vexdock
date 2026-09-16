@@ -96,6 +96,14 @@ its next update, and the log says so. `could not move the state directory` means
 something already occupies `/opt/vexdock`: the update carries on in the old
 directory, so remove or rename the stray one and update again.
 
+`The container name "/vexdock-manager" is already in use` means a container of
+that name belongs to a different compose project than the one this install
+drives, usually the leftover of a rename that stopped halfway. Since
+v0.1.0-beta.68 the updater removes those containers before it recreates the
+stack and logs `removing vexdock-manager held by compose project <name>`. On an
+older version, `docker rm -f vexdock-manager vexdock-auth vexdock-nginx` and
+update again; the stack recreates from the compose file.
+
 Backups live in `/opt/vexdock/backups/<timestamp>/`, containing `app.db`,
 `auth.db`, `master.key`, the generated proxy configuration and the certificates.
 A backup created with **Config + data** also has a `volumes/<name>.tar.gz` per
