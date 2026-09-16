@@ -25,7 +25,7 @@ function CrumbPicker({
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger className='-mx-1.5 flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body transition-colors hover:bg-accent data-popup-open:bg-accent'>
+			<PopoverTrigger className='flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-transparent bg-accent/50 px-2 text-body transition-colors hover:border-border hover:bg-accent data-popup-open:border-border data-popup-open:bg-accent'>
 				<span className='flex min-w-0 items-center gap-2 truncate'>{label}</span>
 				<IconSelector className='size-3.5 shrink-0 text-muted-foreground' />
 			</PopoverTrigger>
@@ -70,7 +70,9 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 				<>
 					<IconFolder className='size-4 shrink-0 text-muted-foreground' />
 					{current.data?.name ?? projectId}
-					{current.data?.latest_deployment ? <Status value={current.data.latest_deployment.status} /> : null}
+					{current.data?.latest_deployment ? (
+						<Status dot value={current.data.latest_deployment.status} />
+					) : null}
 				</>
 			}
 		>
@@ -183,7 +185,7 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 						<IconBox className='size-4 shrink-0 text-muted-foreground' />
 					)}
 					{current.data?.compose_service_name ?? serviceId}
-					{current.data ? <Status value={current.data.state || 'stopped'} /> : null}
+					{current.data ? <Status dot value={current.data.state || 'stopped'} /> : null}
 				</>
 			}
 		>

@@ -42,7 +42,7 @@ function ProjectLayout() {
 				[projectId]: (
 					<>
 						<ProjectCrumb projectId={projectId} />
-						<span className='text-muted-foreground/60'>/</span>
+						<span className='text-muted-foreground/30'>/</span>
 						<EnvironmentCrumb projectId={projectId} />
 					</>
 				),
