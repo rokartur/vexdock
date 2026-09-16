@@ -277,7 +277,7 @@ export function Page({
 						return (
 							<Fragment key={to}>
 								{index > 0 ? (
-									<BreadcrumbSeparator className='hidden text-muted-foreground/60 sm:block'>
+									<BreadcrumbSeparator className='hidden text-muted-foreground/30 sm:block'>
 										/
 									</BreadcrumbSeparator>
 								) : null}
@@ -315,24 +315,27 @@ export function Page({
  * Sub-navigation for a Page's `toolbar`. A tab links to `base + suffix`; the
  * empty suffix is the layout's index route and only matches the base itself.
  */
-export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; label: string }[] }) {
+export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; label: string; count?: number }[] }) {
 	const pathname = useRouterState({ select: state => state.location.pathname })
 	const active = tabs.find(tab =>
 		tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(base + tab.suffix),
 	)
 
 	return (
-		<ShadcnTabs value={active?.label ?? ''} className='h-full'>
-			<TabsList variant='line' className='h-full gap-0 p-0'>
+		<ShadcnTabs value={active?.label ?? ''}>
+			<TabsList className='gap-0.5 bg-transparent p-0'>
 				{tabs.map(tab => (
 					<TabsTrigger
 						key={tab.label}
 						value={tab.label}
 						render={<Link to={base + tab.suffix} />}
 						nativeButton={false}
-						className='h-full rounded-none px-3 text-body font-normal after:-bottom-px data-active:font-medium'
+						className='h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 data-active:bg-accent dark:data-active:bg-accent'
 					>
 						{tab.label}
+						{tab.count ? (
+							<span className='font-mono text-meta text-muted-foreground'>{tab.count}</span>
+						) : null}
 					</TabsTrigger>
 				))}
 			</TabsList>
