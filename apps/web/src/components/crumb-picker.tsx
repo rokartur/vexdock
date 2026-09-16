@@ -29,7 +29,7 @@ function CrumbPicker({
 				<span className='flex min-w-0 items-center gap-2 truncate'>{label}</span>
 				<IconSelector className='size-3.5 shrink-0 text-muted-foreground' />
 			</PopoverTrigger>
-			<PopoverContent align='start' className='w-72 gap-0 p-0'>
+			<PopoverContent align='start' className='w-62 gap-0 p-0'>
 				<Command>
 					<CommandInput placeholder={placeholder} />
 					<CommandList>
@@ -97,11 +97,14 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 						>
 							<IconFolder className='text-muted-foreground' />
 							<span className='truncate'>{project.name}</span>
-							{isCurrent ? null : (
-								<span className='ml-auto font-mono text-meta text-muted-foreground'>
+							<span className='ml-auto flex items-center gap-1.5'>
+								{project.latest_deployment ? (
+									<Status dot value={project.latest_deployment.status} />
+								) : null}
+								<span className='font-mono text-meta text-muted-foreground tabular-nums'>
 									{project.running_count}/{project.service_count}
 								</span>
-							)}
+							</span>
 						</CommandItem>
 					)
 				})
@@ -148,7 +151,7 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 						<IconLayersLinked className='text-muted-foreground' />
 						<span className='truncate'>{env.name}</span>
 						{env.branch ? (
-							<span className='ml-auto inline-flex items-center gap-1 font-mono text-meta text-muted-foreground'>
+							<span className='ml-auto inline-flex items-center gap-1 truncate font-mono text-meta text-muted-foreground'>
 								<IconGitBranch className='size-3' />
 								{env.branch}
 							</span>
@@ -211,11 +214,9 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 								<IconBox className='text-muted-foreground' />
 							)}
 							<span className='truncate'>{service.compose_service_name}</span>
-							{isCurrent ? null : (
-								<span className='ml-auto'>
-									<Status value={service.state || 'stopped'} />
-								</span>
-							)}
+							<span className='ml-auto text-meta'>
+								<Status value={service.state || 'stopped'} />
+							</span>
 						</CommandItem>
 					)
 				})
