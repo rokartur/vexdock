@@ -264,13 +264,17 @@ case "$1" in
         esac
         ;;
     inspect) echo healthy ;;
+    ps) printf '%s\n' 'vexdock-manager strangers' "vexdock-auth $(basename "$PLATFORM_ROOT")" ;;
     image)
         [ "$2" = rm ]
         printf '%s\n' "$3" >> "$REMOVED_IMAGES"
         ;;
     rm)
-        [ "$3" = vexdock-updater ]
-        : > "$PLATFORM_ROOT/self-removed"
+        if [ "$3" = vexdock-updater ]; then
+            : > "$PLATFORM_ROOT/self-removed"
+        else
+            printf '%s\n' "$3" >> "$PLATFORM_ROOT/removed-containers"
+        fi
         ;;
     *) echo "unexpected docker command: $*" >&2; exit 1 ;;
 esac
@@ -290,6 +294,11 @@ esac
 
 			if _, err := os.Stat(filepath.Join(root, "self-removed")); err != nil {
 				t.Fatalf("successful update did not remove its own container: %v", err)
+			}
+
+			containers, err := os.ReadFile(filepath.Join(root, "removed-containers"))
+			if err != nil || string(containers) != "vexdock-manager\n" {
+				t.Fatalf("containers removed before the recreate = %q (%v), want only the one another project holds", containers, err)
 			}
 
 			// The script's state() helper must write JSON the Go State reader

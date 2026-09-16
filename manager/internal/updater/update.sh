@@ -93,6 +93,23 @@ migrate_legacy_root() {
     log "state directory is now /opt/vexdock"
 }
 
+# A half-finished rename leaves the stack's containers under one compose project
+# and this install under another. Compose refuses to reuse a name it does not
+# own, so the update and then its rollback both fail on the same conflict.
+release_container_names() {
+    project="${COMPOSE_PROJECT_NAME:-$(basename "$ROOT")}"
+    docker ps -a --format '{{.Names}} {{.Label "com.docker.compose.project"}}' |
+        while read -r name owner; do
+            case "$name" in
+                vexdock-manager|vexdock-auth|vexdock-nginx) ;;
+                *) continue ;;
+            esac
+            [ "$owner" = "$project" ] && continue
+            log "removing $name held by compose project ${owner:-none}"
+            docker rm -f "$name" >/dev/null || log "could not remove $name"
+        done
+}
+
 cleanup_old_images() {
     [ "$CLEANUP_OLD_IMAGES" = true ] || return 0
     if ! current_images="$(compose config --images)"; then
@@ -122,6 +139,7 @@ rollback() {
     if [ -f "$COMPOSE_BACKUP" ]; then
         cp "$COMPOSE_BACKUP" "$COMPOSE_FILE"
     fi
+    release_container_names
     compose up -d --remove-orphans || log "rollback recreate reported an error"
     if wait_healthy; then
         log "rollback to $PREVIOUS completed"
@@ -166,6 +184,7 @@ fi
 log "recreating stack"
 state restarting
 migrate_legacy_root
+release_container_names
 if ! compose up -d --remove-orphans; then
     log "recreate failed"
     rollback "stack recreate failed"

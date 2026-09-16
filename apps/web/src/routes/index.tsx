@@ -14,7 +14,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Cell, Cells, Meter, Page, Refresh, RelativeTime, Section, StatStrip, Status } from '../components/primitives'
+import { Cell, Cells, Meter, Page, Refresh, RelativeTime, Section, Status } from '../components/primitives'
 import { api, type Certificate, type HostPoint, type HostStats, type Project, type SystemInfo } from '../lib/api'
 import { bytes, percent, until } from '../lib/format'
 import { useEventSource } from '../lib/sse'
@@ -157,25 +157,6 @@ function DashboardPage() {
 
 	return (
 		<Page>
-			<StatStrip
-				className='mb-4'
-				items={[
-					{ label: 'Host', value: host?.name ?? '-' },
-					{ label: 'Platform', value: host ? `${host.os}/${host.architecture}` : '-' },
-					{ label: 'Docker', value: host?.docker_version ?? '-' },
-					{ label: 'Capacity', value: host ? `${host.cpus} vCPU · ${bytes(host.memory_total)}` : '-' },
-					{
-						label: 'Load',
-						value: stats?.load_average === undefined ? '-' : stats.load_average.toFixed(2),
-					},
-					{
-						label: 'Containers',
-						value: `${info.data?.containers_running ?? 0} / ${info.data?.containers ?? 0}`,
-					},
-					{ label: 'Stopped', value: info.data?.containers_stopped ?? 0 },
-				]}
-			/>
-
 			{concerns.length > 0 ? (
 				<Section title='Needs attention' description={`${concerns.length} open`}>
 					<ul className='divide-y divide-rule rounded-xl border bg-card raised'>
