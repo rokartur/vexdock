@@ -170,11 +170,11 @@ export function MetricCard({
 
 	return (
 		<Cell label={label} icon={icon} hint={hint} value={value}>
-			{/* The tooltip only dates values that are already shown live, so there is
-			    nothing here a keyboard user cannot already read. */}
+			{/* The tooltip only dates values that are already shown live, so the chart's own
+			    focusable accessibility layer buys nothing and only draws a focus ring. */}
 			<div className='mt-1.5' style={{ height }} role='img' aria-label={`${label}, ${windowLabel}`}>
 				<ResponsiveContainer width='100%' height='100%'>
-					<AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 1, left: 0 }}>
+					<AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 1, left: 0 }} accessibilityLayer={false}>
 						<defs>
 							<linearGradient id={fade} x1='0' y1='0' x2='0' y2='1'>
 								<stop offset='0%' stopColor='var(--chart-1)' stopOpacity={0.3} />
