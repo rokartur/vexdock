@@ -197,6 +197,13 @@ and the credentials are generated for you, and `provider` is forced to `image`.
 repository and branch redeploys it only when it is on. It is off on a new
 service and toggled through `PATCH /api/services/{id}`.
 
+`prune_build_cache` sweeps dangling build cache right after this service's build
+step succeeds, logged into that step. The builder keeps one cache for the whole
+host, so the switch decides when a sweep runs, not what it covers: the sweep
+spares the layers the next incremental build reuses but is not scoped to this
+service. Off on a new service, toggled the same way, and a service that declares
+no build context never triggers it.
+
 `container_name` is what the container is called on the host. Left out, the
 manager names it after the project and the service, `rokartur-db`, with the
 environment in between when it is not the default one. It is unique across the
@@ -242,7 +249,13 @@ and `sqld_namespaces`. They end up in the service's environment as `SQLD_NODE`,
 become the one value sqld understands, `SQLD_HTTP_AUTH`. `SQLD_ENABLE_NAMESPACES`
 is the manager's own: sqld takes namespaces as a command-line flag, so the
 variable is what the overlay reads to decide whether to pass it, and editing it
-in the Environment tab changes the flag on the next deploy.
+in the Environment tab changes the flag on the next deploy. Namespaces also open
+sqld's admin API on `5000`, the only way a namespace is created.
+
+`GET /api/services/{id}/database` answers with the connection panel, and for
+`libsql` two fields more: `node`, and `replication_url` on a primary, the gRPC
+endpoint on `5001` a replica is pointed at through `sqld_primary_url`. The gRPC
+listener has no auth of its own, so that URL carries no credentials.
 
 `image` is accepted for every engine, not only `custom`, and it wins over
 `version` when both are sent. That is what lets an export be replayed without
@@ -473,7 +486,8 @@ grouped query rather than by asking the daemon. The sampler writes a row a
 minute, so a container younger than that, or one the sampler has not seen since
 it stopped, answers `null`.
 
-Nothing is pruned on a schedule. A cleanup answers
+Nothing is pruned on a schedule; the one automatic sweep is a service with
+`prune_build_cache` on, after its own build. A cleanup answers
 `{"kind", "removed", "space_reclaimed"}`. `cleanup/volumes` wants `?confirm=true`
 just as the single delete does, because an unused volume is a stopped project's
 data rather than junk; the other kinds can be rebuilt and ask for nothing.

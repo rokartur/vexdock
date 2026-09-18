@@ -5,7 +5,7 @@ import { DialogFooter } from '@/components/ui/dialog'
 import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { engineMarks } from '../lib/engine-marks'
 import { useEnvironmentId } from '../lib/environment'
-import { Button, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
+import { Button, Combo, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
 
 /** An application is created as a bare name. Repository or published image is answered later, in its own settings. */
 export type ServiceKind = 'application' | 'database' | 'compose'
@@ -71,8 +71,8 @@ export function NewServiceForm({
 	// catalog's user_var and password_var.
 	const isLibsql = engine === 'libsql'
 
-	// The version list is a suggestion, not a constraint: the field stays free
-	// text so a tag the registry has not published yet still works.
+	// The version list is a suggestion, not a constraint: a tag the registry has
+	// not published yet is typed into the picker's search and taken as-is.
 	const versions = useQuery({
 		queryKey: ['engine-versions', engine],
 		queryFn: () => api.engineVersions(engine),
@@ -202,19 +202,17 @@ export function NewServiceForm({
 										: 'Read from the registry. Any tag can be typed.'
 								}
 							>
-								<Input
-									list='engine-versions'
+								<Combo
 									value={version}
-									onChange={event => setVersion(event.target.value)}
+									options={(versions.data?.versions ?? selected?.versions ?? []).map(tag => ({
+										value: tag,
+										label: tag,
+									}))}
+									onChange={setVersion}
+									custom={setVersion}
 									placeholder={selected?.default_tag ?? ''}
+									empty='No published tag matches'
 								/>
-								<datalist id='engine-versions'>
-									{(versions.data?.versions ?? selected?.versions ?? []).map(tag => (
-										<option key={tag} value={tag}>
-											{tag}
-										</option>
-									))}
-								</datalist>
 							</Field>
 						)}
 

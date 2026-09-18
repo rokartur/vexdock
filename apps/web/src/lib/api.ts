@@ -134,6 +134,8 @@ export type Service = {
 	compose_fragment: string
 	/** A push to this service's repository and branch redeploys it only when this is on. */
 	auto_deploy: boolean
+	/** Sweeps dangling build cache after this service builds. One cache for the host, so it sweeps host-wide. */
+	prune_build_cache: boolean
 	created_at: string
 	updated_at: string
 	container_id: string
@@ -488,6 +490,10 @@ export type DatabaseConnection = {
 	user: string
 	password: string
 	url: string
+	/** The libSQL node kind, empty for every other engine. */
+	node: string
+	/** What a libSQL replica follows, set only on a primary and carrying no credentials. */
+	replication_url: string
 	name: string
 	versions: string[]
 	data_volume: string
@@ -702,6 +708,7 @@ export const api = {
 			image: string
 			compose_fragment: string
 			auto_deploy: boolean
+			prune_build_cache: boolean
 		}>,
 	) => request<Service>(`/api/services/${id}`, { method: 'PATCH', body }),
 	/** The named volume survives; dropping a database's data stays explicit. */

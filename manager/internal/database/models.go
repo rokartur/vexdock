@@ -137,9 +137,13 @@ type Service struct {
 	ComposeFragment string `json:"compose_fragment"`
 	// AutoDeploy arms this service for the webhook: a push to its repository and
 	// branch redeploys it only when this is on.
-	AutoDeploy bool   `json:"auto_deploy"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
+	AutoDeploy bool `json:"auto_deploy"`
+	// PruneBuildCache sweeps dangling build cache after this service builds. The
+	// builder cache is one cache for the whole host, so the switch decides when a
+	// sweep runs, not what it covers.
+	PruneBuildCache bool   `json:"prune_build_cache"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 type Domain struct {
