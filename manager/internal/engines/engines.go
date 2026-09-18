@@ -34,6 +34,10 @@ const (
 	SqldStandalone = "standalone"
 )
 
+// sqldGRPCPort is where a primary serves its replicas, opened by the image
+// itself whenever SQLD_NODE is primary.
+const sqldGRPCPort = 5001
+
 // Engine is one entry of the catalog.
 type Engine struct {
 	Slug string `json:"slug"`
@@ -118,8 +122,8 @@ var Catalog = []Engine{
 		Slug:        "postgres",
 		Name:        "PostgreSQL",
 		Repository:  "library/postgres",
-		DefaultTag:  "17-alpine",
-		Versions:    []string{"17-alpine", "17", "16-alpine", "16", "15-alpine", "15"},
+		DefaultTag:  "18-alpine",
+		Versions:    []string{"18-alpine", "18", "17-alpine", "17", "16-alpine", "16"},
 		Port:        5432,
 		Scheme:      "postgresql",
 		DatabaseVar: "POSTGRES_DB",
@@ -141,7 +145,7 @@ var Catalog = []Engine{
 		Name:        "MySQL",
 		Repository:  "library/mysql",
 		DefaultTag:  "8",
-		Versions:    []string{"8", "8.4", "8.0", "9"},
+		Versions:    []string{"9", "8", "8.4", "8.0"},
 		Port:        3306,
 		Scheme:      "mysql",
 		DatabaseVar: "MYSQL_DATABASE",
@@ -237,12 +241,14 @@ var Catalog = []Engine{
 		// sqld serves one SQLite file over HTTP: there is no database to name and
 		// no user or password variable, because its basic auth is one encoded
 		// SQLD_HTTP_AUTH. Render seeds that, the node mode and the namespace
-		// switch; Describe reads the credentials back out of it.
+		// switch; Describe reads the credentials back out of it. A namespace is
+		// created through the admin API, so the flag without its listener would
+		// leave the switch inert.
 		fragment: `    image: {{ .Image }}
     restart: unless-stopped
     env_file: ["{{ .EnvFile }}"]
 {{- if .Namespaces }}
-    command: ["/bin/sqld", "--enable-namespaces"]
+    command: ["/bin/sqld", "--enable-namespaces", "--admin-listen-addr", "0.0.0.0:5000"]
 {{- end }}
     volumes:
       - {{ .Volume }}:/var/lib/sqld`,
@@ -492,6 +498,12 @@ type Connection struct {
 	User     string `json:"user"`
 	Password string `json:"password"`
 	URL      string `json:"url"`
+	// Node is the libSQL node kind, empty for every other engine.
+	Node string `json:"node"`
+	// ReplicationURL is what a libSQL replica is pointed at, set only on a
+	// primary. The gRPC listener has no auth of its own, so unlike URL it
+	// carries no credentials.
+	ReplicationURL string `json:"replication_url"`
 }
 
 // Describe reads a running database service back out of its image and its
@@ -509,6 +521,10 @@ func Describe(engine Engine, alias, image string, env map[string]string) Connect
 	}
 	if engine.Slug == LibSQL {
 		c.User, c.Password = decodeBasicAuth(env["SQLD_HTTP_AUTH"])
+		c.Node = defaulted(env["SQLD_NODE"], SqldPrimary)
+		if c.Node == SqldPrimary {
+			c.ReplicationURL = fmt.Sprintf("http://%s:%d", c.Host, sqldGRPCPort)
+		}
 	}
 	if engine.Scheme == "" || c.Password == "" {
 		return c

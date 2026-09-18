@@ -488,6 +488,10 @@ export type DatabaseConnection = {
 	user: string
 	password: string
 	url: string
+	/** The libSQL node kind, empty for every other engine. */
+	node: string
+	/** What a libSQL replica follows, set only on a primary and carrying no credentials. */
+	replication_url: string
 	name: string
 	versions: string[]
 	data_volume: string

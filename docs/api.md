@@ -242,7 +242,13 @@ and `sqld_namespaces`. They end up in the service's environment as `SQLD_NODE`,
 become the one value sqld understands, `SQLD_HTTP_AUTH`. `SQLD_ENABLE_NAMESPACES`
 is the manager's own: sqld takes namespaces as a command-line flag, so the
 variable is what the overlay reads to decide whether to pass it, and editing it
-in the Environment tab changes the flag on the next deploy.
+in the Environment tab changes the flag on the next deploy. Namespaces also open
+sqld's admin API on `5000`, the only way a namespace is created.
+
+`GET /api/services/{id}/database` answers with the connection panel, and for
+`libsql` two fields more: `node`, and `replication_url` on a primary, the gRPC
+endpoint on `5001` a replica is pointed at through `sqld_primary_url`. The gRPC
+listener has no auth of its own, so that URL carries no credentials.
 
 `image` is accepted for every engine, not only `custom`, and it wins over
 `version` when both are sent. That is what lets an export be replayed without

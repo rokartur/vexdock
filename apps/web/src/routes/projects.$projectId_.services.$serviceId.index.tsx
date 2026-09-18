@@ -61,7 +61,7 @@ const credentialOptions: { value: CredentialKind; label: string }[] = [
 	{ value: 'ssh_key', label: 'SSH private key' },
 ]
 
-/** How it deploys, then where the code comes from. A database leads with the credentials it is opened for. */
+/** How it deploys, then what a database is reachable as, then where the code comes from. */
 function ServiceGeneral() {
 	const { projectId, serviceId } = Route.useParams()
 	const service = useService(serviceId)
@@ -71,8 +71,8 @@ function ServiceGeneral() {
 	if (!service.data) return null
 	return (
 		<>
-			{service.data.type === 'database' ? <DatabaseSections serviceId={serviceId} /> : null}
 			<DeploySection projectId={projectId} service={service.data} />
+			{service.data.type === 'database' ? <DatabaseSections serviceId={serviceId} /> : null}
 			{/* Remounts on switch, so the fields follow the service the URL names. */}
 			<SourceSection key={service.data.id} service={service.data} />
 		</>
@@ -211,6 +211,8 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 					{data.url ? (
 						<Fact label='URL' value={revealed ? data.url : data.url.replace(data.password, '•••')} />
 					) : null}
+					{data.node ? <Fact label='Node' value={data.node} /> : null}
+					{data.replication_url ? <Fact label='Replication URL' value={data.replication_url} /> : null}
 				</Facts>
 			</FormSection>
 			<FormSection

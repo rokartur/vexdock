@@ -875,6 +875,7 @@ export function Combo<TValue extends string>({
 	disabled,
 	placeholder = 'Select',
 	empty = 'No matches',
+	custom,
 }: {
 	value: TValue | ''
 	options: readonly { value: NoInfer<TValue>; label: string }[]
@@ -884,8 +885,12 @@ export function Combo<TValue extends string>({
 	placeholder?: string
 	/** Shown when the search matches nothing. */
 	empty?: string
+	/** Makes the search box a value of its own, for a field whose options are suggestions. */
+	custom?: (value: string) => void
 }) {
 	const [open, setOpen] = useState(false)
+	const [search, setSearch] = useState('')
+	const typed = search.trim()
 	const selected = options.find(option => option.value === value)
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -905,9 +910,20 @@ export function Combo<TValue extends string>({
 			/>
 			<PopoverContent align='start' className='w-(--anchor-width) p-0'>
 				<Command>
-					<CommandInput placeholder={placeholder} />
+					<CommandInput placeholder={placeholder} value={search} onValueChange={setSearch} />
 					<CommandList>
 						<CommandEmpty>{empty}</CommandEmpty>
+						{custom && typed && !options.some(option => option.label === typed) ? (
+							<CommandItem
+								value={typed}
+								onSelect={() => {
+									custom(typed)
+									setOpen(false)
+								}}
+							>
+								Use "{typed}"
+							</CommandItem>
+						) : null}
 						{options.map(option => (
 							<CommandItem
 								key={option.value}
