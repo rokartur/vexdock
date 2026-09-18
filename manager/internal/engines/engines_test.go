@@ -130,8 +130,8 @@ func TestLibSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	if !strings.Contains(out.Fragment, `command: ["/bin/sqld", "--enable-namespaces"]`) {
-		t.Errorf("namespaces did not reach the fragment:\n%s", out.Fragment)
+	if !strings.Contains(out.Fragment, `"--enable-namespaces", "--admin-listen-addr", "0.0.0.0:5000"`) {
+		t.Errorf("namespaces did not reach the fragment with the admin API that creates them:\n%s", out.Fragment)
 	}
 	env := map[string]string{}
 	for _, v := range out.Env {
@@ -148,6 +148,13 @@ func TestLibSQL(t *testing.T) {
 	got := Describe(engine, "edge", "libsql-server:v0.24.33", env)
 	if got.User != "reader" || got.Password != "s3cret" {
 		t.Fatalf("credentials did not survive the round trip: %+v", got)
+	}
+	if got.Node != SqldReplica || got.ReplicationURL != "" {
+		t.Errorf("a replica serves no replicas of its own: %+v", got)
+	}
+	env["SQLD_NODE"] = SqldPrimary
+	if got := Describe(engine, "edge", "libsql-server:v0.24.33", env); got.ReplicationURL != "http://edge:5001" {
+		t.Errorf("a replica has no primary to follow: %+v", got)
 	}
 
 	spec.Sqld.PrimaryURL = ""
