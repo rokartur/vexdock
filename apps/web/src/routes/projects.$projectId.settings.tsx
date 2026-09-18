@@ -135,6 +135,7 @@ function environmentColumns(remove: (id: string) => void, removing: boolean): Co
 						title={`Delete ${row.original.name}?`}
 						description='Its containers and volumes are removed with it.'
 						action='Delete with volumes'
+						type={row.original.name}
 						onConfirm={() => remove(row.original.id)}
 					>
 						<IconButton icon={IconTrash} label='Delete' disabled={removing} />
