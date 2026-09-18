@@ -231,12 +231,23 @@ func (c *Client) Prune(ctx context.Context, kind string) (PruneReport, error) {
 		r, err := c.api.NetworksPrune(ctx, filters.NewArgs())
 		return PruneReport{Kind: kind, Removed: len(r.NetworksDeleted), Freed: 0}, err
 	case "build-cache":
-		r, err := c.api.BuildCachePrune(ctx, build.CachePruneOptions{All: true})
-		if r == nil {
-			return PruneReport{Kind: kind}, err
-		}
-		return PruneReport{Kind: kind, Removed: len(r.CachesDeleted), Freed: uint64(r.SpaceReclaimed)}, err
+		return c.pruneBuildCache(ctx, true)
 	default:
 		return PruneReport{}, fmt.Errorf("unknown cleanup target %q", kind)
 	}
+}
+
+// PruneDanglingBuildCache drops the cache records no image needs any more and
+// keeps the ones the next incremental build reuses, which is what a service
+// sweeping after its own build wants.
+func (c *Client) PruneDanglingBuildCache(ctx context.Context) (PruneReport, error) {
+	return c.pruneBuildCache(ctx, false)
+}
+
+func (c *Client) pruneBuildCache(ctx context.Context, all bool) (PruneReport, error) {
+	r, err := c.api.BuildCachePrune(ctx, build.CachePruneOptions{All: all})
+	if r == nil {
+		return PruneReport{Kind: "build-cache"}, err
+	}
+	return PruneReport{Kind: "build-cache", Removed: len(r.CachesDeleted), Freed: uint64(r.SpaceReclaimed)}, err
 }

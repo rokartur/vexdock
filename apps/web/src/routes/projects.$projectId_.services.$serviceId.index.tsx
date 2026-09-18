@@ -107,8 +107,8 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 			})
 		},
 	})
-	const autoDeploy = useMutation({
-		mutationFn: (on: boolean) => api.updateService(service.id, { auto_deploy: on }),
+	const switches = useMutation({
+		mutationFn: (body: Parameters<typeof api.updateService>[1]) => api.updateService(service.id, body),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
 	})
 
@@ -117,7 +117,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 			title='Deploy'
 			description='Run it, or stop it. The log opens under Deployments.'
 			icon={IconRocket}
-			hint='Auto deploy watches this service’s own repository and branch.'
+			hint='Auto deploy watches this service’s own repository and branch. Prune build cache sweeps the host’s dangling builder cache once this service finishes building.'
 			aside={[
 				{
 					label: 'Last deploy',
@@ -141,7 +141,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 				},
 			]}
 		>
-			<ErrorText error={deploy.error ?? act.error ?? autoDeploy.error} />
+			<ErrorText error={deploy.error ?? act.error ?? switches.error} />
 			<div className='flex flex-wrap items-center gap-2'>
 				<Button
 					variant='primary'
@@ -164,7 +164,18 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 					Open terminal
 				</Button>
 				<span className='ml-1 rounded-md border border-rule px-3 py-1.5'>
-					<Switch label='Auto deploy' checked={service.auto_deploy} onChange={on => autoDeploy.mutate(on)} />
+					<Switch
+						label='Auto deploy'
+						checked={service.auto_deploy}
+						onChange={on => switches.mutate({ auto_deploy: on })}
+					/>
+				</span>
+				<span className='rounded-md border border-rule px-3 py-1.5'>
+					<Switch
+						label='Prune build cache'
+						checked={service.prune_build_cache}
+						onChange={on => switches.mutate({ prune_build_cache: on })}
+					/>
 				</span>
 			</div>
 		</FormSection>

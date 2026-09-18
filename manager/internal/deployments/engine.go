@@ -269,6 +269,7 @@ func (p *pipeline) execute(ctx context.Context) error {
 		if err := composeProject.Build(ctx, p, p.target); err != nil {
 			return p.fail(err)
 		}
+		p.pruneBuildCache(ctx)
 	} else {
 		p.printf("%s declares no build context, skipping", p.target)
 	}
@@ -346,6 +347,26 @@ func (p *pipeline) checkout(ctx context.Context) error {
 	}
 	p.complete()
 	return nil
+}
+
+// pruneBuildCache sweeps dangling build cache when the service asks for it. The
+// image is already built, so a failed sweep is a log line inside the build step
+// rather than a failed deployment.
+func (p *pipeline) pruneBuildCache(ctx context.Context) {
+	svc, err := p.e.db.ServiceByName(ctx, p.environment.ID, p.target)
+	if err != nil {
+		p.printf("build cache cleanup skipped: %v", err)
+		return
+	}
+	if !svc.PruneBuildCache {
+		return
+	}
+	report, err := p.e.docker.PruneDanglingBuildCache(ctx)
+	if err != nil {
+		p.printf("build cache cleanup failed: %v", err)
+		return
+	}
+	p.printf("Build cache cleanup removed %d records, freeing %d MB", report.Removed, report.Freed>>20)
 }
 
 // waitHealthy polls the target's containers until they are running and, when a
