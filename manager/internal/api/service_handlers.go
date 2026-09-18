@@ -220,6 +220,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		Image            *string `json:"image"`
 		ComposeFragment  *string `json:"compose_fragment"`
 		AutoDeploy       *bool   `json:"auto_deploy"`
+		PruneBuildCache  *bool   `json:"prune_build_cache"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
@@ -232,6 +233,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 	assign(&service.DisplayName, req.DisplayName)
 	assign(&service.ComposeFragment, req.ComposeFragment)
 	assign(&service.AutoDeploy, req.AutoDeploy)
+	assign(&service.PruneBuildCache, req.PruneBuildCache)
 	for _, err := range []error{
 		assignValid(&service.RepositoryURL, req.RepositoryURL, security.ValidateGitURL),
 		assignValid(&service.Branch, req.Branch, security.ValidateGitRef),

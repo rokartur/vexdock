@@ -205,6 +205,41 @@ func TestProjectTagsRoundTrip(t *testing.T) {
 	}
 }
 
+// A service's two switches are separate columns in one long column list, so the
+// insert, the update and the scan all have to name them in the same order.
+func TestServiceSwitchesRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db := open(t)
+	project := newProject(t, db, "app")
+	s := &Service{
+		ID: NewID(), ProjectID: project.ID, EnvironmentID: defaultEnv(t, db, project.ID).ID,
+		ComposeServiceName: "web", Type: ServiceApplication, Provider: ProviderGitHub,
+		AutoDeploy: true, PruneBuildCache: false,
+	}
+	if err := db.CreateService(ctx, s); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	stored, err := db.ServiceByID(ctx, s.ID)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !stored.AutoDeploy || stored.PruneBuildCache {
+		t.Fatalf("after create: auto_deploy=%v prune_build_cache=%v", stored.AutoDeploy, stored.PruneBuildCache)
+	}
+
+	stored.AutoDeploy, stored.PruneBuildCache = false, true
+	if err := db.UpdateService(ctx, stored); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	updated, err := db.ServiceByID(ctx, s.ID)
+	if err != nil {
+		t.Fatalf("read updated: %v", err)
+	}
+	if updated.AutoDeploy || !updated.PruneBuildCache {
+		t.Fatalf("after update: auto_deploy=%v prune_build_cache=%v", updated.AutoDeploy, updated.PruneBuildCache)
+	}
+}
+
 // openUpTo applies migrations in order and stops after the named one, which is
 // how a test gets at the schema an existing install is upgrading from.
 func openUpTo(t *testing.T, path, last string) *DB {
