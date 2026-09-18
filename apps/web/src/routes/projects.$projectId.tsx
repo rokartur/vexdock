@@ -55,16 +55,19 @@ function ProjectLayout() {
 						render={<IconButton icon={IconDots} label='Project actions' size='default' />}
 					/>
 					<DropdownMenuContent align='end'>
-						<Confirm
-							title='Delete this project?'
-							description='Every service, deployment and domain in it goes with it. Volumes are kept.'
-							onConfirm={() => remove.mutate()}
-						>
-							<DropdownMenuItem variant='destructive' closeOnClick={false}>
-								<IconTrash />
-								Delete project
-							</DropdownMenuItem>
-						</Confirm>
+						{project.data ? (
+							<Confirm
+								title='Delete this project?'
+								description='Every service, deployment and domain in it goes with it. Volumes are kept.'
+								type={project.data.name}
+								onConfirm={() => remove.mutate()}
+							>
+								<DropdownMenuItem variant='destructive' closeOnClick={false}>
+									<IconTrash />
+									Delete project
+								</DropdownMenuItem>
+							</Confirm>
+						) : null}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			}

@@ -36,6 +36,7 @@ function ServiceAdvanced() {
 					<Confirm
 						title={`Delete ${name}?`}
 						description='Its container is removed and its environment dropped. The data volume stays.'
+						type={name}
 						onConfirm={() => remove.mutate()}
 					>
 						<Button variant='danger' disabled={remove.isPending}>

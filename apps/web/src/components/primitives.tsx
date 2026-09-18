@@ -731,30 +731,47 @@ export function Confirm({
 	title,
 	description,
 	action = 'Delete',
+	type,
 	onConfirm,
 	children,
 }: {
 	title: string
 	description?: string
 	action?: string
+	/** A name the reader has to type before the action unlocks, for what takes data with it. */
+	type?: string
 	onConfirm: () => void
 	children: ReactElement
 }) {
 	// Owned state: base-ui's alert dialog has no Action part that closes, only
 	// Cancel does, so confirming has to close it by hand.
 	const [open, setOpen] = useState(false)
+	const [typed, setTyped] = useState('')
+	const locked = type !== undefined && typed.trim() !== type
 	return (
-		<AlertDialog open={open} onOpenChange={setOpen}>
+		<AlertDialog
+			open={open}
+			onOpenChange={next => {
+				setOpen(next)
+				setTyped('')
+			}}
+		>
 			<AlertDialogTrigger render={children} />
 			<AlertDialogContent>
 				<AlertDialogHeader>
 					<AlertDialogTitle>{title}</AlertDialogTitle>
 					{description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
 				</AlertDialogHeader>
+				{type === undefined ? null : (
+					<Field label={`Type ${type} to confirm`}>
+						<Input value={typed} onChange={event => setTyped(event.target.value)} autoComplete='off' />
+					</Field>
+				)}
 				<AlertDialogFooter>
 					<AlertDialogCancel>Cancel</AlertDialogCancel>
 					<AlertDialogAction
 						variant='destructive'
+						disabled={locked}
 						onClick={() => {
 							setOpen(false)
 							onConfirm()
