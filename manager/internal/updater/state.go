@@ -75,5 +75,11 @@ func (s *Service) writeState(st State) {
 	}
 	// Best effort: the update must not fail because progress reporting did.
 	_ = os.MkdirAll(s.cfg.SystemDir, 0o755)
-	_ = os.WriteFile(s.statePath(), data, 0o644)
+	// The panel polls this file while it is being written, and a half-written
+	// document reads as idle, so the rename is what keeps progress monotonic.
+	tmp := s.statePath() + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return
+	}
+	_ = os.Rename(tmp, s.statePath())
 }

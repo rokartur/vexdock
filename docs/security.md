@@ -98,7 +98,9 @@ row every mutation gets.
   password or API token. None of them is returned by any endpoint, in any shape,
   and each is decrypted for two things only: listing that connection's
   repositories and branches for the source picker, and cloning a service that
-  points at it.
+  points at it. The one exception is the webhook token of a non-GitHub
+  connection, which the owner has to paste into the host: it comes back inside
+  `webhook_url` on the authenticated git provider endpoints and nowhere else.
 - The owner and repository a listing takes are interpolated into the host's URL
   path, so each is validated first: an owner may contain slashes because a GitLab
   group nests, a repository name may not, and neither may contain `..`. A token
@@ -114,10 +116,15 @@ row every mutation gets.
   drops the minted token from memory as well as the row. Its webhook deliveries
   are verified against the secret GitHub generated for it before a push can start
   a deployment.
-- GitLab, Gitea and Bitbucket deliveries are not signed App-style, so their
-  deploy endpoints verify nothing and instead deploy only what a service already
-  tracks: the exact owner, repository and branch. An unknown repository is
-  answered `202 ignored`, which is the same thing a forged delivery gets.
+- GitLab, Gitea and Bitbucket deliveries are not signed App-style, so each
+  connection generates a random token that its hook URL carries as `?token=`.
+  The deploy endpoint compares it in constant time against every connection of
+  that type and answers `401` when none matches, so a delivery nobody
+  configured cannot start a deployment. Bitbucket Cloud has no secret field for
+  a header, which is why the token rides in the URL; it is therefore visible in
+  the panel's own access log. A verified delivery still deploys only what a
+  service already tracks: the exact owner, repository and branch. An unknown
+  repository is answered `202 ignored`.
 - The OAuth state for all three handshakes is the connection row's own id, so a
   code can only ever be exchanged against the connection that started the flow.
   The redirect URI is `PLATFORM_PUBLIC_URL` when it is set and the address the
@@ -157,8 +164,9 @@ row every mutation gets.
 
 ## Destructive actions
 
-Nothing an operator created is pruned or deleted on a schedule; only the
-bounded observability tables age out on their own, metrics after seven days.
+No project, service, volume or backup is pruned or deleted on a schedule. Only
+the bounded history tables age out on their own: metrics after seven days, and
+deployment records beyond the newest fifty per service, logs included.
 The updater removes previous system image tags
 only when the operator selects that option, and only after the new manager is
 healthy. Removing a volume requires an explicit `confirm=true`, and so does

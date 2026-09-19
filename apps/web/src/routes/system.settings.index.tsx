@@ -39,13 +39,13 @@ function GeneralSettings() {
 	// The Cloudflare token is write-only: undefined keeps the stored one (the key
 	// is dropped on serialization), '' clears it.
 	const save = useMutation({
-		mutationFn: (cloudflareToken: string | undefined) =>
+		mutationFn: (fields: { token: string | undefined; domain: string; https: boolean }) =>
 			settings.data
 				? api.saveSettings({
 						acme_email: settings.data.acme_email,
-						dashboard_domain: draft.domain,
-						dashboard_https: draft.https,
-						cloudflare_api_token: cloudflareToken,
+						dashboard_domain: fields.domain,
+						dashboard_https: fields.https,
+						cloudflare_api_token: fields.token,
 					})
 				: Promise.reject(new Error('settings not loaded yet')),
 		onSuccess: async () => {
@@ -54,7 +54,15 @@ function GeneralSettings() {
 		},
 	})
 
-	const apply = () => save.mutate(draft.token || undefined)
+	const apply = () => save.mutate({ token: draft.token || undefined, domain: draft.domain, https: draft.https })
+
+	// Removing the token replays the saved domain, never an unsaved edit sitting
+	// in the card above it.
+	const removeToken = () => {
+		const loaded = settings.data
+		if (!loaded) return
+		save.mutate({ token: '', domain: loaded.dashboard_domain, https: loaded.dashboard_https })
+	}
 	const tokenStored = settings.data?.cloudflare_token_set ?? false
 	const saveButton = <SaveButton mutation={save} />
 	const certificate = certificates.data?.find(cert => cert.hostname === settings.data?.dashboard_domain)
@@ -108,7 +116,7 @@ function GeneralSettings() {
 				actions={
 					<>
 						{tokenStored ? (
-							<Button variant='ghost' onClick={() => save.mutate('')} disabled={save.isPending}>
+							<Button variant='ghost' onClick={removeToken} disabled={save.isPending}>
 								<IconTrash />
 								Remove token
 							</Button>

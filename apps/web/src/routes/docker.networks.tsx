@@ -92,6 +92,7 @@ function NetworksPage() {
 					data={data}
 					columns={columns}
 					loading={networks.isLoading}
+					error={networks.error}
 					getRowId={network => network.id}
 					filter='Filter networks'
 					empty='No networks'

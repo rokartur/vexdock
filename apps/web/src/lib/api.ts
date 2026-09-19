@@ -14,6 +14,7 @@ export type DeploymentStatus = 'queued' | 'running' | 'success' | 'failed' | 'ca
 export type Deployment = {
 	id: string
 	project_id: string
+	environment_id: string
 	number: number
 	/** Compose service this deploy ran for; empty only on deploys that predate per-service scoping. */
 	service_name: string
@@ -44,6 +45,7 @@ export type CertificateSource = 'letsencrypt' | 'custom'
 export type Domain = {
 	id: string
 	project_id: string
+	environment_id: string
 	service_id: string
 	hostname: string
 	container_port: number
@@ -110,6 +112,7 @@ export function isGitProvider(provider: ServiceProvider) {
 export type Service = {
 	id: string
 	project_id: string
+	environment_id: string
 	compose_service_name: string
 	/** What docker ps shows. Empty on services created before the manager named them. */
 	container_name: string
@@ -396,6 +399,8 @@ export type GitProvider = {
 	created_at: string
 	/** False until the handshake with the host finished; nothing can be listed before then. */
 	connected: boolean
+	/** The push hook to paste into the host, token included. GitHub sets its own up and signs it, so it has none. */
+	webhook_url?: string
 	github?: {
 		github_app_name: string
 		github_app_id: string
@@ -568,6 +573,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 	}
 
 	if (!response.ok) {
+		// The manager's session outlived the browser's: every mounted query would
+		// otherwise retry against a signed-out API behind a shell that still looks
+		// signed in. A full load re-runs AuthGate.
+		if (response.status === 401 && window.location.pathname !== '/login') {
+			window.location.replace('/login')
+		}
 		const envelope = payload as { error?: { code: string; message: string; details?: Record<string, unknown> } }
 		throw new ApiError(
 			envelope?.error?.code ?? 'UNKNOWN',
@@ -771,7 +782,6 @@ export const api = {
 	deleteDomain: (id: string) => request<{ ok: boolean }>(`/api/domains/${id}`, { method: 'DELETE' }),
 	issueCertificate: (id: string) => request<Certificate>(`/api/domains/${id}/certificate`, { method: 'POST' }),
 
-	deployment: (id: string) => request<{ deployment: Deployment; steps: DeploymentStep[] }>(`/api/deployments/${id}`),
 	cancelDeployment: (id: string) => request<{ ok: boolean }>(`/api/deployments/${id}/cancel`, { method: 'POST' }),
 	rollback: (id: string) => request<Deployment>(`/api/deployments/${id}/rollback`, { method: 'POST' }),
 

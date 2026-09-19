@@ -247,10 +247,7 @@ func (i *Issuer) store(hostname string, chain [][]byte, key *ecdsa.PrivateKey) (
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
-	if err := writeAtomic(filepath.Join(dir, "fullchain.pem"), fullchain, 0o644); err != nil {
-		return nil, err
-	}
-	if err := writeAtomic(filepath.Join(dir, "privkey.pem"), keyPEM, 0o600); err != nil {
+	if err := writePair(dir, fullchain, keyPEM); err != nil {
 		return nil, err
 	}
 
@@ -303,4 +300,24 @@ func writeAtomic(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// writePair stages both files before renaming either, so a failed write can
+// never leave a new chain beside the previous key. Exists() only checks that
+// both files are present, so a mismatched pair reads as a valid certificate and
+// breaks TLS for the host until someone reissues by hand.
+func writePair(dir string, fullchain, key []byte) error {
+	chainPath := filepath.Join(dir, "fullchain.pem")
+	keyPath := filepath.Join(dir, "privkey.pem")
+	if err := os.WriteFile(chainPath+".tmp", fullchain, 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(keyPath+".tmp", key, 0o600); err != nil {
+		os.Remove(chainPath + ".tmp")
+		return err
+	}
+	if err := os.Rename(chainPath+".tmp", chainPath); err != nil {
+		return err
+	}
+	return os.Rename(keyPath+".tmp", keyPath)
 }

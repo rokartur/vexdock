@@ -205,6 +205,11 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (st
 
 // Start backs up the platform and launches the detached updater container.
 func (s *Service) Start(ctx context.Context, version string, includePrerelease, cleanupOldImages bool) error {
+	// Detached from the request: a browser tab closed mid-launch would otherwise
+	// kill the CLI after the container started, reset the state file to idle and
+	// let the next start `docker rm -f` an updater that is mid-recreate.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
+	defer cancel()
 	if version == "" {
 		version, _ = s.latestVersion(ctx, includePrerelease)
 	}
@@ -212,13 +217,18 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease, 
 		return fmt.Errorf("invalid target version %q", version)
 	}
 	// The launch below removes any updater container first, so a second start
-	// would kill one that is mid-recreate or mid-rollback.
-	if s.State().Active() {
-		return errors.New("an update is already running")
-	}
+	// would kill one that is mid-recreate or mid-rollback. Claiming the state
+	// file under the lock is what makes two simultaneous requests one update.
+	//
 	// From here the panel renders progress from the state file, so every error
 	// path before the container launches must reset it to idle.
+	s.mu.Lock()
+	if s.State().Active() {
+		s.mu.Unlock()
+		return errors.New("an update is already running")
+	}
 	s.writeState(State{Phase: PhaseBackup, Target: version, Previous: s.cfg.Version})
+	s.mu.Unlock()
 	fail := func(err error) error {
 		s.writeState(State{Phase: PhaseIdle})
 		return err

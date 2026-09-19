@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -62,6 +63,18 @@ func (c *Client) ExecOutput(ctx context.Context, containerID string, argv []stri
 		return "", -1, fmt.Errorf("exec attach: %w", err)
 	}
 	defer resp.Close()
+	// StdCopy reads a hijacked connection, which no longer answers to ctx: a
+	// command that never exits would hold this goroutine past the deadline the
+	// caller set. Closing the connection is what unblocks the read.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			resp.Close()
+		case <-done:
+		}
+	}()
 
 	var out tailWriter
 	if _, err := stdcopy.StdCopy(&out, &out, resp.Reader); err != nil {
@@ -162,8 +175,4 @@ func (c *Client) waitExecStarted(ctx context.Context, execID string) error {
 	}
 }
 
-type shellError string
-
-func (e shellError) Error() string { return string(e) }
-
-const errShellUnavailable shellError = "no usable shell found in container (tried bash and sh)"
+var errShellUnavailable = errors.New("no usable shell found in container (tried bash and sh)")

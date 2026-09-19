@@ -330,7 +330,7 @@ if you find yourself wanting one, the logic is in the wrong package.
 ### Conventions you will see everywhere
 
 - A handler decodes with `decode`, answers with `writeJSON`, and reports
-  failures with `badRequest`, `handleLookupError` or `serverError`
+  failures with `badRequest`, `lookupFailed` or `serverError`
   (`api/respond.go`). Every error is `{"error": {"code", "message", "details"}}`.
 - Project routes take `?environment=`; `s.projectEnv(w, r)` resolves it.
 - Anything a user typed that will end up in an argv, a file name or a YAML
@@ -364,6 +364,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/auth-client.ts` | better-auth client: `signIn`, `signUp`, `signOut`, `useSession` |
 | `src/lib/sse.ts` | `useEventSource` for one stream, `useSystemEvents` for cache invalidation |
 | `src/lib/format.ts`, `dotenv.ts`, `breadcrumb.ts` | Pure helpers, each with a test beside it |
+| `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
 | `src/styles.css` | Every design token. A reskin is an edit here, never on a page |
 

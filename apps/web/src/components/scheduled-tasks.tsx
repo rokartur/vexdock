@@ -318,6 +318,7 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 					data={listed}
 					columns={columns}
 					loading={tasks.isLoading}
+					error={tasks.error}
 					getRowId={task => task.id}
 					filter='Filter tasks'
 					empty={serviceId ? 'No scheduled tasks' : 'No scheduled tasks. Add one from a service.'}

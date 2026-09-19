@@ -6,16 +6,14 @@ import { VariablesEditor } from '../components/env-editor'
 import { ErrorText, FormSection, SaveButton } from '../components/primitives'
 import { api, type EnvVar } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
-import { useEnvironmentId } from '../lib/environment'
+import { useCurrentEnvironment } from '../lib/environment'
 
 export const Route = createFileRoute('/projects/$projectId/environment')({ component: ProjectEnvironment })
 
 /** The project's variables reach every environment, the environment's own win on a collision. Edited as .env text. */
 function ProjectEnvironment() {
 	const { projectId } = Route.useParams()
-	const selected = useEnvironmentId()
-	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
-	const current = environments.data?.find(env => (selected ? env.id === selected : env.is_default))
+	const { current } = useCurrentEnvironment(projectId)
 
 	// Same key as the card below, so the two share one fetch: the environment card needs the shared
 	// keys to mark the ones it overrides.
@@ -34,6 +32,7 @@ function ProjectEnvironment() {
 			/>
 			{current ? (
 				<VariablesCard
+					key={current.id}
 					title={`${current.name} variables`}
 					description='Override a shared value, or add one only this environment needs.'
 					icon={IconLayersLinked}

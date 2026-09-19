@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
-import { Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
+import { ErrorText, Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 import { environmentSearch } from '../lib/environment'
 import { bytes, percent } from '../lib/format'
@@ -59,6 +59,7 @@ function ServiceLayout() {
 			}
 		>
 			{/* The same line under every tab, so what the service is doing never depends on which one is open. */}
+			{service.error ? <ErrorText error={service.error} /> : null}
 			{service.data ? (
 				<StatStrip
 					className='mb-4'

@@ -86,7 +86,11 @@ func TestMoveServiceTakesItsDomainAlong(t *testing.T) {
 		t.Fatalf("create domain: %v", err)
 	}
 
-	if err := svc.MoveService(ctx, web, production, staging); err != nil {
+	container, err := svc.CheckMoveService(ctx, web, production, staging)
+	if err != nil {
+		t.Fatalf("check move: %v", err)
+	}
+	if err := svc.MoveService(ctx, web, production, staging, container); err != nil {
 		t.Fatalf("move: %v", err)
 	}
 

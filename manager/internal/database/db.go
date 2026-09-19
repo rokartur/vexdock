@@ -34,14 +34,17 @@ func Open(path string) (*DB, error) {
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetConnMaxLifetime(0)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	pingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := sqlDB.PingContext(ctx); err != nil {
+	if err := sqlDB.PingContext(pingCtx); err != nil {
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
 
 	db := &DB{sqlDB}
-	if err := db.migrate(ctx); err != nil {
+	// Not the ping's budget: a table rebuild and its foreign_key_check over a
+	// large deployments table take longer than ten seconds, and a migration that
+	// times out half way is how a boot turns into a broken schema.
+	if err := db.migrate(context.Background()); err != nil {
 		return nil, err
 	}
 	return db, nil
@@ -94,14 +97,21 @@ func (db *DB) migrate(ctx context.Context) error {
 // transaction, which is why the runner has to know before it opens one.
 const rebuildMarker = "-- vexdock:rebuild"
 
-func (db *DB) apply(ctx context.Context, name, body string) error {
+func (db *DB) apply(ctx context.Context, name, body string) (err error) {
 	rebuild := strings.HasPrefix(body, rebuildMarker)
 	if rebuild {
 		// One connection serves the whole pool, so this reaches the migration.
 		if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
 			return fmt.Errorf("disable foreign keys for %s: %w", name, err)
 		}
-		defer func() { _, _ = db.ExecContext(ctx, `PRAGMA foreign_keys = ON`) }()
+		// That one connection keeps the pragma for the rest of the process, so
+		// failing to restore it would run the whole platform without foreign keys.
+		// It also has to survive a cancelled migration context.
+		defer func() {
+			if _, offErr := db.ExecContext(context.WithoutCancel(ctx), `PRAGMA foreign_keys = ON`); offErr != nil && err == nil {
+				err = fmt.Errorf("restore foreign keys after %s: %w", name, offErr)
+			}
+		}()
 	}
 
 	tx, err := db.BeginTx(ctx, nil)

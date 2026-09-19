@@ -106,6 +106,7 @@ function VolumesPage() {
 					data={data}
 					columns={columns}
 					loading={volumes.isLoading}
+					error={volumes.error}
 					getRowId={volume => volume.name}
 					filter='Filter volumes'
 					empty='No volumes'

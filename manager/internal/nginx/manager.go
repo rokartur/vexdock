@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,8 @@ type Manager struct {
 	nginxContainer string
 	docker         *docker.Client
 	log            *slog.Logger
+	// reloadPending means the files on disk are ahead of the running proxy.
+	reloadPending bool
 }
 
 func NewManager(generatedDir, nginxContainer string, dockerClient *docker.Client, log *slog.Logger) *Manager {
@@ -46,7 +49,10 @@ func (m *Manager) Apply(ctx context.Context, desired map[string]string) error {
 	if err != nil {
 		return err
 	}
-	if equalSets(before, desired) {
+	// reloadPending survives a failed reload: disk already matches desired, so
+	// without it the early return makes every later Apply a no-op and the proxy
+	// keeps serving the old configuration forever.
+	if maps.Equal(before, desired) && !m.reloadPending {
 		return nil
 	}
 	if err := m.write(desired); err != nil {
@@ -63,8 +69,10 @@ func (m *Manager) Apply(ctx context.Context, desired map[string]string) error {
 		return fmt.Errorf("nginx configuration test failed: %s", condense(out, err))
 	}
 	if err := m.Reload(ctx); err != nil {
+		m.reloadPending = true
 		return err
 	}
+	m.reloadPending = false
 	m.log.Info("nginx configuration applied", "vhosts", len(desired))
 	return nil
 }
@@ -142,18 +150,6 @@ func (m *Manager) write(files map[string]string) error {
 		}
 	}
 	return nil
-}
-
-func equalSets(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
 }
 
 func condense(out string, err error) string {

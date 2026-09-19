@@ -3,11 +3,13 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/vexdock/platform/manager/internal/auth"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/git"
+	"github.com/vexdock/platform/manager/internal/security"
 )
 
 // A connection is created in two halves. The first writes the row: the app
@@ -25,6 +27,9 @@ func (s *Server) handleListGitProviders(w http.ResponseWriter, r *http.Request) 
 		serverError(w, err)
 		return
 	}
+	for i := range providers {
+		s.attachWebhookURL(r, &providers[i])
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"git_providers": providers})
 }
 
@@ -33,7 +38,22 @@ func (s *Server) handleGetGitProvider(w http.ResponseWriter, r *http.Request) {
 	if lookupFailed(w, err) {
 		return
 	}
+	s.attachWebhookURL(r, provider)
 	writeJSON(w, http.StatusOK, provider)
+}
+
+// attachWebhookURL is what the settings page pastes into the host's hook
+// configuration. GitHub sets its own hook up from the manifest and signs it, so
+// it never needs one.
+func (s *Server) attachWebhookURL(r *http.Request, p *database.GitProvider) {
+	if p.ProviderType == database.ProviderGitHub || p.WebhookSecretEnc == "" {
+		return
+	}
+	secret, err := s.Cipher.Decrypt(p.WebhookSecretEnc)
+	if err != nil {
+		return
+	}
+	p.WebhookURL = s.publicOrigin(r) + "/api/deploy/" + p.ProviderType + "?token=" + url.QueryEscape(secret)
 }
 
 func (s *Server) handleRenameGitProvider(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +84,7 @@ func (s *Server) handleDeleteGitProvider(w http.ResponseWriter, r *http.Request)
 	if lookupFailed(w, err) {
 		return
 	}
-	services, err := s.DB.ServicesForRepository(r.Context(), id, "", "", "")
+	services, err := s.DB.ServicesForProvider(r.Context(), id)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -488,6 +508,13 @@ func (s *Server) createProvider(r *http.Request, providerType, name string, atta
 	}
 	if provider.Name == "" {
 		return nil, fmt.Errorf("name is required")
+	}
+	if providerType != database.ProviderGitHub {
+		secretEnc, err := s.Cipher.Encrypt(security.RandomToken(24))
+		if err != nil {
+			return nil, err
+		}
+		provider.WebhookSecretEnc = secretEnc
 	}
 	attach(provider)
 	if err := s.DB.CreateGitProvider(r.Context(), provider); err != nil {

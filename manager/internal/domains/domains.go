@@ -176,7 +176,7 @@ func (s *Service) InstallCustomCertificate(ctx context.Context, d *database.Doma
 		return err
 	}
 	s.log.Info("custom certificate installed", "domain", d.Hostname, "expires", result.NotAfter)
-	return s.Reconcile(ctx)
+	return s.reconcileNewCertificate(ctx)
 }
 
 // Update changes an existing mapping and re-reconciles.
@@ -187,60 +187,64 @@ type UpdateInput struct {
 	PrivateKeyPEM  string
 }
 
-func (s *Service) Update(ctx context.Context, d *database.Domain, in UpdateInput) error {
+// Update reports whether the row was written. A false with an error is a
+// rejection that changed nothing; a true with an error is a saved domain whose
+// certificate or proxy reload still needs attention.
+func (s *Service) Update(ctx context.Context, d *database.Domain, in UpdateInput) (bool, error) {
 	host, err := security.ValidateHostname(d.Hostname)
 	if err != nil {
-		return err
+		return false, err
 	}
 	previous, err := s.db.DomainByID(ctx, d.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	d.Hostname = host
 	if err := security.ValidatePort(d.ContainerPort); err != nil {
-		return err
+		return false, err
 	}
 	source, err := normalizeSource(d.CertificateSource)
 	if err != nil {
-		return err
+		return false, err
 	}
 	d.CertificateSource = source
 
 	uploading := strings.TrimSpace(in.CertificatePEM) != "" || strings.TrimSpace(in.PrivateKeyPEM) != ""
 	if d.HTTPSEnabled && source == database.CertCustom && uploading {
 		if _, err := certificates.Validate(host, in.CertificatePEM, in.PrivateKeyPEM); err != nil {
-			return err
+			return false, err
 		}
+	}
+	if err := s.db.UpdateDomain(ctx, d); err != nil {
+		return false, err
 	}
 	// Switching source or hostname invalidates whatever is on disk, so drop it
 	// rather than serve a certificate that no longer belongs to this domain.
+	// After the write: hostname is UNIQUE, and a rejected rename must not take
+	// the old domain's certificate with it.
 	if previous.CertificateSource != source || previous.Hostname != host {
 		if err := s.certs.Remove(previous.Hostname); err != nil {
 			s.log.Warn("remove previous certificate", "domain", previous.Hostname, "error", err)
 		}
 	}
-
-	if err := s.db.UpdateDomain(ctx, d); err != nil {
-		return err
-	}
 	if d.HTTPSEnabled && source == database.CertCustom {
 		if uploading {
-			return s.InstallCustomCertificate(ctx, d, in.CertificatePEM, in.PrivateKeyPEM)
+			return true, s.InstallCustomCertificate(ctx, d, in.CertificatePEM, in.PrivateKeyPEM)
 		}
 		if !s.certs.Exists(d.Hostname) {
 			if err := s.Reconcile(ctx); err != nil {
-				return err
+				return true, err
 			}
-			return fmt.Errorf("upload a certificate for %s to enable HTTPS", d.Hostname)
+			return true, fmt.Errorf("upload a certificate for %s to enable HTTPS", d.Hostname)
 		}
 	}
 	if err := s.Reconcile(ctx); err != nil {
-		return err
+		return true, err
 	}
 	if d.HTTPSEnabled {
-		return s.EnsureCertificate(ctx, d)
+		return true, s.EnsureCertificate(ctx, d)
 	}
-	return nil
+	return true, nil
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
@@ -313,6 +317,17 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	return s.nginx.Apply(ctx, desired)
 }
 
+// reconcileNewCertificate follows a reconcile with an unconditional reload.
+// Nginx reads certificate files once at load and Apply skips the reload when
+// the vhost text is unchanged, which a renewal or a replacement upload always
+// is, so without this the proxy serves the old certificate until it expires.
+func (s *Service) reconcileNewCertificate(ctx context.Context) error {
+	if err := s.Reconcile(ctx); err != nil {
+		return err
+	}
+	return s.nginx.Reload(ctx)
+}
+
 // dashboardVhost renders the panel's own vhost when the user assigned it a domain.
 func (s *Service) dashboardVhost(ctx context.Context) (string, string, bool) {
 	host, err := s.db.Setting(ctx, SettingDashboardDomain)
@@ -323,8 +338,17 @@ func (s *Service) dashboardVhost(ctx context.Context) (string, string, bool) {
 	if err != nil {
 		return "", "", false
 	}
-	https := s.certs.Exists(host)
-	body := nginx.RenderDashboard(host, nginx.ManagerUpstream, "/usr/share/nginx/html", https, "/certificates/"+host)
+	// The setting decides, not the certificate: a certificate outlives the switch
+	// that asked for it, so reading the file alone would keep 443 up and port 80
+	// redirecting to it after the operator turned HTTPS off.
+	wanted, err := s.db.Setting(ctx, SettingDashboardHTTPS)
+	if err != nil {
+		return "", "", false
+	}
+	https := wanted == "true" && s.certs.Exists(host)
+	// DirName, not the raw host: a wildcard domain lives under _wildcard.example.com,
+	// and a literal * in ssl_certificate fails nginx -t and wedges every later Apply.
+	body := nginx.RenderDashboard(host, nginx.ManagerUpstream, "/usr/share/nginx/html", https, "/certificates/"+certificates.DirName(host))
 	return body, nginx.FileName(host), true
 }
 
@@ -370,7 +394,7 @@ func (s *Service) EnsureCertificate(ctx context.Context, d *database.Domain) err
 	}); err != nil {
 		return err
 	}
-	return s.Reconcile(ctx)
+	return s.reconcileNewCertificate(ctx)
 }
 
 // RenewExpiring is the scheduler entry point; it renews everything inside the
@@ -432,7 +456,7 @@ func (s *Service) renewDashboardCertificate(ctx context.Context) {
 		s.log.Error("dashboard certificate renewal failed", "domain", host, "error", err)
 		return
 	}
-	if err := s.Reconcile(ctx); err != nil {
+	if err := s.reconcileNewCertificate(ctx); err != nil {
 		s.log.Error("dashboard certificate renewal: reconcile", "error", err)
 	}
 }
@@ -459,10 +483,13 @@ func (s *Service) SetDashboardDomain(ctx context.Context, hostname string, https
 		return err
 	}
 	if https && !s.certs.Exists(host) {
-		if _, err := s.certs.Issue(ctx, host); err != nil {
+		issueCtx, cancel := context.WithTimeout(ctx, issueTimeout)
+		_, err := s.certs.Issue(issueCtx, host)
+		cancel()
+		if err != nil {
 			return fmt.Errorf("certificate for %s failed: %w", host, err)
 		}
-		return s.Reconcile(ctx)
+		return s.reconcileNewCertificate(ctx)
 	}
 	return nil
 }

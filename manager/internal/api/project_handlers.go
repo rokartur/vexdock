@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -207,10 +208,20 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	removeVolumes := r.URL.Query().Get("volumes") == "true"
 	for i := range envs {
 		env := &envs[i]
-		if composeProject, err := s.Projects.ComposeProject(r.Context(), project, env); err == nil {
-			if err := composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes); err != nil {
-				s.Log.Warn("compose down during delete", "environment", env.ID, "error", err)
-			}
+		// The compose project name lives only in these rows. Deleting them after a
+		// failed teardown leaves containers running that nothing can find or stop,
+		// so the project stays deletable on retry instead.
+		composeProject, err := s.Projects.ComposeProject(r.Context(), project, env)
+		if errors.Is(err, projects.ErrNoServices) {
+			continue
+		}
+		if err == nil {
+			err = composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes)
+		}
+		if err != nil {
+			s.Log.Error("compose down during delete", "environment", env.ID, "error", err)
+			serverError(w, fmt.Errorf("stop environment %s: %w", env.Name, err))
+			return
 		}
 	}
 	if err := s.DB.DeleteProject(r.Context(), project.ID); err != nil {
@@ -405,9 +416,10 @@ func (s *Server) serviceViews(ctx context.Context, env *database.Environment) ([
 	if err != nil {
 		return nil, err
 	}
+	// Without this the page would render every running service as stopped.
 	containers, err := s.Docker.ListContainers(ctx, env.ComposeProjectName)
 	if err != nil {
-		containers = nil
+		return nil, err
 	}
 	usage, err := s.DB.LatestServiceMetrics(ctx, time.Now().Add(-staleReading))
 	if err != nil {

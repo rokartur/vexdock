@@ -20,21 +20,22 @@ type Reconciler struct {
 	domains *domains.Service
 	bus     *Bus
 	log     *slog.Logger
+}
 
+const (
 	// debounce collapses a burst of events from one `compose up` into a single
 	// reconcile pass.
-	debounce time.Duration
-	sweep    time.Duration
-}
+	debounce = 2 * time.Second
+	// sweep re-reconciles on a timer so a missed event self-heals.
+	sweep = 2 * time.Minute
+)
 
 func NewReconciler(dockerClient *docker.Client, domainSvc *domains.Service, bus *Bus, log *slog.Logger) *Reconciler {
 	return &Reconciler{
-		docker:   dockerClient,
-		domains:  domainSvc,
-		bus:      bus,
-		log:      log,
-		debounce: 2 * time.Second,
-		sweep:    2 * time.Minute,
+		docker:  dockerClient,
+		domains: domainSvc,
+		bus:     bus,
+		log:     log,
 	}
 }
 
@@ -52,10 +53,10 @@ func (r *Reconciler) Run(ctx context.Context) {
 			return
 		case <-trigger:
 			if timer == nil {
-				timer = time.NewTimer(r.debounce)
+				timer = time.NewTimer(debounce)
 				fire = timer.C
 			} else {
-				timer.Reset(r.debounce)
+				timer.Reset(debounce)
 			}
 		case <-fire:
 			timer, fire = nil, nil
@@ -118,7 +119,7 @@ func (r *Reconciler) handle(msg dockerevents.Message, trigger chan<- struct{}) {
 }
 
 func (r *Reconciler) tick(ctx context.Context, trigger chan<- struct{}) {
-	ticker := time.NewTicker(r.sweep)
+	ticker := time.NewTicker(sweep)
 	defer ticker.Stop()
 	notify(trigger)
 	for {

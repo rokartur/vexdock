@@ -211,11 +211,13 @@ func (s *Service) DuplicateService(ctx context.Context, src *database.Service, e
 	}
 	tasks, err := s.db.ScheduledTasksByService(ctx, src.ID)
 	if err != nil {
+		_ = s.db.DeleteService(ctx, copied.ID)
 		return nil, err
 	}
 	for _, task := range tasks {
 		task.ServiceID = copied.ID
 		if err := s.db.CreateScheduledTask(ctx, &task); err != nil {
+			_ = s.db.DeleteService(ctx, copied.ID)
 			return nil, err
 		}
 	}
@@ -226,23 +228,35 @@ func (s *Service) DuplicateService(ctx context.Context, src *database.Service, e
 	return copied, nil
 }
 
+// CheckMoveService answers whether MoveService would be allowed, without
+// touching anything, and returns the container name the service would take. The
+// caller removes the old container before it can copy the volumes, so it has to
+// be able to ask first: a move rejected after that point leaves the service
+// down with nothing moved.
+func (s *Service) CheckMoveService(ctx context.Context, svc *database.Service, from, to *database.Environment) (string, error) {
+	if from.ID == to.ID {
+		return "", fmt.Errorf("this service is already in that environment")
+	}
+	if existing, err := s.db.ServiceByName(ctx, to.ID, svc.ComposeServiceName); err == nil && existing != nil {
+		return "", fmt.Errorf("the target environment already has a service named %q", svc.ComposeServiceName)
+	}
+	return s.containerName(ctx, to, svc.ComposeServiceName, "")
+}
+
 // MoveService hands a service to another environment: the row changes owner,
 // the container takes the name that environment would give it, the git checkout
 // follows on disk and both overlays are rewritten. Copying the volume data and
-// removing the old container are the caller's job; both need docker.
-func (s *Service) MoveService(ctx context.Context, svc *database.Service, from, to *database.Environment) error {
-	if from.ID == to.ID {
-		return fmt.Errorf("this service is already in that environment")
-	}
-	if existing, err := s.db.ServiceByName(ctx, to.ID, svc.ComposeServiceName); err == nil && existing != nil {
-		return fmt.Errorf("the target environment already has a service named %q", svc.ComposeServiceName)
-	}
-	container, err := s.containerName(ctx, to, svc.ComposeServiceName, "")
-	if err != nil {
+// removing the old container are the caller's job; both need docker. The
+// container name comes from the CheckMoveService the caller already ran.
+func (s *Service) MoveService(ctx context.Context, svc *database.Service, from, to *database.Environment, container string) error {
+	if err := os.MkdirAll(filepath.Join(s.cfg.ProjectDir(to.ID), servicesDirName), 0o750); err != nil {
 		return err
 	}
-
-	if err := os.MkdirAll(filepath.Join(s.cfg.ProjectDir(to.ID), servicesDirName), 0o750); err != nil {
+	// The row moves before anything on disk does: a rename and a delete that ran
+	// against a move the database then refused would leave the source
+	// environment's overlay pointing at an env_file nothing can recreate.
+	svc.ProjectID, svc.EnvironmentID, svc.ContainerName = to.ProjectID, to.ID, container
+	if err := s.db.MoveService(ctx, svc); err != nil {
 		return err
 	}
 	if err := os.Rename(s.ServiceDir(from, svc.ComposeServiceName), s.ServiceDir(to, svc.ComposeServiceName)); err != nil && !os.IsNotExist(err) {
@@ -251,15 +265,10 @@ func (s *Service) MoveService(ctx context.Context, svc *database.Service, from, 
 	if err := os.Remove(s.ServiceEnvFilePath(from, svc.ComposeServiceName)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-
-	svc.ProjectID, svc.EnvironmentID, svc.ContainerName = to.ProjectID, to.ID, container
-	if err := s.db.MoveService(ctx, svc); err != nil {
-		return err
-	}
 	if _, err := s.WriteOverlay(ctx, from); err != nil {
 		return err
 	}
-	_, err = s.WriteOverlay(ctx, to)
+	_, err := s.WriteOverlay(ctx, to)
 	return err
 }
 

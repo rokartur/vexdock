@@ -97,7 +97,13 @@ func (s *Server) handleUpdateDomain(w http.ResponseWriter, r *http.Request) {
 	if req.PrivateKeyPEM != nil {
 		update.PrivateKeyPEM = *req.PrivateKeyPEM
 	}
-	if err := s.Domains.Update(r.Context(), domain, update); err != nil {
+	saved, err := s.Domains.Update(r.Context(), domain, update)
+	if err != nil {
+		if !saved {
+			badRequest(w, err)
+			return
+		}
+		// Saved, but the certificate or the proxy reload did not follow.
 		writeJSON(w, http.StatusOK, map[string]any{"domain": domain, "warning": err.Error()})
 		return
 	}

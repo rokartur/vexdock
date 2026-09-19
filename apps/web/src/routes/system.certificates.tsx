@@ -152,6 +152,7 @@ function Certificates() {
 					data={rows}
 					columns={columns}
 					loading={certificates.isLoading}
+					error={certificates.error}
 					getRowId={row => row.id}
 					filter='Filter certificates'
 					empty="No certificates uploaded. Let's Encrypt certificates live on each project's Domains tab."

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -68,9 +69,10 @@ func (s *Server) handleProviderWebhook(w http.ResponseWriter, r *http.Request) {
 // webhookProvider identifies and authenticates the delivery. GitHub signs its
 // payload with the secret the manifest generated, which is the strongest check
 // available and the only one that tells connections apart when a server holds
-// several. The other three hosts do not sign App-style deliveries, so they are
-// matched on the repository host instead and a push they claim is only ever
-// acted on if a service already tracks that exact repository.
+// several. The other three hosts do not sign App-style deliveries at all, so
+// their hook URL carries a per-connection token instead: Bitbucket Cloud has no
+// secret field to put one in, and a query parameter is the one transport all
+// three can carry.
 func (s *Server) webhookProvider(r *http.Request, providerType string, body []byte, push pushPayload) (*database.GitProvider, error) {
 	ctx := r.Context()
 	if providerType == database.ProviderGitHub {
@@ -85,16 +87,27 @@ func (s *Server) webhookProvider(r *http.Request, providerType string, body []by
 		}
 		return provider, nil
 	}
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		return nil, errSignatureMismatch
+	}
 	providers, err := s.DB.ListGitProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
 	for i := range providers {
-		if providers[i].ProviderType == providerType && providers[i].Connected {
+		if providers[i].ProviderType != providerType || !providers[i].Connected {
+			continue
+		}
+		secret, err := s.Cipher.Decrypt(providers[i].WebhookSecretEnc)
+		if err != nil {
+			continue
+		}
+		if subtle.ConstantTimeCompare([]byte(token), []byte(secret)) == 1 {
 			return &providers[i], nil
 		}
 	}
-	return nil, errUnknownWebhook
+	return nil, errSignatureMismatch
 }
 
 var (

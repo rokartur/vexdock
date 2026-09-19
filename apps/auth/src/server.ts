@@ -9,13 +9,19 @@ const port = Number(process.env.PORT ?? 8081)
 // A fresh panel is reachable on a public IP before anyone has signed up, so the
 // first request wins an account that owns the host's Docker socket. The
 // installer prints this token; without it that race is the whole authentication
-// story. Empty means unset, which is how the dev stack runs.
+// story. An unset token therefore rejects every signup rather than opening the
+// panel: install.sh always writes one, and the dev stack passes SETUP_TOKEN=dev.
 const setupToken = process.env.PLATFORM_SETUP_TOKEN ?? ''
 
+const setupTokenBytes = Buffer.from(setupToken)
+
 function setupTokenAccepted(given: string): boolean {
-	if (setupToken === '') return true
-	if (given.length !== setupToken.length) return false
-	return timingSafeEqual(Buffer.from(given), Buffer.from(setupToken))
+	if (setupToken === '') return false
+	// timingSafeEqual throws on a length mismatch, and a string's length is not
+	// its byte length once anything non-ASCII is in it.
+	const bytes = Buffer.from(given)
+	if (bytes.length !== setupTokenBytes.length) return false
+	return timingSafeEqual(bytes, setupTokenBytes)
 }
 
 // The schema is applied on boot, the same way the Go manager migrates its own

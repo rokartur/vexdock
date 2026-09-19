@@ -108,6 +108,9 @@ func run() error {
 	if err := loadCloudflareToken(ctx, db, cipher, certIssuer); err != nil {
 		log.Warn("cloudflare token unavailable, falling back to http-01", "error", err)
 	}
+	if err := backfillWebhookSecrets(ctx, db, cipher); err != nil {
+		log.Warn("webhook secret backfill incomplete, affected connections keep their old hook URL", "error", err)
+	}
 	authService, err := auth.New(db, cfg)
 	if err != nil {
 		return err
@@ -187,6 +190,29 @@ func loadCloudflareToken(ctx context.Context, db *database.DB, cipher *security.
 	return nil
 }
 
+// backfillWebhookSecrets gives connections made before 0023 a token. Their old
+// hook URL stops deploying until the owner copies the new one out of the panel,
+// which is the point: it was accepting anyone's push.
+func backfillWebhookSecrets(ctx context.Context, db *database.DB, cipher *security.Cipher) error {
+	providers, err := db.ListGitProviders(ctx)
+	if err != nil {
+		return err
+	}
+	for _, p := range providers {
+		if p.ProviderType == database.ProviderGitHub || p.WebhookSecretEnc != "" {
+			continue
+		}
+		secretEnc, err := cipher.Encrypt(security.RandomToken(24))
+		if err != nil {
+			return err
+		}
+		if err := db.SetWebhookSecret(ctx, p.ID, secretEnc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // scheduler runs the platform's periodic work: certificate renewal, session
 // cleanup and backup retention. One goroutine, no cron dependency.
 func scheduler(ctx context.Context, db *database.DB, domainService *domains.Service,
@@ -207,6 +233,11 @@ func scheduler(ctx context.Context, db *database.DB, domainService *domains.Serv
 		}
 		if err := db.PruneTaskRuns(ctx, 20); err != nil {
 			log.Warn("task run retention", "error", err)
+		}
+		// Deployment steps hold the whole build log, so this is the largest table
+		// in the database on a box that deploys often.
+		if err := db.PruneDeployments(ctx, 50); err != nil {
+			log.Warn("deployment retention", "error", err)
 		}
 		if err := backupService.Prune(10); err != nil {
 			log.Warn("backup retention", "error", err)

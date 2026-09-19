@@ -160,6 +160,7 @@ function ImagesPage() {
 					data={data}
 					columns={columns}
 					loading={images.isLoading}
+					error={images.error}
 					getRowId={image => image.id}
 					filter='Filter images'
 					empty='No images'

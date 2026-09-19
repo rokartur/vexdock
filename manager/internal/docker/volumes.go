@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -25,6 +26,10 @@ func (c *Client) SelfImage(ctx context.Context) (string, error) {
 	return self.Image, nil
 }
 
+// ErrVolumeMissing separates "there was nothing to copy" from a copy that
+// failed, so a caller can skip the first without skipping the second.
+var ErrVolumeMissing = errors.New("source volume does not exist")
+
 // CopyVolume duplicates a named volume's contents into a new one. Docker has no
 // rename and a volume is only reachable through the daemon, so the copy runs in
 // a throwaway container with both ends mounted.
@@ -35,7 +40,7 @@ func (c *Client) CopyVolume(ctx context.Context, from, to string) error {
 	// Binding a volume that does not exist would create an empty one and report
 	// a copy that copied nothing.
 	if _, err := c.api.VolumeInspect(ctx, from); err != nil {
-		return fmt.Errorf("source volume %s: %w", from, err)
+		return fmt.Errorf("source volume %s: %w: %w", from, ErrVolumeMissing, err)
 	}
 	image, err := c.SelfImage(ctx)
 	if err != nil {

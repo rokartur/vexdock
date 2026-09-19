@@ -92,6 +92,7 @@ function Registries() {
 					data={registries.data ?? []}
 					columns={columns}
 					loading={registries.isLoading}
+					error={registries.error}
 					getRowId={registry => registry.id}
 					empty='No registries configured. Public images work without one.'
 				/>

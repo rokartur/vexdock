@@ -54,6 +54,7 @@ function SystemOverview() {
 						data={healthRows}
 						columns={healthTableColumns}
 						loading={health.isLoading}
+						error={health.error}
 						getRowId={row => row.name}
 						empty='No checks reported'
 					/>

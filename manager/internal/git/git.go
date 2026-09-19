@@ -31,6 +31,8 @@ const (
 	KindSSHKey = "ssh_key"
 )
 
+const remoteRefspec = "+refs/heads/*:refs/remotes/origin/*"
+
 // Repo is a checkout on disk.
 type Repo struct {
 	URL  string
@@ -67,7 +69,9 @@ func (r Repo) Sync(ctx context.Context, log io.Writer) (string, error) {
 		if err := run(ctx, log, r.Dir, env, "remote", "set-url", "origin", r.URL); err != nil {
 			return "", err
 		}
-		if err := run(ctx, log, r.Dir, env, "fetch", "--prune", "--tags", "origin"); err != nil {
+		// The explicit refspec overrides the single-branch one that --depth 1
+		// wrote at clone time; without it only the original branch ever updates.
+		if err := run(ctx, log, r.Dir, env, "fetch", "--prune", "--tags", "--force", "origin", remoteRefspec); err != nil {
 			return "", err
 		}
 	}
@@ -79,15 +83,26 @@ func (r Repo) Sync(ctx context.Context, log io.Writer) (string, error) {
 }
 
 func (r Repo) checkout(ctx context.Context, log io.Writer, env []string) error {
+	if r.tryCheckout(ctx, log, env) == nil {
+		return nil
+	}
+	// A --depth 1 clone holds one commit of one branch, so rolling back to an
+	// older SHA misses until the rest of the history is fetched. Already-complete
+	// repositories reject --unshallow, which leaves the retry to report the ref.
+	_ = run(ctx, log, r.Dir, env, "fetch", "--tags", "--force", "--unshallow", "origin", remoteRefspec)
+	if err := r.tryCheckout(ctx, log, env); err != nil {
+		return fmt.Errorf("checkout %q failed: %w", r.Ref, err)
+	}
+	return nil
+}
+
+func (r Repo) tryCheckout(ctx context.Context, log io.Writer, env []string) error {
 	// Prefer the remote-tracking branch so a fetch actually moves the checkout.
 	if err := run(ctx, log, r.Dir, env, "checkout", "--force", "--detach", "origin/"+r.Ref); err == nil {
 		return nil
 	}
 	// Otherwise the ref is a tag or a commit SHA.
-	if err := run(ctx, log, r.Dir, env, "checkout", "--force", "--detach", r.Ref); err != nil {
-		return fmt.Errorf("checkout %q failed: %w", r.Ref, err)
-	}
-	return nil
+	return run(ctx, log, r.Dir, env, "checkout", "--force", "--detach", r.Ref)
 }
 
 func (r Repo) HeadSHA(ctx context.Context) (string, error) {

@@ -187,6 +187,11 @@ func (e *Engine) run(environmentID, deploymentID, ref string) {
 
 	p := newPipeline(e, deploymentID, ref)
 	err := p.execute(ctx)
+	// A cancelled step dies as "signal: killed", never as context.Canceled, so
+	// the queued context is the only honest answer to "was this withdrawn".
+	if err != nil && errors.Is(queued.Err(), context.Canceled) {
+		err = context.Canceled
+	}
 	p.finish(err)
 }
 
@@ -199,10 +204,26 @@ type pipeline struct {
 	project      *database.Project
 	environment  *database.Environment
 	// target is the compose service this deploy runs for.
-	target   string
-	position int
-	current  *database.DeploymentStep
-	buf      strings.Builder
+	target    string
+	position  int
+	current   *database.DeploymentStep
+	buf       []byte
+	truncated bool
+}
+
+// stepOutputLimit bounds the live buffer, not only what closeStep stores: a
+// build that streams progress for the whole deploy timeout would otherwise hold
+// every byte of it in the manager's heap.
+const stepOutputLimit = 64 * 1024
+
+// append keeps the last stepOutputLimit bytes; the tail is what says why a step
+// failed, so the head is what gets dropped.
+func (p *pipeline) append(s string) {
+	p.buf = append(p.buf, s...)
+	if len(p.buf) > 2*stepOutputLimit {
+		p.truncated = true
+		p.buf = append(p.buf[:0], p.buf[len(p.buf)-stepOutputLimit:]...)
+	}
 }
 
 func newPipeline(e *Engine, deploymentID, ref string) *pipeline {
@@ -258,8 +279,12 @@ func (p *pipeline) execute(ctx context.Context) error {
 
 	p.begin(StepPull)
 	if err := composeProject.Pull(ctx, p, p.target); err != nil {
-		// A pull failure for a locally built image is not fatal; compose is told
-		// to ignore pull failures and the build step decides.
+		// A service that builds its own image can survive a failed pull of its
+		// bases; one that only names an image cannot, and letting it through
+		// redeploys the stale local copy and records the deploy as a success.
+		if service.Build == nil {
+			return p.fail(err)
+		}
 		p.printf("pull reported: %v", err)
 	}
 	p.complete()
@@ -475,7 +500,7 @@ func (p *pipeline) begin(name string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	p.position++
-	p.buf.Reset()
+	p.buf, p.truncated = p.buf[:0], false
 	step := &database.DeploymentStep{
 		DeploymentID: p.deploymentID,
 		Position:     p.position,
@@ -508,7 +533,7 @@ func (p *pipeline) closeStep(status string) {
 	defer cancel()
 	p.current.Status = status
 	p.current.FinishedAt = database.Now()
-	p.current.Output = tail(p.buf.String(), 64*1024)
+	p.current.Output = tail(string(p.buf), stepOutputLimit, p.truncated)
 	if err := p.e.db.UpdateStep(ctx, p.current); err != nil {
 		p.e.log.Error("update deployment step", "error", err)
 	}
@@ -520,7 +545,7 @@ func (p *pipeline) closeStep(status string) {
 // straight into the deployment log.
 func (p *pipeline) Write(b []byte) (int, error) {
 	text := string(b)
-	p.buf.WriteString(text)
+	p.append(text)
 	for _, line := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
@@ -532,7 +557,7 @@ func (p *pipeline) Write(b []byte) (int, error) {
 
 func (p *pipeline) printf(format string, args ...any) {
 	line := fmt.Sprintf(format, args...)
-	p.buf.WriteString(line + "\n")
+	p.append(line + "\n")
 	p.publish("log", logLine{Step: p.stepName(), Text: line, At: time.Now().UTC().Format(time.RFC3339)})
 }
 
@@ -562,9 +587,12 @@ func short(sha string) string {
 
 // tail keeps the last n bytes of step output so a chatty build cannot bloat the
 // database.
-func tail(s string, n int) string {
-	if len(s) <= n {
-		return s
+func tail(s string, n int, truncated bool) string {
+	if len(s) > n {
+		s, truncated = s[len(s)-n:], true
 	}
-	return "... truncated ...\n" + s[len(s)-n:]
+	if truncated {
+		return "... truncated ...\n" + s
+	}
+	return s
 }

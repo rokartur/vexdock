@@ -26,9 +26,12 @@ log() { echo "[updater] $*"; }
 # against a strict version pattern before it reaches this script and the error
 # argument is always a fixed literal, so bare interpolation cannot break the
 # JSON.
+# The panel polls this file while it is being written, and a half-written
+# document parses as nothing at all, hence the rename.
 state() {
     printf '{"phase":"%s","target":"%s","previous":"%s","error":"%s","at":%s}\n' \
-        "$1" "$VERSION" "$PREVIOUS" "${2:-}" "$(date +%s)" > "$STATE_FILE"
+        "$1" "$VERSION" "$PREVIOUS" "${2:-}" "$(date +%s)" > "$STATE_FILE.tmp" &&
+        mv "$STATE_FILE.tmp" "$STATE_FILE"
 }
 
 cd "$ROOT"
