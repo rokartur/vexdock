@@ -25,8 +25,9 @@ import (
 
 // healthChecks runs the readiness probes and reports whether the platform is
 // healthy overall. Shared by the public health endpoint and the update
-// preflight, so both refuse or pass on identical grounds.
-func (s *Server) healthChecks(ctx context.Context) (map[string]string, bool) {
+// preflight, so both refuse or pass on identical grounds. The nginx probe is a
+// docker exec, so it only runs when its result will be read.
+func (s *Server) healthChecks(ctx context.Context, withNginx bool) (map[string]string, bool) {
 	checks := map[string]string{}
 	healthy := true
 	record := func(name string, err error) {
@@ -48,23 +49,33 @@ func (s *Server) healthChecks(ctx context.Context) (map[string]string, bool) {
 
 	// A failing proxy is reported but does not make the manager unhealthy: the
 	// panel must stay reachable precisely so it can be fixed.
-	checks["nginx"] = "ok"
-	if _, err := s.Nginx.Test(ctx); err != nil {
-		checks["nginx"] = err.Error()
+	if withNginx {
+		checks["nginx"] = "ok"
+		if _, err := s.Nginx.Test(ctx); err != nil {
+			checks["nginx"] = err.Error()
+		}
 	}
 	return checks, healthy
 }
 
 // handleHealth is the unauthenticated liveness/readiness probe used by the
-// installer, the updater and Docker's own healthcheck.
+// installer, the updater and Docker's own healthcheck. The per-check detail
+// names internal paths and failure modes, so it is only returned to an
+// authenticated caller; everyone else gets the verdict.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	checks, healthy := s.healthChecks(r.Context())
+	_, _, authErr := s.Auth.Authenticate(r)
+	detail := authErr == nil
+	checks, healthy := s.healthChecks(r.Context(), detail)
 	status := "healthy"
 	code := http.StatusOK
 	if !healthy {
 		status, code = "unhealthy", http.StatusServiceUnavailable
 	}
-	writeJSON(w, code, map[string]any{"status": status, "checks": checks})
+	body := map[string]any{"status": status}
+	if detail {
+		body["checks"] = checks
+	}
+	writeJSON(w, code, body)
 }
 
 func writable(dir string) error {
@@ -306,15 +317,17 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.Domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
-		badRequest(w, err)
-		return
-	}
+	// The token first: a wildcard dashboard domain needs DNS-01, so a single PUT
+	// carrying both would otherwise fail on the domain and drop the token.
 	if req.CloudflareAPIToken != nil {
 		if err := s.setCloudflareToken(r.Context(), *req.CloudflareAPIToken); err != nil {
 			serverError(w, err)
 			return
 		}
+	}
+	if err := s.Domains.SetDashboardDomain(r.Context(), req.DashboardDomain, req.DashboardHTTPS); err != nil {
+		badRequest(w, err)
+		return
 	}
 	s.handleGetSettings(w, r)
 }
@@ -378,7 +391,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	// An update recreates the whole stack; starting one on a platform that is
 	// already failing turns a bad day into an unbootable one. The panel shows
 	// the same checks, this is the enforcement.
-	if checks, healthy := s.healthChecks(ctx); !healthy {
+	if checks, healthy := s.healthChecks(ctx, false); !healthy {
 		failing := make([]string, 0, len(checks))
 		for name, result := range checks {
 			if result != "ok" {

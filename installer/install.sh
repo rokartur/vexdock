@@ -329,21 +329,25 @@ do_update() {
 
     info "Backing up configuration…"
     stamp="$(date -u +%Y-%m-%dT%H%M%S)"
-    mkdir -p "$ROOT/backups/$stamp"
+    # Dotted, so the manager's own snapshot list and retention skip it: this
+    # directory and $ROOT/backups have different owners and different lifetimes.
+    dest="$ROOT/backups/.updates/$stamp"
+    mkdir -p "$dest" || die "Could not create $dest."
     # Both SQLite databases are copied cold: a file copy of a live WAL database
     # is not guaranteed to restore, and this backup is the only way back.
     compose_cmd stop >/dev/null 2>&1 || true
-    cp -a "$ROOT/data" "$ROOT/backups/$stamp/data" 2>/dev/null || true
-    cp -a "$ROOT/nginx" "$ROOT/backups/$stamp/nginx" 2>/dev/null || true
-    cp -a "$ROOT/certificates" "$ROOT/backups/$stamp/certificates" 2>/dev/null || true
-    cp -a "$ROOT/secrets" "$ROOT/backups/$stamp/secrets" 2>/dev/null || true
-    # compose.yml is the file this update replaces, so a backup without it can
-    # restore the data but not the topology that ran against it.
-    cp -a "$ROOT/compose.yml" "$ROOT/backups/$stamp/compose.yml" 2>/dev/null || true
-    ok "Backup written to $ROOT/backups/$stamp"
+    # A copy that fails leaves no way back, so the update stops rather than
+    # replacing the stack on the strength of a backup that is not there. The
+    # stack is already stopped at this point, hence the instruction to start it.
+    for item in data nginx certificates secrets compose.yml; do
+        [ -e "$ROOT/$item" ] || continue
+        cp -a "$ROOT/$item" "$dest/$item" ||
+            die "Could not back up $ROOT/$item, so the update stops here. Restart the platform with: docker compose -f $ROOT/compose.yml --env-file $ROOT/.env up -d"
+    done
+    ok "Backup written to $dest"
     # Keep the five most recent; unbounded update backups fill a small VPS disk.
     # The stamps are ISO, so the glob is already in chronological order.
-    set -- "$ROOT"/backups/*/
+    set -- "$ROOT"/backups/.updates/*/
     while [ "$#" -gt 5 ]; do
         rm -rf "$1"
         shift

@@ -62,9 +62,13 @@ export function ServiceBulkActions({
 			}
 			/* oxlint-enable no-await-in-loop */
 		},
-		onSuccess: async () => {
+		// The loop stops at the first failure with the services before it already
+		// acted on, so a partial run still has to refetch or the table keeps
+		// showing their old state. Clearing the selection is onSuccess only: the
+		// parent unmounts this component with it, and the error belongs on screen.
+		onSuccess: () => onDone(),
+		onSettled: async () => {
 			setMoving(false)
-			onDone()
 			await queryClient.invalidateQueries({ queryKey: ['services'] })
 			await queryClient.invalidateQueries({ queryKey: ['projects'] })
 		},

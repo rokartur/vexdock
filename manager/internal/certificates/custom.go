@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -67,10 +66,7 @@ func (i *Issuer) InstallCustom(hostname, certPEM, keyPEM string) (*Result, error
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	if err := writeAtomic(filepath.Join(dir, "fullchain.pem"), []byte(strings.TrimSpace(certPEM)+"\n"), 0o644); err != nil {
-		return nil, err
-	}
-	if err := writeAtomic(filepath.Join(dir, "privkey.pem"), []byte(strings.TrimSpace(keyPEM)+"\n"), 0o600); err != nil {
+	if err := writePair(dir, []byte(strings.TrimSpace(certPEM)+"\n"), []byte(strings.TrimSpace(keyPEM)+"\n")); err != nil {
 		return nil, err
 	}
 	return result, nil

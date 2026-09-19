@@ -37,8 +37,8 @@ func (db *DB) CreateGitProvider(ctx context.Context, p *GitProvider) error {
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO git_providers (id, name, provider_type, created_at) VALUES (?, ?, ?, ?)`,
-		p.ID, p.Name, p.ProviderType, p.CreatedAt); err != nil {
+		`INSERT INTO git_providers (id, name, provider_type, created_at, webhook_secret_enc) VALUES (?, ?, ?, ?, ?)`,
+		p.ID, p.Name, p.ProviderType, p.CreatedAt, p.WebhookSecretEnc); err != nil {
 		return err
 	}
 	if err := insertGitProviderDetail(ctx, tx, p); err != nil {
@@ -104,8 +104,8 @@ func insertGitProviderDetail(ctx context.Context, tx *sql.Tx, p *GitProvider) er
 func (db *DB) GitProviderByID(ctx context.Context, id string) (*GitProvider, error) {
 	var p GitProvider
 	err := db.QueryRowContext(ctx,
-		`SELECT id, name, provider_type, created_at FROM git_providers WHERE id = ?`, id).
-		Scan(&p.ID, &p.Name, &p.ProviderType, &p.CreatedAt)
+		`SELECT id, name, provider_type, created_at, webhook_secret_enc FROM git_providers WHERE id = ?`, id).
+		Scan(&p.ID, &p.Name, &p.ProviderType, &p.CreatedAt, &p.WebhookSecretEnc)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -122,7 +122,7 @@ func (db *DB) GitProviderByID(ctx context.Context, id string) (*GitProvider, err
 // the dashboard's order is stable.
 func (db *DB) ListGitProviders(ctx context.Context) ([]GitProvider, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, name, provider_type, created_at FROM git_providers ORDER BY created_at, name`)
+		`SELECT id, name, provider_type, created_at, webhook_secret_enc FROM git_providers ORDER BY created_at, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (db *DB) ListGitProviders(ctx context.Context) ([]GitProvider, error) {
 	out := []GitProvider{}
 	for rows.Next() {
 		var p GitProvider
-		if err := rows.Scan(&p.ID, &p.Name, &p.ProviderType, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.ProviderType, &p.CreatedAt, &p.WebhookSecretEnc); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -211,6 +211,16 @@ func (db *DB) GitProviderByInstallation(ctx context.Context, installationID stri
 // their own update, never through a rename.
 func (db *DB) RenameGitProvider(ctx context.Context, id, name string) error {
 	res, err := db.ExecContext(ctx, `UPDATE git_providers SET name = ? WHERE id = ?`, name, id)
+	if err != nil {
+		return err
+	}
+	return affectedOne(res)
+}
+
+// SetWebhookSecret gives a connection made before the secret existed one, so
+// its deliveries can be authenticated like every new connection's.
+func (db *DB) SetWebhookSecret(ctx context.Context, id, secretEnc string) error {
+	res, err := db.ExecContext(ctx, `UPDATE git_providers SET webhook_secret_enc = ? WHERE id = ?`, secretEnc, id)
 	if err != nil {
 		return err
 	}
@@ -331,6 +341,17 @@ func (db *DB) DeleteGitProvider(ctx context.Context, id string) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// ServicesForProvider finds every service that clones through a connection,
+// whatever repository it points at.
+func (db *DB) ServicesForProvider(ctx context.Context, gitProviderID string) ([]Service, error) {
+	rows, err := db.QueryContext(ctx, `SELECT `+serviceColumns+` FROM services WHERE git_provider_id = ?`, gitProviderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanServices(rows)
 }
 
 // ServicesForRepository finds every service a push to this repository should

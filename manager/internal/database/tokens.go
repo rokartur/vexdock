@@ -72,8 +72,8 @@ func (db *DB) APITokenByHash(ctx context.Context, tokenHash string) (*APIToken, 
 	if time.Since(ParseTime(t.LastUsedAt)) < time.Minute {
 		return &t, nil
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, Now(), t.ID); err != nil {
-		return nil, err
-	}
+	// The token is already authenticated; a bookkeeping write that loses a race
+	// for the single writer connection must not turn it into a 401.
+	_, _ = db.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, Now(), t.ID)
 	return &t, nil
 }

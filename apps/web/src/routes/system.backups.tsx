@@ -124,6 +124,7 @@ function BackupsPage() {
 					data={data}
 					columns={columns}
 					loading={backups.isLoading}
+					error={backups.error}
 					getRowId={backup => backup.name}
 					filter='Filter backups'
 					empty='No backups yet. One is taken automatically before every platform update.'

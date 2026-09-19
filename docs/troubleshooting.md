@@ -8,9 +8,11 @@ docker logs --tail 100 vexdock-manager
 curl -s http://127.0.0.1:3000/api/health
 ```
 
-`/api/health` reports each dependency separately: `database`, `docker`,
-`storage`, `disk` and `nginx`. A failing `nginx` check does not make the manager
-unhealthy, precisely so the panel stays reachable while you fix the proxy.
+`/api/health` answers anyone with `status` alone; the per-dependency `checks`
+(`database`, `docker`, `storage`, `disk` and `nginx`) need a session, so run the
+curl with your cookie or read them from the panel. A failing `nginx` check does
+not make the manager unhealthy, precisely so the panel stays reachable while you
+fix the proxy.
 
 ## A deployment fails
 

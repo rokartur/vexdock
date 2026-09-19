@@ -87,7 +87,8 @@ State lives in `/opt/vexdock`:
 │                     (the update progress the panel polls) and docker/, the
 │                     registry logins `docker login` keeps
 └── backups/<stamp>/     both databases, master key, proxy config,
-                         certificates, volumes/
+                         certificates, volumes/; .updates/<stamp>/ holds what
+                         a shell update copies before it replaces the stack
 ```
 
 More detail in [docs/architecture.md](docs/architecture.md).

@@ -122,6 +122,7 @@ function ProjectsPage() {
 					data={data}
 					columns={projectTableColumns}
 					loading={projects.isLoading}
+					error={projects.error}
 					getRowId={project => project.id}
 					onRowClick={project => navigate({ to: '/projects/$projectId', params: { projectId: project.id } })}
 					filter='Filter projects'

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vexdock/platform/manager/internal/config"
@@ -28,6 +29,9 @@ type Service struct {
 	cfg    *config.Config
 	db     *database.DB
 	docker *docker.Client
+	// Create sweeps every .partial-* directory it finds, and cannot tell a
+	// crash leftover from a snapshot another call is still writing.
+	creating sync.Mutex
 }
 
 func New(cfg *config.Config, db *database.DB, dockerClient *docker.Client) *Service {
@@ -47,12 +51,34 @@ type Snapshot struct {
 // Create writes a new snapshot and returns it. With includeVolumes the archive
 // also holds a tarball per managed named volume, which is what makes it a
 // restorable backup of application data rather than of platform state alone.
-func (s *Service) Create(ctx context.Context, includeVolumes bool) (*Snapshot, error) {
+func (s *Service) Create(ctx context.Context, includeVolumes bool) (snapshot *Snapshot, err error) {
+	s.creating.Lock()
+	defer s.creating.Unlock()
+
 	name := time.Now().UTC().Format("2006-01-02T150405")
-	dir := filepath.Join(s.cfg.BackupsDir, name)
+	// Built under a dotted name and renamed into place at the end, so a snapshot
+	// sitting in BackupsDir is complete by construction and Prune can never count
+	// a half-written one against the copies it keeps.
+	dir := filepath.Join(s.cfg.BackupsDir, ".partial-"+name)
+	// List and Prune skip dotted entries, so a staging directory a crash left
+	// behind would hold its disk forever. This is the only place that knows them.
+	stale, err := filepath.Glob(filepath.Join(s.cfg.BackupsDir, ".partial-*"))
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range stale {
+		if err := os.RemoveAll(path); err != nil {
+			return nil, err
+		}
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			os.RemoveAll(dir)
+		}
+	}()
 
 	// VACUUM INTO produces a consistent copy while the database stays open.
 	dbCopy := filepath.Join(dir, "app.db")
@@ -92,9 +118,16 @@ func (s *Service) Create(ctx context.Context, includeVolumes bool) (*Snapshot, e
 	}
 
 	size, _ := dirSize(dir)
+	final := filepath.Join(s.cfg.BackupsDir, name)
+	if err := os.RemoveAll(final); err != nil {
+		return nil, err
+	}
+	if err := os.Rename(dir, final); err != nil {
+		return nil, err
+	}
 	return &Snapshot{
 		Name:       name,
-		Path:       dir,
+		Path:       final,
 		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
 		SizeBytes:  size,
 		HasVolumes: includeVolumes,
@@ -109,7 +142,7 @@ func (s *Service) List() ([]Snapshot, error) {
 	}
 	out := []Snapshot{}
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
 		info, err := e.Info()

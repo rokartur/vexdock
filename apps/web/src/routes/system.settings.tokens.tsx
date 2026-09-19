@@ -107,6 +107,7 @@ function ApiTokens() {
 					data={tokens.data ?? []}
 					columns={columns}
 					loading={tokens.isLoading}
+					error={tokens.error}
 					getRowId={token => token.id}
 					empty='No tokens issued'
 				/>

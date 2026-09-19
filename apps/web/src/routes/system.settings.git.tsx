@@ -133,6 +133,7 @@ const emptyForm = {
 	email: '',
 	apiToken: '',
 	workspace: '',
+	webhookUrl: '',
 }
 
 type Form = typeof emptyForm
@@ -281,6 +282,7 @@ function GitProviders() {
 					username: provider.bitbucket?.bitbucket_username ?? '',
 					email: provider.bitbucket?.bitbucket_email ?? '',
 					workspace: provider.bitbucket?.bitbucket_workspace_name ?? '',
+					webhookUrl: provider.webhook_url ?? '',
 				})
 			}, removeProvider),
 		[removeProvider],
@@ -317,6 +319,7 @@ function GitProviders() {
 					data={listed}
 					columns={columns}
 					loading={providers.isLoading}
+					error={providers.error}
 					getRowId={provider => provider.git_provider_id}
 					empty='No connections. A service can still clone from a git URL.'
 				/>
@@ -437,6 +440,14 @@ function GitProviders() {
 								/>
 							</Field>
 						</>
+					) : null}
+					{form.webhookUrl ? (
+						<Field
+							label='Push hook'
+							hint='Add this URL as a push webhook on the host. Its token is what tells the deliveries apart from anyone else’s.'
+						>
+							<Input readOnly value={form.webhookUrl} onFocus={event => event.target.select()} />
+						</Field>
 					) : null}
 				</div>
 			</FormSection>

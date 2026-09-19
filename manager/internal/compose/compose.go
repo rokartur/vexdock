@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"sort"
 	"strings"
 )
 
@@ -45,16 +44,6 @@ type ConfigPort struct {
 	Target    int    `json:"target"`
 	Published string `json:"published"`
 	Protocol  string `json:"protocol"`
-}
-
-// ServiceNames returns the compose services in stable order.
-func (c *Config) ServiceNames() []string {
-	names := make([]string, 0, len(c.Services))
-	for name := range c.Services {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
 }
 
 // ParseConfig decodes `docker compose config --format json` output.
@@ -104,8 +93,12 @@ func (p Project) Run(ctx context.Context, w io.Writer, extra ...string) error {
 }
 
 // Each of these acts on one compose service, the one being deployed.
+//
+// Pull reports registry failures rather than hiding them behind
+// --ignore-pull-failures: the caller knows whether the service builds its own
+// image and is the one that can decide a failed pull is survivable.
 func (p Project) Pull(ctx context.Context, w io.Writer, service string) error {
-	return p.Run(ctx, w, "pull", "--ignore-pull-failures", service)
+	return p.Run(ctx, w, "pull", service)
 }
 
 func (p Project) Build(ctx context.Context, w io.Writer, service string) error {

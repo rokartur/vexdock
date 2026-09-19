@@ -107,7 +107,13 @@ function CleanupPage() {
 						<AlertDescription>{result}</AlertDescription>
 					</Alert>
 				) : null}
-				<DataTable data={rows} columns={columns} loading={preview.isLoading} getRowId={row => row.kind} />
+				<DataTable
+					data={rows}
+					columns={columns}
+					loading={preview.isLoading}
+					error={preview.error}
+					getRowId={row => row.kind}
+				/>
 			</Section>
 		</Page>
 	)

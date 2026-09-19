@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -15,6 +16,10 @@ import (
 // usageWindow is how much recorded history the containers list carries per row,
 // bucketed at the sampler's own resolution so one bucket is one reading.
 const usageWindow = 30 * time.Minute
+
+// pullTimeout bounds a manual image pull; a large image on a slow link is
+// minutes, a stuck registry connection is forever.
+const pullTimeout = 30 * time.Minute
 
 // containerView is the shape the Docker Resources screens render. Foreign
 // containers are listed but flagged, so the platform never pretends to manage
@@ -151,14 +156,16 @@ func (s *Server) handlePullImage(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, errors.New("a valid image reference is required"))
 		return
 	}
-	reader, err := s.Docker.PullImage(r.Context(), ref)
+	// The pull must finish even if the client disconnects mid-stream: the image
+	// is what the operator asked for, not the response body.
+	pullCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), pullTimeout)
+	defer cancel()
+	reader, err := s.Docker.PullImage(pullCtx, ref)
 	if err != nil {
 		badRequest(w, err)
 		return
 	}
 	defer reader.Close()
-	// The pull must finish even if the client disconnects mid-stream, so the
-	// body is drained here rather than abandoned.
 	body, err := io.ReadAll(reader)
 	if err != nil {
 		serverError(w, err)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import {
 	IconArrowDown,
 	IconDownload,
@@ -100,30 +100,56 @@ export function LogViewer({
 	const [follow, setFollow] = useState(true)
 	const [plain, setPlain] = useState(false)
 	const bottomRef = useRef<HTMLDivElement>(null)
+	// Lines land in a ref and flush on a timer: a chatty container emits faster
+	// than React can render, and one setState per line re-renders every row.
+	const pending = useRef<Line[]>([])
+	const flushTimer = useRef(0)
+	// A reconnect replays the server's tail=200, so the buffer restarts at the
+	// first line of the new stream rather than growing a second copy of it.
+	const restart = useRef(false)
 
-	const connected = useEventSource(
-		url ?? null,
-		{
-			log: data => {
-				if (paused) return
-				const line = data as Line
+	// Pausing keeps the stream open. Reopening it would replay the server's
+	// tail=200 and duplicate everything already on screen.
+	const connected = useEventSource(url ?? null, {
+		log: data => {
+			if (paused) return
+			if (restart.current) {
+				restart.current = false
+				pending.current = []
+				setStreamed([])
+			}
+			pending.current.push(data as Line)
+			if (flushTimer.current) return
+			flushTimer.current = window.setTimeout(() => {
+				flushTimer.current = 0
+				const batch = pending.current
+				pending.current = []
 				setStreamed(current => {
-					const next = [...current, line]
+					const next = current.concat(batch)
 					return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next
 				})
-			},
+			}, 200)
 		},
-		!paused,
-	)
+	})
+
+	useEffect(() => {
+		if (!connected) restart.current = true
+	}, [connected])
+
+	useEffect(() => () => clearTimeout(flushTimer.current), [])
 
 	const lines = given ?? streamed
 	const needle = filter.toLowerCase()
-	const visible = lines.filter(line => {
-		if (needle && !line.text.toLowerCase().includes(needle)) return false
-		if (level === 'all') return true
-		const severity = severityOf(line)
-		return level === 'error' ? severity === 'error' : severity === 'error' || severity === 'warn'
-	})
+	const visible = useMemo(
+		() =>
+			lines.filter(line => {
+				if (needle && !line.text.toLowerCase().includes(needle)) return false
+				if (level === 'all') return true
+				const severity = severityOf(line)
+				return level === 'error' ? severity === 'error' : severity === 'error' || severity === 'warn'
+			}),
+		[lines, needle, level],
+	)
 
 	useEffect(() => {
 		if (follow) bottomRef.current?.scrollIntoView({ block: 'end' })
@@ -228,7 +254,7 @@ export function LogViewer({
 	)
 }
 
-function LogLine({ line }: { line: Line }) {
+const LogLine = memo(function LogLine({ line }: { line: Line }) {
 	const { time, timestamp, body, level } = parseLogLine(line.text)
 	const request = parseAccessLine(body)
 	const severity = severityFrom(line.stream, level, request?.status)
@@ -259,7 +285,7 @@ function LogLine({ line }: { line: Line }) {
 			)}
 		</div>
 	)
-}
+})
 
 function download(lines: Line[]) {
 	const blob = new Blob([lines.map(line => line.text).join('\n')], { type: 'text/plain' })

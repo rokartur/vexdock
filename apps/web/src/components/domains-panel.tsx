@@ -232,6 +232,7 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 					data={rows}
 					columns={columns}
 					loading={domains.isLoading}
+					error={domains.error}
 					getRowId={domain => domain.id}
 					empty='No domains yet. Point an A record at this server, then add it below.'
 				/>

@@ -57,11 +57,13 @@ lost token is replaced rather than recovered.
 ## Health
 
 `GET /api/health` is public and takes no credential; the installer, the updater
-and Docker's own healthcheck all read it. It reports `{"status", "checks"}`,
-where `checks` covers the database, the Docker socket, storage writability, free
-disk and Nginx. `status` is `healthy` with `200`, or `unhealthy` with `503` when
-any of the first four fails. A failing Nginx is reported but does not make the
-manager unhealthy, because the panel has to stay reachable to fix it.
+and Docker's own healthcheck all read it. Publicly it reports `{"status"}`
+alone: `healthy` with `200`, or `unhealthy` with `503`. An authenticated request
+also gets `checks`, which covers the database, the Docker socket, storage
+writability, free disk and Nginx, because free disk and a broken socket are
+facts about the machine that a stranger has no business reading. Any of the
+first four failing makes the status `unhealthy`; a failing Nginx is reported but
+does not, because the panel has to stay reachable to fix it.
 
 ## Errors
 
@@ -115,7 +117,7 @@ its event names are a contract: `deployment.queued`, `deployment.success`,
 | `POST /api/projects` | `{"name", "tags"?}`. `201` |
 | `GET /api/projects/{id}` | One project, same shape |
 | `PATCH /api/projects/{id}` | Any of `name`, `tags`; omitted fields are left alone |
-| `DELETE /api/projects/{id}` | Stops every environment and drops the project; `?volumes=true` takes its data too |
+| `DELETE /api/projects/{id}` | Stops every environment and drops the project; `?volumes=true` takes its data too. An environment that will not stop is `500` and the project stays, because dropping the row would strand its containers |
 
 ## Environments
 
@@ -501,7 +503,7 @@ picked from a list instead of pasted as a URL.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/git-providers` | `{"git_providers": [...]}`; no secret is ever returned |
+| `GET /api/git-providers` | `{"git_providers": [...]}`; the only secret in the answer is the token inside `webhook_url` |
 | `GET /api/git-providers/{id}` | One connection with its detail |
 | `PATCH /api/git-providers/{id}` | `{"name"}` |
 | `DELETE /api/git-providers/{id}` | Removes one; `409 GIT_PROVIDER_IN_USE` while services still clone through it |
@@ -554,9 +556,12 @@ Bitbucket takes a credential pair instead of an app, so there is no handshake an
 the connection is usable the moment it is saved: either a username with an app
 password, or an email with an API token. When both are given the API token wins.
 
-Every connection's secrets are encrypted at rest and never returned by any
-endpoint. The address a host redirects back to is `PLATFORM_PUBLIC_URL` when it
-is set and the address the browser reached the panel on otherwise, so connecting
+Every connection's secrets are encrypted at rest, and the only one any endpoint
+returns is the token inside `webhook_url`, which the operator has to be able to
+paste into the host.
+
+The address a host redirects back to is `PLATFORM_PUBLIC_URL` when it is set and
+the address the browser reached the panel on otherwise, so connecting
 works before a panel domain is configured. GitHub still requires that address to
 be reachable over https, which is its own rule, not the panel's. All three
 redirect handlers are ordinary
@@ -636,7 +641,7 @@ stream. Rollback redeploys the same service at the recorded commit.
 | `GET /api/domains` | Every domain on the server |
 | `GET /api/projects/{id}/domains` | One project's, across its environments |
 | `POST /api/domains` | Adds one. `201` |
-| `PATCH /api/domains/{id}` | Changes any of the same fields |
+| `PATCH /api/domains/{id}` | Changes `hostname`, `container_port`, `https_enabled`, `redirect_https`, `certificate_source`, `certificate_pem`, `private_key_pem` |
 | `DELETE /api/domains/{id}` | Removes it, its certificate and its vhost |
 | `POST /api/domains/{id}/certificate` | Issues or renews its certificate now; answers the certificate, or `502 CERTIFICATE_FAILED` |
 
@@ -645,7 +650,9 @@ A domain takes `project_id`, `service`, `hostname`, `container_port`,
 (the default environment when omitted) and `certificate_source`, which is
 `letsencrypt` or `custom`. A custom source takes `certificate_pem` and
 `private_key_pem` with it; the pair is validated against the hostname before
-anything is stored. Create and update both answer `{"domain"}`, and add a
+anything is stored. A domain never changes project, environment or service
+after it is created, so `PATCH` rejects those three like any other unknown
+field. Create and update both answer `{"domain"}`, and add a
 `warning` when the mapping was saved but the certificate could not be issued,
 so the domain serves over HTTP and TLS can be retried through `certificate`.
 
@@ -660,11 +667,17 @@ are public.
 A GitHub App is wired to its endpoint when it is created, so there is nothing to
 configure per project: the delivery names its installation, which selects the
 connection whose webhook secret must have signed it, and an unsigned or wrongly
-signed delivery is `401` and never reaches a deployment. The other three are
-added as a project- or repository-level webhook on the host. They are not
-signature-verified, because those hosts do not sign App-style deliveries: the
-delivery is matched against the connections of that type, and only a push whose
-owner, repository and branch a service already tracks deploys anything.
+signed delivery is `401` and never reaches a deployment.
+
+The other three are added as a project- or repository-level webhook on the host,
+and the URL to add carries a `?token=` the connection generated. Those hosts do
+not sign App-style deliveries and Bitbucket Cloud has no secret field at all, so
+the query parameter is the one transport all three can carry; a delivery with a
+missing or wrong token is `401` `SIGNATURE_INVALID`. `GET /api/git-providers`
+and `GET /api/git-providers/{id}` return the whole address as `webhook_url`,
+which is what the settings page shows, and GitHub never has one. A connection
+made before the token existed is given one on the next boot, so its old hook URL
+stops deploying until the new one is pasted in.
 
 A verified push is offered to every service with auto deploy on: both the
 repository it came from and the branch have to be the service's, and an

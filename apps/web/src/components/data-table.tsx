@@ -28,7 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/utils/cn'
-import { EmptyState } from './primitives'
+import { EmptyState, ErrorText } from './primitives'
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
@@ -64,6 +64,8 @@ type DataTableProps<TData extends RowData> = {
 	data: TData[]
 	columns: Columns<TData>
 	loading?: boolean
+	/** A failed query. Shown instead of the empty state, which would otherwise read as "nothing here". */
+	error?: unknown
 	/** Shown instead of rows when there is nothing to display. A string becomes the empty state's title. */
 	empty?: ReactNode
 	getRowId?: (row: TData, index: number) => string
@@ -87,6 +89,7 @@ export function DataTable<TData extends RowData>({
 	data,
 	columns,
 	loading = false,
+	error,
 	empty = 'No results',
 	getRowId,
 	pageSize = 20,
@@ -185,7 +188,9 @@ export function DataTable<TData extends RowData>({
 						) : rows.length === 0 ? (
 							<TableRow className='hover:bg-transparent'>
 								<TableCell colSpan={columnCount} className='p-0'>
-									{typeof empty === 'string' ? (
+									{error ? (
+										<ErrorText error={error} />
+									) : typeof empty === 'string' ? (
 										<EmptyState title={globalFilter ? 'Nothing matches' : empty} />
 									) : (
 										empty

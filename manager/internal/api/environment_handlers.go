@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/vexdock/platform/manager/internal/database"
@@ -128,10 +129,16 @@ func (s *Server) handleDeleteEnvironment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	removeVolumes := r.URL.Query().Get("volumes") == "true"
-	if composeProject, err := s.Projects.ComposeProject(r.Context(), project, env); err == nil {
-		if err := composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes); err != nil {
-			s.Log.Warn("compose down during environment delete", "environment", env.ID, "error", err)
-		}
+	// The compose project name lives only in this row, so deleting it after a
+	// failed teardown leaves containers nothing can find or stop.
+	composeProject, err := s.Projects.ComposeProject(r.Context(), project, env)
+	if err == nil {
+		err = composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes)
+	}
+	if err != nil && !errors.Is(err, projects.ErrNoServices) {
+		s.Log.Error("compose down during environment delete", "environment", env.ID, "error", err)
+		serverError(w, fmt.Errorf("stop environment %s: %w", env.Name, err))
+		return
 	}
 	if err := s.Projects.DeleteEnvironment(r.Context(), env); err != nil {
 		badRequest(w, err)

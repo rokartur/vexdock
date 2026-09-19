@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { DialogFooter } from '@/components/ui/dialog'
 import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { engineMarks } from '../lib/engine-marks'
-import { useEnvironmentId } from '../lib/environment'
+import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
 import { Button, Combo, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
 
 /** An application is created as a bare name. Repository or published image is answered later, in its own settings. */
@@ -31,8 +31,11 @@ const sqldNodes: readonly { value: SqldNode; label: string }[] = [
 	{ value: 'standalone', label: 'Standalone' },
 ]
 
-/** Hex, so it can never carry the whitespace or quotes the manager rejects. */
-const generatePassword = () => crypto.randomUUID().replaceAll('-', '')
+/** Hex, so it can never carry the whitespace or quotes the manager rejects.
+ * getRandomValues rather than randomUUID: the install docs hand out a plain
+ * http://IP:3000 URL, and randomUUID is undefined outside a secure context. */
+const generatePassword = () =>
+	Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('')
 
 /** Application and compose pass straight through. A database is generated, so it asks for an engine and a version
  * and lets the manager write the rest. */
@@ -83,10 +86,7 @@ export function NewServiceForm({
 	// Both queries are the ones the project shell already runs, so this reads
 	// the cache to show the name the manager would pick on its own.
 	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
-	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
-	const environment = environments.data?.find(candidate =>
-		environmentId ? candidate.id === environmentId : candidate.is_default,
-	)
+	const { current: environment } = useCurrentEnvironment(projectId)
 	const derivedContainer =
 		project.data && environment && name
 			? [project.data.slug, environment.is_default ? '' : environment.slug, name].filter(Boolean).join('-')

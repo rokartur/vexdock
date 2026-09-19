@@ -5,7 +5,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { api } from '../lib/api'
-import { useEnvironmentId } from '../lib/environment'
+import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
 import { Status } from './primitives'
 
 /** A breadcrumb segment that switches: the current name plus a searchable list of siblings. For `Page`'s `labels`. */
@@ -121,10 +121,7 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 	// `to: '.'` is what keeps the current page open while the environment
 	// underneath it changes, on a project page and on a service page alike.
 	const navigate = useNavigate()
-	const selected = useEnvironmentId()
-	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
-	// No selection means the default one, which is also what the manager assumes.
-	const current = environments.data?.find(env => (selected ? env.id === selected : env.is_default))
+	const { environments, current } = useCurrentEnvironment(projectId)
 
 	return (
 		<CrumbPicker

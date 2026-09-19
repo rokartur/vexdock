@@ -208,6 +208,7 @@ function Environments({ projectId }: { projectId: string }) {
 				data={environments.data ?? []}
 				columns={columns}
 				loading={environments.isLoading}
+				error={environments.error}
 				getRowId={environment => environment.id}
 				empty='No environments yet.'
 			/>
@@ -219,6 +220,7 @@ function Environments({ projectId }: { projectId: string }) {
 function ExportServices({ projectId }: { projectId: string }) {
 	const [secrets, setSecrets] = useState(false)
 	const [copied, setCopied] = useState(false)
+	const [copyError, setCopyError] = useState<string | null>(null)
 	const environmentId = useEnvironmentId()
 
 	const exported = useQuery({
@@ -237,8 +239,14 @@ function ExportServices({ projectId }: { projectId: string }) {
 					variant='primary'
 					disabled={!exported.data?.payload}
 					onClick={async () => {
-						await navigator.clipboard.writeText(exported.data?.payload ?? '')
-						setCopied(true)
+						try {
+							// navigator.clipboard is undefined outside a secure context, and a
+							// panel reached by IP over plain HTTP is not one.
+							await navigator.clipboard.writeText(exported.data?.payload ?? '')
+							setCopied(true)
+						} catch {
+							setCopyError('Copying needs HTTPS. Select the text below and copy it by hand.')
+						}
 					}}
 				>
 					{copied ? <IconCheck /> : <IconCopy />}
@@ -246,7 +254,7 @@ function ExportServices({ projectId }: { projectId: string }) {
 				</Button>
 			}
 		>
-			<ErrorText error={exported.error} />
+			<ErrorText error={exported.error ?? copyError} />
 			<code className='mb-4 block max-h-24 overflow-y-auto rounded-md border bg-background px-3 py-2 font-mono text-label break-all text-muted-foreground'>
 				{exported.data?.payload || 'No managed services to export.'}
 			</code>

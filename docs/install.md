@@ -90,8 +90,11 @@ From the shell:
 curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh -s update
 ```
 
-A shell update keeps the five most recent backups under
-`/opt/vexdock/backups/` and deletes older ones.
+A shell update writes its own pre-update copy under
+`/opt/vexdock/backups/.updates/<stamp>/` and keeps the five most recent. That
+directory is separate from the snapshots you take in the panel, which an update
+never prunes. A copy that fails stops the update instead of replacing the stack
+without a way back.
 
 ## Restoring a backup
 

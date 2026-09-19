@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { IconDownload } from '@tabler/icons-react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { DialogFooter } from '@/components/ui/dialog'
 import { api, type EnvVar, GIT_PROVIDERS, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
@@ -108,6 +108,7 @@ export function ImportServicesForm({
 
 	// Sequential because every create rewrites the project's overlay and parallel creates race for that one file.
 	// A failure half way leaves the earlier services in place, named in the error.
+	const queryClient = useQueryClient()
 	const run = useMutation({
 		mutationFn: async () => {
 			/* oxlint-disable no-await-in-loop -- sequential is the point, see above */
@@ -143,6 +144,10 @@ export function ImportServicesForm({
 			/* oxlint-enable no-await-in-loop */
 		},
 		onSuccess: onDone,
+		// The loop stops at the first failure with the services before it already
+		// created, so the list has to refetch even though the sheet stays open to
+		// show which one failed.
+		onError: () => queryClient.invalidateQueries({ queryKey: ['services', projectId] }),
 	})
 
 	return (

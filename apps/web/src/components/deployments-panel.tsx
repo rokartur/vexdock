@@ -132,6 +132,7 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 				data={data}
 				columns={columns}
 				loading={deployments.isLoading}
+				error={deployments.error}
 				getRowId={deployment => deployment.id}
 				empty='No deployments yet'
 				detail={{ openId, onOpenChange: open, render: renderDetail }}

@@ -265,6 +265,7 @@ function DashboardPage() {
 					data={deployments}
 					columns={deploymentColumns}
 					loading={info.isLoading}
+					error={info.error}
 					getRowId={({ deployment }) => deployment.id}
 					detail={{ openId: openDeployment, onOpenChange: setOpenDeployment, render: renderDeploymentDetail }}
 					empty='No deployments yet'

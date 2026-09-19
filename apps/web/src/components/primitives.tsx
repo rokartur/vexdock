@@ -386,7 +386,11 @@ const RECEIPT_MS = 2000
 function useReceipt(savedAt: number) {
 	const [showing, setShowing] = useState(false)
 	useEffect(() => {
-		if (savedAt === 0) return
+		// A mutation that gets reset zeroes its stamp, and the receipt goes with it.
+		if (savedAt === 0) {
+			setShowing(false)
+			return
+		}
 		setShowing(true)
 		const timer = setTimeout(() => setShowing(false), RECEIPT_MS)
 		return () => clearTimeout(timer)

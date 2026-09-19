@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { IconX } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type Line, LogViewer } from '../components/log-viewer'
 import { api, type Deployment, type DeploymentStep } from '../lib/api'
 import { duration } from '../lib/format'
@@ -8,6 +8,17 @@ import { useEventSource } from '../lib/sse'
 import { Button, ErrorText, Timeline } from './primitives'
 
 type LogLine = { step: string; text: string; at: string }
+
+const MAX_LINES = 5000
+
+function recordedLines(steps: DeploymentStep[]): Line[] {
+	return steps.flatMap(step =>
+		(step.output ?? '')
+			.split('\n')
+			.filter(Boolean)
+			.map(text => ({ stream: 'stdout', text })),
+	)
+}
 
 /**
  * One deployment's pipeline and its log, streamed while it runs. Rendered
@@ -19,17 +30,10 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 	const [steps, setSteps] = useState<DeploymentStep[]>([])
 	const [lines, setLines] = useState<LogLine[]>([])
 	const [live, setLive] = useState(true)
-
-	const initial = useQuery({
-		queryKey: ['deployment', deploymentId],
-		queryFn: () => api.deployment(deploymentId),
-	})
-
-	useEffect(() => {
-		if (!initial.data) return
-		setDeployment(initial.data.deployment)
-		setSteps(initial.data.steps)
-	}, [initial.data])
+	// What the steps had recorded when the stream attached. The live stream only
+	// carries what arrives after, so without this the first streamed line hides
+	// every step that finished before the page was opened.
+	const backlog = useRef<Line[]>([])
 
 	useEventSource(
 		`/api/deployments/${deploymentId}/events`,
@@ -38,8 +42,16 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 				const payload = data as { deployment: Deployment; steps: DeploymentStep[] }
 				setDeployment(payload.deployment)
 				setSteps(payload.steps)
+				backlog.current = recordedLines(payload.steps)
+				// A reconnect re-sends the snapshot, and the steps in it already
+				// carry every line streamed so far.
+				setLines([])
 			},
-			log: data => setLines(current => [...current, data as LogLine]),
+			log: data =>
+				setLines(current => {
+					const next = [...current, data as LogLine]
+					return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next
+				}),
 			'step.started': data => upsertStep(setSteps, data as DeploymentStep),
 			'step.success': data => upsertStep(setSteps, data as DeploymentStep),
 			'step.failed': data => upsertStep(setSteps, data as DeploymentStep),
@@ -62,13 +74,8 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 	const logLines: Line[] = useMemo(
 		() =>
 			lines.length > 0
-				? lines.map(line => ({ stream: 'stdout', text: `${line.at} ${line.text}` }))
-				: steps.flatMap(step =>
-						(step.output ?? '')
-							.split('\n')
-							.filter(Boolean)
-							.map(text => ({ stream: 'stdout', text })),
-					),
+				? [...backlog.current, ...lines.map(line => ({ stream: 'stdout', text: `${line.at} ${line.text}` }))]
+				: recordedLines(steps),
 		[lines, steps],
 	)
 

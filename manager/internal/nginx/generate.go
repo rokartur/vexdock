@@ -84,6 +84,13 @@ func challengeLocation() string {
 		"    }\n"
 }
 
+// Every upstream is behind this proxy, so every location has to hand the
+// original request details on.
+const forwardedHeaders = "        proxy_set_header Host $http_host;\n" +
+	"        proxy_set_header X-Real-IP $remote_addr;\n" +
+	"        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n" +
+	"        proxy_set_header X-Forwarded-Proto $scheme;\n"
+
 func proxyLocation(target string) string {
 	var b strings.Builder
 	b.WriteString("    location / {\n")
@@ -91,10 +98,8 @@ func proxyLocation(target string) string {
 	fmt.Fprintf(&b, "        set $upstream %s;\n", target)
 	b.WriteString("        proxy_pass $upstream;\n\n")
 	b.WriteString("        proxy_http_version 1.1;\n\n")
-	b.WriteString("        proxy_set_header Host $http_host;\n")
-	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n\n")
+	b.WriteString(forwardedHeaders)
+	b.WriteString("\n")
 	b.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
 	b.WriteString("        proxy_set_header Connection $connection_upgrade;\n\n")
 	// SSE and long-poll endpoints must not be buffered or timed out early.
@@ -140,10 +145,7 @@ func dashboardBody(managerAddr, webRoot string) string {
 	b.WriteString("        limit_req zone=login_limit burst=5 nodelay;\n")
 	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", AuthUpstream)
 	b.WriteString("        proxy_http_version 1.1;\n")
-	b.WriteString("        proxy_set_header Host $http_host;\n")
-	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
+	b.WriteString(forwardedHeaders)
 	b.WriteString("    }\n\n")
 
 	// Authentication is a separate service; everything else is the manager.
@@ -151,20 +153,14 @@ func dashboardBody(managerAddr, webRoot string) string {
 	b.WriteString("        limit_req zone=api_limit burst=60 nodelay;\n")
 	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", AuthUpstream)
 	b.WriteString("        proxy_http_version 1.1;\n")
-	b.WriteString("        proxy_set_header Host $http_host;\n")
-	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
+	b.WriteString(forwardedHeaders)
 	b.WriteString("    }\n\n")
 
 	b.WriteString("    location /api/ {\n")
 	b.WriteString("        limit_req zone=api_limit burst=60 nodelay;\n")
 	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", managerAddr)
 	b.WriteString("        proxy_http_version 1.1;\n")
-	b.WriteString("        proxy_set_header Host $http_host;\n")
-	b.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
-	b.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
+	b.WriteString(forwardedHeaders)
 	b.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
 	b.WriteString("        proxy_set_header Connection $connection_upgrade;\n")
 	b.WriteString("        proxy_buffering off;\n")

@@ -193,6 +193,7 @@ function ContainersPage() {
 					data={data}
 					columns={columns}
 					loading={containers.isLoading}
+					error={containers.error}
 					getRowId={container => container.id}
 					filter='Filter containers'
 					empty='No containers'

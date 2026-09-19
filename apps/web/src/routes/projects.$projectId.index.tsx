@@ -9,7 +9,6 @@ import {
 	IconPlus,
 	IconRocket,
 	IconServer,
-	IconWorld,
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -267,12 +266,6 @@ function ProjectServices() {
 						) : null
 					}
 				/>
-				<Cell
-					label='Domains'
-					icon={IconWorld}
-					value={domains.data?.[0]?.hostname ?? <span className='text-muted-foreground'>none</span>}
-					hint={(domains.data?.length ?? 0) > 1 ? `+${(domains.data?.length ?? 0) - 1} more` : null}
-				/>
 				<Cell label='CPU' icon={IconCpu} value={percent(cpu)} hint='across its services' />
 				<Cell label='Memory' icon={IconServer} value={bytes(memory)} hint='across its services' />
 			</Cells>
@@ -352,6 +345,7 @@ function ProjectServices() {
 					data={rows}
 					columns={columns}
 					loading={services.isLoading}
+					error={services.error}
 					getRowId={({ service }) => service.id}
 					onRowClick={({ service }) =>
 						navigate({

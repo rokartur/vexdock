@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/vexdock/platform/manager/internal/auth"
@@ -217,7 +218,7 @@ func (s *Server) protected(h http.HandlerFunc) http.Handler {
 			return
 		}
 
-		if !isMutation(r.Method) {
+		if !isMutation(r.Method) && !writesCredentials(r.URL.Path) {
 			h(w, r.WithContext(auth.WithUser(r.Context(), user)))
 			return
 		}
@@ -274,6 +275,14 @@ func (s *Server) audit(r *http.Request, user *auth.User, status int, viaCookie b
 	}); err != nil {
 		s.Log.Warn("audit write failed", "path", r.URL.Path, "error", err)
 	}
+}
+
+// writesCredentials names the GET endpoints that store a git provider's access
+// token when the host redirects the owner back. They change state, so they are
+// audited like a mutation; the cross-origin check stays off them because the
+// redirect legitimately arrives from the provider.
+func writesCredentials(path string) bool {
+	return strings.HasSuffix(path, "/callback") || path == "/api/providers/github/installed"
 }
 
 func isMutation(method string) bool {

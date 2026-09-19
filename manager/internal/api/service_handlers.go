@@ -14,6 +14,7 @@ import (
 
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/deployments"
+	"github.com/vexdock/platform/manager/internal/docker"
 	"github.com/vexdock/platform/manager/internal/engines"
 	"github.com/vexdock/platform/manager/internal/projects"
 	"github.com/vexdock/platform/manager/internal/security"
@@ -298,10 +299,14 @@ func (s *Server) handleDeleteService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Every deploy is scoped to one service, so no later deploy would ever
-	// remove this container as an orphan.
-	if id, err := s.Docker.ServiceContainer(r.Context(), env.ComposeProjectName, service.ComposeServiceName); err == nil {
-		if err := s.Docker.Remove(r.Context(), id, true); err != nil {
-			s.Log.Warn("remove container after service delete", "service", service.ID, "error", err)
+	// remove this container as an orphan: nothing else will ever reap it, which
+	// is why a client that hangs up must not abort the removal and why a failure
+	// is reported rather than logged.
+	removal := context.WithoutCancel(r.Context())
+	if id, err := s.Docker.ServiceContainer(removal, env.ComposeProjectName, service.ComposeServiceName); err == nil {
+		if err := s.Docker.Remove(removal, id, true); err != nil {
+			serverError(w, fmt.Errorf("the service is deleted but its container could not be removed: %w", err))
+			return
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -337,6 +342,9 @@ func (s *Server) handleDuplicateService(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, copied)
 }
 
+// A volume copy runs a container per volume, so the ceiling is generous.
+const moveTimeout = 30 * time.Minute
+
 // handleMoveService carries the volume data across. The old container goes
 // first: it belongs to a compose project nothing will deploy again, and its
 // volumes have to hold still while they are copied. The source volumes are
@@ -357,14 +365,24 @@ func (s *Server) handleMoveService(w http.ResponseWriter, r *http.Request) {
 	if lookupFailed(w, err) {
 		return
 	}
+	container, err := s.Projects.CheckMoveService(r.Context(), service, env, target)
+	if err != nil {
+		badRequest(w, err)
+		return
+	}
 	volumes, err := s.Projects.ServiceVolumes(r.Context(), env, service)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
 
-	if id, err := s.Docker.ServiceContainer(r.Context(), env.ComposeProjectName, service.ComposeServiceName); err == nil {
-		if err := s.Docker.Remove(r.Context(), id, true); err != nil {
+	// From here the work destroys a container and copies data; a browser that
+	// navigates away mid-move must not leave the service half-carried.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), moveTimeout)
+	defer cancel()
+
+	if id, err := s.Docker.ServiceContainer(ctx, env.ComposeProjectName, service.ComposeServiceName); err == nil {
+		if err := s.Docker.Remove(ctx, id, true); err != nil {
 			serverError(w, fmt.Errorf("remove the container before moving: %w", err))
 			return
 		}
@@ -372,16 +390,22 @@ func (s *Server) handleMoveService(w http.ResponseWriter, r *http.Request) {
 	for _, name := range volumes {
 		from := env.ComposeProjectName + "_" + name
 		to := target.ComposeProjectName + "_" + name
-		if err := s.Docker.CopyVolume(r.Context(), from, to); err != nil {
-			// Usually a service that was never deployed here, so there is no data.
-			s.Log.Warn("move service volume", "service", service.ID, "volume", from, "error", err)
+		err := s.Docker.CopyVolume(ctx, from, to)
+		if errors.Is(err, docker.ErrVolumeMissing) {
+			// The service was never deployed here, so there is no data to carry.
+			s.Log.Info("move service volume: nothing to copy", "service", service.ID, "volume", from)
+			continue
+		}
+		if err != nil {
+			serverError(w, fmt.Errorf("copy volume %s: %w", from, err))
+			return
 		}
 	}
-	if err := s.Projects.MoveService(r.Context(), service, env, target); err != nil {
+	if err := s.Projects.MoveService(ctx, service, env, target, container); err != nil {
 		badRequest(w, err)
 		return
 	}
-	if err := s.Domains.Reconcile(r.Context()); err != nil {
+	if err := s.Domains.Reconcile(ctx); err != nil {
 		s.Log.Warn("reconcile proxy after service move", "service", service.ID, "error", err)
 	}
 	writeJSON(w, http.StatusOK, service)
@@ -589,6 +613,8 @@ type logPayload struct {
 // races the context: out is buffered, and a client that disconnects while the
 // buffer is full would otherwise park this goroutine forever, since closing the
 // reader cannot wake a goroutine already blocked on a channel send.
+const maxLogLine = 64 * 1024
+
 func scanLines(ctx context.Context, r io.Reader, stream string, out chan<- logPayload) {
 	send := func(text string) bool {
 		select {
@@ -614,6 +640,14 @@ func scanLines(ctx context.Context, r io.Reader, stream string, out chan<- logPa
 				}
 				pending.Reset()
 				pending.WriteString(text[idx+1:])
+			}
+			// A stream that never sends a newline (a progress bar, a stray binary
+			// blob) would grow pending until the container stops. Flush it instead.
+			if pending.Len() > maxLogLine {
+				if !send(pending.String()) {
+					return
+				}
+				pending.Reset()
 			}
 		}
 		if err != nil {

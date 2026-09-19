@@ -11,21 +11,21 @@ const deploymentColumns = `id, project_id, environment_id, number, service_name,
 // CreateDeployment allocates the next number for the service being deployed, so
 // a service's first deploy is #1 however long its neighbours have been running.
 func (db *DB) CreateDeployment(ctx context.Context, d *Deployment) error {
-	var next int
-	if err := db.QueryRowContext(ctx,
-		`SELECT COALESCE(MAX(number), 0) + 1 FROM deployments WHERE environment_id = ? AND service_name = ?`,
-		d.EnvironmentID, d.ServiceName).Scan(&next); err != nil {
-		return err
-	}
-	d.ID, d.Number, d.CreatedAt = NewID(), next, Now()
+	d.ID, d.CreatedAt = NewID(), Now()
 	if d.Status == "" {
 		d.Status = DeploymentQueued
 	}
-	_, err := db.ExecContext(ctx,
-		`INSERT INTO deployments (`+deploymentColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.ID, d.ProjectID, d.EnvironmentID, d.Number, d.ServiceName, d.CommitSHA, d.Branch, d.Status, d.Trigger, d.CreatedBy, d.Error,
-		d.StartedAt, d.FinishedAt, d.CreatedAt)
-	return err
+	// The number is chosen inside the INSERT: as a separate SELECT it races two
+	// concurrent deploys of the same service onto one number, and
+	// UNIQUE (environment_id, service_name, number) then fails one of them.
+	return db.QueryRowContext(ctx,
+		`INSERT INTO deployments (`+deploymentColumns+`) SELECT ?, ?, ?,
+			(SELECT COALESCE(MAX(number), 0) + 1 FROM deployments WHERE environment_id = ? AND service_name = ?),
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ? RETURNING number`,
+		d.ID, d.ProjectID, d.EnvironmentID,
+		d.EnvironmentID, d.ServiceName,
+		d.ServiceName, d.CommitSHA, d.Branch, d.Status, d.Trigger, d.CreatedBy, d.Error,
+		d.StartedAt, d.FinishedAt, d.CreatedAt).Scan(&d.Number)
 }
 
 func (db *DB) UpdateDeployment(ctx context.Context, d *Deployment) error {
@@ -140,6 +140,19 @@ func (db *DB) ListSteps(ctx context.Context, deploymentID string) ([]DeploymentS
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// PruneDeployments keeps the newest runs per service and drops the rest; their
+// steps, which hold the whole build log, cascade from deployments(id).
+func (db *DB) PruneDeployments(ctx context.Context, keepPerService int) error {
+	_, err := db.ExecContext(ctx,
+		`DELETE FROM deployments WHERE id IN (
+			SELECT id FROM (
+				SELECT id, ROW_NUMBER() OVER (PARTITION BY environment_id, service_name ORDER BY number DESC) AS rank
+				FROM deployments
+			) WHERE rank > ?
+		)`, keepPerService)
+	return err
 }
 
 // CountDeploymentsByStatus feeds the dashboard summary.

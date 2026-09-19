@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -32,9 +31,8 @@ func TestParseConfig(t *testing.T) {
 	if cfg.Name != "p_01jabc" {
 		t.Fatalf("project name not parsed: %q", cfg.Name)
 	}
-	names := cfg.ServiceNames()
-	if strings.Join(names, ",") != "api,web,worker" {
-		t.Fatalf("service names not sorted/complete: %v", names)
+	if len(cfg.Services) != 3 {
+		t.Fatalf("services not all parsed: %v", cfg.Services)
 	}
 	if cfg.Services["api"].Build == nil {
 		t.Fatal("build section lost")

@@ -247,6 +247,13 @@ type GitProvider struct {
 	// having to wrap the row.
 	Connected bool `json:"connected"`
 
+	// WebhookSecretEnc authenticates deliveries from the three hosts that cannot
+	// sign them. GitHub has its own secret in GitHubProvider and ignores this.
+	WebhookSecretEnc string `json:"-"`
+	// WebhookURL is the hook address with that secret in it, assembled by the API
+	// because only a request knows the panel's public origin.
+	WebhookURL string `json:"webhook_url,omitempty"`
+
 	GitHub    *GitHubProvider    `json:"github,omitempty"`
 	GitLab    *GitLabProvider    `json:"gitlab,omitempty"`
 	Bitbucket *BitbucketProvider `json:"bitbucket,omitempty"`

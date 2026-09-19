@@ -4,6 +4,7 @@ package projects
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -208,6 +209,10 @@ func (s *Service) EnvFilePath(env *database.Environment) string {
 	return filepath.Join(s.cfg.ProjectDir(env.ID), ".env")
 }
 
+// ErrNoServices means there is nothing to render, not that rendering failed:
+// the delete paths skip teardown on it and treat every other error as fatal.
+var ErrNoServices = errors.New("no configured service to deploy")
+
 // ComposeProject builds the compose invocation for an environment, writing the
 // .env file first so compose and the containers see the same values. Every
 // service the environment owns is rendered into one generated file; nothing
@@ -222,7 +227,7 @@ func (s *Service) ComposeProject(ctx context.Context, p *database.Project, env *
 		return compose.Project{}, err
 	}
 	if overlay == "" {
-		return compose.Project{}, fmt.Errorf("environment %s has no configured service to deploy", env.Slug)
+		return compose.Project{}, fmt.Errorf("environment %s: %w", env.Slug, ErrNoServices)
 	}
 	return compose.Project{
 		Name:    env.ComposeProjectName,
@@ -370,6 +375,8 @@ func (s *Service) setVariables(ctx context.Context, scope database.SecretScope, 
 	if err != nil {
 		return err
 	}
+	// Every key is validated before the first write, so a payload that is
+	// rejected leaves the stored set exactly as it was.
 	incoming := map[string]bool{}
 	for _, v := range vars {
 		key := strings.TrimSpace(v.Key)
@@ -377,6 +384,9 @@ func (s *Service) setVariables(ctx context.Context, scope database.SecretScope, 
 			return err
 		}
 		incoming[key] = true
+	}
+	for _, v := range vars {
+		key := strings.TrimSpace(v.Key)
 		// A masked value means "unchanged": never overwrite a real secret with dots.
 		if v.Value == security.MaskedValue {
 			continue

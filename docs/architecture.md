@@ -172,7 +172,8 @@ from the Docker Engine on demand.
 CPU, memory, network and disk readings are recorded, because a chart has to show
 what happened while nobody was watching. A sampler writes one host row and one
 row per running container a minute, and the scheduler prunes anything older than
-seven days, so both tables stay bounded without operator attention.
+seven days, so both tables stay bounded without operator attention. Deployment
+records are bounded the same way, at the newest fifty per service.
 
 ## Scheduled tasks
 
