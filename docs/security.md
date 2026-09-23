@@ -133,7 +133,8 @@ row every mutation gets.
   already passed the session and same-origin checks, and what it produces is
   stored on the connection, so the exchange repeats the exact URI the
   authorization used rather than whatever a later request happens to claim.
-- Registry credentials are encrypted in the database and also handed to
+- Registry credentials, the shared ones and an image service's own login, are
+  encrypted in the database and also handed to
   `docker login`, which writes them to `/opt/vexdock/system/docker/config.json`
   in Docker's own format. That directory is on the host so the login survives
   the manager being recreated on update; treat it as it is, a plaintext

@@ -3,11 +3,9 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -19,6 +17,7 @@ import (
 	"github.com/vexdock/platform/manager/internal/domains"
 	"github.com/vexdock/platform/manager/internal/events"
 	"github.com/vexdock/platform/manager/internal/metrics"
+	"github.com/vexdock/platform/manager/internal/projects"
 	"github.com/vexdock/platform/manager/internal/security"
 	"github.com/vexdock/platform/manager/internal/updater"
 )
@@ -478,7 +477,7 @@ func (s *Server) handleCreateRegistry(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := s.dockerLogin(r.Context(), registryURL, username, req.Password); err != nil {
+	if err := projects.DockerLogin(r.Context(), registryURL, username, req.Password); err != nil {
 		_ = s.DB.DeleteRegistry(r.Context(), registry.ID)
 		badRequest(w, err)
 		return
@@ -492,18 +491,4 @@ func (s *Server) handleDeleteRegistry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-// dockerLogin authenticates the daemon against a registry. The token is piped
-// on stdin so it never appears in the process arguments.
-func (s *Server) dockerLogin(ctx context.Context, registryURL, username, password string) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", "login", "--username", username, "--password-stdin", registryURL)
-	cmd.Stdin = strings.NewReader(password)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("registry login failed: %s", strings.TrimSpace(string(out)))
-	}
-	return nil
 }

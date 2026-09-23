@@ -183,6 +183,10 @@ func adoptProvider(service *database.Service, want *string) error {
 	} else {
 		service.GitProviderID, service.Owner, service.Repository = "", "", ""
 	}
+	// The deploy logs in whenever a username is stored, so it cannot outlive the image source.
+	if *want != database.ProviderImage {
+		service.RegistryURL, service.RegistryUsername, service.RegistryPasswordEnc = "", "", ""
+	}
 	return nil
 }
 
@@ -222,6 +226,12 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		ComposeFragment  *string `json:"compose_fragment"`
 		AutoDeploy       *bool   `json:"auto_deploy"`
 		PruneBuildCache  *bool   `json:"prune_build_cache"`
+		BuildType        *string `json:"build_type"`
+		Dockerfile       *string `json:"dockerfile"`
+		BuildTarget      *string `json:"build_target"`
+		RegistryURL      *string `json:"registry_url"`
+		RegistryUsername *string `json:"registry_username"`
+		RegistryPassword *string `json:"registry_password"`
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
@@ -240,8 +250,20 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		assignValid(&service.Branch, req.Branch, security.ValidateGitRef),
 		assignValid(&service.BuildPath, req.BuildPath, security.ValidateSubPath),
 		assignValid(&service.Image, req.Image, engines.ValidateImage),
+		assignValid(&service.BuildType, req.BuildType, validateBuildType),
+		assignValid(&service.Dockerfile, req.Dockerfile, security.ValidateSubPath),
+		assignValid(&service.BuildTarget, req.BuildTarget, security.ValidateBuildTarget),
 	} {
 		if err != nil {
+			badRequest(w, err)
+			return
+		}
+	}
+	if req.RegistryURL != nil || req.RegistryUsername != nil || req.RegistryPassword != nil {
+		if err := s.Projects.SetRegistryLogin(service,
+			valueOr(req.RegistryURL, service.RegistryURL),
+			valueOr(req.RegistryUsername, service.RegistryUsername),
+			valueOr(req.RegistryPassword, "")); err != nil {
 			badRequest(w, err)
 			return
 		}
@@ -463,6 +485,14 @@ func valueOr(src *string, current string) string {
 		return *src
 	}
 	return current
+}
+
+func validateBuildType(raw string) (string, error) {
+	switch raw {
+	case database.BuildDockerfile, database.BuildStatic:
+		return raw, nil
+	}
+	return "", fmt.Errorf("build type must be %s or %s", database.BuildDockerfile, database.BuildStatic)
 }
 
 // assignValid is assign for a field that create validates. An edit reaches the

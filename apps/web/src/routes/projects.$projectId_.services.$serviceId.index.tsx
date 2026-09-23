@@ -11,11 +11,13 @@ import {
 	IconEyeOff,
 	IconFileCode,
 	IconGitBranch,
+	IconHammer,
 	IconPlayerStop,
 	IconPlug,
 	IconRefresh,
 	IconRocket,
 	IconTerminal2,
+	IconWorld,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
@@ -36,7 +38,14 @@ import {
 	Switch,
 	Textarea,
 } from '../components/primitives'
-import { api, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
+import {
+	api,
+	type BuildType,
+	type CredentialKind,
+	isGitProvider,
+	type Service,
+	type ServiceProvider,
+} from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { duration } from '../lib/format'
 import { useService } from './projects.$projectId_.services.$serviceId'
@@ -61,6 +70,11 @@ const credentialOptions: { value: CredentialKind; label: string }[] = [
 	{ value: 'ssh_key', label: 'SSH private key' },
 ]
 
+const buildTypeOptions = [
+	{ value: 'dockerfile', label: 'Dockerfile', icon: IconBrandDocker },
+	{ value: 'static', label: 'Static (SPA)', icon: IconWorld },
+] as const satisfies readonly { value: BuildType; label: string; icon: unknown }[]
+
 /** How it deploys, then what a database is reachable as, then where the code comes from. */
 function ServiceGeneral() {
 	const { projectId, serviceId } = Route.useParams()
@@ -75,6 +89,7 @@ function ServiceGeneral() {
 			{service.data.type === 'database' ? <DatabaseSections serviceId={serviceId} /> : null}
 			{/* Remounts on switch, so the fields follow the service the URL names. */}
 			<SourceSection key={service.data.id} service={service.data} />
+			{isGitProvider(service.data.provider) ? <BuildSection key={service.data.id} service={service.data} /> : null}
 		</>
 	)
 }
@@ -247,7 +262,9 @@ function SourceSection({ service }: { service: Service }) {
 	const [image, setImage] = useState(service.image)
 	const [repositoryUrl, setRepositoryUrl] = useState(service.repository_url)
 	const [branch, setBranch] = useState(service.branch)
-	const [buildPath, setBuildPath] = useState(service.build_path)
+	const [registryUrl, setRegistryUrl] = useState(service.registry_url)
+	const [registryUsername, setRegistryUsername] = useState(service.registry_username)
+	const [registryPassword, setRegistryPassword] = useState('')
 	const [fragment, setFragment] = useState(service.compose_fragment)
 	const [credentialKind, setCredentialKind] = useState<CredentialKind>(service.credential_kind || 'none')
 	const [credentialSecret, setCredentialSecret] = useState('')
@@ -312,7 +329,6 @@ function SourceSection({ service }: { service: Service }) {
 				...(git
 					? {
 							branch: branch || 'main',
-							build_path: buildPath,
 							git_provider_id: providerId,
 							...(providerId === ''
 								? {
@@ -326,10 +342,18 @@ function SourceSection({ service }: { service: Service }) {
 						}
 					: {}),
 				...(showing === 'image' ? { image } : {}),
+				...(editable && showing === 'image'
+					? {
+							registry_url: registryUrl,
+							registry_username: registryUsername,
+							...(registryPassword === '' ? {} : { registry_password: registryPassword }),
+						}
+					: {}),
 				...(showing === 'raw' ? { compose_fragment: fragment } : {}),
 			}),
 		onSuccess: () => {
 			setCredentialSecret('')
+			setRegistryPassword('')
 			void queryClient.invalidateQueries({ queryKey: ['service', service.id] })
 		},
 	})
@@ -395,9 +419,6 @@ function SourceSection({ service }: { service: Service }) {
 								<Input value={branch} onChange={event => setBranch(event.target.value)} />
 							)}
 						</Field>
-						<Field label='Build path'>
-							<Input value={buildPath} onChange={event => setBuildPath(event.target.value)} />
-						</Field>
 						{providerId === '' ? (
 							<Field label='Credentials'>
 								<Select
@@ -430,6 +451,35 @@ function SourceSection({ service }: { service: Service }) {
 					<Input value={image} onChange={event => setImage(event.target.value)} />
 				</Field>
 			) : null}
+			{editable && showing === 'image' ? (
+				<div className='grid gap-x-6 md:grid-cols-2'>
+					<Field label='Registry URL'>
+						<Input
+							value={registryUrl}
+							placeholder='Docker Hub'
+							onChange={event => setRegistryUrl(event.target.value)}
+						/>
+					</Field>
+					<Field label='Username' hint='Leave empty for a public image.'>
+						<Input
+							value={registryUsername}
+							autoComplete='off'
+							onChange={event => setRegistryUsername(event.target.value)}
+						/>
+					</Field>
+					<Field
+						label='Password'
+						hint={service.registry_username ? 'Leave empty to keep the stored value.' : undefined}
+					>
+						<Input
+							type='password'
+							autoComplete='new-password'
+							value={registryPassword}
+							onChange={event => setRegistryPassword(event.target.value)}
+						/>
+					</Field>
+				</div>
+			) : null}
 			{showing === 'raw' ? (
 				<Field label='Compose fragment'>
 					<Textarea
@@ -439,6 +489,68 @@ function SourceSection({ service }: { service: Service }) {
 						spellCheck={false}
 					/>
 				</Field>
+			) : null}
+		</FormSection>
+	)
+}
+
+function BuildSection({ service }: { service: Service }) {
+	const queryClient = useQueryClient()
+	const [buildType, setBuildType] = useState(service.build_type)
+	const [buildPath, setBuildPath] = useState(service.build_path)
+	const [dockerfile, setDockerfile] = useState(service.dockerfile)
+	const [buildTarget, setBuildTarget] = useState(service.build_target)
+
+	const save = useMutation({
+		mutationFn: () =>
+			api.updateService(service.id, {
+				build_type: buildType,
+				build_path: buildPath,
+				dockerfile,
+				build_target: buildTarget,
+			}),
+		onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
+	})
+
+	return (
+		<FormSection
+			title='Build'
+			description='How the repository becomes an image.'
+			icon={IconHammer}
+			hint={
+				buildType === 'static'
+					? 'Serves the files with nginx on port 80; unknown paths fall back to index.html.'
+					: 'Applied on the next deploy.'
+			}
+			onSave={() => save.mutate()}
+			actions={<SaveButton mutation={save} />}
+		>
+			<ErrorText error={save.error} />
+			<div className='mb-4'>
+				<Segmented value={buildType} onChange={setBuildType} options={buildTypeOptions} />
+			</div>
+			<Field label={buildType === 'static' ? 'Publish directory' : 'Context path'}>
+				<Input value={buildPath} placeholder='.' onChange={event => setBuildPath(event.target.value)} mono />
+			</Field>
+			{buildType === 'dockerfile' ? (
+				<div className='grid gap-x-6 md:grid-cols-2'>
+					<Field label='Dockerfile'>
+						<Input
+							value={dockerfile}
+							placeholder='Dockerfile'
+							onChange={event => setDockerfile(event.target.value)}
+							mono
+						/>
+					</Field>
+					<Field label='Build stage' hint='Empty builds the last stage.'>
+						<Input
+							value={buildTarget}
+							placeholder='production'
+							onChange={event => setBuildTarget(event.target.value)}
+							mono
+						/>
+					</Field>
+				</div>
 			) : null}
 		</FormSection>
 	)

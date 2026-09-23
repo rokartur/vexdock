@@ -170,11 +170,28 @@ func (s *Service) renderService(env *database.Environment, svc database.Service,
 		// '#', either of which changes which directory compose reads.
 		buildContext := filepath.Join(s.ServiceDir(env, svc.ComposeServiceName), "repository", svc.BuildPath)
 		fmt.Fprintf(&b, "    build:\n      context: %q\n", buildContext)
+		if svc.BuildType == database.BuildStatic {
+			b.WriteString("      dockerfile_inline: |\n" + indent(staticDockerfile, 8))
+			break
+		}
+		if svc.Dockerfile != "" {
+			fmt.Fprintf(&b, "      dockerfile: %q\n", svc.Dockerfile)
+		}
+		if svc.BuildTarget != "" {
+			fmt.Fprintf(&b, "      target: %q\n", svc.BuildTarget)
+		}
 	}
 	b.WriteString("    restart: unless-stopped\n")
 	fmt.Fprintf(&b, "    env_file: [%q]\n", s.ServiceEnvFilePath(env, svc.ComposeServiceName))
 	return b.String(), nil, nil
 }
+
+// staticDockerfile serves the build context as a single-page app on port 80.
+// $$ is compose's escape for a literal $; .git is dropped so it is never served.
+const staticDockerfile = `FROM nginx:alpine
+COPY . /usr/share/nginx/html
+RUN rm -rf /usr/share/nginx/html/.git && echo 'server { listen 80; root /usr/share/nginx/html; location / { try_files $$uri $$uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
+`
 
 // variable reads one value out of a service's environment.
 func variable(vars []EnvVar, key string) string {

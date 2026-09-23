@@ -35,6 +35,12 @@ const (
 	GitCredentialSSH   = "ssh_key"
 )
 
+// Build types of a git-sourced service.
+const (
+	BuildDockerfile = "dockerfile"
+	BuildStatic     = "static"
+)
+
 // ProjectSecret is one environment variable. Values are always encrypted at
 // rest; IsSecret only controls whether the value is masked in API responses.
 type ProjectSecret struct {
@@ -141,9 +147,19 @@ type Service struct {
 	// PruneBuildCache sweeps dangling build cache after this service builds. The
 	// builder cache is one cache for the whole host, so the switch decides when a
 	// sweep runs, not what it covers.
-	PruneBuildCache bool   `json:"prune_build_cache"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
+	PruneBuildCache bool `json:"prune_build_cache"`
+	// BuildType says how a git-sourced service becomes an image. Dockerfile and
+	// BuildTarget apply to BuildDockerfile only; BuildPath is the context either way.
+	BuildType   string `json:"build_type"`
+	Dockerfile  string `json:"dockerfile"`
+	BuildTarget string `json:"build_target"`
+	// RegistryURL and RegistryUsername log an image-sourced service into a
+	// private registry before its pull; empty URL is Docker Hub.
+	RegistryURL         string `json:"registry_url"`
+	RegistryUsername    string `json:"registry_username"`
+	RegistryPasswordEnc string `json:"-"`
+	CreatedAt           string `json:"created_at"`
+	UpdatedAt           string `json:"updated_at"`
 }
 
 type Domain struct {
