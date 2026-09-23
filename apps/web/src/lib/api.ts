@@ -170,6 +170,35 @@ export type EnvVar = {
 	updated_at: string
 }
 
+/** Applied by the proxy on every domain of the service; `$1` refers to a capture group. */
+export type ServiceRedirect = {
+	id: string
+	service_id: string
+	regex: string
+	replacement: string
+	permanent: boolean
+	created_at: string
+}
+
+export type ServiceBasicAuthUser = {
+	id: string
+	service_id: string
+	username: string
+	created_at: string
+}
+
+export type PortProtocol = 'tcp' | 'udp'
+
+/** A host port published straight to the container; it bypasses the proxy and lands on the next deploy. */
+export type ServicePort = {
+	id: string
+	service_id: string
+	published: number
+	target: number
+	protocol: PortProtocol
+	created_at: string
+}
+
 export type ScheduledTask = {
 	id: string
 	service_id: string
@@ -767,6 +796,21 @@ export const api = {
 	updateTask: (id: string, body: Partial<TaskInput>) =>
 		request<ScheduledTask>(`/api/tasks/${id}`, { method: 'PATCH', body }),
 	deleteTask: (id: string) => request<undefined>(`/api/tasks/${id}`, { method: 'DELETE' }),
+	serviceRedirects: (id: string) => request<ServiceRedirect[]>(`/api/services/${id}/redirects`),
+	createServiceRedirect: (id: string, body: Pick<ServiceRedirect, 'regex' | 'replacement' | 'permanent'>) =>
+		request<ServiceRedirect>(`/api/services/${id}/redirects`, { method: 'POST', body }),
+	deleteServiceRedirect: (id: string, redirectId: string) =>
+		request<undefined>(`/api/services/${id}/redirects/${redirectId}`, { method: 'DELETE' }),
+	serviceBasicAuth: (id: string) => request<ServiceBasicAuthUser[]>(`/api/services/${id}/basic-auth`),
+	createServiceBasicAuth: (id: string, body: { username: string; password: string }) =>
+		request<ServiceBasicAuthUser>(`/api/services/${id}/basic-auth`, { method: 'POST', body }),
+	deleteServiceBasicAuth: (id: string, userId: string) =>
+		request<undefined>(`/api/services/${id}/basic-auth/${userId}`, { method: 'DELETE' }),
+	servicePorts: (id: string) => request<ServicePort[]>(`/api/services/${id}/ports`),
+	createServicePort: (id: string, body: Pick<ServicePort, 'published' | 'target' | 'protocol'>) =>
+		request<ServicePort>(`/api/services/${id}/ports`, { method: 'POST', body }),
+	deleteServicePort: (id: string, portId: string) =>
+		request<undefined>(`/api/services/${id}/ports/${portId}`, { method: 'DELETE' }),
 	/** Runs the task now and resolves with the finished run, exit code and all. */
 	runTask: (id: string) => request<TaskRun>(`/api/tasks/${id}/run`, { method: 'POST' }),
 	taskRuns: (id: string) => request<TaskRun[]>(`/api/tasks/${id}/runs`),

@@ -190,6 +190,23 @@ validation fails, the previous configuration is restored byte for byte and the
 error is surfaced to the user, so an invalid domain cannot take down every other
 site on the server.
 
+A service's redirects and basic-auth users are rendered into the `location /`
+of each of its vhosts, never into the ACME challenge location, so certificate
+renewal keeps working behind a password. Redirect regexes must compile as RE2
+and may not carry quotes, backslash escapes nginx reads differently, or control
+characters; a replacement may use `$N` and nothing else with a `$`, so no rule
+can inject a directive or read an nginx variable. nginx answers a matching
+redirect before it checks basic auth, which reveals only the target URL.
+
+Basic-auth passwords are stored as salted SHA-1 (`{SSHA}`) in
+`nginx/generated/<host>.htpasswd`, mode 0644 so the nginx container can read
+them. bcrypt would cost a full hash on every request, so a leaked file is only
+as strong as the passwords in it; use long random ones.
+
+A published port binds the host directly and bypasses the proxy: no TLS, no
+basic auth, no redirects. Ports 80 and 443 are refused because the proxy owns
+them, and one host port and protocol belongs to one service.
+
 ## Reporting a vulnerability
 
 Open a private security advisory on the repository rather than a public issue.
