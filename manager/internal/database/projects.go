@@ -135,18 +135,20 @@ func (db *DB) ListSecrets(ctx context.Context, sc SecretScope, ownerID string) (
 // The container id is deliberately not stored: it changes on every recreate.
 const serviceColumns = `id, project_id, environment_id, compose_service_name, container_name, display_name, type, provider,
 	repository_url, branch, build_path, credential_kind, credential_enc, git_provider_id, owner, repository, image,
-	engine, data_path, compose_fragment, auto_deploy, prune_build_cache, created_at, updated_at`
+	engine, data_path, compose_fragment, auto_deploy, prune_build_cache, build_type, dockerfile, build_target,
+	registry_url, registry_username, registry_password_enc, created_at, updated_at`
 
 // CreateService records a service the dashboard owns. Its definition is
 // rendered into the environment's compose file rather than read out of one.
 func (db *DB) CreateService(ctx context.Context, s *Service) error {
 	s.CreatedAt, s.UpdatedAt = Now(), Now()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO services (`+serviceColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.ProjectID, s.EnvironmentID, s.ComposeServiceName, s.ContainerName, s.DisplayName, s.Type, s.Provider,
 		s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind, s.CredentialEnc, s.GitProviderID, s.Owner,
 		s.Repository, s.Image, s.Engine, s.DataPath, s.ComposeFragment, boolToInt(s.AutoDeploy),
-		boolToInt(s.PruneBuildCache), s.CreatedAt, s.UpdatedAt)
+		boolToInt(s.PruneBuildCache), s.BuildType, s.Dockerfile, s.BuildTarget, s.RegistryURL, s.RegistryUsername,
+		s.RegistryPasswordEnc, s.CreatedAt, s.UpdatedAt)
 	return err
 }
 
@@ -156,10 +158,12 @@ func (db *DB) UpdateService(ctx context.Context, s *Service) error {
 		`UPDATE services SET display_name = ?, type = ?, provider = ?, repository_url = ?, branch = ?,
 		 build_path = ?, credential_kind = ?, credential_enc = ?, git_provider_id = ?, owner = ?, repository = ?,
 		 image = ?, engine = ?, data_path = ?, compose_fragment = ?, auto_deploy = ?, prune_build_cache = ?,
-		 updated_at = ? WHERE id = ?`,
+		 build_type = ?, dockerfile = ?, build_target = ?, registry_url = ?, registry_username = ?,
+		 registry_password_enc = ?, updated_at = ? WHERE id = ?`,
 		s.DisplayName, s.Type, s.Provider, s.RepositoryURL, s.Branch, s.BuildPath, s.CredentialKind,
 		s.CredentialEnc, s.GitProviderID, s.Owner, s.Repository, s.Image, s.Engine, s.DataPath,
-		s.ComposeFragment, boolToInt(s.AutoDeploy), boolToInt(s.PruneBuildCache), s.UpdatedAt, s.ID)
+		s.ComposeFragment, boolToInt(s.AutoDeploy), boolToInt(s.PruneBuildCache), s.BuildType, s.Dockerfile,
+		s.BuildTarget, s.RegistryURL, s.RegistryUsername, s.RegistryPasswordEnc, s.UpdatedAt, s.ID)
 	return err
 }
 
@@ -215,7 +219,9 @@ func scanService(row scanner) (*Service, error) {
 	var autoDeploy, pruneBuildCache int
 	err := row.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.ComposeServiceName, &s.ContainerName, &s.DisplayName, &s.Type, &s.Provider,
 		&s.RepositoryURL, &s.Branch, &s.BuildPath, &s.CredentialKind, &s.CredentialEnc, &s.GitProviderID, &s.Owner,
-		&s.Repository, &s.Image, &s.Engine, &s.DataPath, &s.ComposeFragment, &autoDeploy, &pruneBuildCache, &s.CreatedAt, &s.UpdatedAt)
+		&s.Repository, &s.Image, &s.Engine, &s.DataPath, &s.ComposeFragment, &autoDeploy, &pruneBuildCache,
+		&s.BuildType, &s.Dockerfile, &s.BuildTarget, &s.RegistryURL, &s.RegistryUsername, &s.RegistryPasswordEnc,
+		&s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -96,6 +96,7 @@ export type Environment = {
 
 /** An application is built or pulled; a database is a catalog image with a volume. */
 export type ServiceType = 'application' | 'database'
+export type BuildType = 'dockerfile' | 'static'
 
 /**
  * The five git providers clone alike and differ only in webhook dialect and label. 'image' pulls a tag, 'raw' is a
@@ -139,6 +140,14 @@ export type Service = {
 	auto_deploy: boolean
 	/** Sweeps dangling build cache after this service builds. One cache for the host, so it sweeps host-wide. */
 	prune_build_cache: boolean
+	build_type: BuildType
+	/** Relative to build_path; empty is `Dockerfile`. */
+	dockerfile: string
+	/** Multi-stage target; empty builds the last stage. */
+	build_target: string
+	/** Private registry an image service logs into before pulling; empty is Docker Hub. */
+	registry_url: string
+	registry_username: string
 	created_at: string
 	updated_at: string
 	container_id: string
@@ -720,6 +729,14 @@ export const api = {
 			compose_fragment: string
 			auto_deploy: boolean
 			prune_build_cache: boolean
+			build_type: BuildType
+			dockerfile: string
+			build_target: string
+			registry_url: string
+			/** Empty clears the registry login. */
+			registry_username: string
+			/** Omit to keep the stored password. */
+			registry_password: string
 		}>,
 	) => request<Service>(`/api/services/${id}`, { method: 'PATCH', body }),
 	/** The named volume survives; dropping a database's data stays explicit. */

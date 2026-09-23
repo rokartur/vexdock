@@ -277,3 +277,58 @@ expose:
 		t.Errorf("env_file still points at a relative .env:\n%s", overlay)
 	}
 }
+
+// A static build writes its Dockerfile into the overlay, so the nginx config's
+// $uri has to reach Docker as a literal rather than as a compose variable.
+func TestOverlayRendersBuildTypes(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+
+	p, err := svc.Create(ctx, CreateInput{Name: "usagefleet"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	env := defaultEnv(t, svc, p)
+	for _, name := range []string{"site", "api"} {
+		if _, err := svc.CreateService(ctx, env, ServiceInput{
+			Name: name, Provider: database.ProviderGit, RepositoryURL: "https://example.com/app.git",
+		}); err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+	}
+	site, err := svc.db.ServiceByName(ctx, env.ID, "site")
+	if err != nil {
+		t.Fatal(err)
+	}
+	site.BuildType = database.BuildStatic
+	api, err := svc.db.ServiceByName(ctx, env.ID, "api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.Dockerfile, api.BuildTarget = "docker/api.Dockerfile", "production"
+	for _, s := range []*database.Service{site, api} {
+		if err := svc.db.UpdateService(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	path, err := svc.WriteOverlay(ctx, env)
+	if err != nil {
+		t.Fatalf("write overlay: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read overlay: %v", err)
+	}
+	overlay := string(raw)
+	for _, want := range []string{
+		"      dockerfile_inline: |\n        FROM nginx:alpine\n",
+		"try_files $$uri $$uri/ /index.html;",
+		`      dockerfile: "docker/api.Dockerfile"`,
+		`      target: "production"`,
+	} {
+		if !strings.Contains(overlay, want) {
+			t.Errorf("overlay lacks %q:\n%s", want, overlay)
+		}
+	}
+}

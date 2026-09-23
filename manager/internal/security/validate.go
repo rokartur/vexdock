@@ -96,6 +96,15 @@ func ValidateServiceName(name string) error {
 	return nil
 }
 
+// ValidateBuildTarget accepts a Dockerfile stage name; empty builds the last stage.
+func ValidateBuildTarget(raw string) (string, error) {
+	target := strings.TrimSpace(raw)
+	if target != "" && !servicePattern.MatchString(target) {
+		return "", fmt.Errorf("invalid build stage %q", raw)
+	}
+	return target, nil
+}
+
 // ValidateContainerName checks the name a container is given on the host.
 func ValidateContainerName(name string) error {
 	if len(name) > 63 || !containerPattern.MatchString(name) {

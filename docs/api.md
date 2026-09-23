@@ -206,6 +206,19 @@ spares the layers the next incremental build reuses but is not scoped to this
 service. Off on a new service, toggled the same way, and a service that declares
 no build context never triggers it.
 
+`build_type` decides how a git service becomes an image, set through `PATCH`.
+`dockerfile` (the default) builds `build_path` with the file named by
+`dockerfile`, relative to that context and `Dockerfile` when empty, stopping at
+the stage in `build_target` when one is set. `static` ignores both and serves
+`build_path` with nginx on port 80, falling back to `index.html` for any path
+it does not find, so a single-page app's routes resolve.
+
+An `image` service pulling from a private registry sets `registry_url` (empty is
+Docker Hub), `registry_username` and the write-only `registry_password`; the
+deploy runs `docker login` before its pull step. The password is encrypted at
+rest and never returned; omitting it keeps the stored one, and an empty
+`registry_username` clears the login.
+
 `container_name` is what the container is called on the host. Left out, the
 manager names it after the project and the service, `rokartur-db`, with the
 environment in between when it is not the default one. It is unique across the

@@ -3,6 +3,7 @@
 package deployments
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -278,6 +279,9 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	p.begin(StepPull)
+	if err := p.registryLogin(ctx); err != nil {
+		return p.fail(err)
+	}
 	if err := composeProject.Pull(ctx, p, p.target); err != nil {
 		// A service that builds its own image can survive a failed pull of its
 		// bases; one that only names an image cannot, and letting it through
@@ -372,6 +376,18 @@ func (p *pipeline) checkout(ctx context.Context) error {
 	}
 	p.complete()
 	return nil
+}
+
+func (p *pipeline) registryLogin(ctx context.Context) error {
+	svc, err := p.e.db.ServiceByName(ctx, p.environment.ID, p.target)
+	if err != nil {
+		return err
+	}
+	if svc.RegistryUsername == "" {
+		return nil
+	}
+	p.printf("Logging in to %s as %s", cmp.Or(svc.RegistryURL, "Docker Hub"), svc.RegistryUsername)
+	return p.e.projects.RegistryLogin(ctx, svc)
 }
 
 // pruneBuildCache sweeps dangling build cache when the service asks for it. The

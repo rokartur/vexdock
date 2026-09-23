@@ -91,6 +91,7 @@ func (s *Service) CreateService(ctx context.Context, env *database.Environment, 
 		Type:               database.ServiceApplication,
 		Provider:           in.Provider,
 		CredentialKind:     database.GitCredentialNone,
+		BuildType:          database.BuildDockerfile,
 	}
 	var seed []engines.Variable
 
