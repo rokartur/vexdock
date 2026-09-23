@@ -9,7 +9,7 @@ import {
 	Confirm,
 	ErrorText,
 	Field,
-	FormSection,
+	FormDialog,
 	IconButton,
 	Input,
 	Refresh,
@@ -75,6 +75,7 @@ function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 function ApiTokens() {
 	const queryClient = useQueryClient()
 	const tokens = useQuery({ queryKey: ['tokens'], queryFn: api.tokens })
+	const [creating, setCreating] = useState(false)
 	const [name, setName] = useState('')
 	const [issued, setIssued] = useState('')
 
@@ -83,6 +84,7 @@ function ApiTokens() {
 		onSuccess: async result => {
 			setIssued(result.value)
 			setName('')
+			setCreating(false)
 			await queryClient.invalidateQueries({ queryKey: ['tokens'] })
 		},
 	})
@@ -100,7 +102,15 @@ function ApiTokens() {
 			<Section
 				title='API tokens'
 				description='for CI and scripted deploys'
-				actions={<Refresh onClick={() => tokens.refetch()} busy={tokens.isFetching} />}
+				actions={
+					<>
+						<Refresh onClick={() => tokens.refetch()} busy={tokens.isFetching} />
+						<Button variant='primary' onClick={() => setCreating(true)}>
+							<IconPlus />
+							Create token
+						</Button>
+					</>
+				}
 			>
 				<ErrorText error={remove.error} />
 				<DataTable
@@ -121,26 +131,20 @@ function ApiTokens() {
 				</Alert>
 			) : null}
 
-			<FormSection
+			<FormDialog
+				open={creating}
+				onOpenChange={setCreating}
 				title='Create a token'
-				description='Sent as a bearer token; it can do everything this account can.'
-				icon={IconKey}
-				hint='Name it after what will hold it.'
-				actions={
-					<Button type='submit' variant='primary' disabled={create.isPending}>
-						<IconPlus />
-						Create token
-					</Button>
-				}
-				onSave={() => create.mutate()}
+				description='Sent as a bearer token; it can do everything this account can. Name it after what will hold it.'
+				action='Create token'
+				icon={IconPlus}
+				mutation={create}
+				onSubmit={() => create.mutate()}
 			>
-				<ErrorText error={create.error} />
-				<div className='max-w-xs'>
-					<Field label='Token name'>
-						<Input required value={name} onChange={event => setName(event.target.value)} placeholder='ci' />
-					</Field>
-				</div>
-			</FormSection>
+				<Field label='Token name'>
+					<Input required value={name} onChange={event => setName(event.target.value)} placeholder='ci' />
+				</Field>
+			</FormDialog>
 		</div>
 	)
 }

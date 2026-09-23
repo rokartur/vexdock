@@ -5,9 +5,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
-	ErrorText,
 	Field,
-	FormSection,
+	FormDialog,
 	IconButton,
 	Meter,
 	Page,
@@ -107,7 +106,6 @@ function Certificates() {
 		setHostname(preset)
 		setCertPem('')
 		setKeyPem('')
-		install.reset()
 		setUploading(true)
 	}
 	const columns = certificateTableColumns(openUpload)
@@ -159,56 +157,46 @@ function Certificates() {
 				/>
 			</Section>
 
-			{uploading ? (
-				<FormSection
-					title='Add certificate'
-					description='Full chain in PEM: the leaf first, then any intermediates.'
-					icon={IconCertificate}
-					hint='The private key never leaves this server.'
-					actions={
-						<>
-							<Button variant='ghost' onClick={() => setUploading(false)}>
-								Cancel
-							</Button>
-							<Button type='submit' variant='primary' disabled={install.isPending}>
-								<IconUpload />
-								{install.isPending ? 'Installing…' : 'Install certificate'}
-							</Button>
-						</>
-					}
-					onSave={() => {
-						const domain = domains.data?.find(candidate => candidate.hostname === hostname)
-						if (domain) install.mutate(domain)
-					}}
-				>
-					<ErrorText error={install.error} />
-					<Field label='Domain' hint='Uploading switches this domain to your certificate and enables HTTPS.'>
-						<Select value={hostname} options={options} onChange={setHostname} required />
+			<FormDialog
+				open={uploading}
+				onOpenChange={setUploading}
+				title='Add certificate'
+				description='Full chain in PEM: the leaf first, then any intermediates. The private key never leaves this server.'
+				action={install.isPending ? 'Installing…' : 'Install certificate'}
+				icon={IconUpload}
+				mutation={install}
+				wide
+				onSubmit={() => {
+					const domain = domains.data?.find(candidate => candidate.hostname === hostname)
+					if (domain) install.mutate(domain)
+				}}
+			>
+				<Field label='Domain' hint='Uploading switches this domain to your certificate and enables HTTPS.'>
+					<Select value={hostname} options={options} onChange={setHostname} required />
+				</Field>
+				<div className='grid gap-x-6 md:grid-cols-2'>
+					<Field label='Certificate'>
+						<Textarea
+							rows={7}
+							required
+							spellCheck={false}
+							placeholder='-----BEGIN CERTIFICATE-----'
+							value={certPem}
+							onChange={event => setCertPem(event.target.value)}
+						/>
 					</Field>
-					<div className='grid gap-x-6 md:grid-cols-2'>
-						<Field label='Certificate'>
-							<Textarea
-								rows={7}
-								required
-								spellCheck={false}
-								placeholder='-----BEGIN CERTIFICATE-----'
-								value={certPem}
-								onChange={event => setCertPem(event.target.value)}
-							/>
-						</Field>
-						<Field label='Private key'>
-							<Textarea
-								rows={7}
-								required
-								spellCheck={false}
-								placeholder='-----BEGIN PRIVATE KEY-----'
-								value={keyPem}
-								onChange={event => setKeyPem(event.target.value)}
-							/>
-						</Field>
-					</div>
-				</FormSection>
-			) : null}
+					<Field label='Private key'>
+						<Textarea
+							rows={7}
+							required
+							spellCheck={false}
+							placeholder='-----BEGIN PRIVATE KEY-----'
+							value={keyPem}
+							onChange={event => setKeyPem(event.target.value)}
+						/>
+					</Field>
+				</div>
+			</FormDialog>
 		</Page>
 	)
 }

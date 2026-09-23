@@ -8,7 +8,7 @@ import {
 	Confirm,
 	ErrorText,
 	Field,
-	FormSection,
+	FormDialog,
 	IconButton,
 	Input,
 	Refresh,
@@ -62,12 +62,14 @@ const emptyForm = { name: '', url: '', username: '', password: '' }
 function Registries() {
 	const queryClient = useQueryClient()
 	const registries = useQuery({ queryKey: ['registries'], queryFn: api.registries })
+	const [adding, setAdding] = useState(false)
 	const [form, setForm] = useState(emptyForm)
 
 	const create = useMutation({
 		mutationFn: () => api.createRegistry(form),
 		onSuccess: async () => {
 			setForm(emptyForm)
+			setAdding(false)
 			await queryClient.invalidateQueries({ queryKey: ['registries'] })
 		},
 	})
@@ -85,7 +87,15 @@ function Registries() {
 			<Section
 				title='Private registries'
 				description='credentials are encrypted at rest'
-				actions={<Refresh onClick={() => registries.refetch()} busy={registries.isFetching} />}
+				actions={
+					<>
+						<Refresh onClick={() => registries.refetch()} busy={registries.isFetching} />
+						<Button variant='primary' onClick={() => setAdding(true)}>
+							<IconPlus />
+							Add registry
+						</Button>
+					</>
+				}
 			>
 				<ErrorText error={remove.error} />
 				<DataTable
@@ -98,20 +108,16 @@ function Registries() {
 				/>
 			</Section>
 
-			<FormSection
+			<FormDialog
+				open={adding}
+				onOpenChange={setAdding}
 				title='Add a registry'
-				description='A token or password with pull access.'
-				icon={IconBrandDocker}
-				hint='The login is verified before it is stored.'
-				actions={
-					<Button type='submit' variant='primary' disabled={create.isPending}>
-						<IconPlus />
-						{create.isPending ? 'Verifying…' : 'Add registry'}
-					</Button>
-				}
-				onSave={() => create.mutate()}
+				description='A token or password with pull access. The login is verified before it is stored.'
+				action={create.isPending ? 'Verifying…' : 'Add registry'}
+				icon={IconPlus}
+				mutation={create}
+				onSubmit={() => create.mutate()}
 			>
-				<ErrorText error={create.error} />
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Name'>
 						<Input
@@ -144,7 +150,7 @@ function Registries() {
 						/>
 					</Field>
 				</div>
-			</FormSection>
+			</FormDialog>
 		</div>
 	)
 }

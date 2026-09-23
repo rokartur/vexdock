@@ -2,6 +2,7 @@ import { IconTrash } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Button, Confirm, ErrorText, FormSection } from '../components/primitives'
+import { ServiceRouting } from '../components/service-routing'
 import { api } from '../lib/api'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
@@ -9,7 +10,7 @@ export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/
 	component: ServiceAdvanced,
 })
 
-/** The rare and the unrecoverable, kept off the tabs a deploy needs. */
+/** The rare and the unrecoverable, kept off the tabs a deploy needs: proxy rules, host ports, deletion. */
 function ServiceAdvanced() {
 	const { projectId, serviceId } = Route.useParams()
 	const navigate = useNavigate()
@@ -27,6 +28,7 @@ function ServiceAdvanced() {
 
 	return (
 		<div className='max-w-3xl'>
+			{service.data ? <ServiceRouting key={service.data.id} service={service.data} /> : null}
 			<FormSection
 				title='Delete service'
 				description='Removes it from the compose overlay and drops its environment.'

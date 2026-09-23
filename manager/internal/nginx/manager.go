@@ -114,7 +114,7 @@ func (m *Manager) snapshot() (map[string]string, error) {
 	}
 	out := map[string]string{}
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".conf") {
+		if e.IsDir() || !(strings.HasSuffix(e.Name(), ".conf") || strings.HasSuffix(e.Name(), ".htpasswd")) {
 			continue
 		}
 		body, err := os.ReadFile(filepath.Join(m.generatedDir, e.Name()))

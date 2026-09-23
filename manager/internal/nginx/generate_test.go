@@ -106,3 +106,28 @@ func mustContain(t *testing.T, haystack, needle string) {
 		t.Fatalf("generated config is missing %q\n---\n%s", needle, haystack)
 	}
 }
+
+func TestRenderAccessRulesStayOutOfTheChallenge(t *testing.T) {
+	conf := Render(Upstream{
+		Hostname:  "app.example.com",
+		Alias:     "p_01jabc_web",
+		Port:      3000,
+		BasicAuth: true,
+		Redirects: []Redirect{{Regex: `^https?://(?:www\.)?(.+)`, Replacement: "https://www.$1", Permanent: true}},
+	})
+	mustContain(t, conf, "auth_basic_user_file /etc/nginx/generated/app.example.com.htpasswd;")
+	mustContain(t, conf, `if ($redirect_url ~ "^https?://(?:www\.)?(.+)") { set $redirect_to "https://www.$1"; }`)
+	mustContain(t, conf, "if ($redirect_to = $redirect_url) { set $redirect_to \"\"; }")
+	mustContain(t, conf, "if ($redirect_to) { return 301 $redirect_to; }")
+	challenge := conf[strings.Index(conf, "acme-challenge"):strings.Index(conf, "location / {")]
+	if strings.Contains(challenge, "auth_basic") || strings.Contains(challenge, "redirect_to") {
+		t.Fatalf("access rules leaked into the ACME location:\n%s", challenge)
+	}
+}
+
+func TestHashPasswordIsSaltedSSHA(t *testing.T) {
+	a, b := HashPassword("secret"), HashPassword("secret")
+	if !strings.HasPrefix(a, "{SSHA}") || a == b {
+		t.Fatalf("want two differently salted {SSHA} hashes, got %q and %q", a, b)
+	}
+}

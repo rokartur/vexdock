@@ -17,7 +17,7 @@ import {
 	Confirm,
 	ErrorText,
 	Field,
-	FormSection,
+	FormDialog,
 	IconButton,
 	Input,
 	Refresh,
@@ -243,6 +243,7 @@ function GitProviders() {
 	const { error: redirectError } = Route.useSearch()
 	const providers = useQuery({ queryKey: ['git-providers'], queryFn: api.gitProviders })
 	const origin = useOrigin()
+	const [open, setOpen] = useState(false)
 	const [form, setForm] = useState(emptyForm)
 	const set = <TKey extends keyof Form>(key: TKey, value: Form[TKey]) =>
 		setForm(current => ({ ...current, [key]: value }))
@@ -258,6 +259,7 @@ function GitProviders() {
 			// until the browser navigates away.
 			if (!finished) return
 			setForm(emptyForm)
+			setOpen(false)
 			await queryClient.invalidateQueries({ queryKey: ['git-providers'] })
 		},
 	})
@@ -284,6 +286,7 @@ function GitProviders() {
 					workspace: provider.bitbucket?.bitbucket_workspace_name ?? '',
 					webhookUrl: provider.webhook_url ?? '',
 				})
+				setOpen(true)
 			}, removeProvider),
 		[removeProvider],
 	)
@@ -312,7 +315,15 @@ function GitProviders() {
 			<Section
 				title='Git connections'
 				description='connect once, then pick a repository instead of pasting a URL'
-				actions={<Refresh onClick={() => providers.refetch()} busy={providers.isFetching} />}
+				actions={
+					<>
+						<Refresh onClick={() => providers.refetch()} busy={providers.isFetching} />
+						<Button variant='primary' onClick={() => setOpen(true)}>
+							<IconPlug />
+							Connect a provider
+						</Button>
+					</>
+				}
 			>
 				<ErrorText error={remove.error ?? (redirectError ? new Error(redirectError) : null)} />
 				<DataTable
@@ -325,22 +336,20 @@ function GitProviders() {
 				/>
 			</Section>
 
-			<FormSection
+			<FormDialog
+				open={open}
+				onOpenChange={next => {
+					setOpen(next)
+					if (!next) setForm(emptyForm)
+				}}
 				title={form.id ? `Edit ${form.name}` : 'Connect a provider'}
-				icon={iconFor(form.kind)}
-				hint={hintFor(form.kind, origin)}
-				actions={
-					<>
-						{form.id ? <Button onClick={() => setForm(emptyForm)}>Cancel</Button> : null}
-						<Button type='submit' variant='primary' disabled={save.isPending}>
-							<IconPlug />
-							{saveLabel(save.isPending, form.id !== '')}
-						</Button>
-					</>
-				}
-				onSave={() => save.mutate()}
+				description={hintFor(form.kind, origin)}
+				action={saveLabel(save.isPending, form.id !== '')}
+				icon={IconPlug}
+				mutation={save}
+				wide
+				onSubmit={() => save.mutate()}
 			>
-				<ErrorText error={save.error} />
 				<div className='mb-4'>
 					<Segmented
 						value={form.kind}
@@ -450,7 +459,7 @@ function GitProviders() {
 						</Field>
 					) : null}
 				</div>
-			</FormSection>
+			</FormDialog>
 		</div>
 	)
 }

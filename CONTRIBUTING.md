@@ -87,7 +87,8 @@ title and description, controls, then a footer strip with a hint on the left
 and that card's own Save on the right. `SaveButton` is handed the card's
 mutation so it can answer for two seconds after the write lands, `aside` is the
 read-only facts column next to the controls, and a card that also adds to a
-list puts the table in its body and the add form in its footer.
+list puts the table in its body and the add form in a `FormDialog` opened from
+its actions, never under the table.
 
 The look is carried by tokens in `src/styles.css`, not by classes on pages:
 the palette, `--radius`, the type scale and `--font-sans` (Inter;

@@ -179,6 +179,9 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `POST /api/services/{id}/exec` | `{"command", "shell"?}`; runs it in the container, answers `{"exit_code", "output"}`. Same rules as a [task](#scheduled-tasks): `sh` or `bash`, output keeps its tail, ten minutes then the process is abandoned |
 | `GET /api/services/{id}/metrics` | Recorded usage over `?window=`, the same windows as `/api/system/metrics` |
 | `GET \| POST /api/services/{id}/tasks` | Its [scheduled tasks](#scheduled-tasks) |
+| `GET \| POST /api/services/{id}/redirects`, `DELETE .../redirects/{redirectId}` | Its [redirects](#redirects-basic-auth-and-ports) |
+| `GET \| POST /api/services/{id}/basic-auth`, `DELETE .../basic-auth/{userId}` | Its [basic-auth users](#redirects-basic-auth-and-ports) |
+| `GET \| POST /api/services/{id}/ports`, `DELETE .../ports/{portId}` | Its [published ports](#redirects-basic-auth-and-ports) |
 
 `provider` is `unconfigured`, one of the five git providers (`github`, `gitlab`,
 `bitbucket`, `gitea`, `git`), `image`, or `raw` for a pasted compose fragment.
@@ -353,6 +356,26 @@ would add, and then creates each service through `POST .../services` and
 `PUT .../variables`, so an imported service is validated exactly as a typed
 one is. Variables that arrive without a value are not replayed, which leaves a
 generated password in place rather than blanking it.
+
+### Redirects, basic auth and ports
+
+Redirects and basic-auth users apply in the proxy on every domain of the
+service, and each write reconciles nginx before it answers. A rule nginx
+rejects is removed again and the call fails with `400`, so one bad rule cannot
+stop later reconciles.
+
+- `POST .../redirects` takes `{"regex", "replacement", "permanent"}`. The
+  regex is matched against the full URL, `https://host/path?query`, and must
+  compile as RE2. `$1` or `${1}` in the replacement is a capture group; no other
+  `$` is allowed. `permanent` answers `301`, otherwise `302`. A redirect whose
+  result equals the requested URL is skipped, which keeps the www preset from
+  looping.
+- `POST .../basic-auth` takes `{"username", "password"}` and answers the user
+  without its password. A username taken on the service is `409 CONFLICT`.
+- `POST .../ports` takes `{"published", "target", "protocol"}`, `tcp` or `udp`.
+  It lands in the compose overlay on the next deploy. `80` and `443` belong to
+  the proxy, a host port already published by any service is `409 CONFLICT`,
+  and a `raw` service declares ports in its own fragment, so it gets `400`.
 
 ## Scheduled tasks
 

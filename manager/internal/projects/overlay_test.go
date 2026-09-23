@@ -311,6 +311,9 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := svc.db.CreateServicePort(ctx, &database.ServicePort{ServiceID: api.ID, Published: 5353, Target: 53, Protocol: "udp"}); err != nil {
+		t.Fatal(err)
+	}
 
 	path, err := svc.WriteOverlay(ctx, env)
 	if err != nil {
@@ -326,6 +329,7 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 		"try_files $$uri $$uri/ /index.html;",
 		`      dockerfile: "docker/api.Dockerfile"`,
 		`      target: "production"`,
+		"    image: usagefleet/production/api:latest\n    pull_policy: never\n    ports:\n      - \"5353:53/udp\"\n",
 	} {
 		if !strings.Contains(overlay, want) {
 			t.Errorf("overlay lacks %q:\n%s", want, overlay)

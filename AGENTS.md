@@ -85,9 +85,10 @@ footer, the way a service's General tab does it.
 "Saved" receipt for two seconds when it lands, so a card that writes tells you
 it wrote. `FormSection`'s `aside` is the read-only column beside the controls:
 facts the page already loaded that answer "did this take", never a field in
-disguise, and a card with nothing true to say omits it. A list that a card also
-adds to is a `DataTable` in the body with the add form in the footer `actions`,
-labelless and leaning on placeholders. Environment variables are
+disguise, and a card with nothing true to say omits it. Adding to or editing a
+row of a list is never a form under the list: an Add button in the card's
+`actions` opens a `FormDialog`, and the mutation's `onSuccess` closes it.
+Environment variables are
 `VariablesEditor`, a table of key and value with a Table/Text `Segmented`; the
 .env text stays the source of truth on both sides, so the two views cannot
 disagree.

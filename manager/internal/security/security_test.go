@@ -179,3 +179,46 @@ func TestValidateCommandArgRejectsOptionLookalikes(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateRedirect(t *testing.T) {
+	got, err := ValidateRedirect(`^https?://(?:www\.)?(.+)`, "https://www.${1}")
+	if err != nil || got != "https://www.$1" {
+		t.Fatalf("www preset: got %q, %v", got, err)
+	}
+	for _, bad := range [][2]string{
+		{`^http://(.*)"; }`, "https://$1"},
+		{"^(.*)\n", "https://$1"},
+		{`^(.*)\`, "https://$1"},
+		{`^(.*)\n`, "https://$1"},
+		{`^(.*`, "https://$1"},
+		{`^(.*)`, "https://$host$1"},
+		{`^(.*)`, `https://\$1`},
+		{"", "https://x"},
+	} {
+		if _, err := ValidateRedirect(bad[0], bad[1]); err == nil {
+			t.Errorf("accepted regex %q replacement %q", bad[0], bad[1])
+		}
+	}
+}
+
+func TestValidateBasicAuthAndPorts(t *testing.T) {
+	if err := ValidateBasicAuthUser("admin", `p"a:ss`); err != nil {
+		t.Fatalf("password is hashed, any character goes: %v", err)
+	}
+	for _, name := range []string{"", "a:b", "a\nb"} {
+		if ValidateBasicAuthUser(name, "pw") == nil {
+			t.Errorf("accepted username %q", name)
+		}
+	}
+	if err := ValidatePublishedPort(8080, 80, "tcp"); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []struct {
+		published, target int
+		protocol          string
+	}{{443, 443, "tcp"}, {0, 80, "tcp"}, {8080, 70000, "tcp"}, {8080, 80, "sctp"}} {
+		if ValidatePublishedPort(p.published, p.target, p.protocol) == nil {
+			t.Errorf("accepted %v", p)
+		}
+	}
+}

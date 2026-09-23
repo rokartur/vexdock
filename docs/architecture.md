@@ -141,6 +141,12 @@ deployment per service, queued behind each other by the environment lock. No
 deploy prunes siblings, so removing a service's container is the delete
 handler's job.
 
+A service built from git is tagged `<project>/<environment>/<service>:latest`
+with `pull_policy: never`, so `docker images` reads like the dashboard and the
+pull step skips an image no registry has. Published ports are overlay `ports:`
+and land on the next deploy; redirects and basic auth are proxy config and land
+as soon as they are saved.
+
 `healthcheck` waits for containers to be running and, where a healthcheck is
 declared, for Docker to report them healthy. A container that exits non-zero
 fails the deployment immediately rather than after the timeout.

@@ -300,15 +300,36 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			s.log.Debug("no running container for domain yet", "domain", d.Hostname)
 		}
 
-		https := d.HTTPSEnabled && s.certs.Exists(d.Hostname)
-		desired[nginx.FileName(d.Hostname)] = nginx.Render(nginx.Upstream{
+		// A failed read must fail the reconcile: rendering without it would
+		// silently drop the service's basic auth.
+		redirects, err := s.db.ServiceRedirects(ctx, service.ID)
+		if err != nil {
+			return err
+		}
+		users, err := s.db.ServiceBasicAuths(ctx, service.ID)
+		if err != nil {
+			return err
+		}
+		upstream := nginx.Upstream{
 			Hostname:      d.Hostname,
 			Alias:         alias,
 			Port:          d.ContainerPort,
-			HTTPS:         https,
+			HTTPS:         d.HTTPSEnabled && s.certs.Exists(d.Hostname),
 			RedirectHTTPS: d.RedirectHTTPS,
 			CertDir:       "/certificates/" + certificates.DirName(d.Hostname),
-		})
+			BasicAuth:     len(users) > 0,
+		}
+		for _, r := range redirects {
+			upstream.Redirects = append(upstream.Redirects, nginx.Redirect{Regex: r.Regex, Replacement: r.Replacement, Permanent: r.Permanent})
+		}
+		if upstream.BasicAuth {
+			var htpasswd strings.Builder
+			for _, u := range users {
+				htpasswd.WriteString(u.Username + ":" + u.PasswordHash + "\n")
+			}
+			desired[nginx.AuthFileName(d.Hostname)] = htpasswd.String()
+		}
+		desired[nginx.FileName(d.Hostname)] = nginx.Render(upstream)
 	}
 
 	if vhost, name, ok := s.dashboardVhost(ctx); ok {
