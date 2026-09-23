@@ -43,6 +43,14 @@ import {
 import { Button as ShadcnButton } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field as ShadcnField, FieldDescription, FieldLabel } from '@/components/ui/field'
@@ -787,6 +795,68 @@ export function Confirm({
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>
+	)
+}
+
+/**
+ * The one way to add to or edit a row of a list: never a form under the table. The caller owns `open`, so a header
+ * button and a row action can open the same dialog, and closes it in the mutation's `onSuccess`.
+ */
+export function FormDialog({
+	open,
+	onOpenChange,
+	title,
+	description,
+	action,
+	icon: Icon,
+	mutation,
+	onSubmit,
+	wide,
+	children,
+}: {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	title: string
+	description?: ReactNode
+	action: string
+	icon: TablerIcon
+	mutation: { isPending: boolean; error: unknown; reset: () => void }
+	onSubmit: () => void
+	wide?: boolean
+	children: ReactNode
+}) {
+	// A failed attempt's error must not greet the next opening.
+	const close = () => {
+		mutation.reset()
+		onOpenChange(false)
+	}
+	return (
+		<Dialog open={open} onOpenChange={next => (next ? onOpenChange(true) : close())}>
+			<DialogContent className={wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'}>
+				<DialogHeader>
+					<DialogTitle>{title}</DialogTitle>
+					{description ? <DialogDescription>{description}</DialogDescription> : null}
+				</DialogHeader>
+				<form
+					onSubmit={event => {
+						event.preventDefault()
+						onSubmit()
+					}}
+				>
+					<ErrorText error={mutation.error} />
+					{children}
+					<DialogFooter className='mt-2'>
+						<Button variant='ghost' onClick={close}>
+							Cancel
+						</Button>
+						<Button type='submit' variant='primary' disabled={mutation.isPending}>
+							<Icon />
+							{action}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 	)
 }
 

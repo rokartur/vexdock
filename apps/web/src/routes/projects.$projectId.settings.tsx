@@ -18,6 +18,7 @@ import {
 	Confirm,
 	ErrorText,
 	Field,
+	FormDialog,
 	FormSection,
 	IconButton,
 	Input,
@@ -148,6 +149,7 @@ function environmentColumns(remove: (id: string) => void, removing: boolean): Co
 /** Not in the breadcrumb picker, where switching is constant: deleting one takes its containers and volumes. */
 function Environments({ projectId }: { projectId: string }) {
 	const queryClient = useQueryClient()
+	const [adding, setAdding] = useState(false)
 	const [name, setName] = useState('')
 	const [branch, setBranch] = useState('')
 
@@ -159,6 +161,7 @@ function Environments({ projectId }: { projectId: string }) {
 		onSuccess: async () => {
 			setName('')
 			setBranch('')
+			setAdding(false)
 			await refresh()
 		},
 	})
@@ -175,35 +178,14 @@ function Environments({ projectId }: { projectId: string }) {
 			title='Environments'
 			description='Each one deploys on its own, into its own containers.'
 			icon={IconLayersLinked}
-			hint='A name becomes the slug the API and the directory use.'
 			actions={
-				<>
-					<div className='w-40'>
-						<Input
-							required
-							aria-label='Environment name'
-							value={name}
-							onChange={event => setName(event.target.value)}
-							placeholder='Staging'
-						/>
-					</div>
-					<div className='w-40'>
-						<Input
-							aria-label='Branch'
-							value={branch}
-							onChange={event => setBranch(event.target.value)}
-							placeholder='develop'
-						/>
-					</div>
-					<Button type='submit' variant='primary' disabled={create.isPending}>
-						<IconPlus />
-						{create.isPending ? 'Creating…' : 'Add environment'}
-					</Button>
-				</>
+				<Button variant='primary' onClick={() => setAdding(true)}>
+					<IconPlus />
+					Add environment
+				</Button>
 			}
-			onSave={() => create.mutate()}
 		>
-			<ErrorText error={create.error ?? remove.error} />
+			<ErrorText error={remove.error} />
 			<DataTable
 				data={environments.data ?? []}
 				columns={columns}
@@ -212,6 +194,25 @@ function Environments({ projectId }: { projectId: string }) {
 				getRowId={environment => environment.id}
 				empty='No environments yet.'
 			/>
+			<FormDialog
+				open={adding}
+				onOpenChange={setAdding}
+				title='Add environment'
+				description='A name becomes the slug the API and the directory use.'
+				action={create.isPending ? 'Creating…' : 'Add environment'}
+				icon={IconPlus}
+				mutation={create}
+				onSubmit={() => create.mutate()}
+			>
+				<div className='grid gap-x-6 md:grid-cols-2'>
+					<Field label='Name'>
+						<Input required value={name} onChange={event => setName(event.target.value)} placeholder='Staging' />
+					</Field>
+					<Field label='Branch (optional)'>
+						<Input value={branch} onChange={event => setBranch(event.target.value)} placeholder='develop' />
+					</Field>
+				</div>
+			</FormDialog>
 		</FormSection>
 	)
 }

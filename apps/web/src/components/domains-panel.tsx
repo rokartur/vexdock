@@ -20,7 +20,7 @@ import {
 	Confirm,
 	ErrorText,
 	Field,
-	FormSection,
+	FormDialog,
 	IconButton,
 	Input,
 	Refresh,
@@ -131,6 +131,7 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 	const environmentId = useEnvironmentId()
 	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
 
+	const [adding, setAdding] = useState(false)
 	const [hostname, setHostname] = useState('')
 	const [port, setPort] = useState(3000)
 	const [https, setHttps] = useState(true)
@@ -167,6 +168,7 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 			setHostname('')
 			setCertPem('')
 			setKeyPem('')
+			setAdding(false)
 			await invalidate()
 		},
 	})
@@ -217,9 +219,23 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 			<Section
 				title='Domains'
 				description='the platform generates and reloads Nginx for you'
-				actions={<Refresh onClick={() => domains.refetch()} busy={domains.isFetching} />}
+				actions={
+					<>
+						<Refresh onClick={() => domains.refetch()} busy={domains.isFetching} />
+						<Button variant='primary' onClick={() => setAdding(true)}>
+							<IconPlus />
+							Add domain
+						</Button>
+					</>
+				}
 			>
 				<ErrorText error={remove.error ?? issue.error} />
+				{warning ? (
+					<Alert className='mb-3'>
+						<IconAlertTriangle className='text-amber-400' />
+						<AlertDescription>{warning}</AlertDescription>
+					</Alert>
+				) : null}
 				{certificates.data?.some(cert => cert.status === 'failed') ? (
 					<Alert className='mb-3'>
 						<IconAlertTriangle className='text-amber-400' />
@@ -234,73 +250,58 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 					loading={domains.isLoading}
 					error={domains.error}
 					getRowId={domain => domain.id}
-					empty='No domains yet. Point an A record at this server, then add it below.'
+					empty='No domains yet. Point an A record at this server, then add it.'
 				/>
 			</Section>
 
-			{replacing ? (
-				<FormSection
-					title={`Replace the certificate for ${replacing.hostname}`}
-					description='Full chain in PEM: the leaf first, then any intermediates.'
-					icon={IconCertificate}
-					hint='The private key never leaves this server.'
-					actions={
-						<>
-							<Button variant='ghost' onClick={() => setReplacing(null)}>
-								Cancel
-							</Button>
-							<Button type='submit' variant='primary' disabled={replace.isPending}>
-								<IconUpload />
-								{replace.isPending ? 'Installing…' : 'Install certificate'}
-							</Button>
-						</>
-					}
-					onSave={() => replace.mutate(replacing.id)}
-				>
-					<ErrorText error={replace.error} />
-					<div className='grid gap-x-6 md:grid-cols-2'>
-						<Field label='Certificate'>
-							<Textarea
-								rows={7}
-								required
-								spellCheck={false}
-								value={replaceCert}
-								onChange={event => setReplaceCert(event.target.value)}
-							/>
-						</Field>
-						<Field label='Private key'>
-							<Textarea
-								rows={7}
-								required
-								spellCheck={false}
-								value={replaceKey}
-								onChange={event => setReplaceKey(event.target.value)}
-							/>
-						</Field>
-					</div>
-				</FormSection>
-			) : null}
-
-			<FormSection
-				title='Add domain'
-				description='Point an A record at this server first.'
-				icon={IconWorld}
-				hint='*.example.com needs a Cloudflare token in system settings.'
-				actions={
-					<Button type='submit' variant='primary' disabled={create.isPending}>
-						<IconPlus />
-						{create.isPending ? 'Adding…' : 'Add domain'}
-					</Button>
-				}
-				onSave={() => create.mutate()}
+			<FormDialog
+				open={replacing !== null}
+				onOpenChange={open => {
+					if (!open) setReplacing(null)
+				}}
+				title={replacing ? `Replace the certificate for ${replacing.hostname}` : 'Replace certificate'}
+				description='Full chain in PEM: the leaf first, then any intermediates. The private key never leaves this server.'
+				action={replace.isPending ? 'Installing…' : 'Install certificate'}
+				icon={IconUpload}
+				mutation={replace}
+				wide
+				onSubmit={() => {
+					if (replacing) replace.mutate(replacing.id)
+				}}
 			>
-				<ErrorText error={create.error} />
-				{warning ? (
-					<Alert className='mb-3'>
-						<IconAlertTriangle className='text-amber-400' />
-						<AlertDescription>{warning}</AlertDescription>
-					</Alert>
-				) : null}
+				<div className='grid gap-x-6 md:grid-cols-2'>
+					<Field label='Certificate'>
+						<Textarea
+							rows={7}
+							required
+							spellCheck={false}
+							value={replaceCert}
+							onChange={event => setReplaceCert(event.target.value)}
+						/>
+					</Field>
+					<Field label='Private key'>
+						<Textarea
+							rows={7}
+							required
+							spellCheck={false}
+							value={replaceKey}
+							onChange={event => setReplaceKey(event.target.value)}
+						/>
+					</Field>
+				</div>
+			</FormDialog>
+
+			<FormDialog
+				open={adding}
+				onOpenChange={setAdding}
+				title='Add domain'
+				description='Point an A record at this server first. *.example.com needs a Cloudflare token in system settings.'
+				action={create.isPending ? 'Adding…' : 'Add domain'}
+				icon={IconPlus}
+				mutation={create}
+				wide
+				onSubmit={() => create.mutate()}
+			>
 				<div className='grid gap-x-6 md:grid-cols-3'>
 					<Field label='Domain'>
 						<Input
@@ -370,7 +371,7 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 						) : null}
 					</>
 				) : null}
-			</FormSection>
+			</FormDialog>
 		</>
 	)
 }
