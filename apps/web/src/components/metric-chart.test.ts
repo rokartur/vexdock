@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { joinSeries, ratesOf, sparkPath } from './metric-chart'
+import { joinSeries, niceCeil, ratesOf, sparkPath, totalOf } from './metric-chart'
 
 const total = (sample: { at: number; total: number }) => sample.total
 
@@ -50,4 +50,27 @@ test('never reports a negative rate or divides by a zero interval', () => {
 	]
 
 	expect(ratesOf(history, total).map(point => point.value)).toEqual([0, 0])
+})
+
+test('adds up a climbing counter, counting a restart from zero', () => {
+	const history = [
+		{ at: 1000, total: 100 },
+		{ at: 2000, total: 400 },
+		{ at: 3000, total: 50 },
+		{ at: 4000, total: 150 },
+	]
+
+	expect(totalOf(history, total)).toBe(300 + 50 + 100)
+	expect(totalOf([], total)).toBe(0)
+})
+
+test('rounds an axis top up to 1, 2 or 5 of a power', () => {
+	expect(niceCeil(0)).toBe(1)
+	expect(niceCeil(3.7)).toBe(5)
+	expect(niceCeil(12)).toBe(20)
+	expect(niceCeil(100)).toBe(100)
+	expect(niceCeil(130)).toBe(200)
+	expect(niceCeil(700 * 1024, 1024)).toBe(1000 * 1024)
+	expect(niceCeil(1.3 * 1024 * 1024, 1024)).toBe(2 * 1024 * 1024)
+	expect(niceCeil(600, 1024)).toBe(1000)
 })
