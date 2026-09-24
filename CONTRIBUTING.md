@@ -134,6 +134,9 @@ implementation.
 - One concern per pull request.
 - `make check` passes.
 - If behavior changed, the docs changed with it.
+- Merging deletes the branch: `.github/workflows/delete-merged-branch.yml` does
+  it for every merged pull request from this repository, so a follow-up is a
+  new branch off `main`, never more commits on the merged one.
 
 ## Releasing
 

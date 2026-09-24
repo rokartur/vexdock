@@ -32,7 +32,9 @@ deploy path means running those locally too.
 
 A beta is `make release-beta`: bump, pull request, CI, merge, tag. Never tag by
 hand what the script can; [CONTRIBUTING.md](CONTRIBUTING.md#releasing) has the
-flags.
+flags. A merged pull request's branch is deleted by
+`.github/workflows/delete-merged-branch.yml`; follow-up work starts a new branch
+from `main`.
 
 TypeScript formatting is oxfmt through ultracite: `bun run fix`. Tabs, single
 quotes, no semicolons, 120 columns. The config decides, so let it.
