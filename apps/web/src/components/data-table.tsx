@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconSearch } from '@tabler/icons-react'
 import {
 	type ColumnDef,
@@ -28,7 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/utils/cn'
-import { DetailDialog, EmptyState, ErrorText } from './primitives'
+import { DetailDialog, EmptyState, ErrorText, MoreBelow, useFill } from './primitives'
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
@@ -87,6 +87,56 @@ type DataTableProps<TData extends RowData> = {
 	}
 }
 
+/** How many rows end below the visible part of `ref`, kept current through scrolling, resizing and new rows.
+ * `rendered` is the number of real rows on screen (-1 while loading): skeleton rows swapped for as many real ones
+ * resize nothing, so the count has to be told. */
+function useRowsBelow(ref: RefObject<HTMLDivElement | null>, rendered: number) {
+	const [below, setBelow] = useState(0)
+	useEffect(() => {
+		const viewport = ref.current
+		if (!viewport) return
+		const measure = () => {
+			// The client box, not the border box: a row behind the horizontal scrollbar is not in view. One pixel of
+			// slack, so a fractional row height never counts a row that is fully in view.
+			const edge = viewport.getBoundingClientRect().top + viewport.clientTop + viewport.clientHeight + 1
+			let hidden = 0
+			for (const row of viewport.querySelectorAll('tbody tr[data-row]')) {
+				if (row.getBoundingClientRect().bottom > edge) hidden += 1
+			}
+			setBelow(hidden)
+		}
+		// A scroll fires several times a frame; measure once per frame.
+		let frame = 0
+		const schedule = () => {
+			if (frame) return
+			frame = requestAnimationFrame(() => {
+				frame = 0
+				measure()
+			})
+		}
+		measure()
+		viewport.addEventListener('scroll', schedule, { passive: true })
+		const resize = new ResizeObserver(schedule)
+		resize.observe(viewport)
+		if (viewport.firstElementChild) resize.observe(viewport.firstElementChild)
+		return () => {
+			cancelAnimationFrame(frame)
+			viewport.removeEventListener('scroll', schedule)
+			resize.disconnect()
+		}
+	}, [ref, rendered])
+	return below
+}
+
+/** Scrolls `viewport` to its end, without the glide for anyone who asked for less motion. */
+function revealEnd(viewport: HTMLDivElement | null) {
+	if (!viewport) return
+	// The pill that called this unmounts once the end is in view; the region keeps focus instead of the document.
+	viewport.focus({ preventScroll: true })
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+	viewport.scrollTo({ top: viewport.scrollHeight, behavior: reduce ? 'auto' : 'smooth' })
+}
+
 export function DataTable<TData extends RowData>({
 	data,
 	columns,
@@ -100,7 +150,10 @@ export function DataTable<TData extends RowData>({
 	onRowClick,
 	detail,
 }: DataTableProps<TData>) {
+	// Inside a `fill` Section the table takes the height left to it and scrolls there, instead of capping at 70vh.
+	const fill = useFill()
 	const [sorting, setSorting] = useState<SortingState>([])
+	const viewport = useRef<HTMLDivElement>(null)
 	const [globalFilter, setGlobalFilter] = useState(initialFilter)
 	const [pageIndex, setPageIndex] = useState(0)
 
@@ -122,16 +175,17 @@ export function DataTable<TData extends RowData>({
 	const safePageIndex = Math.min(pageIndex, pageCount - 1)
 	const rows = visible.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize)
 	const columnCount = table.getAllLeafColumns().length
+	const below = useRowsBelow(viewport, loading ? -1 : rows.length)
 	// Looked up in the whole data set, not the page: a row opened from the URL may sit on another page or be filtered out.
 	const openRow =
-		detail?.openId == null
+		detail === undefined || detail.openId === null
 			? undefined
 			: data.find((row, index) => (getRowId ? getRowId(row, index) : String(index)) === detail.openId)
 
 	return (
 		/* The table is a card: hairline border for the outer edge, rows separated by their own hairlines.
 		   overflow-hidden clips the edge-to-edge sticky header background at the rounded corners. */
-		<div className='overflow-hidden rounded-xl border bg-card raised'>
+		<div className={cn('overflow-hidden rounded-xl border bg-card raised', fill && 'flex min-h-0 flex-1 flex-col')}>
 			{filter ? (
 				<div className='relative border-b border-rule'>
 					<IconSearch className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' />
@@ -148,105 +202,120 @@ export function DataTable<TData extends RowData>({
 				</div>
 			) : null}
 			{/* Rows and hairlines run edge to edge; the gutter lives in each row's first and last cell. */}
-			<div className='max-h-[70vh] overflow-auto'>
-				{/* Row separators are the quiet hairline; the card's own edge stays --border. */}
-				<ShadcnTable className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_th:first-child]:pl-4'>
-					<TableHeader>
-						{table.getHeaderGroups().map(headerGroup => (
-							<TableRow key={headerGroup.id} className='hover:bg-transparent'>
-								{headerGroup.headers.map(header => {
-									const sorted = header.column.getIsSorted()
-									return (
-										<TableHead
-											key={header.id}
-											className={cn(
-												// The hairline lives on the th (inset shadow), not the tr border: collapsed
-												// tr borders do not travel with sticky cells, which reads as a gap when rows
-												// scroll underneath.
-												'sticky top-0 z-10 h-8 bg-card pr-3 pl-0 text-label font-medium text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]',
-												header.column.columnDef.meta?.align === 'right' && 'text-right',
-											)}
-										>
-											{header.isPlaceholder ? null : header.column.getCanSort() ? (
-												<button
-													type='button'
-													onClick={() => header.column.toggleSorting()}
-													className='inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-foreground'
-												>
-													<table.FlexRender header={header} />
-													{sorted === 'asc' ? (
-														<IconArrowNarrowUp className='size-3' />
-													) : sorted === 'desc' ? (
-														<IconArrowNarrowDown className='size-3' />
-													) : null}
-												</button>
-											) : (
-												<table.FlexRender header={header} />
-											)}
-										</TableHead>
-									)
-								})}
-							</TableRow>
-						))}
-					</TableHeader>
-					<TableBody>
-						{loading ? (
-							<SkeletonRows columns={columnCount} />
-						) : rows.length === 0 ? (
-							<TableRow className='hover:bg-transparent'>
-								<TableCell colSpan={columnCount} className='p-0'>
-									{error ? (
-										<ErrorText error={error} />
-									) : typeof empty === 'string' ? (
-										<EmptyState title={globalFilter ? 'Nothing matches' : empty} />
-									) : (
-										empty
-									)}
-								</TableCell>
-							</TableRow>
-						) : (
-							rows.map(row => {
-								const open = detail?.openId === row.id
-								const activate = detail
-									? () => detail.onOpenChange(row.id)
-									: onRowClick && (() => onRowClick(row.original))
-								return (
-									// An activatable row is the control: focusable, and Enter or Space does what the click does.
-									<TableRow
-										key={row.id}
-										data-state={open ? 'selected' : undefined}
-										className={cn(activate && 'cursor-pointer')}
-										tabIndex={activate ? 0 : undefined}
-										onClick={activate}
-										onKeyDown={
-											activate &&
-											(event => {
-												// A key pressed on a control inside the row belongs to that control.
-												if (event.target !== event.currentTarget) return
-												if (event.key !== 'Enter' && event.key !== ' ') return
-												event.preventDefault()
-												activate()
-											})
-										}
-									>
-										{row.getAllCells().map(cell => (
-											<TableCell
-												key={cell.id}
+			<div className={cn('relative', fill && 'flex min-h-0 flex-1 flex-col')}>
+				{/* This scrolls both ways, so shadcn's own overflow-x wrapper is switched off: it would otherwise be the
+				    box the sticky header sticks to, and the header would scroll away with the rows. */}
+				<div
+					ref={viewport}
+					// Focusable only by script, so revealing the end leaves focus here when the pill goes away.
+					tabIndex={-1}
+					className={cn(
+						// Scroll padding keeps a row reached by Tab clear of the sticky header and MoreBelow's band.
+						'scroll-pt-8 scroll-pb-20 overflow-auto outline-none [&>[data-slot=table-container]]:overflow-visible',
+						fill ? 'min-h-0 flex-1' : 'max-h-[70vh]',
+					)}
+				>
+					{/* Row separators are the quiet hairline; the card's own edge stays --border. */}
+					<ShadcnTable className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_th:first-child]:pl-4'>
+						<TableHeader>
+							{table.getHeaderGroups().map(headerGroup => (
+								<TableRow key={headerGroup.id} className='hover:bg-transparent'>
+									{headerGroup.headers.map(header => {
+										const sorted = header.column.getIsSorted()
+										return (
+											<TableHead
+												key={header.id}
 												className={cn(
-													'h-8 py-0.5 pr-3 pl-0',
-													cell.column.columnDef.meta?.align === 'right' && 'text-right',
-													cell.column.columnDef.meta?.mono && 'font-mono text-label',
+													// The hairline lives on the th (inset shadow), not the tr border: collapsed
+													// tr borders do not travel with sticky cells, which reads as a gap when rows
+													// scroll underneath.
+													'sticky top-0 z-10 h-8 bg-card pr-3 pl-0 text-label font-medium text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]',
+													header.column.columnDef.meta?.align === 'right' && 'text-right',
 												)}
 											>
-												<table.FlexRender cell={cell} />
-											</TableCell>
-										))}
-									</TableRow>
-								)
-							})
-						)}
-					</TableBody>
-				</ShadcnTable>
+												{header.isPlaceholder ? null : header.column.getCanSort() ? (
+													<button
+														type='button'
+														onClick={() => header.column.toggleSorting()}
+														className='inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-foreground'
+													>
+														<table.FlexRender header={header} />
+														{sorted === 'asc' ? (
+															<IconArrowNarrowUp className='size-3' />
+														) : sorted === 'desc' ? (
+															<IconArrowNarrowDown className='size-3' />
+														) : null}
+													</button>
+												) : (
+													<table.FlexRender header={header} />
+												)}
+											</TableHead>
+										)
+									})}
+								</TableRow>
+							))}
+						</TableHeader>
+						<TableBody>
+							{loading ? (
+								<SkeletonRows columns={columnCount} />
+							) : rows.length === 0 ? (
+								<TableRow className='hover:bg-transparent'>
+									<TableCell colSpan={columnCount} className='p-0'>
+										{error ? (
+											<ErrorText error={error} />
+										) : typeof empty === 'string' ? (
+											<EmptyState title={globalFilter ? 'Nothing matches' : empty} />
+										) : (
+											empty
+										)}
+									</TableCell>
+								</TableRow>
+							) : (
+								rows.map(row => {
+									const open = detail?.openId === row.id
+									const activate = detail
+										? () => detail.onOpenChange(row.id)
+										: onRowClick && (() => onRowClick(row.original))
+									return (
+										// An activatable row is the control: focusable, and Enter or Space does what the click does.
+										<TableRow
+											key={row.id}
+											data-row
+											data-state={open ? 'selected' : undefined}
+											className={cn(activate && 'cursor-pointer')}
+											tabIndex={activate ? 0 : undefined}
+											onClick={activate}
+											onKeyDown={
+												activate &&
+												(event => {
+													// A key pressed on a control inside the row belongs to that control.
+													if (event.target !== event.currentTarget) return
+													if (event.key !== 'Enter' && event.key !== ' ') return
+													event.preventDefault()
+													activate()
+												})
+											}
+										>
+											{row.getAllCells().map(cell => (
+												<TableCell
+													key={cell.id}
+													className={cn(
+														'h-8 py-0.5 pr-3 pl-0',
+														cell.column.columnDef.meta?.align === 'right' && 'text-right',
+														cell.column.columnDef.meta?.mono && 'font-mono text-label',
+													)}
+												>
+													<table.FlexRender cell={cell} />
+												</TableCell>
+											))}
+										</TableRow>
+									)
+								})
+							)}
+						</TableBody>
+					</ShadcnTable>
+				</div>
+				<MoreBelow count={below} onReveal={() => revealEnd(viewport.current)} />
 			</div>
 			{pageCount > 1 && (
 				<div className='flex items-center justify-between gap-2 border-t border-rule px-4 py-1.5 text-label text-muted-foreground'>
