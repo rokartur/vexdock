@@ -884,7 +884,7 @@ export function DetailDialog({
 					<DialogTitle>{title}</DialogTitle>
 					{description ? <DialogDescription>{description}</DialogDescription> : null}
 				</DialogHeader>
-				<div className='min-h-0 flex-1'>{children}</div>
+				<div className='min-h-0 flex-1 overflow-y-auto'>{children}</div>
 			</DialogContent>
 		</Dialog>
 	)

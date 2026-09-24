@@ -217,11 +217,12 @@ export function DataTable<TData extends RowData>({
 										data-state={open ? 'selected' : undefined}
 										className={cn(activate && 'cursor-pointer')}
 										tabIndex={activate ? 0 : undefined}
-										aria-haspopup={detail ? 'dialog' : undefined}
 										onClick={activate}
 										onKeyDown={
 											activate &&
 											(event => {
+												// A key pressed on a control inside the row belongs to that control.
+												if (event.target !== event.currentTarget) return
 												if (event.key !== 'Enter' && event.key !== ' ') return
 												event.preventDefault()
 												activate()

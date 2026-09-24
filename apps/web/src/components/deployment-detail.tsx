@@ -87,8 +87,9 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 			<ErrorText error={cancel.error} />
 			<ErrorText error={deployment?.error} />
 
-			<div className='flex gap-4'>
-				<div className='flex w-52 shrink-0 flex-col gap-3'>
+			{/* On a phone the log needs the full width, so the pipeline sits above it. */}
+			<div className='flex flex-col gap-4 sm:flex-row'>
+				<div className='flex shrink-0 flex-col gap-3 sm:w-52'>
 					{steps.length === 0 ? (
 						<span className='text-body text-muted-foreground'>Waiting for the runner…</span>
 					) : (
