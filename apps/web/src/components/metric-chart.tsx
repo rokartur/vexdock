@@ -150,6 +150,8 @@ type MetricCardProps = {
 	windowLabel?: string
 	/** Drawn height in px. The default is the sparkline; the dashboard goes big. */
 	height?: number
+	/** The chart beside the reading instead of under it, for a card wide enough to spare the row. */
+	inline?: boolean
 }
 
 /** Compact metric: label, current value, and the recorded window as a sparkline. */
@@ -163,16 +165,22 @@ export function MetricCard({
 	hint,
 	windowLabel = 'last 30 minutes',
 	height = SPARK_HEIGHT,
+	inline = false,
 }: MetricCardProps) {
 	const fade = useId()
 	const rows = useMemo(() => joinSeries(series), [series])
 	const filled = series.length === 1
 
 	return (
-		<Cell label={label} icon={icon} hint={hint} value={value}>
+		<Cell label={label} icon={icon} hint={hint} value={value} inline={inline}>
 			{/* The tooltip only dates values that are already shown live, so the chart's own
 			    focusable accessibility layer buys nothing and only draws a focus ring. */}
-			<div className='mt-1.5' style={{ height }} role='img' aria-label={`${label}, ${windowLabel}`}>
+			<div
+				className={inline ? undefined : 'mt-1.5'}
+				style={{ height }}
+				role='img'
+				aria-label={`${label}, ${windowLabel}`}
+			>
 				<ResponsiveContainer width='100%' height='100%'>
 					<AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 1, left: 0 }} accessibilityLayer={false}>
 						<defs>
