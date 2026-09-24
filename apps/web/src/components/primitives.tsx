@@ -10,6 +10,7 @@ import {
 } from 'react'
 import {
 	IconAlertCircle,
+	IconArrowDown,
 	IconCheck,
 	IconDeviceFloppy,
 	IconInbox,
@@ -228,6 +229,7 @@ export function Page({
 	actions,
 	toolbar,
 	filters,
+	fill = false,
 	children,
 }: {
 	labels?: Record<string, ReactNode>
@@ -238,6 +240,9 @@ export function Page({
 	toolbar?: ReactNode
 	/** What narrows the page, on the right of that same row. */
 	filters?: ReactNode
+	/** The page is exactly as tall as the window and a `fill` Section takes what is left, so that section scrolls
+	 * instead of the page. A window too short for its floor scrolls the page after all. */
+	fill?: boolean
 	children: ReactNode
 }) {
 	const router = useRouter()
@@ -314,7 +319,7 @@ export function Page({
 					{filters ? <div className='ml-auto flex items-center gap-2'>{filters}</div> : null}
 				</div>
 			) : null}
-			<div className='min-h-0 flex-1 overflow-y-auto px-5 py-5'>{children}</div>
+			<div className={cn('min-h-0 flex-1 overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>{children}</div>
 		</>
 	)
 }
@@ -432,20 +437,63 @@ export function SaveButton({
 	)
 }
 
+// Each layer blurs harder and covers less, so the blur ramps up toward the bottom edge instead of starting at a line.
+const BLUR_LAYERS = [1, 2, 4, 8, 16]
+
+/**
+ * What sits over the bottom of a scroll region with more below: a progressive blur the rows sink into, and a glass
+ * pill counting them that scrolls to the end. The parent is `relative`; nothing renders once the end is in view.
+ */
+export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; noun?: string; onReveal: () => void }) {
+	if (count <= 0) return null
+	const band = 100 / BLUR_LAYERS.length
+	return (
+		<>
+			<div aria-hidden className='pointer-events-none absolute inset-x-0 bottom-0 z-20 h-20 animate-in fade-in-0'>
+				{BLUR_LAYERS.map((blur, index) => {
+					const start = index * band
+					const mask = `linear-gradient(to bottom, transparent ${start}%, black ${Math.min(start + band, 100)}%)`
+					return (
+						<div
+							key={blur}
+							className='absolute inset-0'
+							style={{ backdropFilter: `blur(${blur}px)`, maskImage: mask, WebkitMaskImage: mask }}
+						/>
+					)
+				})}
+				<div className='absolute inset-0 bg-linear-to-b from-transparent to-card/70' />
+			</div>
+			<button
+				type='button'
+				onClick={onReveal}
+				aria-label={`Scroll to the ${count} ${noun} below`}
+				className='absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 animate-in items-center gap-1.5 rounded-full border border-white/15 bg-white/5 pr-3.5 pl-2.5 text-label text-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_8px_24px_rgb(0_0_0/0.45)] backdrop-blur-xl backdrop-saturate-150 transition-colors fade-in-0 zoom-in-95 hover:bg-white/10'
+			>
+				<IconArrowDown stroke={1.75} className='size-4' />
+				<span className='font-mono'>{count}</span>
+				<span className='text-muted-foreground'>{noun}</span>
+			</button>
+		</>
+	)
+}
+
 /** A titled block of a page: a table, a chart, a list. Not a form; that is a FormSection. */
 export function Section({
 	title,
 	actions,
 	children,
 	description,
+	fill = false,
 }: {
 	title: string
 	actions?: ReactNode
 	children: ReactNode
 	description?: string
+	/** Takes the rest of a `fill` Page's height, for a table that scrolls on its own. It is the last section. */
+	fill?: boolean
 }) {
 	return (
-		<section className='mb-8'>
+		<section className={fill ? 'flex min-h-72 flex-1 flex-col' : 'mb-8'}>
 			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-2.5'>
 					<h2 className='text-title font-medium'>{title}</h2>

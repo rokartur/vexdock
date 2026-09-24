@@ -101,8 +101,12 @@ value against a ceiling, `Sparkline` (`metric-chart.tsx`) for a series in a
 table cell, `StatStrip` for the line of facts above a page, `Timeline` for
 ordered steps, `RelativeTime` for a stamp that ticks on its own, past (`3m
 ago`) or future (`in 2h`); raw `since()` and `until()` stay for a stamp inside
-a sentence. A page carries one `StatStrip` and a tab inside a page that already
-has one does not add a second, and a strip with nothing to say does not render.
+a sentence. A page whose last list should take the rest of the window is a
+`fill` `Page`, `Section` and `DataTable`: the page stops scrolling, the table
+does, and rows below its edge sink into `MoreBelow`'s blur and count, which
+every `DataTable` draws on its own. A page carries one `StatStrip` and a tab
+inside a page that already has one does not add a second, and a strip with
+nothing to say does not render.
 A page shows what the API answers and nothing more; a field the backend does
 not send is a backend change, not a placeholder.
 

@@ -157,8 +157,9 @@ function DashboardPage() {
 		.toSorted()
 		.at(0)
 
+	// The page fits the window and the deployments take what is left, so only that list scrolls.
 	return (
-		<Page>
+		<Page fill>
 			{concerns.length > 0 ? (
 				<Section title='Needs attention' description={`${concerns.length} open`}>
 					<ul className='divide-y divide-rule rounded-xl border bg-card raised'>
@@ -261,6 +262,7 @@ function DashboardPage() {
 			<Section
 				title='Deployments'
 				description='newest first across every project'
+				fill
 				actions={<Refresh onClick={() => info.refetch()} busy={info.isFetching} />}
 			>
 				<DataTable
@@ -276,6 +278,7 @@ function DashboardPage() {
 						render: renderDeploymentDetail,
 					}}
 					empty='No deployments yet'
+					fill
 				/>
 			</Section>
 		</Page>
