@@ -458,35 +458,48 @@ const BLUR_LAYERS = [1, 2, 4, 8, 16]
 
 /**
  * What sits over the bottom of a scroll region with more below: a progressive blur the rows sink into, and a glass
- * pill counting them that scrolls to the end. The parent is `relative`; nothing renders once the end is in view.
+ * pill counting them that scrolls to the end. The parent is `relative`. It stays mounted and fades both ways; hidden,
+ * it is `invisible`, so it paints nothing and the pill leaves the tab order.
  */
 export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; noun?: string; onReveal: () => void }) {
-	if (count <= 0) return null
+	const shown = count > 0
+	// The pill keeps the last count it had while it fades out, instead of reading 0 on the way.
+	const [label, setLabel] = useState(count)
+	if (shown && count !== label) setLabel(count)
 	const band = 100 / BLUR_LAYERS.length
+	// Each layer fades itself: an ancestor below full opacity would cut its backdrop-filter off from the rows behind,
+	// and the blur would vanish for the whole fade and pop back at the end.
+	const fade = cn(
+		'transition-[opacity,visibility] duration-200 ease-out',
+		shown ? 'visible opacity-100' : 'invisible opacity-0',
+	)
 	return (
 		<>
-			<div aria-hidden className='pointer-events-none absolute inset-x-0 bottom-0 z-20 h-20 animate-in fade-in-0'>
+			<div aria-hidden className='pointer-events-none absolute inset-x-0 bottom-0 z-20 h-20'>
 				{BLUR_LAYERS.map((blur, index) => {
 					const start = index * band
 					const mask = `linear-gradient(to bottom, transparent ${start}%, black ${Math.min(start + band, 100)}%)`
 					return (
 						<div
 							key={blur}
-							className='absolute inset-0'
+							className={cn('absolute inset-0', fade)}
 							style={{ backdropFilter: `blur(${blur}px)`, maskImage: mask, WebkitMaskImage: mask }}
 						/>
 					)
 				})}
-				<div className='absolute inset-0 bg-linear-to-b from-transparent to-card/70' />
+				<div className={cn('absolute inset-0 bg-linear-to-b from-transparent to-card/70', fade)} />
 			</div>
 			<button
 				type='button'
 				onClick={onReveal}
-				aria-label={`${count} ${noun} below, scroll to the end`}
-				className='absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 animate-in items-center gap-1.5 rounded-full border bg-popover/60 pr-3.5 pl-2.5 text-label text-foreground shadow-lg raised backdrop-blur-xl backdrop-saturate-150 transition-colors fade-in-0 zoom-in-95 hover:bg-accent/70'
+				aria-label={`${label} ${noun} below, scroll to the end`}
+				className={cn(
+					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-full border bg-popover/60 pr-3.5 pl-2.5 text-label text-foreground shadow-lg raised backdrop-blur-xl backdrop-saturate-150 transition-[opacity,visibility,scale,background-color] duration-200 ease-out hover:bg-accent/70',
+					shown ? 'visible scale-100 opacity-100' : 'invisible scale-95 opacity-0',
+				)}
 			>
 				<IconArrowDown stroke={1.75} className='size-4' />
-				<span className='font-mono'>{count}</span>
+				<span className='font-mono'>{label}</span>
 				<span className='text-muted-foreground'>{noun}</span>
 			</button>
 		</>
@@ -627,6 +640,7 @@ export function Cell({
 	icon: Icon,
 	value,
 	hint,
+	inline = false,
 	children,
 }: {
 	label: string
@@ -634,10 +648,13 @@ export function Cell({
 	/** Left out by a cell whose body is its content, e.g. a list of facts. */
 	value?: ReactNode
 	hint?: ReactNode
+	/** `children` sit beside the reading instead of under it, and take the width it leaves: a chart in a wide cell.
+	 * Decided by the cell's own width, not the window's, so a narrow cell in a wide grid still stacks. */
+	inline?: boolean
 	children?: ReactNode
 }) {
-	return (
-		<div className='px-4 py-3'>
+	const reading = (
+		<>
 			<div className='flex items-center gap-1.5 text-label text-muted-foreground'>
 				{Icon ? <Icon className='size-3.5' /> : null}
 				{label}
@@ -646,6 +663,21 @@ export function Cell({
 				<div className='mt-0.5 truncate text-reading font-semibold tracking-tight'>{value}</div>
 			)}
 			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
+		</>
+	)
+	if (inline) {
+		return (
+			<div className='@container px-4 py-3'>
+				<div className='@sm:flex @sm:items-stretch @sm:gap-4'>
+					<div className='min-w-0 @sm:max-w-[45%] @sm:shrink-0'>{reading}</div>
+					<div className='mt-1.5 min-w-0 @sm:mt-0 @sm:flex-1'>{children}</div>
+				</div>
+			</div>
+		)
+	}
+	return (
+		<div className='px-4 py-3'>
+			{reading}
 			{children}
 		</div>
 	)

@@ -181,7 +181,8 @@ function DashboardPage() {
 
 			<Section title='Host' description='live, 30m history'>
 				{/* A host is judged on cpu and memory, so on the fleet page those two get
-				    a row to themselves and a chart big enough to read a trend off. */}
+				    a row to themselves, each chart beside its reading and wide enough to read a
+				    trend off without costing the deployments below any height. */}
 				<Cells className='mb-2'>
 					<MetricCard
 						label='CPU'
@@ -191,7 +192,8 @@ function DashboardPage() {
 						max={100}
 						format={([cpu]) => percent(cpu)}
 						hint={stats?.load_average === undefined ? undefined : `load ${stats.load_average.toFixed(2)}`}
-						height={96}
+						height={64}
+						inline
 					/>
 					<MetricCard
 						label='Memory'
@@ -201,7 +203,8 @@ function DashboardPage() {
 						max={current?.memory_total}
 						format={([used]) => bytes(used)}
 						hint={`of ${bytes(current?.memory_total ?? host?.memory_total)}`}
-						height={96}
+						height={64}
+						inline
 					/>
 				</Cells>
 				<Cells>
