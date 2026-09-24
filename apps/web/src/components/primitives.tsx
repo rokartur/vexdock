@@ -44,6 +44,7 @@ import {
 import { Button as ShadcnButton } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import {
 	Dialog,
 	DialogContent,
@@ -52,7 +53,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog'
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field as ShadcnField, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input as ShadcnInput } from '@/components/ui/input'
@@ -213,6 +213,20 @@ export function Refresh({ onClick, busy }: { onClick: () => void; busy?: boolean
 
 const ChromeContext = createContext<HTMLElement | null>(null)
 
+/** True inside a `fill` Page, and inside the `fill` Section that takes what is left of it. Anything else resets it,
+ * so only the last list of a page that asked for it stops capping its own height. */
+const FillContext = createContext(false)
+
+/** Whether this list should take its parent's height and scroll inside it. `DataTable` asks; a page never does. */
+export function useFill() {
+	return useContext(FillContext)
+}
+
+/** A dialog is portaled out of the page but not out of its context; its body is never the page's last list. */
+function NoFill({ children }: { children: ReactNode }) {
+	return <FillContext.Provider value={false}>{children}</FillContext.Provider>
+}
+
 /** Carries the shell's header element, which Page portals its breadcrumb and actions into. */
 export function PageChrome({ value, children }: { value: HTMLElement | null; children: ReactNode }) {
 	return <ChromeContext.Provider value={value}>{children}</ChromeContext.Provider>
@@ -319,7 +333,9 @@ export function Page({
 					{filters ? <div className='ml-auto flex items-center gap-2'>{filters}</div> : null}
 				</div>
 			) : null}
-			<div className={cn('min-h-0 flex-1 overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>{children}</div>
+			<div className={cn('min-h-0 flex-1 overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>
+				<FillContext.Provider value={fill}>{children}</FillContext.Provider>
+			</div>
 		</>
 	)
 }
@@ -466,8 +482,8 @@ export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; n
 			<button
 				type='button'
 				onClick={onReveal}
-				aria-label={`Scroll to the ${count} ${noun} below`}
-				className='absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 animate-in items-center gap-1.5 rounded-full border border-white/15 bg-white/5 pr-3.5 pl-2.5 text-label text-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_8px_24px_rgb(0_0_0/0.45)] backdrop-blur-xl backdrop-saturate-150 transition-colors fade-in-0 zoom-in-95 hover:bg-white/10'
+				aria-label={`${count} ${noun} below, scroll to the end`}
+				className='absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 animate-in items-center gap-1.5 rounded-full border bg-popover/60 pr-3.5 pl-2.5 text-label text-foreground shadow-lg raised backdrop-blur-xl backdrop-saturate-150 transition-colors fade-in-0 zoom-in-95 hover:bg-accent/70'
 			>
 				<IconArrowDown stroke={1.75} className='size-4' />
 				<span className='font-mono'>{count}</span>
@@ -489,11 +505,13 @@ export function Section({
 	actions?: ReactNode
 	children: ReactNode
 	description?: string
-	/** Takes the rest of a `fill` Page's height, for a table that scrolls on its own. It is the last section. */
+	/** Takes the rest of a `fill` Page's height, and a `DataTable` in it scrolls on its own. It is the last section.
+	 * Outside a `fill` Page it is an ordinary section. */
 	fill?: boolean
 }) {
+	const fills = useFill() && fill
 	return (
-		<section className={fill ? 'flex min-h-72 flex-1 flex-col' : 'mb-8'}>
+		<section className={fills ? 'flex min-h-72 flex-1 flex-col' : 'mb-8'}>
 			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
 				<div className='flex items-baseline gap-2.5'>
 					<h2 className='text-title font-medium'>{title}</h2>
@@ -501,7 +519,7 @@ export function Section({
 				</div>
 				{actions ? <div className='flex items-center gap-2'>{actions}</div> : null}
 			</header>
-			{children}
+			<FillContext.Provider value={fills}>{children}</FillContext.Provider>
 		</section>
 	)
 }
@@ -892,7 +910,7 @@ export function FormDialog({
 					}}
 				>
 					<ErrorText error={mutation.error} />
-					{children}
+					<NoFill>{children}</NoFill>
 					<DialogFooter className='mt-2'>
 						<Button variant='ghost' onClick={close}>
 							Cancel
@@ -932,7 +950,9 @@ export function DetailDialog({
 					<DialogTitle>{title}</DialogTitle>
 					{description ? <DialogDescription>{description}</DialogDescription> : null}
 				</DialogHeader>
-				<div className='min-h-0 flex-1 overflow-y-auto'>{children}</div>
+				<div className='min-h-0 flex-1 overflow-y-auto'>
+					<NoFill>{children}</NoFill>
+				</div>
 			</DialogContent>
 		</Dialog>
 	)

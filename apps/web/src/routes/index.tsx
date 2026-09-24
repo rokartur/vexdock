@@ -278,7 +278,6 @@ function DashboardPage() {
 						render: renderDeploymentDetail,
 					}}
 					empty='No deployments yet'
-					fill
 				/>
 			</Section>
 		</Page>

@@ -28,7 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/utils/cn'
-import { DetailDialog, EmptyState, ErrorText, MoreBelow } from './primitives'
+import { DetailDialog, EmptyState, ErrorText, MoreBelow, useFill } from './primitives'
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
@@ -85,37 +85,56 @@ type DataTableProps<TData extends RowData> = {
 		title: (row: TData) => ReactNode
 		render: (row: TData) => ReactNode
 	}
-	/** Takes the height its parent leaves it, a `fill` Section's, and scrolls inside that instead of capping itself at
-	 * 70vh. */
-	fill?: boolean
 }
 
-/** How many rows end below the visible part of `ref`, kept current through scrolling, resizing and new rows. */
-function useRowsBelow(ref: RefObject<HTMLDivElement | null>) {
+/** How many rows end below the visible part of `ref`, kept current through scrolling, resizing and new rows.
+ * `rendered` is the number of real rows on screen (-1 while loading): skeleton rows swapped for as many real ones
+ * resize nothing, so the count has to be told. */
+function useRowsBelow(ref: RefObject<HTMLDivElement | null>, rendered: number) {
 	const [below, setBelow] = useState(0)
 	useEffect(() => {
 		const viewport = ref.current
 		if (!viewport) return
 		const measure = () => {
-			// One pixel of slack, so a fractional row height never counts a row that is fully in view.
-			const edge = viewport.getBoundingClientRect().bottom + 1
+			// The client box, not the border box: a row behind the horizontal scrollbar is not in view. One pixel of
+			// slack, so a fractional row height never counts a row that is fully in view.
+			const edge = viewport.getBoundingClientRect().top + viewport.clientTop + viewport.clientHeight + 1
 			let hidden = 0
 			for (const row of viewport.querySelectorAll('tbody tr[data-row]')) {
 				if (row.getBoundingClientRect().bottom > edge) hidden += 1
 			}
 			setBelow(hidden)
 		}
+		// A scroll fires several times a frame; measure once per frame.
+		let frame = 0
+		const schedule = () => {
+			if (frame) return
+			frame = requestAnimationFrame(() => {
+				frame = 0
+				measure()
+			})
+		}
 		measure()
-		viewport.addEventListener('scroll', measure, { passive: true })
-		const resize = new ResizeObserver(measure)
+		viewport.addEventListener('scroll', schedule, { passive: true })
+		const resize = new ResizeObserver(schedule)
 		resize.observe(viewport)
 		if (viewport.firstElementChild) resize.observe(viewport.firstElementChild)
 		return () => {
-			viewport.removeEventListener('scroll', measure)
+			cancelAnimationFrame(frame)
+			viewport.removeEventListener('scroll', schedule)
 			resize.disconnect()
 		}
-	}, [ref])
+	}, [ref, rendered])
 	return below
+}
+
+/** Scrolls `viewport` to its end, without the glide for anyone who asked for less motion. */
+function revealEnd(viewport: HTMLDivElement | null) {
+	if (!viewport) return
+	// The pill that called this unmounts once the end is in view; the region keeps focus instead of the document.
+	viewport.focus({ preventScroll: true })
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+	viewport.scrollTo({ top: viewport.scrollHeight, behavior: reduce ? 'auto' : 'smooth' })
 }
 
 export function DataTable<TData extends RowData>({
@@ -130,11 +149,11 @@ export function DataTable<TData extends RowData>({
 	initialFilter = '',
 	onRowClick,
 	detail,
-	fill = false,
 }: DataTableProps<TData>) {
+	// Inside a `fill` Section the table takes the height left to it and scrolls there, instead of capping at 70vh.
+	const fill = useFill()
 	const [sorting, setSorting] = useState<SortingState>([])
 	const viewport = useRef<HTMLDivElement>(null)
-	const below = useRowsBelow(viewport)
 	const [globalFilter, setGlobalFilter] = useState(initialFilter)
 	const [pageIndex, setPageIndex] = useState(0)
 
@@ -156,9 +175,10 @@ export function DataTable<TData extends RowData>({
 	const safePageIndex = Math.min(pageIndex, pageCount - 1)
 	const rows = visible.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize)
 	const columnCount = table.getAllLeafColumns().length
+	const below = useRowsBelow(viewport, loading ? -1 : rows.length)
 	// Looked up in the whole data set, not the page: a row opened from the URL may sit on another page or be filtered out.
 	const openRow =
-		detail?.openId == null
+		detail === undefined || detail.openId === null
 			? undefined
 			: data.find((row, index) => (getRowId ? getRowId(row, index) : String(index)) === detail.openId)
 
@@ -187,8 +207,11 @@ export function DataTable<TData extends RowData>({
 				    box the sticky header sticks to, and the header would scroll away with the rows. */}
 				<div
 					ref={viewport}
+					// Focusable only by script, so revealing the end leaves focus here when the pill goes away.
+					tabIndex={-1}
 					className={cn(
-						'overflow-auto [&>[data-slot=table-container]]:overflow-visible',
+						// Scroll padding keeps a row reached by Tab clear of the sticky header and MoreBelow's band.
+						'scroll-pt-8 scroll-pb-20 overflow-auto outline-none [&>[data-slot=table-container]]:overflow-visible',
 						fill ? 'min-h-0 flex-1' : 'max-h-[70vh]',
 					)}
 				>
@@ -292,12 +315,7 @@ export function DataTable<TData extends RowData>({
 						</TableBody>
 					</ShadcnTable>
 				</div>
-				<MoreBelow
-					count={below}
-					onReveal={() =>
-						viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' })
-					}
-				/>
+				<MoreBelow count={below} onReveal={() => revealEnd(viewport.current)} />
 			</div>
 			{pageCount > 1 && (
 				<div className='flex items-center justify-between gap-2 border-t border-rule px-4 py-1.5 text-label text-muted-foreground'>
