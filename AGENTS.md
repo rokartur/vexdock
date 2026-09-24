@@ -88,6 +88,9 @@ facts the page already loaded that answer "did this take", never a field in
 disguise, and a card with nothing true to say omits it. Adding to or editing a
 row of a list is never a form under the list: an Add button in the card's
 `actions` opens a `FormDialog`, and the mutation's `onSuccess` closes it.
+Opening a row to read it (a deployment's log, a container's log) is a
+`DetailDialog`, never a row unfolded under the list; `DataTable`'s `detail`
+opens one.
 Environment variables are
 `VariablesEditor`, a table of key and value with a Table/Text `Segmented`; the
 .env text stays the source of truth on both sides, so the two views cannot

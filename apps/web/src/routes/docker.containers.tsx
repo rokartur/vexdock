@@ -8,6 +8,7 @@ import { LogViewer } from '../components/log-viewer'
 import { Sparkline } from '../components/metric-chart'
 import {
 	Confirm,
+	DetailDialog,
 	ErrorText,
 	IconButton,
 	Meter,
@@ -17,7 +18,6 @@ import {
 	Section,
 	Status,
 } from '../components/primitives'
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../components/ui/drawer'
 import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
 import { bytes, percent } from '../lib/format'
 
@@ -171,6 +171,7 @@ function ContainersPage() {
 	})
 
 	const data = containers.data ?? []
+	const logsContainer = data.find(container => container.id === logsFor)
 	const { mutate: runAction } = act
 	const columns = useMemo(
 		() => containerTableColumns({ showLogs: setLogsFor, act: (id, action) => runAction({ id, action }) }),
@@ -200,16 +201,15 @@ function ContainersPage() {
 				/>
 			</Section>
 
-			<Drawer open={logsFor !== null} onOpenChange={open => open || setLogsFor(null)}>
-				<DrawerContent className='[--drawer-height:70dvh]'>
-					<DrawerHeader className='pb-2'>
-						<DrawerTitle className='text-title'>Logs</DrawerTitle>
-					</DrawerHeader>
-					<div className='min-h-0 flex-1 px-4 pb-4'>
-						{logsFor ? <LogViewer key={logsFor} url={`/api/docker/containers/${logsFor}/logs`} /> : null}
-					</div>
-				</DrawerContent>
-			</Drawer>
+			<DetailDialog
+				open={logsFor !== null}
+				onOpenChange={open => open || setLogsFor(null)}
+				title={logsContainer ? `Logs of ${containerName(logsContainer)}` : 'Logs'}
+			>
+				{logsFor ? (
+					<LogViewer key={logsFor} url={`/api/docker/containers/${logsFor}/logs`} className='h-[65dvh]' />
+				) : null}
+			</DetailDialog>
 		</Page>
 	)
 }

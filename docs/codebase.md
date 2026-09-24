@@ -352,8 +352,8 @@ serves. React Query holds server state; component state stays local.
 | `src/routes/__root.tsx` | Query client, `AuthGate`, `Shell` around every non-public route |
 | `src/components/auth-gate.tsx` | Sends the visitor to `/setup`, `/login` or the app |
 | `src/components/shell.tsx` | Sidebar with the project tree, page header, the one `useSystemEvents` subscription |
-| `src/components/primitives.tsx` | The dashboard's vocabulary over shadcn: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... and the density words `Meter`, `StatStrip`, `Timeline`, `RelativeTime`. `SaveButton` takes its card's mutation and shows a two-second `Saved` receipt; `FormSection`'s `aside` is the read-only facts column beside the controls |
-| `src/components/data-table.tsx` | `DataTable` and `columnsFor`; every table on every page |
+| `src/components/primitives.tsx` | The dashboard's vocabulary over shadcn: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... and the density words `Meter`, `StatStrip`, `Timeline`, `RelativeTime`. `DetailDialog` is the wide modal a list opens a record in. `SaveButton` takes its card's mutation and shows a two-second `Saved` receipt; `FormSection`'s `aside` is the read-only facts column beside the controls |
+| `src/components/data-table.tsx` | `DataTable` and `columnsFor`; every table on every page. `detail` opens a clicked row in a `DetailDialog` |
 | `src/components/metric-chart.tsx` | `MetricChart` for a page's own chart, `Sparkline` for the 30-minute trend that fits in a table cell |
 | `src/components/new-project.tsx` | `NewProjectDialog`, reached from the projects page and the sidebar's Projects label |
 | `src/components/service-routing.tsx` | A service's Redirects, Security (basic auth) and Ports cards on its Advanced tab |

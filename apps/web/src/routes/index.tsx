@@ -67,6 +67,8 @@ const toMillis = (point: HostPoint): HostSample => ({ ...point, at: point.at * 1
 type RecentDeployment = SystemInfo['recent_deployments'][number]
 
 const renderDeploymentDetail = ({ deployment }: RecentDeployment) => <DeploymentDetail deploymentId={deployment.id} />
+const deploymentDetailTitle = ({ deployment, project_name }: RecentDeployment) =>
+	`${project_name || deployment.project_id} / ${deployment.service_name} #${deployment.number}`
 
 // One machine runs everything, so the server column is the Docker host's name.
 function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
@@ -267,7 +269,12 @@ function DashboardPage() {
 					loading={info.isLoading}
 					error={info.error}
 					getRowId={({ deployment }) => deployment.id}
-					detail={{ openId: openDeployment, onOpenChange: setOpenDeployment, render: renderDeploymentDetail }}
+					detail={{
+						openId: openDeployment,
+						onOpenChange: setOpenDeployment,
+						title: deploymentDetailTitle,
+						render: renderDeploymentDetail,
+					}}
 					empty='No deployments yet'
 				/>
 			</Section>
