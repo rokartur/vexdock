@@ -38,14 +38,7 @@ import {
 	Switch,
 	Textarea,
 } from '../components/primitives'
-import {
-	api,
-	type BuildType,
-	type CredentialKind,
-	isGitProvider,
-	type Service,
-	type ServiceProvider,
-} from '../lib/api'
+import { api, type BuildType, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { duration } from '../lib/format'
 import { useService } from './projects.$projectId_.services.$serviceId'
@@ -87,9 +80,12 @@ function ServiceGeneral() {
 		<>
 			<DeploySection projectId={projectId} service={service.data} />
 			{service.data.type === 'database' ? <DatabaseSections serviceId={serviceId} /> : null}
-			{/* Remounts on switch, so the fields follow the service the URL names. */}
-			<SourceSection key={service.data.id} service={service.data} />
-			{isGitProvider(service.data.provider) ? <BuildSection key={service.data.id} service={service.data} /> : null}
+			{/* Remounts on switch, so the fields follow the service the URL names. The keys differ per section:
+			    siblings sharing one key make React lose track of them and leave stale copies behind. */}
+			<SourceSection key={`source:${service.data.id}`} service={service.data} />
+			{isGitProvider(service.data.provider) ? (
+				<BuildSection key={`build:${service.data.id}`} service={service.data} />
+			) : null}
 		</>
 	)
 }
@@ -368,118 +364,131 @@ function SourceSection({ service }: { service: Service }) {
 			actions={<SaveButton mutation={save} />}
 		>
 			<ErrorText error={save.error} />
-			{editable ? (
-				<div className='mb-4'>
-					<Segmented
-						value={provider}
-						onChange={next => {
-							setProvider(next)
-							// A connection belongs to one host, so it cannot survive the switch.
-							setProviderId('')
-						}}
-						options={providerOptions}
-					/>
-				</div>
-			) : null}
-			{git ? (
-				<>
-					{connectionOptions.length > 1 || providerId !== '' ? (
-						<Field label='Connection'>
-							<Select value={providerId} onChange={setProviderId} options={connectionOptions} />
+			{/* The fields take the width of the provider tabs above them. Containment keeps their own intrinsic
+			    width out of the measurement, so the tabs alone size the column. */}
+			<div className={editable ? 'w-fit max-w-full' : undefined}>
+				{editable ? (
+					<div className='mb-4'>
+						<Segmented
+							value={provider}
+							onChange={next => {
+								setProvider(next)
+								// A connection belongs to one host, so it cannot survive the switch.
+								setProviderId('')
+							}}
+							options={providerOptions}
+						/>
+					</div>
+				) : null}
+				<div className={editable ? '[contain:inline-size]' : undefined}>
+					{git ? (
+						<>
+							{connectionOptions.length > 1 || providerId !== '' ? (
+								<Field label='Connection'>
+									<Select value={providerId} onChange={setProviderId} options={connectionOptions} />
+								</Field>
+							) : null}
+							<Field
+								label='Repository'
+								hint={providerId === '' ? undefined : (repositories.error?.message ?? undefined)}
+							>
+								{providerId === '' ? (
+									<Input
+										value={repositoryUrl}
+										onChange={event => setRepositoryUrl(event.target.value)}
+									/>
+								) : (
+									<Combo
+										value={repository}
+										disabled={repositories.isPending}
+										placeholder={repositories.isPending ? 'Loading…' : 'Search repositories'}
+										empty='No repositories'
+										options={repositoryOptions}
+										onChange={setRepository}
+									/>
+								)}
+							</Field>
+							<div className='grid gap-x-6 md:grid-cols-2'>
+								<Field label='Branch' hint={branches.error?.message ?? undefined}>
+									{branches.isSuccess ? (
+										<Combo
+											value={branch}
+											placeholder='Search branches'
+											empty='No branches'
+											options={branchOptions}
+											onChange={setBranch}
+										/>
+									) : (
+										<Input value={branch} onChange={event => setBranch(event.target.value)} />
+									)}
+								</Field>
+								{providerId === '' ? (
+									<Field label='Credentials'>
+										<Select
+											value={credentialKind}
+											onChange={setCredentialKind}
+											options={credentialOptions}
+										/>
+									</Field>
+								) : null}
+								{providerId !== '' || credentialKind === 'none' ? null : (
+									<Field
+										label={credentialKind === 'token' ? 'Token' : 'Private key'}
+										hint='Leave empty to keep the stored value.'
+									>
+										<Textarea
+											rows={credentialKind === 'token' ? 1 : 5}
+											value={credentialSecret}
+											onChange={event => setCredentialSecret(event.target.value)}
+										/>
+									</Field>
+								)}
+							</div>
+						</>
+					) : null}
+					{showing === 'image' ? (
+						<Field
+							label='Image'
+							hint={
+								service.type === 'database'
+									? 'Changing the tag is how a database moves version.'
+									: undefined
+							}
+						>
+							<Input value={image} onChange={event => setImage(event.target.value)} />
 						</Field>
 					) : null}
-					<Field
-						label='Repository'
-						hint={providerId === '' ? undefined : (repositories.error?.message ?? undefined)}
-					>
-						{providerId === '' ? (
-							<Input value={repositoryUrl} onChange={event => setRepositoryUrl(event.target.value)} />
-						) : (
-							<Combo
-								value={repository}
-								disabled={repositories.isPending}
-								placeholder={repositories.isPending ? 'Loading…' : 'Search repositories'}
-								empty='No repositories'
-								options={repositoryOptions}
-								onChange={setRepository}
-							/>
-						)}
-					</Field>
-					<div className='grid gap-x-6 md:grid-cols-2'>
-						<Field label='Branch' hint={branches.error?.message ?? undefined}>
-							{branches.isSuccess ? (
-								<Combo
-									value={branch}
-									placeholder='Search branches'
-									empty='No branches'
-									options={branchOptions}
-									onChange={setBranch}
-								/>
-							) : (
-								<Input value={branch} onChange={event => setBranch(event.target.value)} />
-							)}
-						</Field>
-						{providerId === '' ? (
-							<Field label='Credentials'>
-								<Select
-									value={credentialKind}
-									onChange={setCredentialKind}
-									options={credentialOptions}
+					{editable && showing === 'image' ? (
+						<div className='grid gap-x-6 md:grid-cols-2'>
+							<Field label='Registry URL'>
+								<Input
+									value={registryUrl}
+									placeholder='Docker Hub'
+									onChange={event => setRegistryUrl(event.target.value)}
 								/>
 							</Field>
-						) : null}
-						{providerId !== '' || credentialKind === 'none' ? null : (
+							<Field label='Username' hint='Leave empty for a public image.'>
+								<Input
+									value={registryUsername}
+									autoComplete='off'
+									onChange={event => setRegistryUsername(event.target.value)}
+								/>
+							</Field>
 							<Field
-								label={credentialKind === 'token' ? 'Token' : 'Private key'}
-								hint='Leave empty to keep the stored value.'
+								label='Password'
+								hint={service.registry_username ? 'Leave empty to keep the stored value.' : undefined}
 							>
-								<Textarea
-									rows={credentialKind === 'token' ? 1 : 5}
-									value={credentialSecret}
-									onChange={event => setCredentialSecret(event.target.value)}
+								<Input
+									type='password'
+									autoComplete='new-password'
+									value={registryPassword}
+									onChange={event => setRegistryPassword(event.target.value)}
 								/>
 							</Field>
-						)}
-					</div>
-				</>
-			) : null}
-			{showing === 'image' ? (
-				<Field
-					label='Image'
-					hint={service.type === 'database' ? 'Changing the tag is how a database moves version.' : undefined}
-				>
-					<Input value={image} onChange={event => setImage(event.target.value)} />
-				</Field>
-			) : null}
-			{editable && showing === 'image' ? (
-				<div className='grid gap-x-6 md:grid-cols-2'>
-					<Field label='Registry URL'>
-						<Input
-							value={registryUrl}
-							placeholder='Docker Hub'
-							onChange={event => setRegistryUrl(event.target.value)}
-						/>
-					</Field>
-					<Field label='Username' hint='Leave empty for a public image.'>
-						<Input
-							value={registryUsername}
-							autoComplete='off'
-							onChange={event => setRegistryUsername(event.target.value)}
-						/>
-					</Field>
-					<Field
-						label='Password'
-						hint={service.registry_username ? 'Leave empty to keep the stored value.' : undefined}
-					>
-						<Input
-							type='password'
-							autoComplete='new-password'
-							value={registryPassword}
-							onChange={event => setRegistryPassword(event.target.value)}
-						/>
-					</Field>
+						</div>
+					) : null}
 				</div>
-			) : null}
+			</div>
 			{showing === 'raw' ? (
 				<Field label='Compose fragment'>
 					<Textarea

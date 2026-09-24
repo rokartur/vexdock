@@ -1,10 +1,22 @@
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
 import type { Icon as TablerIcon } from '@tabler/icons-react'
-import { Area, AreaChart, ResponsiveContainer, Tooltip, type TooltipContentProps, XAxis, YAxis } from 'recharts'
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	ResponsiveContainer,
+	Tooltip,
+	type TooltipContentProps,
+	XAxis,
+	YAxis,
+} from 'recharts'
 import { Cell } from './primitives'
 
-/** How much history a chart shows. Matches the default metrics window. */
+/** How much history a chart shows unless told otherwise. Matches the default metrics window. */
 const WINDOW_MS = 30 * 60 * 1000
+
+/** Past this span a tick names the day as well as the hour, or two ticks a day apart would read the same. */
+const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Cap on buffered live samples, so a tab left open overnight stays bounded. */
 const LIVE_LIMIT = 1200
@@ -19,7 +31,11 @@ export type Stamped = { at: number }
 export type Point = { at: number; value: number }
 
 /** `seed` is recorded history, `sample` the newest SSE push. Both are trimmed to the window so neither grows. */
-export function useHistory<TSample extends Stamped>(sample: TSample | null, seed: TSample[] = []) {
+export function useHistory<TSample extends Stamped>(
+	sample: TSample | null,
+	seed: TSample[] = [],
+	windowMs = WINDOW_MS,
+) {
 	const [live, setLive] = useState<TSample[]>([])
 
 	useEffect(() => {
@@ -30,14 +46,14 @@ export function useHistory<TSample extends Stamped>(sample: TSample | null, seed
 	}, [sample])
 
 	return useMemo(() => {
-		const cutoff = Date.now() - WINDOW_MS
+		const cutoff = Date.now() - windowMs
 		const liveStart = live.at(0)?.at ?? Number.POSITIVE_INFINITY
 		// A recorded bucket that the live stream already covers would draw twice.
 		return [
 			...seed.filter(point => point.at >= cutoff && point.at < liveStart),
 			...live.filter(point => point.at >= cutoff),
 		]
-	}, [seed, live])
+	}, [seed, live, windowMs])
 }
 
 /**
@@ -58,6 +74,43 @@ export function ratesOf<TSample extends Stamped>(history: TSample[], total: (sam
 	}
 
 	return rates
+}
+
+/**
+ * How much a climbing counter moved across the history. A counter that drops has restarted from zero with its
+ * container, so what it reads after the drop is all new, not a negative step.
+ */
+export function totalOf<TSample extends Stamped>(history: TSample[], total: (sample: TSample) => number): number {
+	let sum = 0
+	for (const [index, sample] of history.entries()) {
+		const previous = history[index - 1]
+		if (previous === undefined) continue
+		const delta = total(sample) - total(previous)
+		sum += delta >= 0 ? delta : total(sample)
+	}
+	return sum
+}
+
+/**
+ * The first round number at or above `value`, as 1, 2 or 5 of a power of ten, so an axis reads 0, 50, 100 and not
+ * 0, 43.7, 87.4. `base` 1024 does the same inside each byte unit, so the ticks come out as 500 KB, not 488.3 KB.
+ */
+export function niceCeil(value: number, base: 10 | 1024 = 10): number {
+	if (!(value > 0)) return 1
+	const unit = base === 1024 ? 1024 ** Math.max(Math.floor(Math.log(value) / Math.log(1024)), 0) : 1
+	const scaled = value / unit
+	const power = 10 ** Math.floor(Math.log10(scaled))
+	const step = [1, 2, 5, 10].find(candidate => candidate * power >= scaled) ?? 10
+	return step * power * unit
+}
+
+/** The highest reading across every series, zero for none. */
+function peakOf(series: Point[][]): number {
+	let peak = 0
+	for (const points of series) {
+		for (const point of points) peak = Math.max(peak, point.value)
+	}
+	return peak
 }
 
 /** Turns a stamped history into a plottable series. */
@@ -152,6 +205,11 @@ type MetricCardProps = {
 	height?: number
 	/** The chart beside the reading instead of under it, for a card wide enough to spare the row. */
 	inline?: boolean
+	/**
+	 * Draws the axes, for a chart tall enough to read a level off. The top of the scale is the window's peak rounded
+	 * up, never below `floor`, so an idle service does not blow its noise up to full height. Ignored with `max`.
+	 */
+	axis?: { tick: (value: number) => string; floor?: number; base?: 10 | 1024 }
 }
 
 /** Compact metric: label, current value, and the recorded window as a sparkline. */
@@ -166,10 +224,16 @@ export function MetricCard({
 	windowLabel = 'last 30 minutes',
 	height = SPARK_HEIGHT,
 	inline = false,
+	axis,
 }: MetricCardProps) {
 	const fade = useId()
 	const rows = useMemo(() => joinSeries(series), [series])
 	const filled = series.length === 1
+	const span = (rows.at(-1)?.at ?? 0) - (rows.at(0)?.at ?? 0)
+	const stamp = span > DAY_MS ? dayStamp : hourStamp
+	// The scale is worked out here rather than left to recharts, so the three ticks split it evenly.
+	const top = max ?? (axis ? niceCeil(Math.max(peakOf(series), axis.floor ?? 0), axis.base) : undefined)
+	const tick = { fontSize: 11, fill: 'var(--muted-foreground)' }
 
 	return (
 		<Cell label={label} icon={icon} hint={hint} value={value} inline={inline}>
@@ -189,10 +253,37 @@ export function MetricCard({
 								<stop offset='100%' stopColor='var(--chart-1)' stopOpacity={0} />
 							</linearGradient>
 						</defs>
-						<XAxis dataKey='at' type='number' domain={['dataMin', 'dataMax']} hide />
-						<YAxis type='number' domain={[0, max ?? 'dataMax']} hide />
+						{axis ? <CartesianGrid vertical={false} stroke='var(--border)' strokeDasharray='2 4' /> : null}
+						<XAxis
+							dataKey='at'
+							type='number'
+							domain={['dataMin', 'dataMax']}
+							hide={!axis}
+							tickFormatter={stamp}
+							tick={tick}
+							tickLine={false}
+							axisLine={false}
+							minTickGap={48}
+						/>
+						<YAxis
+							type='number'
+							domain={[0, top ?? 'dataMax']}
+							ticks={axis && top !== undefined ? [0, top / 2, top] : undefined}
+							hide={!axis}
+							tickFormatter={axis?.tick}
+							tick={tick}
+							tickLine={false}
+							axisLine={false}
+							width={64}
+						/>
 						<Tooltip
-							content={<MetricTooltip count={series.length} format={format} />}
+							content={
+								<MetricTooltip
+									count={series.length}
+									format={format}
+									stamp={span > DAY_MS ? dayStamp : clockStamp}
+								/>
+							}
 							cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
 							// Kept inside the chart box on purpose: the cells grid clips its
 							// overflow, so a tooltip that escaped would be cut at the edge.
@@ -224,6 +315,11 @@ export function MetricCard({
 	)
 }
 
+const hourStamp = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const clockStamp = (at: number) => new Date(at).toLocaleTimeString()
+const dayStamp = (at: number) =>
+	new Date(at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+
 /**
  * The reading under the cursor: when it was taken, and what it was. Recharts
  * clones this element with the hover state, so `format` rides along as a prop.
@@ -234,7 +330,12 @@ function MetricTooltip({
 	payload,
 	count,
 	format,
-}: Partial<TooltipContentProps<number, string>> & { count: number; format?: MetricCardProps['format'] }) {
+	stamp,
+}: Partial<TooltipContentProps<number, string>> & {
+	count: number
+	format?: MetricCardProps['format']
+	stamp: (at: number) => string
+}) {
 	if (!(active && payload?.length && format)) {
 		return null
 	}
@@ -245,8 +346,7 @@ function MetricTooltip({
 	)
 	return (
 		<div className='rounded-md border border-border bg-popover px-2 py-1 text-meta'>
-			<span className='text-muted-foreground'>{new Date(Number(label)).toLocaleTimeString()}</span>{' '}
-			{format(values)}
+			<span className='text-muted-foreground'>{stamp(Number(label))}</span> {format(values)}
 		</div>
 	)
 }
