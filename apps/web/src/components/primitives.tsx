@@ -860,6 +860,36 @@ export function FormDialog({
 	)
 }
 
+/**
+ * A record opened from a list: a deployment's pipeline, a container's log. Wide and tall enough for a console, and
+ * never unfolded under the row, which would push the rest of the list off the screen.
+ */
+export function DetailDialog({
+	open,
+	onOpenChange,
+	title,
+	description,
+	children,
+}: {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	title: ReactNode
+	description?: ReactNode
+	children: ReactNode
+}) {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className='flex max-h-[90dvh] flex-col sm:max-w-6xl'>
+				<DialogHeader>
+					<DialogTitle>{title}</DialogTitle>
+					{description ? <DialogDescription>{description}</DialogDescription> : null}
+				</DialogHeader>
+				<div className='min-h-0 flex-1 overflow-y-auto'>{children}</div>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
 /** The only checkbox shape in the app. A <label> around it is safe: base-ui renders a hidden native input. */
 export function Check({
 	label,

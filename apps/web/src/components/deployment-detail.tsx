@@ -21,8 +21,8 @@ function recordedLines(steps: DeploymentStep[]): Line[] {
 }
 
 /**
- * One deployment's pipeline and its log, streamed while it runs. Rendered
- * inside the row that was opened on the project's deployments tab.
+ * One deployment's pipeline and its log, streamed while it runs. Rendered in
+ * the dialog a deployments table opens for a row.
  */
 export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 	const queryClient = useQueryClient()
@@ -83,12 +83,13 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 	const isRunning = deployment?.status === 'running' || deployment?.status === 'queued'
 
 	return (
-		<div className='flex flex-col gap-3 border-t border-rule bg-background px-4 py-3'>
+		<div className='flex flex-col gap-3'>
 			<ErrorText error={cancel.error} />
 			<ErrorText error={deployment?.error} />
 
-			<div className='flex gap-4'>
-				<div className='flex w-52 shrink-0 flex-col gap-3'>
+			{/* On a phone the log needs the full width, so the pipeline sits above it. */}
+			<div className='flex flex-col gap-4 sm:flex-row'>
+				<div className='flex shrink-0 flex-col gap-3 sm:w-52'>
 					{steps.length === 0 ? (
 						<span className='text-body text-muted-foreground'>Waiting for the runner…</span>
 					) : (
@@ -109,7 +110,7 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 					) : null}
 				</div>
 
-				<LogViewer lines={logLines} className='h-80 min-w-0 flex-1' />
+				<LogViewer lines={logLines} className='h-[60dvh] min-w-0 flex-1' />
 			</div>
 		</div>
 	)

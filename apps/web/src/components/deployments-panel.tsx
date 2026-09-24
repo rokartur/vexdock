@@ -88,6 +88,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 }
 
 const renderDetail = (deployment: Deployment) => <DeploymentDetail deploymentId={deployment.id} />
+const detailTitle = (deployment: Deployment) => `Deployment #${deployment.number}`
 
 export function DeploymentsPanel({ projectId, service }: { projectId: string; service: Service }) {
 	const { deployment: openId = null } = useSearch({ strict: false })
@@ -135,7 +136,7 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 				error={deployments.error}
 				getRowId={deployment => deployment.id}
 				empty='No deployments yet'
-				detail={{ openId, onOpenChange: open, render: renderDetail }}
+				detail={{ openId, onOpenChange: open, title: detailTitle, render: renderDetail }}
 			/>
 		</Section>
 	)

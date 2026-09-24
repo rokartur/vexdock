@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconSearch } from '@tabler/icons-react'
 import {
 	type ColumnDef,
@@ -28,7 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/utils/cn'
-import { EmptyState, ErrorText } from './primitives'
+import { DetailDialog, EmptyState, ErrorText } from './primitives'
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
@@ -77,10 +77,12 @@ type DataTableProps<TData extends RowData> = {
 	initialFilter?: string
 	/** Makes the whole row activatable. A cell with its own handler must stop propagation. */
 	onRowClick?: (row: TData) => void
-	/** Clicking a row renders `render` underneath it. The open row belongs to the caller, so it can live in the URL. */
+	/** Clicking a row opens `render` in a dialog titled `title`. The open row belongs to the caller, so it can live in
+	 * the URL. */
 	detail?: {
 		openId: string | null
 		onOpenChange: (id: string | null) => void
+		title: (row: TData) => ReactNode
 		render: (row: TData) => ReactNode
 	}
 }
@@ -120,6 +122,11 @@ export function DataTable<TData extends RowData>({
 	const safePageIndex = Math.min(pageIndex, pageCount - 1)
 	const rows = visible.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize)
 	const columnCount = table.getAllLeafColumns().length
+	// Looked up in the whole data set, not the page: a row opened from the URL may sit on another page or be filtered out.
+	const openRow =
+		detail?.openId == null
+			? undefined
+			: data.find((row, index) => (getRowId ? getRowId(row, index) : String(index)) === detail.openId)
 
 	return (
 		/* The table is a card: hairline border for the outer edge, rows separated by their own hairlines.
@@ -201,48 +208,40 @@ export function DataTable<TData extends RowData>({
 							rows.map(row => {
 								const open = detail?.openId === row.id
 								const activate = detail
-									? () => detail.onOpenChange(open ? null : row.id)
+									? () => detail.onOpenChange(row.id)
 									: onRowClick && (() => onRowClick(row.original))
 								return (
-									<Fragment key={row.id}>
-										{/* An activatable row is the control: focusable, and Enter or
-										    Space does what the click does. */}
-										<TableRow
-											data-state={open ? 'selected' : undefined}
-											className={cn(activate && 'cursor-pointer')}
-											tabIndex={activate ? 0 : undefined}
-											aria-expanded={detail ? open : undefined}
-											onClick={activate}
-											onKeyDown={
-												activate &&
-												(event => {
-													if (event.key !== 'Enter' && event.key !== ' ') return
-													event.preventDefault()
-													activate()
-												})
-											}
-										>
-											{row.getAllCells().map(cell => (
-												<TableCell
-													key={cell.id}
-													className={cn(
-														'h-8 py-0.5 pr-3 pl-0',
-														cell.column.columnDef.meta?.align === 'right' && 'text-right',
-														cell.column.columnDef.meta?.mono && 'font-mono text-label',
-													)}
-												>
-													<table.FlexRender cell={cell} />
-												</TableCell>
-											))}
-										</TableRow>
-										{open && detail ? (
-											<TableRow className='hover:bg-transparent'>
-												<TableCell colSpan={columnCount} className='p-0'>
-													{detail.render(row.original)}
-												</TableCell>
-											</TableRow>
-										) : null}
-									</Fragment>
+									// An activatable row is the control: focusable, and Enter or Space does what the click does.
+									<TableRow
+										key={row.id}
+										data-state={open ? 'selected' : undefined}
+										className={cn(activate && 'cursor-pointer')}
+										tabIndex={activate ? 0 : undefined}
+										onClick={activate}
+										onKeyDown={
+											activate &&
+											(event => {
+												// A key pressed on a control inside the row belongs to that control.
+												if (event.target !== event.currentTarget) return
+												if (event.key !== 'Enter' && event.key !== ' ') return
+												event.preventDefault()
+												activate()
+											})
+										}
+									>
+										{row.getAllCells().map(cell => (
+											<TableCell
+												key={cell.id}
+												className={cn(
+													'h-8 py-0.5 pr-3 pl-0',
+													cell.column.columnDef.meta?.align === 'right' && 'text-right',
+													cell.column.columnDef.meta?.mono && 'font-mono text-label',
+												)}
+											>
+												<table.FlexRender cell={cell} />
+											</TableCell>
+										))}
+									</TableRow>
 								)
 							})
 						)}
@@ -287,6 +286,15 @@ export function DataTable<TData extends RowData>({
 					</Pagination>
 				</div>
 			)}
+			{detail ? (
+				<DetailDialog
+					open={openRow !== undefined}
+					onOpenChange={next => next || detail.onOpenChange(null)}
+					title={openRow === undefined ? '' : detail.title(openRow)}
+				>
+					{openRow === undefined ? null : detail.render(openRow)}
+				</DetailDialog>
+			) : null}
 		</div>
 	)
 }
