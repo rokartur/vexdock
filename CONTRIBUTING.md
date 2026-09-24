@@ -139,10 +139,19 @@ implementation.
 
 Tags are `vX.Y.Z`. The release workflow refuses to run unless `package.json`,
 `apps/web/package.json` and `apps/auth/package.json` all say `X.Y.Z`, so bump
-those three first, then tag:
+those three first, then tag the merge commit that carries them.
+
+A beta is one command, `make release-beta` (`scripts/release-beta.sh`): it bumps
+the three files to the next `-beta.N` on a `release/vX.Y.Z-beta.N` branch, opens
+the pull request, waits for its checks, merges it, deletes the branch and pushes
+an annotated tag on the merge commit. It needs an authenticated `gh`; without
+one it stops after pushing the branch, and `./scripts/release-beta.sh --tag`
+tags once the pull request is merged. `--dry-run` prints every step and changes
+nothing, `--version X` releases X instead of the next beta. By hand it is the
+same three bumps, then:
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+git tag -a v0.1.0 -m v0.1.0 <merge commit> && git push origin v0.1.0
 ```
 
 That publishes `manager`, `auth` and `nginx` to `ghcr.io/<owner>` and attaches

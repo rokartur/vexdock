@@ -80,3 +80,9 @@ dev-logs: ## Follow the manager logs
 
 .PHONY: check
 check: lint test web-check ## Everything CI runs
+
+## ---- release ----
+
+.PHONY: release-beta
+release-beta: ## Cut the next beta: bump, PR, wait for CI, merge, tag (scripts/release-beta.sh)
+	./scripts/release-beta.sh
