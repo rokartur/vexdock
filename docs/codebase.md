@@ -419,6 +419,8 @@ Go tests sit beside the code as `*_test.go`; dashboard tests are `*.test.ts`
 beside the module. Tests cover logic that can fail silently (generation,
 parsing, validation, encryption, terminal states of a deployment).
 `scripts/smoke-test.sh` runs the real path against a running stack.
+`scripts/release-beta.sh` (`make release-beta`) cuts the next beta: bump, pull
+request, CI, merge, tag.
 
 ## When a thing does not fit
 

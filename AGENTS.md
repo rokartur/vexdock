@@ -25,10 +25,16 @@ and the auth typecheck. Run it before reporting done. `make help` lists
 everything else.
 
 CI runs two things `make check` does not: `shellcheck` over `installer/*.sh`,
-`manager/internal/updater/update.sh` and `scripts/smoke-test.sh`, and an
-integration job that does `make dev-up` then `./scripts/smoke-test.sh` against
-real Docker. Touching a shell script or the deploy path means running those
-locally too.
+`manager/internal/updater/update.sh`, `scripts/smoke-test.sh` and
+`scripts/release-beta.sh`, and an integration job that does `make dev-up` then
+`./scripts/smoke-test.sh` against real Docker. Touching a shell script or the
+deploy path means running those locally too.
+
+A beta is `make release-beta`: bump, pull request, CI, merge, tag. Never tag by
+hand what the script can; [CONTRIBUTING.md](CONTRIBUTING.md#releasing) has the
+flags. A merged pull request's branch is deleted by
+`.github/workflows/delete-merged-branch.yml`; follow-up work starts a new branch
+from `main`.
 
 TypeScript formatting is oxfmt through ultracite: `bun run fix`. Tabs, single
 quotes, no semicolons, 120 columns. The config decides, so let it.
