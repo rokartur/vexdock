@@ -47,11 +47,12 @@ func TestRenderSeedsEveryRequiredVariable(t *testing.T) {
 func TestRenderRejectsUnsafeInput(t *testing.T) {
 	base := Spec{Engine: "postgres", Name: "db", EnvFile: "/e.env"}
 	cases := map[string]Spec{
-		"tag with a second image":  withTag(base, "17-alpine\n    command: rm -rf /"),
-		"database name with quote": withDatabase(base, `app"`),
-		"user with a dollar":       withUser(base, "app$USER"),
-		"unknown engine":           {Engine: "cassandra", Name: "db", EnvFile: "/e.env"},
-		"custom without data path": {Engine: Custom, Name: "db", EnvFile: "/e.env", Image: "redis:7"},
+		"tag with a second image":     withTag(base, "17-alpine\n    command: rm -rf /"),
+		"database name with quote":    withDatabase(base, `app"`),
+		"database name led by a dash": withDatabase(base, "-app"),
+		"user with a dollar":          withUser(base, "app$USER"),
+		"unknown engine":              {Engine: "cassandra", Name: "db", EnvFile: "/e.env"},
+		"custom without data path":    {Engine: Custom, Name: "db", EnvFile: "/e.env", Image: "redis:7"},
 		"custom with bad image": {
 			Engine: Custom, Name: "db", EnvFile: "/e.env", Image: "redis:7; rm -rf /", DataPath: "/data",
 		},
@@ -63,6 +64,14 @@ func TestRenderRejectsUnsafeInput(t *testing.T) {
 				t.Fatal("expected the spec to be refused")
 			}
 		})
+	}
+}
+
+// Dokploy names a database and its user after the project, dashes included.
+func TestRenderAcceptsDashedNames(t *testing.T) {
+	spec := withUser(withDatabase(Spec{Engine: "postgres", Name: "db", EnvFile: "/e.env"}, "parafia-tapkowice"), "parafia-tapkowice")
+	if _, err := Render(spec); err != nil {
+		t.Fatal(err)
 	}
 }
 
