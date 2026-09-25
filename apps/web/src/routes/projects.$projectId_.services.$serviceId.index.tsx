@@ -528,7 +528,7 @@ function BuildSection({ service }: { service: Service }) {
 			icon={IconHammer}
 			hint={
 				buildType === 'static'
-					? 'Serves the files with nginx on port 80; unknown paths fall back to index.html.'
+					? 'Runs the package.json build script if there is one, then serves the output with nginx on port 80; unknown paths fall back to index.html.'
 					: 'Applied on the next deploy.'
 			}
 			onSave={() => save.mutate()}
@@ -538,7 +538,7 @@ function BuildSection({ service }: { service: Service }) {
 			<div className='mb-4'>
 				<Segmented value={buildType} onChange={setBuildType} options={buildTypeOptions} />
 			</div>
-			<Field label={buildType === 'static' ? 'Publish directory' : 'Context path'}>
+			<Field label={buildType === 'static' ? 'Root directory' : 'Context path'}>
 				<Input value={buildPath} placeholder='.' onChange={event => setBuildPath(event.target.value)} mono />
 			</Field>
 			{buildType === 'dockerfile' ? (
