@@ -60,6 +60,10 @@ Domains tab. Use **renew** to retry after fixing the cause. While testing, set
 `ACME_STAGING=true` in `/opt/vexdock/.env` to avoid the production rate limit
 of five failures per hostname per hour.
 
+Until the certificate is issued, HTTPS to that hostname fails the handshake:
+a browser reports a TLS error, Cloudflare's proxy answers 525. Plain HTTP works
+in the meantime.
+
 ## A scheduled task does not run
 
 Open the service's **Tasks** tab and press **logs** on the task; every attempt is
