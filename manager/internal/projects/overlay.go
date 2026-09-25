@@ -206,7 +206,21 @@ func (s *Service) renderService(env *database.Environment, svc database.Service,
 	}
 	b.WriteString("    restart: unless-stopped\n")
 	fmt.Fprintf(&b, "    env_file: [%q]\n", s.ServiceEnvFilePath(env, svc.ComposeServiceName))
-	return b.String(), nil, nil
+	mounts, err := security.ValidateMounts(svc.Mounts)
+	if err != nil {
+		return "", nil, err
+	}
+	var vols []string
+	if mounts != "" {
+		b.WriteString("    volumes:\n")
+		for mount := range strings.Lines(mounts) {
+			mount = strings.TrimSpace(mount)
+			fmt.Fprintf(&b, "      - %s\n", mount)
+			volume, _, _ := strings.Cut(mount, ":")
+			vols = append(vols, volume)
+		}
+	}
+	return b.String(), vols, nil
 }
 
 // builtImageName is "<project>/<environment>/<service>". Slugs are already

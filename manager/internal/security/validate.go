@@ -13,7 +13,8 @@ var (
 	slugPattern   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 	envKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	// Compose service names follow the same rules docker compose enforces.
-	servicePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+	servicePattern   = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+	mountPathPattern = regexp.MustCompile(`^/[a-zA-Z0-9._/-]{0,255}$`)
 	// Docker's own rule for a container name, which is the compose one with a
 	// minimum of two characters.
 	containerPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]+$`)
@@ -103,6 +104,24 @@ func ValidateBuildTarget(raw string) (string, error) {
 		return "", fmt.Errorf("invalid build stage %q", raw)
 	}
 	return target, nil
+}
+
+// ValidateMounts normalises one "volume:/path" per line. The path pattern keeps
+// a ':' or a space out, either of which would reshape the compose entry.
+func ValidateMounts(raw string) (string, error) {
+	var lines []string
+	for line := range strings.Lines(raw) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		volume, target, ok := strings.Cut(line, ":")
+		if !ok || !servicePattern.MatchString(volume) || !mountPathPattern.MatchString(target) || strings.Contains(target, "..") {
+			return "", fmt.Errorf("invalid mount %q, expected volume:/absolute/path", line)
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 // ValidateContainerName checks the name a container is given on the host.

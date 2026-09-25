@@ -191,7 +191,8 @@ func adoptProvider(service *database.Service, want *string) error {
 }
 
 // requireCompleteProvider rejects an edit that would leave a service claiming a
-// provider it has no address for, which reaches docker as an empty build.
+// provider it has no address for, which reaches docker as an empty build, or
+// mounts its renderer would drop.
 func requireCompleteProvider(service *database.Service) error {
 	switch {
 	case database.ClonesFromConnection(service.Provider) && service.Repository == "":
@@ -202,6 +203,8 @@ func requireCompleteProvider(service *database.Service) error {
 		return errors.New("an image is required")
 	case service.Provider == database.ProviderRaw && strings.TrimSpace(service.ComposeFragment) == "":
 		return errors.New("a compose fragment is required")
+	case service.Mounts != "" && (service.Provider == database.ProviderRaw || service.Type == database.ServiceDatabase):
+		return errors.New("mounts are for image and git services; a compose fragment or database declares its own volumes")
 	}
 	return nil
 }
@@ -229,6 +232,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		BuildType        *string `json:"build_type"`
 		Dockerfile       *string `json:"dockerfile"`
 		BuildTarget      *string `json:"build_target"`
+		Mounts           *string `json:"mounts"`
 		RegistryURL      *string `json:"registry_url"`
 		RegistryUsername *string `json:"registry_username"`
 		RegistryPassword *string `json:"registry_password"`
@@ -253,6 +257,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		assignValid(&service.BuildType, req.BuildType, validateBuildType),
 		assignValid(&service.Dockerfile, req.Dockerfile, security.ValidateSubPath),
 		assignValid(&service.BuildTarget, req.BuildTarget, security.ValidateBuildTarget),
+		assignValid(&service.Mounts, req.Mounts, security.ValidateMounts),
 	} {
 		if err != nil {
 			badRequest(w, err)

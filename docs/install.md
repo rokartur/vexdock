@@ -127,6 +127,28 @@ the same name before bringing the stack up.
 snapshot is as sensitive as the server itself. Keep it somewhere private, and
 keep it: without that file the restored database is unreadable.
 
+## Moving a project from Dokploy
+
+`scripts/migrate-dokploy.ts` moves one Dokploy project per run, volumes
+included, from a laptop that can ssh into both servers as a user in the
+`docker` group:
+
+```bash
+export DOKPLOY_URL=https://dokploy.example.com DOKPLOY_API_KEY=...
+export VEXDOCK_URL=https://vexdock.example.com VEXDOCK_TOKEN=...
+export DOKPLOY_SSH=root@old-server VEXDOCK_SSH=root@new-server
+export VEXDOCK_GIT_PROVIDER=<GitHub connection id>   # for GitHub apps
+bun scripts/migrate-dokploy.ts "my project"
+```
+
+It recreates each application, compose service and Postgres database with its
+variables, domains, published ports and database credentials, stops the project on
+Dokploy, streams every named volume across with `tar` over ssh, then deploys.
+Dokploy's copy is stopped, not deleted, so starting it again is the way back.
+Move DNS once the deploy is green. It refuses what it cannot carry over (other
+database engines, build args, bind mounts) and prints what it dropped, such as
+a domain with a path, since vexdock routes whole hostnames.
+
 ## Uninstalling
 
 ```sh

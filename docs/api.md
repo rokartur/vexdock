@@ -224,6 +224,12 @@ the stage in `build_target` when one is set. `static` ignores both and serves
 `build_path` with nginx on port 80, falling back to `index.html` for any path
 it does not find, so a single-page app's routes resolve.
 
+`mounts` attaches named volumes to an `image` or git service, set through
+`PATCH`: one `volume:/absolute/path` per line, e.g. `"push:/data"`. The volume
+becomes `<compose_project_name>_<volume>` and is moved, backed up and deleted
+with the service like a database's. Host paths and mount options are rejected, and a
+`raw` or database service answers `400` since it declares its own volumes.
+
 An `image` service pulling from a private registry sets `registry_url` (empty is
 Docker Hub), `registry_username` and the write-only `registry_password`; the
 deploy runs `docker login` before its pull step. The password is encrypted at

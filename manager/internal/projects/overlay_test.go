@@ -47,6 +47,7 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 		"  usagefleet-db:\n",
 		"image: postgres:17-alpine",
 		"usagefleet-db-data:/var/lib/postgresql/data",
+		"PGDATA: /var/lib/postgresql/data",
 		"\nvolumes:\n  usagefleet-db-data: {}\n",
 	} {
 		if !strings.Contains(overlay, want) {
@@ -306,6 +307,7 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	api.Dockerfile, api.BuildTarget = "docker/api.Dockerfile", "production"
+	api.Mounts = "push:/data"
 	for _, s := range []*database.Service{site, api} {
 		if err := svc.db.UpdateService(ctx, s); err != nil {
 			t.Fatal(err)
@@ -330,6 +332,8 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 		`      dockerfile: "docker/api.Dockerfile"`,
 		`      target: "production"`,
 		"    image: usagefleet/production/api:latest\n    pull_policy: never\n    ports:\n      - \"5353:53/udp\"\n",
+		"    volumes:\n      - push:/data\n",
+		"\nvolumes:\n  push:",
 	} {
 		if !strings.Contains(overlay, want) {
 			t.Errorf("overlay lacks %q:\n%s", want, overlay)

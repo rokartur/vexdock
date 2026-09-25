@@ -153,6 +153,8 @@ type Service struct {
 	BuildType   string `json:"build_type"`
 	Dockerfile  string `json:"dockerfile"`
 	BuildTarget string `json:"build_target"`
+	// Mounts are an image or git service's named volumes, one "volume:/path" per line.
+	Mounts string `json:"mounts"`
 	// RegistryURL and RegistryUsername log an image-sourced service into a
 	// private registry before its pull; empty URL is Docker Hub.
 	RegistryURL         string `json:"registry_url"`
