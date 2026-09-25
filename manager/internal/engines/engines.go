@@ -136,6 +136,9 @@ var Catalog = []Engine{
     environment:
       PGDATA: /var/lib/postgresql/data
     volumes:
+      # 18+ also declares VOLUME /var/lib/postgresql, an empty anonymous volume per container without this.
+      - type: tmpfs
+        target: /var/lib/postgresql
       - {{ .Volume }}:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
