@@ -115,11 +115,16 @@ func (s *Server) containerAction(w http.ResponseWriter, r *http.Request, id, act
 // on one convention. Marshalling the SDK's own PascalCase structs instead would
 // hand the dashboard two different shapes from sibling endpoints.
 type imageView struct {
-	ID         string   `json:"id"`
-	RepoTags   []string `json:"repo_tags"`
-	Created    int64    `json:"created"`
-	Size       int64    `json:"size"`
-	Containers int64    `json:"containers"`
+	ID         string           `json:"id"`
+	RepoTags   []string         `json:"repo_tags"`
+	Created    int64            `json:"created"`
+	Size       int64            `json:"size"`
+	Containers []imageContainer `json:"containers"`
+}
+
+type imageContainer struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func (s *Server) handleListImages(w http.ResponseWriter, r *http.Request) {
@@ -128,15 +133,28 @@ func (s *Server) handleListImages(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
+	containers, err := s.Docker.ListContainers(r.Context(), "")
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	byImage := map[string][]imageContainer{}
+	for _, c := range containers {
+		byImage[c.ImageID] = append(byImage[c.ImageID], imageContainer{ID: c.ID, Name: strings.TrimPrefix(c.Names[0], "/")})
+	}
 	out := make([]imageView, 0, len(images))
 	for _, img := range images {
-		out = append(out, imageView{
+		view := imageView{
 			ID:         img.ID,
 			RepoTags:   img.RepoTags,
 			Created:    img.Created,
 			Size:       img.Size,
-			Containers: img.Containers,
-		})
+			Containers: byImage[img.ID],
+		}
+		if view.Containers == nil {
+			view.Containers = []imageContainer{}
+		}
+		out = append(out, view)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

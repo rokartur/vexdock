@@ -522,7 +522,7 @@ are listed too, with `managed` false, rather than being left out.
 |---|---|
 | `GET /api/docker/containers` | Every container, with its compose project, service and last half hour of usage |
 | `POST /api/docker/containers/{id}/{action}` | `start`, `stop`, `restart` or `remove`; remove takes `?force=true` |
-| `GET /api/docker/images` | Images with their size and how many containers use them |
+| `GET /api/docker/images` | Images with their size and the containers (`id`, `name`) created from them |
 | `POST /api/docker/images/pull` | `{"reference"}`; answers with the daemon's output once the pull has finished |
 | `DELETE /api/docker/images/{id}` | Removes one; `?force=true` when it is tagged or in use |
 | `GET /api/docker/volumes` | Volumes with `project`, the compose project label (empty when compose did not create the volume); `size` and `ref_count` are `-1` when Docker reported no usage |

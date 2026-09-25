@@ -291,7 +291,7 @@ export type ImageSummary = {
 	repo_tags: string[] | null
 	created: number
 	size: number
-	containers: number
+	containers: { id: string; name: string }[]
 }
 
 export type VolumeSummary = {

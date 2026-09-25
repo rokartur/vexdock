@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { IconDatabase, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Confirm,
@@ -14,12 +14,12 @@ import {
 	StatStrip,
 } from '../components/primitives'
 import { api, type VolumeSummary } from '../lib/api'
-import { projectLabels } from '../lib/environment'
+import { composeProjects } from '../lib/environment'
 import { bytes } from '../lib/format'
 
 function volumeTableColumns(
 	remove: (name: string) => void,
-	projectLabel: (composeProject: string) => string,
+	projects: ReturnType<typeof composeProjects>,
 ): Columns<VolumeSummary> {
 	const cell = columnsFor<VolumeSummary>()
 	return [
@@ -33,7 +33,26 @@ function volumeTableColumns(
 				</span>
 			),
 		}),
-		cell.accessor(volume => projectName(volume, projectLabel), { id: 'project', header: 'Project' }),
+		cell.accessor(volume => projectName(volume, projects), {
+			id: 'project',
+			header: 'Project',
+			cell: ({ row, getValue }) => {
+				const project = projects.get(row.original.project)
+				if (!project) {
+					return getValue()
+				}
+				return (
+					<Link
+						to='/projects/$projectId'
+						params={{ projectId: project.projectId }}
+						search={{ env: project.environmentId }}
+						className='underline-offset-2 hover:underline'
+					>
+						{project.label}
+					</Link>
+				)
+			},
+		}),
 		cell.accessor(volume => volume.driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
 		cell.accessor(volume => volume.size, {
 			id: 'size',
@@ -81,9 +100,9 @@ function shortName(volume: VolumeSummary) {
 	return volume.project && volume.name.startsWith(prefix) ? volume.name.slice(prefix.length) : volume.name
 }
 
-function projectName(volume: VolumeSummary, projectLabel: (composeProject: string) => string) {
+function projectName(volume: VolumeSummary, projects: ReturnType<typeof composeProjects>) {
 	if (volume.project) {
-		return projectLabel(volume.project)
+		return projects.get(volume.project)?.label ?? volume.project
 	}
 	return isAnonymous(volume) ? 'anonymous' : '-'
 }
@@ -103,10 +122,10 @@ function VolumesPage() {
 
 	const data = volumes.data ?? []
 	const { mutate: removeVolume } = remove
-	const columns = useMemo(() => {
-		const labels = projectLabels(projects.data ?? [])
-		return volumeTableColumns(removeVolume, composeProject => labels.get(composeProject) ?? composeProject)
-	}, [removeVolume, projects.data])
+	const columns = useMemo(
+		() => volumeTableColumns(removeVolume, composeProjects(projects.data ?? [])),
+		[removeVolume, projects.data],
+	)
 
 	// A daemon that cannot count a volume's users or measure it answers -1, which is not zero.
 	const counted = data.filter(volume => volume.ref_count >= 0)

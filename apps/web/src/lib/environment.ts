@@ -26,13 +26,17 @@ export function useCurrentEnvironment(projectId: string) {
 	return { environments, current: environments.data?.find(env => (selected ? env.id === selected : env.is_default)) }
 }
 
-/** Compose project name to the name a person knows it by: the project, plus the environment when it is not the default. */
-export function projectLabels(projects: Project[]) {
-	const labels = new Map<string, string>()
+/** Compose project name to the environment behind it, labelled by the project plus the environment when it is not the default. */
+export function composeProjects(projects: Project[]) {
+	const byName = new Map<string, { label: string; projectId: string; environmentId: string }>()
 	for (const project of projects) {
 		for (const env of project.environments) {
-			labels.set(env.compose_project_name, env.is_default ? project.name : `${project.name} / ${env.name}`)
+			byName.set(env.compose_project_name, {
+				label: env.is_default ? project.name : `${project.name} / ${env.name}`,
+				projectId: project.id,
+				environmentId: env.id,
+			})
 		}
 	}
-	return labels
+	return byName
 }

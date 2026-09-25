@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
+import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconSearch } from '@tabler/icons-react'
 import {
 	type ColumnDef,
@@ -156,11 +156,14 @@ export function DataTable<TData extends RowData>({
 	const viewport = useRef<HTMLDivElement>(null)
 	const [globalFilter, setGlobalFilter] = useState(initialFilter)
 	const [pageIndex, setPageIndex] = useState(0)
+	// table-core caches accessor values per row and rebuilds rows only on new `data`; an accessor reading outside
+	// state (a project name that loads after the list) needs new columns to rebuild them too.
+	const tableData = useMemo(() => [...data], [data, columns])
 
 	const table = useTable({
 		features: tableFeatureSet,
 		columns,
-		data,
+		data: tableData,
 		getRowId,
 		globalFilterFn: 'includesString',
 		state: { sorting, globalFilter },
