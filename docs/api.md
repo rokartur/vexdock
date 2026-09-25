@@ -220,9 +220,12 @@ no build context never triggers it.
 `build_type` decides how a git service becomes an image, set through `PATCH`.
 `dockerfile` (the default) builds `build_path` with the file named by
 `dockerfile`, relative to that context and `Dockerfile` when empty, stopping at
-the stage in `build_target` when one is set. `static` ignores both and serves
-`build_path` with nginx on port 80, falling back to `index.html` for any path
-it does not find, so a single-page app's routes resolve.
+the stage in `build_target` when one is set. `static` ignores both: when
+`build_path` has a `package.json` with a `build` script it runs `bun install`
+and `bun run build` (Node is there too), then serves the first of `dist/client`,
+`dist`, `build`, `out`, `.output/public`, `public` or `build_path` itself that
+holds an `index.html`, with nginx on port 80, falling back to `index.html` for
+any path it does not find, so a single-page app's routes resolve.
 
 `mounts` attaches named volumes to an `image` or git service, set through
 `PATCH`: one `volume:/absolute/path` per line, e.g. `"push:/data"`. The volume

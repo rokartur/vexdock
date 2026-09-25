@@ -328,7 +328,8 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 	}
 	overlay := string(raw)
 	for _, want := range []string{
-		"      dockerfile_inline: |\n        FROM nginx:alpine\n",
+		"      dockerfile_inline: |\n        FROM node:lts-slim AS build\n",
+		`bun run build`,
 		"try_files $$uri $$uri/ /index.html;",
 		`      dockerfile: "docker/api.Dockerfile"`,
 		`      target: "production"`,

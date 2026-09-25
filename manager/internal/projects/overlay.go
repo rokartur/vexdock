@@ -237,11 +237,25 @@ func builtImageName(projectSlug, envSlug, service string) string {
 	return projectSlug + "/" + envSlug + "/" + strings.TrimSuffix(b.String(), "-")
 }
 
-// staticDockerfile serves the build context as a single-page app on port 80.
-// $$ is compose's escape for a literal $; .git is dropped so it is never served.
-const staticDockerfile = `FROM nginx:alpine
-COPY . /usr/share/nginx/html
-RUN rm -rf /usr/share/nginx/html/.git && echo 'server { listen 80; root /usr/share/nginx/html; location / { try_files $$uri $$uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
+// staticDockerfile runs package.json's build script when there is one, then
+// serves the first directory holding an index.html as a single-page app on
+// port 80. $$ is compose's escape for a literal $; .git is never served.
+// ponytail: build env comes from nothing but the repo, pass build args if a site needs its variables.
+const staticDockerfile = `FROM node:lts-slim AS build
+COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
+# A prerender preview server binds localhost as ::1 in a build container, then gets fetched on 127.0.0.1.
+ENV NODE_OPTIONS=--dns-result-order=ipv4first
+WORKDIR /src
+COPY . .
+RUN if [ -f package.json ] && bun -e 'process.exit(require("./package.json").scripts?.build ? 0 : 1)'; then bun install && bun run build; fi
+RUN for dir in dist/client dist build out .output/public public .; do \
+      if [ -f "$$dir/index.html" ]; then cp -r "$$dir" /site && rm -rf /site/.git && exit 0; fi; \
+    done; \
+    echo 'no index.html in dist/client, dist, build, out, .output/public, public or the build path' >&2; exit 1
+
+FROM nginx:alpine
+COPY --from=build /site /usr/share/nginx/html
+RUN echo 'server { listen 80; root /usr/share/nginx/html; location / { try_files $$uri $$uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
 `
 
 // variable reads one value out of a service's environment.
