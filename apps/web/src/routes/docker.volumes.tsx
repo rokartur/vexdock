@@ -14,21 +14,26 @@ import {
 	StatStrip,
 } from '../components/primitives'
 import { api, type VolumeSummary } from '../lib/api'
+import { projectLabels } from '../lib/environment'
 import { bytes } from '../lib/format'
 
-function volumeTableColumns(remove: (name: string) => void): Columns<VolumeSummary> {
+function volumeTableColumns(
+	remove: (name: string) => void,
+	projectLabel: (composeProject: string) => string,
+): Columns<VolumeSummary> {
 	const cell = columnsFor<VolumeSummary>()
 	return [
 		cell.accessor(volume => volume.name, {
 			id: 'name',
 			header: 'Name',
 			cell: ({ row }) => (
-				<span className='inline-flex items-center gap-2'>
+				<span className='inline-flex items-center gap-2' title={row.original.name}>
 					<IconDatabase className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{row.original.name}</span>
+					<span className='font-mono text-label'>{shortName(row.original)}</span>
 				</span>
 			),
 		}),
+		cell.accessor(volume => projectName(volume, projectLabel), { id: 'project', header: 'Project' }),
 		cell.accessor(volume => volume.driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
 		cell.accessor(volume => volume.size, {
 			id: 'size',
@@ -64,12 +69,32 @@ function volumeTableColumns(remove: (name: string) => void): Columns<VolumeSumma
 	]
 }
 
+// Docker names a volume nobody named (an image's VOLUME) with 64 hex characters, like a container id.
+const isAnonymous = (volume: VolumeSummary) => /^[0-9a-f]{64}$/.test(volume.name)
+
+// Compose names a volume <compose project>_<key>; the project has its own column.
+function shortName(volume: VolumeSummary) {
+	if (isAnonymous(volume)) {
+		return volume.name.slice(0, 12)
+	}
+	const prefix = `${volume.project}_`
+	return volume.project && volume.name.startsWith(prefix) ? volume.name.slice(prefix.length) : volume.name
+}
+
+function projectName(volume: VolumeSummary, projectLabel: (composeProject: string) => string) {
+	if (volume.project) {
+		return projectLabel(volume.project)
+	}
+	return isAnonymous(volume) ? 'anonymous' : '-'
+}
+
 export const Route = createFileRoute('/docker/volumes')({ component: VolumesPage })
 
 function VolumesPage() {
 	const queryClient = useQueryClient()
 
 	const volumes = useQuery({ queryKey: ['volumes'], queryFn: api.volumes })
+	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
 	const remove = useMutation({
 		mutationFn: api.removeVolume,
@@ -78,7 +103,10 @@ function VolumesPage() {
 
 	const data = volumes.data ?? []
 	const { mutate: removeVolume } = remove
-	const columns = useMemo(() => volumeTableColumns(removeVolume), [removeVolume])
+	const columns = useMemo(() => {
+		const labels = projectLabels(projects.data ?? [])
+		return volumeTableColumns(removeVolume, composeProject => labels.get(composeProject) ?? composeProject)
+	}, [removeVolume, projects.data])
 
 	// A daemon that cannot count a volume's users or measure it answers -1, which is not zero.
 	const counted = data.filter(volume => volume.ref_count >= 0)

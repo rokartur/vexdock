@@ -296,6 +296,8 @@ export type ImageSummary = {
 
 export type VolumeSummary = {
 	name: string
+	/** Compose project from the volume's label, empty for a volume compose did not create. */
+	project: string
 	driver: string
 	created_at: string
 	/** -1 when Docker reported no usage data for this volume. */

@@ -525,7 +525,7 @@ are listed too, with `managed` false, rather than being left out.
 | `GET /api/docker/images` | Images with their size and how many containers use them |
 | `POST /api/docker/images/pull` | `{"reference"}`; answers with the daemon's output once the pull has finished |
 | `DELETE /api/docker/images/{id}` | Removes one; `?force=true` when it is tagged or in use |
-| `GET /api/docker/volumes` | Volumes; `size` and `ref_count` are `-1` when Docker reported no usage |
+| `GET /api/docker/volumes` | Volumes with `project`, the compose project label (empty when compose did not create the volume); `size` and `ref_count` are `-1` when Docker reported no usage |
 | `DELETE /api/docker/volumes/{name}` | Requires `?confirm=true` |
 | `GET /api/docker/networks` | Networks and the containers on them |
 | `GET /api/docker/cleanup` | What a cleanup would reclaim, in bytes, touching nothing |

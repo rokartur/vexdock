@@ -184,6 +184,7 @@ func (s *Server) handleRemoveImage(w http.ResponseWriter, r *http.Request) {
 
 type volumeView struct {
 	Name      string `json:"name"`
+	Project   string `json:"project"`
 	Driver    string `json:"driver"`
 	CreatedAt string `json:"created_at"`
 	// Size and RefCount are -1 when Docker did not report usage data.
@@ -192,14 +193,17 @@ type volumeView struct {
 }
 
 func (s *Server) handleListVolumes(w http.ResponseWriter, r *http.Request) {
-	volumes, err := s.Docker.ListVolumes(r.Context())
+	volumes, err := s.Docker.VolumeUsage(r.Context())
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	out := make([]volumeView, 0, len(volumes.Volumes))
-	for _, v := range volumes.Volumes {
-		view := volumeView{Name: v.Name, Driver: v.Driver, CreatedAt: v.CreatedAt, Size: -1, RefCount: -1}
+	out := make([]volumeView, 0, len(volumes))
+	for _, v := range volumes {
+		view := volumeView{
+			Name: v.Name, Project: v.Labels[dockersdk.ComposeProjectLabel], Driver: v.Driver, CreatedAt: v.CreatedAt,
+			Size: -1, RefCount: -1,
+		}
 		if v.UsageData != nil {
 			view.Size, view.RefCount = v.UsageData.Size, v.UsageData.RefCount
 		}
