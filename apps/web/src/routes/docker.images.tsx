@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { IconStack2, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
 import {
@@ -84,11 +84,29 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 			// Against the biggest image on the host, so the disk hogs stand out down the column.
 			cell: ({ row }) => <Meter label={bytes(row.original.size)} value={row.original.size} max={largest} />,
 		}),
-		cell.accessor(image => image.containers, {
+		cell.accessor(image => image.containers.map(container => container.name).join(', ') || '-', {
 			id: 'containers',
 			header: 'Containers',
-			cell: ({ row }) => (row.original.containers < 0 ? '-' : row.original.containers),
 			meta: { mono: true },
+			cell: ({ row }) =>
+				row.original.containers.length === 0 ? (
+					'-'
+				) : (
+					<span>
+						{row.original.containers.map((container, index) => (
+							<Fragment key={container.id}>
+								{index > 0 ? ', ' : null}
+								<Link
+									to='/docker/containers'
+									search={{ q: container.name }}
+									className='underline-offset-2 hover:text-foreground hover:underline'
+								>
+									{container.name}
+								</Link>
+							</Fragment>
+						))}
+					</span>
+				),
 		}),
 		cell.accessor(image => image.created, {
 			id: 'created',
@@ -131,19 +149,13 @@ function ImagesPage() {
 	const largest = Math.max(0, ...data.map(image => image.size))
 	const columns = useMemo(() => imageTableColumns(removeImage, largest), [removeImage, largest])
 
-	// A daemon that cannot count an image's containers answers -1, which is not zero.
-	const counted = data.filter(image => image.containers >= 0)
-	const unused = counted.filter(image => image.containers === 0)
+	const unused = data.filter(image => image.containers.length === 0)
 	const reclaimable = unused.reduce((total, image) => total + image.size, 0)
 	const stats = [
 		{ label: 'Images', value: data.length },
 		{ label: 'On disk', value: bytes(data.reduce((total, image) => total + image.size, 0)) },
-		...(counted.length > 0
-			? [
-					{ label: 'Unused', value: unused.length },
-					{ label: 'Reclaimable', value: bytes(reclaimable) },
-				]
-			: []),
+		{ label: 'Unused', value: unused.length },
+		{ label: 'Reclaimable', value: bytes(reclaimable) },
 		{ label: 'Largest', value: bytes(largest) },
 	]
 
