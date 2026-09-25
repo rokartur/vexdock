@@ -89,9 +89,8 @@ func (s *Service) WriteOverlay(ctx context.Context, env *database.Environment) (
 			return "", fmt.Errorf("service %s: %w", svc.ComposeServiceName, err)
 		}
 		fmt.Fprintf(&body, "  %s:\n", svc.ComposeServiceName)
-		// A raw service's fragment is the user's own YAML and may already name its
-		// container; a second key would fail the whole file.
-		if svc.ContainerName != "" && svc.Provider != database.ProviderRaw {
+		// A raw fragment may already name its container; a second key would fail the whole file.
+		if svc.ContainerName != "" && !strings.Contains(svc.ComposeFragment, "container_name:") {
 			fmt.Fprintf(&body, "    container_name: %s\n", svc.ContainerName)
 		}
 		// Catalog fragments are raw string literals that stop on their last content
