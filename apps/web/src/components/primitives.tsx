@@ -868,7 +868,8 @@ export function Confirm({
 		>
 			<AlertDialogTrigger render={children} />
 			<AlertDialogContent>
-				<AlertDialogHeader>
+				{/* A volume or container name has no break point; unbroken it widens the dialog's grid past its edge. */}
+				<AlertDialogHeader className='wrap-anywhere'>
 					<AlertDialogTitle>{title}</AlertDialogTitle>
 					{description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
 				</AlertDialogHeader>
@@ -931,7 +932,7 @@ export function FormDialog({
 	return (
 		<Dialog open={open} onOpenChange={next => (next ? onOpenChange(true) : close())}>
 			<DialogContent className={wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'}>
-				<DialogHeader>
+				<DialogHeader className='wrap-anywhere'>
 					<DialogTitle>{title}</DialogTitle>
 					{description ? <DialogDescription>{description}</DialogDescription> : null}
 				</DialogHeader>
@@ -978,7 +979,7 @@ export function DetailDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className='flex max-h-[90dvh] flex-col sm:max-w-6xl'>
-				<DialogHeader>
+				<DialogHeader className='wrap-anywhere'>
 					<DialogTitle>{title}</DialogTitle>
 					{description ? <DialogDescription>{description}</DialogDescription> : null}
 				</DialogHeader>
