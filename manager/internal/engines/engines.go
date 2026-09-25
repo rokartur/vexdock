@@ -298,7 +298,7 @@ var dataPathPattern = regexp.MustCompile(`^/[a-zA-Z0-9._/-]{0,255}$`)
 // identPattern covers database and user names. Both end up inside the generated
 // compose file and inside a connection URL, so anything exotic is refused
 // rather than escaped.
-var identPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,62}$`)
+var identPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_-]{0,62}$`)
 
 // Render validates a spec and produces the compose fragment and the
 // environment that together define a database service.
