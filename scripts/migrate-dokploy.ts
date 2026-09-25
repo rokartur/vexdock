@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 // Moves one Dokploy project, named volumes included, onto a vexdock server.
 // Usage: bun scripts/migrate-dokploy.ts "<dokploy project name>"
-// Env: DOKPLOY_URL DOKPLOY_API_KEY DOKPLOY_SSH  VEXDOCK_URL VEXDOCK_TOKEN VEXDOCK_SSH
-//      VEXDOCK_GIT_PROVIDER (the vexdock GitHub connection id, for github sources)
+// Env: DOKPLOY_URL DOKPLOY_API_KEY VEXDOCK_URL VEXDOCK_TOKEN, VEXDOCK_GIT_PROVIDER for github sources,
+//      DOKPLOY_SSH VEXDOCK_SSH only when an app or compose has a named volume
 import { $ } from 'bun'
 
 type DokployDomain = {
@@ -47,7 +47,6 @@ type DokployPostgres = {
 	databaseUser: string
 	databasePassword: string
 	externalPort: number | null
-	mounts: DokployMount[]
 }
 type DokployEnvironment = {
 	applications: { applicationId: string }[]
@@ -64,7 +63,7 @@ type VexdockProject = {
 	environments: { id: string; compose_project_name: string; is_default: boolean }[]
 }
 type VexdockService = { id: string; compose_service_name: string }
-type VolumeCopy = { from: string; subdir: string; to: string }
+type VolumeCopy = { from: string; to: string }
 
 const projectName = process.argv[2]
 if (!projectName) throw new Error('usage: bun scripts/migrate-dokploy.ts "<dokploy project name>"')
@@ -73,18 +72,19 @@ const env = (key: string) => {
 	if (!value) throw new Error(`${key} is not set`)
 	return value
 }
+type DatabaseDump = { serviceId: string; name: string; port: number }
+
 const dokployUrl = env('DOKPLOY_URL').replace(/\/$/, '')
 const dokployKey = env('DOKPLOY_API_KEY')
 const vexdockUrl = env('VEXDOCK_URL').replace(/\/$/, '')
 const vexdockToken = env('VEXDOCK_TOKEN')
-const dokploySsh = env('DOKPLOY_SSH')
-const vexdockSsh = env('VEXDOCK_SSH')
 
 const source = await readDokployProject(projectName)
 const project = await vexdock<VexdockProject>('POST', '/api/projects', { name: projectName })
 const environment = defaultEnvironment(project)
 const volumePrefix = `${environment.compose_project_name}_`
 const copies: VolumeCopy[] = []
+const dumps: DatabaseDump[] = []
 const skipped: string[] = []
 // Dokploy's database hostname (its appName) -> the vexdock service name, rewritten in every .env.
 const renamedHosts = new Map<string, string>()
@@ -94,13 +94,18 @@ if (source.composes.filter(c => c.env?.trim()).length > 1)
 for (const pg of source.postgres) await createPostgres(pg)
 for (const app of source.apps) await createApp(app)
 for (const compose of source.composes) await createCompose(compose)
+// Only plain volumes cross over ssh; databases travel as a dump through their published port.
+const dokploySsh = copies.length > 0 ? env('DOKPLOY_SSH') : ''
+const vexdockSsh = copies.length > 0 ? env('VEXDOCK_SSH') : ''
+const dokployIp = await dokploy<string>('GET', 'settings.getIp')
 
-console.log(`stopping ${projectName} on Dokploy`)
+console.log(`stopping ${projectName}'s applications on Dokploy`)
 for (const app of source.apps) await dokploy('POST', 'application.stop', { applicationId: app.applicationId })
 for (const compose of source.composes) await dokploy('POST', 'compose.stop', { composeId: compose.composeId })
-for (const pg of source.postgres) await dokploy('POST', 'postgres.stop', { postgresId: pg.postgresId })
 
 for (const copy of copies) await copyVolume(copy)
+for (const dump of dumps) await restoreDump(dump)
+for (const pg of source.postgres) await dokploy('POST', 'postgres.stop', { postgresId: pg.postgresId })
 
 console.log('deploying on vexdock')
 await vexdock('POST', `/api/projects/${project.id}/deploy`)
@@ -145,7 +150,7 @@ async function createApp(app: DokployApp) {
 				`${app.name}: only named volume mounts are migrated, not ${mount.type} at ${mount.mountPath}`,
 			)
 		mounts.push(`${mount.volumeName}:${mount.mountPath}`)
-		copies.push({ from: mount.volumeName, subdir: '.', to: volumePrefix + mount.volumeName })
+		copies.push({ from: mount.volumeName, to: volumePrefix + mount.volumeName })
 	}
 	await vexdock('PATCH', `/api/services/${created.id}`, {
 		dockerfile: app.dockerfile ?? '',
@@ -181,7 +186,7 @@ async function createCompose(compose: DokployCompose) {
 			compose_fragment: rawFragment(body),
 		})
 		for (const volume of namedVolumes(body)) {
-			copies.push({ from: `${compose.appName}_${volume}`, subdir: '.', to: volumePrefix + volume })
+			copies.push({ from: `${compose.appName}_${volume}`, to: volumePrefix + volume })
 		}
 		await createDomains(
 			created.compose_service_name,
@@ -222,8 +227,7 @@ function namedVolumes(body: Record<string, unknown>) {
 async function createPostgres(pg: DokployPostgres) {
 	const [, tag] = pg.dockerImage.split(':')
 	if (!tag) throw new Error(`${pg.name}: image ${pg.dockerImage} has no version tag`)
-	const [mount, ...extra] = pg.mounts
-	if (!mount?.volumeName || extra.length > 0) throw new Error(`${pg.name}: expected exactly one named volume`)
+	if (!pg.externalPort) throw new Error(`${pg.name}: set an external port in Dokploy, the dump reads through it`)
 	const created = await vexdock<VexdockService>('POST', `/api/projects/${project.id}/services`, {
 		name: pg.name,
 		database: {
@@ -234,28 +238,37 @@ async function createPostgres(pg: DokployPostgres) {
 			password: pg.databasePassword,
 		},
 	})
-	copies.push({
-		from: mount.volumeName,
-		subdir: pgdataInside(mount.mountPath, tag),
-		to: `${volumePrefix}${created.compose_service_name}-data`,
-	})
+	dumps.push({ serviceId: created.id, name: pg.name, port: pg.externalPort })
 	renamedHosts.set(pg.appName, created.compose_service_name)
-	if (pg.externalPort) {
-		await vexdock('POST', `/api/services/${created.id}/ports`, {
-			published: pg.externalPort,
-			target: 5432,
-			protocol: 'tcp',
-		})
-	}
+	await vexdock('POST', `/api/services/${created.id}/ports`, {
+		published: pg.externalPort,
+		target: 5432,
+		protocol: 'tcp',
+	})
 }
 
-// vexdock pins PGDATA to the volume's root; Dokploy's volume may hold it one level down.
-function pgdataInside(mountPath: string, tag: string) {
-	const major = Number.parseInt(tag, 10)
-	const pgdata = major >= 18 ? `/var/lib/postgresql/${major}/docker` : '/var/lib/postgresql/data'
-	if (mountPath === pgdata) return '.'
-	if (pgdata.startsWith(`${mountPath}/`)) return pgdata.slice(mountPath.length + 1)
-	throw new Error(`postgres volume at ${mountPath} does not contain ${pgdata}`)
+// Same user, password and database on both sides, so the container's own env logs in to Dokploy too.
+async function restoreDump({ serviceId, name, port }: DatabaseDump) {
+	console.log(`restoring ${name} from ${dokployIp}:${port}`)
+	const deploy = await vexdock<{ id: string; status: string }>('POST', `/api/services/${serviceId}/deploy`)
+	let status = deploy.status
+	while (status === 'queued' || status === 'running') {
+		await Bun.sleep(2000)
+		status = (await vexdock<{ deployment: { status: string } }>('GET', `/api/deployments/${deploy.id}`)).deployment
+			.status
+	}
+	if (status !== 'success') throw new Error(`${name}: deploy ${deploy.id} ended ${status}`)
+	// The entrypoint's init server listens on the socket only, so a TCP answer means the final server is up.
+	const command = [
+		'set -o pipefail',
+		'until pg_isready -q -h 127.0.0.1; do sleep 1; done',
+		'export PGPASSWORD="$POSTGRES_PASSWORD"',
+		`pg_dump -h ${dokployIp} -p ${port} -U "$POSTGRES_USER" -d "$POSTGRES_DB" | psql -q -o /dev/null -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"`,
+	].join('\n')
+	const result = await vexdock<{ exit_code: number; output: string }>('POST', `/api/services/${serviceId}/exec`, {
+		command,
+	})
+	if (result.exit_code !== 0) throw new Error(`${name}: restore exited ${result.exit_code}\n${result.output}`)
 }
 
 async function putVariables(path: string, dotenv: string | null) {
@@ -291,12 +304,12 @@ async function createDomains(service: string, domains: DokployDomain[]) {
 }
 
 // Streams tar over both ssh sessions; the volume is created with compose's labels so the deploy adopts it.
-async function copyVolume({ from, subdir, to }: VolumeCopy) {
-	console.log(`copying volume ${from}/${subdir} -> ${to}`)
+async function copyVolume({ from, to }: VolumeCopy) {
+	console.log(`copying volume ${from} -> ${to}`)
 	await $`ssh ${dokploySsh} docker volume inspect ${from}`.quiet()
 	const composeVolume = to.slice(volumePrefix.length)
 	await $`ssh ${vexdockSsh} docker volume create --label com.docker.compose.project=${environment.compose_project_name} --label com.docker.compose.volume=${composeVolume} ${to}`.quiet()
-	await $`ssh ${dokploySsh} docker run --rm -v ${from}:/from:ro alpine tar -C /from/${subdir} -cf - . | ssh ${vexdockSsh} docker run --rm -i -v ${to}:/to alpine tar -C /to -xpf -`
+	await $`ssh ${dokploySsh} docker run --rm -v ${from}:/from:ro alpine tar -C /from -cf - . | ssh ${vexdockSsh} docker run --rm -i -v ${to}:/to alpine tar -C /to -xpf -`
 }
 
 async function dokploy<T>(method: 'GET' | 'POST', procedure: string, input: Record<string, string> = {}) {
@@ -318,5 +331,6 @@ async function vexdock<T>(method: string, path: string, body?: unknown) {
 		body: body === undefined ? undefined : JSON.stringify(body),
 	})
 	if (!res.ok) throw new Error(`vexdock ${method} ${path}: ${res.status} ${await res.text()}`)
+	if (res.status === 204) return undefined as T
 	return (await res.json()) as T
 }
