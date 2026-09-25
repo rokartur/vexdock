@@ -145,6 +145,8 @@ export type Service = {
 	dockerfile: string
 	/** Multi-stage target; empty builds the last stage. */
 	build_target: string
+	/** Named volumes, one `volume:/path` per line; image and git services only. */
+	mounts: string
 	/** Private registry an image service logs into before pulling; empty is Docker Hub. */
 	registry_url: string
 	registry_username: string
@@ -761,6 +763,7 @@ export const api = {
 			build_type: BuildType
 			dockerfile: string
 			build_target: string
+			mounts: string
 			registry_url: string
 			/** Empty clears the registry login. */
 			registry_username: string

@@ -91,6 +91,19 @@ func TestValidatePortAndEnvKey(t *testing.T) {
 	}
 }
 
+func TestValidateMounts(t *testing.T) {
+	got, err := ValidateMounts(" push:/data \n\nuploads:/srv/app/uploads\n")
+	if err != nil || got != "push:/data\nuploads:/srv/app/uploads" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	// A host path or a second colon would bind the host filesystem or set mount options.
+	for _, bad := range []string{"/etc:/data", "push:data", "push:/../etc", "push:/data:ro", "push"} {
+		if _, err := ValidateMounts(bad); err == nil {
+			t.Fatalf("mount %q accepted", bad)
+		}
+	}
+}
+
 func TestValidateGitURL(t *testing.T) {
 	for _, good := range []string{
 		"https://github.com/user/app.git",

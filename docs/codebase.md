@@ -301,7 +301,7 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | `compose.yml` | The production stack the installer fetches for a release tag; `compose.dev.yml` overlays local builds and `./.vexdock` on it |
 | `docker/` | One Dockerfile per image; `nginx/` holds Nginx's own config: `nginx.conf` (rate-limit zones), `dashboard.conf` (the panel's server block and the `/api` split), `proxy-headers.conf` (shared by every proxying location) |
 | `installer/install.sh` | Install, update and uninstall on a host. `PLATFORM_LOCAL_COMPOSE` points it at a local compose file, which is how CI runs it; `PLATFORM_RAW_BASE` swaps the base URL it downloads `compose.yml` from |
-| `scripts/` | `smoke-test.sh` (the real deploy path against a running stack) and `release-beta.sh` |
+| `scripts/` | `smoke-test.sh` (the real deploy path against a running stack), `release-beta.sh` and `migrate-dokploy.ts` (one Dokploy project, volumes included) |
 | `skills/vexdock-api/` | An agent skill for operating a Vexdock host over the API. Shipped to users, so it moves with `docs/api.md` |
 | `.pi/skills/release-beta/` | The maintainer's skill that drives `make release-beta` |
 | `.github/workflows/` | `ci.yml` (checks, shellcheck, a real installer run followed by the smoke test), `release.yml` (images on a `v*.*.*` tag), `delete-merged-branch.yml` |
