@@ -9,10 +9,11 @@ bun install
 make check
 ```
 
-`make check` runs gofmt, `go vet`, the Go tests, the dashboard typecheck and
-tests, and the auth typecheck. CI runs that plus `shellcheck` over the shell
-scripts and an integration job that deploys against real Docker, so a green
-`make check` is necessary but not sufficient when you touch either.
+`make check` runs gofmt, `go vet`, the Go tests, and the typecheck and tests of
+both the dashboard and the auth service. CI runs that plus `shellcheck` over the
+shell scripts and an integration job that installs and deploys against real
+Docker, so a green `make check` is necessary but not sufficient when you touch
+either.
 
 ## Running the whole thing locally
 

@@ -37,8 +37,8 @@ Create a token from a session-authenticated context, or ask the user to:
 - JSON bodies, `Content-Type: application/json`. Unknown fields are rejected with `400`.
 - Errors: `{"error":{"code","message","details"?}}`. Codes: `INVALID_REQUEST` 400,
   `UNAUTHORIZED` 401, `CROSS_ORIGIN` 403, `NOT_FOUND` 404, `CONFIRMATION_REQUIRED` 428,
-  `TASK_RUNNING` 409, `UNHEALTHY` 409, `GIT_PROVIDER_IN_USE` 409, `CERTIFICATE_FAILED` 502,
-  `INTERNAL` 500. `429` comes from Nginx without the envelope.
+  `CONFLICT` 409, `TASK_RUNNING` 409, `UNHEALTHY` 409, `GIT_PROVIDER_IN_USE` 409,
+  `GIT_PROVIDER_UNAVAILABLE` 400, `GIT_PROVIDER_ERROR` 502, `CERTIFICATE_FAILED` 502, `INTERNAL` 500. `429` comes from Nginx without the envelope.
 - Ids are opaque strings. Resolve names to ids by listing; never guess.
 - Project routes act on the project's **default environment** unless `?environment={id}` is given.
   Applies to `deploy`, `stop`, `services`, `services/export`, `deployments`.
@@ -85,8 +85,9 @@ vx /api/services/$SERVICE/exec -d '{"command":"php artisan migrate --force"}'
 ```
 
 `shell` is `sh` (default) or `bash`. Shell syntax works (pipes, `&&`, env).
-Runs in the service's container, never on the host. Hard cap 10 minutes;
-output over 64 KB keeps its tail. The container must be running.
+Runs in the service's container, never on the host. After 10 minutes the call
+gives up but the command keeps running, so check before retrying it; output
+over 1 MiB keeps its tail. The container must be running.
 
 ## Lifecycle without a pipeline
 
@@ -183,7 +184,8 @@ vx /api/tasks/$TASK -X DELETE
 ```
 
 Five-field cron plus `@hourly|@daily|@weekly|@monthly|@yearly`. Nothing is
-replayed for ticks missed while the manager was down. 30 minute kill.
+replayed for ticks missed while the manager was down. A run still going after
+30 minutes is given up on, though its process may keep running.
 
 ## Docker housekeeping
 
