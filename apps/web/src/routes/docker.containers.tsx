@@ -19,7 +19,7 @@ import {
 	Status,
 } from '../components/primitives'
 import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
-import { projectLabels } from '../lib/environment'
+import { composeProjects } from '../lib/environment'
 import { bytes, percent } from '../lib/format'
 
 /** The sampler records once a minute, so nothing is gained by asking faster. */
@@ -177,11 +177,11 @@ function ContainersPage() {
 	const logsContainer = data.find(container => container.id === logsFor)
 	const { mutate: runAction } = act
 	const columns = useMemo(() => {
-		const labels = projectLabels(projects.data ?? [])
+		const byName = composeProjects(projects.data ?? [])
 		return containerTableColumns({
 			showLogs: setLogsFor,
 			act: (id, action) => runAction({ id, action }),
-			projectLabel: composeProject => labels.get(composeProject) ?? composeProject,
+			projectLabel: composeProject => byName.get(composeProject)?.label ?? composeProject,
 		})
 	}, [runAction, projects.data])
 	const running = data.filter(container => container.state === 'running').length
