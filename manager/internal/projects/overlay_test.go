@@ -268,6 +268,7 @@ expose:
 		"vaultwarden:/data",
 		"\nvolumes:\n  vaultwarden: {}\n",
 		"expose:",
+		"container_name: vault-vaultwarden",
 		envPath,
 	} {
 		if !strings.Contains(overlay, want) {

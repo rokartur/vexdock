@@ -18,7 +18,7 @@ import {
 	Section,
 	Status,
 } from '../components/primitives'
-import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
+import { api, type ContainerAction, type ContainerSummary, type Project } from '../lib/api'
 import { bytes, percent } from '../lib/format'
 
 /** The sampler records once a minute, so nothing is gained by asking faster. */
@@ -40,9 +40,20 @@ function sampled(container: ContainerSummary) {
 type ContainerActions = {
 	showLogs: (id: string) => void
 	act: (id: string, action: ContainerAction) => void
+	projectLabel: (composeProject: string) => string
 }
 
-function containerTableColumns({ showLogs, act }: ContainerActions): Columns<ContainerSummary> {
+function projectLabels(projects: Project[]) {
+	const labels = new Map<string, string>()
+	for (const project of projects) {
+		for (const env of project.environments) {
+			labels.set(env.compose_project_name, env.is_default ? project.name : `${project.name} / ${env.name}`)
+		}
+	}
+	return labels
+}
+
+function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions): Columns<ContainerSummary> {
 	const cell = columnsFor<ContainerSummary>()
 	return [
 		cell.accessor(containerName, {
@@ -62,10 +73,9 @@ function containerTableColumns({ showLogs, act }: ContainerActions): Columns<Con
 			cell: ({ row }) => <Status value={row.original.state} />,
 		}),
 		cell.accessor(container => container.image, { id: 'image', header: 'Image', meta: { mono: true } }),
-		cell.accessor(container => container.project || '-', {
+		cell.accessor(container => projectLabel(container.project) || '-', {
 			id: 'project',
 			header: 'Project',
-			meta: { mono: true },
 		}),
 		cell.accessor(container => (sampled(container) ? container.cpu_percent : -1), {
 			id: 'cpu',
@@ -165,6 +175,8 @@ function ContainersPage() {
 		refetchInterval: USAGE_TICK_MS,
 	})
 
+	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+
 	const act = useMutation({
 		mutationFn: ({ id, action }: { id: string; action: ContainerAction }) => api.containerAction(id, action),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['containers'] }),
@@ -173,10 +185,14 @@ function ContainersPage() {
 	const data = containers.data ?? []
 	const logsContainer = data.find(container => container.id === logsFor)
 	const { mutate: runAction } = act
-	const columns = useMemo(
-		() => containerTableColumns({ showLogs: setLogsFor, act: (id, action) => runAction({ id, action }) }),
-		[runAction],
-	)
+	const columns = useMemo(() => {
+		const labels = projectLabels(projects.data ?? [])
+		return containerTableColumns({
+			showLogs: setLogsFor,
+			act: (id, action) => runAction({ id, action }),
+			projectLabel: composeProject => labels.get(composeProject) ?? composeProject,
+		})
+	}, [runAction, projects.data])
 	const running = data.filter(container => container.state === 'running').length
 
 	return (

@@ -241,8 +241,7 @@ manager names it after the project and the service, `rokartur-db`, with the
 environment in between when it is not the default one. It is unique across the
 whole host, so a name another service already holds is a 400. Services created
 before the manager named containers keep compose's own name until they are
-recreated, and a `raw` service is never renamed because its fragment is the
-user's own YAML.
+recreated, and a `raw` fragment that sets its own `container_name` keeps it.
 
 `unconfigured` is an application that is so far only a name. It is skipped when
 the compose file is written, so it neither deploys nor breaks the deploy of its
