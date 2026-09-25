@@ -79,7 +79,7 @@ dev-logs: ## Follow the manager logs
 	docker logs -f vexdock-manager
 
 .PHONY: check
-check: lint test web-check ## Everything CI runs
+check: lint test web-check ## The gate: gofmt, vet, Go and Bun tests, typechecks
 
 ## ---- release ----
 

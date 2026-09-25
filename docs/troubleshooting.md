@@ -14,6 +14,9 @@ curl with your cookie or read them from the panel. A failing `nginx` check does
 not make the manager unhealthy, precisely so the panel stays reachable while you
 fix the proxy.
 
+When the log says too little, add `LOG_LEVEL=debug` to `/opt/vexdock/.env` and
+run `docker compose up -d` in `/opt/vexdock`; remove it again afterwards.
+
 ## A deployment fails
 
 Open the deployment and read the step that failed. The step name says where:
@@ -22,9 +25,11 @@ Open the deployment and read the step that failed. The step name says where:
 |---|---|
 | `clone` | Wrong URL, wrong branch, or a private repository without credentials |
 | `validate` | The compose file is invalid; the exact compose error is shown |
+| `pull` | The image name or tag does not exist, or a private registry has no credentials. Only fatal for a service without a `build:` |
 | `build` | The build failed, or the server ran out of memory |
 | `start` | A port is already taken, or an image is missing |
 | `healthcheck` | The container exits or its healthcheck never turns healthy |
+| `proxy` | The generated Nginx config failed `nginx -t`, or the Nginx container is down. The containers are already up, only routing failed |
 
 For `healthcheck` failures, open the service's Logs tab: the application's own
 output is almost always the answer.
@@ -73,12 +78,16 @@ listed with its exit code and the output it produced.
   command may have half finished; the next tick is unaffected.
 - **The run list says the previous run is still going.** A task never overlaps
   itself. A command that takes longer than its interval is skipped, not queued,
-  and one that hangs is killed after 30 minutes.
+  and after 30 minutes one that hangs is given up on, though its process may
+  still be running in the container.
 
 ## Disk is full
 
 **System → Cleanup** shows what each category would reclaim. Unused images and
-build cache are usually the bulk of it. Nothing is ever pruned automatically.
+build cache are usually the bulk of it. Only two sweeps run on their own:
+dangling build cache after a build of a service with **Prune build cache** on,
+and previous Vexdock images after a panel update when **Remove previous version
+images after a successful update** is on. Volumes and networks are never pruned for you.
 
 ## The update did not finish
 
@@ -106,12 +115,9 @@ stack and logs `removing vexdock-manager held by compose project <name>`. On an
 older version, `docker rm -f vexdock-manager vexdock-auth vexdock-nginx` and
 update again; the stack recreates from the compose file.
 
-Backups live in `/opt/vexdock/backups/<timestamp>/`, containing `app.db`,
-`auth.db`, `master.key`, the generated proxy configuration and the certificates.
-A backup created with **Config + data** also has a `volumes/<name>.tar.gz` per
-application volume. Restoring one is in
-[install.md](install.md#restoring-a-backup); note that `master.key` is required
-to read anything encrypted in `app.db`.
+Backups live in `/opt/vexdock/backups/<timestamp>/`; what one holds and how to
+restore it is in [install.md](install.md#restoring-a-backup). Without its
+`master.key`, nothing encrypted in `app.db` can be read.
 
 ## Restoring an application volume
 

@@ -165,12 +165,14 @@ row every mutation gets.
 
 ## Destructive actions
 
-No project, service, volume or backup is pruned or deleted on a schedule. Only
-the bounded history tables age out on their own: metrics after seven days, and
-deployment records beyond the newest fifty per service, logs included.
-The updater removes previous system image tags
-only when the operator selects that option, and only after the new manager is
-healthy. Removing a volume requires an explicit `confirm=true`, and so does
+No project, service or volume is pruned or deleted on a schedule. What ages out
+on its own, every six hours: metrics after seven days, deployment records beyond
+the newest fifty per service (logs included), task runs beyond the newest twenty
+per task, the audit log beyond the newest 5000 entries, and platform snapshots
+under `backups/` beyond the newest ten. Each shell update trims
+`backups/.updates/` to the newest five copies. The updater removes previous
+system image tags only when the operator selects that option, and only after
+the new manager is healthy. Removing a volume requires an explicit `confirm=true`, and so does
 pruning unused ones, because a stopped project's database is unreferenced and
 would otherwise be swept up by a cleanup that reads as routine. The other
 cleanup targets need no confirmation: an image can be pulled again and a network

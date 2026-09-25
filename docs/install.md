@@ -91,18 +91,21 @@ curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/ins
 ```
 
 A shell update writes its own pre-update copy under
-`/opt/vexdock/backups/.updates/<stamp>/` and keeps the five most recent. That
-directory is separate from the snapshots you take in the panel, which an update
-never prunes. A copy that fails stops the update instead of replacing the stack
-without a way back.
+`/opt/vexdock/backups/.updates/<stamp>/` and prunes old ones
+([security.md](security.md#destructive-actions)). That directory is separate
+from the snapshots you take in the panel; an update leaves those alone. A copy
+that fails stops the update instead of replacing the stack without a way back.
 
 ## Restoring a backup
 
 A snapshot from **System → Backups** is a directory under
 `/opt/vexdock/backups/`, named for the UTC time it was taken. It contains
-`app.db`, `auth.db`, `master.key`, the generated Nginx configuration, the
-certificates and a copy of the system compose file. Restoring is a file copy
-onto a stopped stack:
+`app.db`, `auth.db`, `master.key`, the `nginx/` directory, the certificates, and
+the system compose file and `.env` as `config-compose.yml` and `config-env`
+(copy those back only to return to that version). The manager prunes old
+snapshots on a schedule ([security.md](security.md#destructive-actions)), so
+copy off the server any you need longer. Restoring is a file copy onto a stopped
+stack:
 
 ```sh
 cd /opt/vexdock
@@ -134,6 +137,16 @@ You are asked whether to keep the data:
 
 1. Remove the platform, keep projects and data (default).
 2. Remove the platform and all platform metadata.
+
+Without a terminal the answer is 1. To pick 2 unattended, set it up front:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo PLATFORM_UNINSTALL_MODE=2 sh -s uninstall
+```
+
+Either way `/opt/vexdock/backups` stays, and every copy in it holds `master.key`
+(panel snapshots hold the system `.env` too, as `config-env`). Delete it
+yourself to remove them.
 
 Deployed applications keep running in either case. They are ordinary compose
 projects under `/opt/vexdock/projects`, so `docker compose down` in a project

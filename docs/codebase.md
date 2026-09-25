@@ -9,7 +9,7 @@ shape lives in the tree and how a request moves through it.
 Read in this order, about an hour in total:
 
 1. `manager/cmd/server/main.go`: every subsystem is constructed here and handed
-   to the API. The `run` function is the dependency graph in 60 lines.
+   to the API. The `run` function is the dependency graph in about 120 lines.
 2. `manager/internal/api/api.go`: the route table, then `protected`, which is
    the whole auth and CSRF story in one function.
 3. One handler file, `manager/internal/api/domain_handlers.go`: the pattern
@@ -291,6 +291,21 @@ sequenceDiagram
 Every error before `docker run` resets the state file to `idle`; every error
 after `VERSION` is written goes through `rollback`, never through `set -e`.
 
+## The tree
+
+| Path | What |
+|---|---|
+| `manager/` | The Go manager, [below](#manager) |
+| `apps/web/` | The dashboard, [below](#dashboard) |
+| `apps/auth/` | The auth service, [below](#auth-service) |
+| `compose.yml` | The production stack the installer fetches for a release tag; `compose.dev.yml` overlays local builds and `./.vexdock` on it |
+| `docker/` | One Dockerfile per image; `nginx/` holds Nginx's own config: `nginx.conf` (rate-limit zones), `dashboard.conf` (the panel's server block and the `/api` split), `proxy-headers.conf` (shared by every proxying location) |
+| `installer/install.sh` | Install, update and uninstall on a host. `PLATFORM_LOCAL_COMPOSE` points it at a local compose file, which is how CI runs it; `PLATFORM_RAW_BASE` swaps the base URL it downloads `compose.yml` from |
+| `scripts/` | `smoke-test.sh` (the real deploy path against a running stack) and `release-beta.sh` |
+| `skills/vexdock-api/` | An agent skill for operating a Vexdock host over the API. Shipped to users, so it moves with `docs/api.md` |
+| `.pi/skills/release-beta/` | The maintainer's skill that drives `make release-beta` |
+| `.github/workflows/` | `ci.yml` (checks, shellcheck, a real installer run followed by the smoke test), `release.yml` (images on a `v*.*.*` tag), `delete-merged-branch.yml` |
+
 ## Manager
 
 `manager/` is one Go module, standard library HTTP, SQLite through
@@ -352,19 +367,24 @@ serves. React Query holds server state; component state stays local.
 | `src/routes/__root.tsx` | Query client, `AuthGate`, `Shell` around every non-public route |
 | `src/components/auth-gate.tsx` | Sends the visitor to `/setup`, `/login` or the app |
 | `src/components/shell.tsx` | Sidebar with the project tree, page header, the one `useSystemEvents` subscription |
+| `src/components/crumb-picker.tsx` | `ProjectCrumb`, `EnvironmentCrumb`, `ServiceCrumb`: breadcrumb segments that open a picker to jump to a sibling |
 | `src/components/primitives.tsx` | The dashboard's vocabulary over shadcn: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... and the density words `Meter`, `StatStrip`, `Timeline`, `RelativeTime`. `DetailDialog` is the wide modal a list opens a record in. `SaveButton` takes its card's mutation and shows a two-second `Saved` receipt; `FormSection`'s `aside` is the read-only facts column beside the controls. `fill` on a `Page` and its last `Section` fits the page to the window so only that section scrolls (a context, `useFill`, that every other section and every dialog resets); `MoreBelow` is the progressive blur and glass count over a scroll region's bottom edge, fading in and out as rows go under it. `Cell`'s `inline` puts a chart beside its reading once the cell itself is wide enough |
 | `src/components/data-table.tsx` | `DataTable` and `columnsFor`; every table on every page. `detail` opens a clicked row in a `DetailDialog`; inside a `fill` Section it takes the height left to it instead of capping at 70vh. Rows past the bottom edge get `MoreBelow` |
-| `src/components/metric-chart.tsx` | `MetricChart` for a page's own chart, `Sparkline` for the 30-minute trend that fits in a table cell |
+| `src/components/metric-chart.tsx` | `MetricCard` for a page's own chart, `useHistory` for the rolling samples behind it, `Sparkline` for the 30-minute trend that fits in a table cell |
 | `src/components/new-project.tsx` | `NewProjectDialog`, reached from the projects page and the sidebar's Projects label |
 | `src/components/service-routing.tsx` | A service's Redirects, Security (basic auth) and Ports cards on its Advanced tab |
 | `src/components/ui/*` | shadcn output. Pages reach for it only for what `primitives.tsx` has no word for |
 | `src/components/*-panel.tsx`, `*-form.tsx` | Pieces a route composes. Domains and deployments are service-scoped, so their panels take the service they belong to |
+| `src/components/deployment-detail.tsx` | One deployment's steps and live log, the body of the `DetailDialog` a deployments list opens |
+| `src/components/log-viewer.tsx` | `LogViewer`: tails an SSE log stream (`url`, capped buffer) or renders lines already held (`lines`), colored by `severityOf` |
+| `src/components/scheduled-tasks.tsx` | `ScheduledTasks`: one service's tasks, or every task on the server when given no service |
 | `src/components/service-bulk-actions.tsx` | What a selection of services does together. Every action is the single-service endpoint run once per row, duplicate and move being create plus copy the variables |
 | `src/components/env-editor.tsx` | `VariablesEditor`: the key/value table with a Table/Text switch, over `EnvEditor`, the .env textarea with a line gutter and highlighting |
 | `src/lib/api.ts` | Types for every response and one function per endpoint |
 | `src/lib/auth-client.ts` | better-auth client: `signIn`, `signUp`, `signOut`, `useSession` |
 | `src/lib/sse.ts` | `useEventSource` for one stream, `useSystemEvents` for cache invalidation |
 | `src/lib/format.ts`, `dotenv.ts`, `breadcrumb.ts` | Pure helpers, each with a test beside it |
+| `src/router.tsx` | The TanStack router built from `routeTree.gen.ts` |
 | `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
 | `src/styles.css` | Every design token. A reskin is an edit here, never on a page |
@@ -387,6 +407,11 @@ everything else under `/api/` to the manager, which opens `auth.db` read-only
 to check a session cookie. Sign-up needs the installer's setup token and closes
 once one account exists.
 
+`auth.ts` holds the better-auth options, `server.ts` applies better-auth's
+schema migrations on boot. A better-auth upgrade whose migration refuses a
+populated table gets a backfill beside it that runs first, the way
+`account-issuer.ts` adds the `issuer` column 1.7 needs.
+
 ## Working on it
 
 | Changing | Command | Where it shows |
@@ -406,7 +431,9 @@ Dev state is `./.vexdock`. `make dev-down` stops the stack and keeps it; delete
 the directory to start from nothing.
 
 The manager reads `PLATFORM_*` variables; `internal/config/config.go` is the
-full list with defaults. `PLATFORM_LOG_LEVEL=debug` is the one you want first.
+full list with defaults, and `compose.yml` maps the stack's `.env` onto them.
+The one you want first is the log level: `LOG_LEVEL=debug make dev-up`, which
+compose passes on as `PLATFORM_LOG_LEVEL`.
 
 ### Running one test
 

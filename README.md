@@ -80,15 +80,18 @@ State lives in `/opt/vexdock`:
 │                     services/ with a checkout and an env file per service);
 │                     a project's default environment uses the project's id
 ├── nginx/generated/     one .conf per domain, written by the manager
+├── nginx/custom/        yours: .conf files Nginx includes, the manager never writes
 ├── certificates/        Let's Encrypt certificates and the account key
 ├── secrets/             master.key, the AES key protecting secrets in the
 │                     database (0600), and known_hosts for SSH clones
 ├── system/              update script, previous compose.yml, update-state.json
 │                     (the update progress the panel polls) and docker/, the
 │                     registry logins `docker login` keeps
-└── backups/<stamp>/     both databases, master key, proxy config,
-                         certificates, volumes/; .updates/<stamp>/ holds what
-                         a shell update copies before it replaces the stack
+└── backups/<stamp>/     both databases, master key, config-compose.yml,
+                         config-env (the system .env), nginx/, certificates,
+                         volumes/ on request;
+                         .updates/<stamp>/ holds what a shell update copies
+                         before it replaces the stack
 ```
 
 More detail in [docs/architecture.md](docs/architecture.md).

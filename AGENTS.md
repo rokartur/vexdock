@@ -3,9 +3,9 @@
 Vexdock: a self-hosted deployment platform for one Linux server. Three
 containers: a Go manager that owns the Docker socket, better-auth on Bun, and
 Nginx as the only public entry point. [README.md](README.md) says what it does,
-[docs/codebase.md](docs/codebase.md) has the package layout,
-[CONTRIBUTING.md](CONTRIBUTING.md) the language conventions. Read the one
-that matches the change before making it.
+[docs/codebase.md](docs/codebase.md) maps the tree, the words and the packages,
+[CONTRIBUTING.md](CONTRIBUTING.md) has the conventions, tests and releasing.
+Read the one that matches the change before making it.
 
 ## Orient
 
@@ -16,19 +16,20 @@ that matches the change before making it.
 | Trust boundary, CSRF, secrets, encryption | [docs/security.md](docs/security.md) |
 | Install, update, uninstall, installer flags | [docs/install.md](docs/install.md), `installer/install.sh` |
 | Something is broken | [docs/troubleshooting.md](docs/troubleshooting.md) |
-| Which package owns a thing, what a word means, how a request travels | [docs/codebase.md](docs/codebase.md) |
+| Which directory or package owns a thing, what a word means, how a request travels | [docs/codebase.md](docs/codebase.md) |
 
 ## Gate
 
-`make check` is gofmt, `go vet`, `go test`, the dashboard typecheck and tests,
-and the auth typecheck. Run it before reporting done. `make help` lists
-everything else.
+`make check` is the gate ([CONTRIBUTING.md](CONTRIBUTING.md#getting-set-up) says
+what it runs). Run it before reporting done. `make help` lists everything else.
 
-CI runs two things `make check` does not: `shellcheck` over `installer/*.sh`,
-`manager/internal/updater/update.sh`, `scripts/smoke-test.sh` and
-`scripts/release-beta.sh`, and an integration job that does `make dev-up` then
-`./scripts/smoke-test.sh` against real Docker. Touching a shell script or the
-deploy path means running those locally too.
+CI (`.github/workflows/ci.yml`) skips the Bun tests but adds `go test -race`,
+the builds, `shellcheck` over the scripts it lists, and an integration job that
+runs the real installer against images in a local registry, then
+`./scripts/smoke-test.sh`.
+Touching a shell script means running shellcheck locally; touching the deploy
+path means `make dev-up` then `./scripts/smoke-test.sh`, the local stand-in for
+that job.
 
 A beta is `make release-beta`: bump, pull request, CI, merge, tag. Never tag by
 hand what the script can; [CONTRIBUTING.md](CONTRIBUTING.md#releasing) has the
@@ -41,19 +42,22 @@ quotes, no semicolons, 120 columns. The config decides, so let it.
 
 ## Parallel lists
 
-The API is described in two places and neither derives from the other. Change
-one, change both:
+The API is described in three places and none derives from the others. Change
+one, change the rest:
 
 1. `manager/internal/api/api.go`, the mux. The only one that actually routes.
 2. `docs/api.md`, errors, streams, examples.
+3. `skills/vexdock-api/SKILL.md`, for a route it calls or an error it lists. It
+   runs on users' servers without the repo, so it repeats instead of linking.
 
-`apps/web/src/lib/api.ts` is the third whenever a request or response shape moved.
+`apps/web/src/lib/api.ts` is the fourth whenever a request or response shape
+moved.
 
 ## Recipes
 
 **New endpoint.** Handler in the matching `internal/api/*_handlers.go`, register
 it in `api.go` behind `s.protected(...)` unless it is genuinely public, then
-update `api.ts` and `docs/api.md`.
+walk the [parallel lists](#parallel-lists).
 
 **Schema change.** A new `manager/migrations/000N_name.sql`. They are embedded
 in the binary and applied in filename order on boot, so a shipped migration is
@@ -96,11 +100,9 @@ row of a list is never a form under the list: an Add button in the card's
 `actions` opens a `FormDialog`, and the mutation's `onSuccess` closes it.
 Opening a row to read it (a deployment's log, a container's log) is a
 `DetailDialog`, never a row unfolded under the list; `DataTable`'s `detail`
-opens one.
-Environment variables are
-`VariablesEditor`, a table of key and value with a Table/Text `Segmented`; the
-.env text stays the source of truth on both sides, so the two views cannot
-disagree.
+opens one. Environment variables are `VariablesEditor`, a table of key and
+value with a Table/Text `Segmented`; the .env text stays the source of truth on
+both sides, so the two views cannot disagree.
 
 **Density.** A number that moves gets the word for how it moves: `Meter` for a
 value against a ceiling, `Sparkline` (`metric-chart.tsx`) for a series in a
@@ -117,8 +119,9 @@ A page shows what the API answers and nothing more; a field the backend does
 not send is a backend change, not a placeholder.
 
 **Environment-scoped work.** The environment, not the project, owns the compose
-project name, the directory and the services. A project route takes
+project name, the directory and the services. A project API route takes
 `?environment=`; `s.projectEnv(w, r)` resolves it and falls back to the default.
+The dashboard's own URLs carry it as `?env=` through `lib/environment.ts`.
 Never reach for `project.ComposeProjectName` in new code.
 
 **Anything reaching a command line** is validated in `internal/security` first,
@@ -126,20 +129,40 @@ with every argument as its own slice element.
 
 ## Keep the docs in sync
 
-The doc edit ships in the same change as the behavior, not after it.
+The doc edit ships in the same change as the behavior, not after it. A doc claim
+about code (a constant, path, flag, retention or timeout) is checked against
+that code before it is written, then grepped across the other docs; a number
+lives in one doc and the rest point to it.
 
 | Changed | Update |
 |---|---|
-| Route, error code, SSE stream | `docs/api.md` and `apps/web/src/lib/api.ts` |
+| Route, error code, SSE stream | The [parallel lists](#parallel-lists) |
 | Component boundary, deploy pipeline, reconciliation, networking | `docs/architecture.md` |
 | Auth, CSRF, secret handling, validation, a destructive action | `docs/security.md` |
 | Installer flags, ports, the `/opt/vexdock` layout | `docs/install.md` and the state tree in `README.md` |
 | A new failure mode with a known fix | `docs/troubleshooting.md` |
-| A package, a dashboard file or a domain word added, removed or renamed | `docs/codebase.md` |
+| A top-level directory, package, dashboard file or domain word added, removed or renamed | `docs/codebase.md` |
 | Conventions, test policy | `CONTRIBUTING.md` |
+| Issue workflow, triage labels, where domain docs live | `docs/agents/` |
 | Anything above that changes how an agent works in this repo | this file |
 
 ## Local only
 
-Dev state is `./.vexdock`; `.mocks/` and `DESIGN.md` are gitignored scratch.
-`/opt/vexdock` is a real installation. Never touch it from a dev box.
+Dev state is `./.vexdock`; `.mocks/` and `apps/web/DESIGN.md` are gitignored
+scratch. `/opt/vexdock` is a real installation. Never touch it from a dev box.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on rokartur/vexdock via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five: needs-triage, needs-info, ready-for-agent, ready-for-human,
+wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + `docs/adr/`, created lazily; until then
+`docs/codebase.md` is the glossary. See `docs/agents/domain.md`.

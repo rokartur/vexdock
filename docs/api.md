@@ -24,7 +24,7 @@ is shown once. Browsers never send it automatically, so no CSRF header is
 required.
 
 ```sh
-curl -H "Authorization: Bearer $PLATFORM_TOKEN" https://panel.example.com/api/projects
+curl -H "Authorization: Bearer $VEXDOCK_TOKEN" https://panel.example.com/api/projects
 ```
 
 `GET /api/me` returns the account behind whichever credential was used.
@@ -82,6 +82,13 @@ Every error uses one envelope:
 | `SETUP_TOKEN_INVALID` | 403 | First sign-up without the installer's setup token (from the auth service) |
 | `SETUP_CLOSED` | 409 | An administrator already exists (from the auth service) |
 | `CONFIRMATION_REQUIRED` | 428 | Destructive action needs `confirm=true` |
+| `CONFLICT` | 409 | A basic-auth username or published host port is already taken |
+| `TASK_RUNNING` | 409 | A manual run of a task that is already running |
+| `UNHEALTHY` | 409 | Self-update refused while a health check fails |
+| `GIT_PROVIDER_IN_USE` | 409 | Deleting a git connection services still clone through |
+| `GIT_PROVIDER_UNAVAILABLE` | 400 | The git connection is not usable yet (unfinished install or missing token) |
+| `GIT_PROVIDER_ERROR` | 502 | The git host rejected or failed a call; `message` is its answer |
+| `SIGNATURE_INVALID` | 401 | A push webhook with a missing or wrong signature |
 | `CERTIFICATE_FAILED` | 502 | ACME issuance failed; `message` explains why |
 | `INTERNAL` | 500 | Unexpected failure |
 
@@ -168,6 +175,7 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `POST /api/projects/{id}/services` | Adds a service |
 | `POST /api/projects/{id}/services/template` | Installs a [template](#templates) |
 | `GET /api/projects/{id}/services/export` | The project's services as a base64 blob |
+| `GET /api/services/{id}` | One service, the same shape as a row of the list |
 | `PATCH /api/services/{id}` | Changes its provider, repository, image or fragment |
 | `DELETE /api/services/{id}` | Removes it; its named volume is kept, its generated password is not |
 | `POST /api/services/{id}/duplicate` | `{"name", "environment_id"?}`; copies the service with its variables and scheduled tasks, by default beside the original |
@@ -176,7 +184,7 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `GET \| PUT /api/services/{id}/variables` | Its own variables |
 | `POST /api/services/{id}/deploy` | Deploy this service only |
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
-| `POST /api/services/{id}/exec` | `{"command", "shell"?}`; runs it in the container, answers `{"exit_code", "output"}`. Same rules as a [task](#scheduled-tasks): `sh` or `bash`, output keeps its tail, ten minutes then the process is abandoned |
+| `POST /api/services/{id}/exec` | `{"command", "shell"?}`; runs it in the container, answers `{"exit_code", "output"}`. `shell` is `sh` or `bash`, as for a [task](#scheduled-tasks); after ten minutes the process is abandoned; output over 1 MiB keeps its tail |
 | `GET /api/services/{id}/metrics` | Recorded usage over `?window=`, the same windows as `/api/system/metrics` |
 | `GET \| POST /api/services/{id}/tasks` | Its [scheduled tasks](#scheduled-tasks) |
 | `GET \| POST /api/services/{id}/redirects`, `DELETE .../redirects/{redirectId}` | Its [redirects](#redirects-basic-auth-and-ports) |
@@ -282,7 +290,7 @@ with, so a later change to a catalog default never moves a running database.
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $PLATFORM_TOKEN" \
+  -H "Authorization: Bearer $VEXDOCK_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"db","database":{"engine":"postgres","version":"17-alpine"}}' \
   https://panel.example.com/api/projects/$PROJECT_ID/services
@@ -418,7 +426,7 @@ expression that does not parse is rejected at write time with `400`.
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $PLATFORM_TOKEN" \
+  -H "Authorization: Bearer $VEXDOCK_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"prune","schedule":"0 3 * * *","timezone":"Europe/Warsaw","command":"php artisan model:prune"}' \
   https://panel.example.com/api/services/$SERVICE_ID/tasks
@@ -429,8 +437,8 @@ container, so shell syntax works and nothing runs on the host. A run that finish
 a `200`: the run happened, and its exit code is in the payload. A task whose
 previous run has not finished is not started again, from the tick or from
 `run`, which answers `409 TASK_RUNNING` instead, and one still going after 30
-minutes is killed. Runs are kept 20 deep per task, a task with no container yet
-records the failure rather than disappearing, and a run cut short by a manager
+minutes is given up on, though its process may keep running. Runs are kept 20
+deep per task, a task with no container yet records the failure rather than disappearing, and a run cut short by a manager
 restart is closed out on the next boot instead of showing as forever running.
 `run` does not hand the command the request's lifetime either: closing the
 connection does not cancel it.
@@ -524,8 +532,9 @@ grouped query rather than by asking the daemon. The sampler writes a row a
 minute, so a container younger than that, or one the sampler has not seen since
 it stopped, answers `null`.
 
-Nothing is pruned on a schedule; the one automatic sweep is a service with
-`prune_build_cache` on, after its own build. A cleanup answers
+Only two sweeps run on their own: dangling build cache after the build of a
+service with `prune_build_cache` on, and previous Vexdock images after a panel
+update when `cleanup_old_images` is on. A cleanup answers
 `{"kind", "removed", "space_reclaimed"}`. `cleanup/volumes` wants `?confirm=true`
 just as the single delete does, because an unused volume is a stopped project's
 data rather than junk; the other kinds can be rebuilt and ask for nothing.
@@ -653,7 +662,7 @@ Whole project:
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $PLATFORM_TOKEN" \
+  -H "Authorization: Bearer $VEXDOCK_TOKEN" \
   https://panel.example.com/api/projects/$PROJECT_ID/deploy
 ```
 
@@ -661,7 +670,7 @@ One service:
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $PLATFORM_TOKEN" \
+  -H "Authorization: Bearer $VEXDOCK_TOKEN" \
   https://panel.example.com/api/services/$SERVICE_ID/deploy
 ```
 
