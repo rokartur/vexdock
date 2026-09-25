@@ -47,6 +47,7 @@ func TestOverlayRendersADatabaseService(t *testing.T) {
 		"  usagefleet-db:\n",
 		"image: postgres:17-alpine",
 		"usagefleet-db-data:/var/lib/postgresql/data",
+		"PGDATA: /var/lib/postgresql/data",
 		"\nvolumes:\n  usagefleet-db-data: {}\n",
 	} {
 		if !strings.Contains(overlay, want) {

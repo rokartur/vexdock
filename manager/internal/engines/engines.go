@@ -132,6 +132,9 @@ var Catalog = []Engine{
 		fragment: `    image: {{ .Image }}
     restart: unless-stopped
     env_file: ["{{ .EnvFile }}"]
+    # 18+ defaults PGDATA to /var/lib/postgresql/18/docker and refuses this mount unless PGDATA is set.
+    environment:
+      PGDATA: /var/lib/postgresql/data
     volumes:
       - {{ .Volume }}:/var/lib/postgresql/data
     healthcheck:
