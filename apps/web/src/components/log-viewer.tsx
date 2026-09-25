@@ -1,17 +1,27 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import {
 	IconArrowDown,
+	IconCheck,
 	IconDownload,
 	IconEraser,
 	IconPlayerPause,
 	IconPlayerPlay,
 	IconSearch,
 	IconTextWrap,
+	IconX,
 } from '@tabler/icons-react'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { cn } from '@/utils/cn'
-import { bytes, parseAccessLine, parseLogLine } from '../lib/format'
+import {
+	type BuildResult,
+	ansiSegments,
+	bytes,
+	parseAccessLine,
+	parseBuildLine,
+	parseBuildResult,
+	parseLogLine,
+} from '../lib/format'
 import { useEventSource } from '../lib/sse'
 import { IconButton, Segmented } from './primitives'
 
@@ -86,13 +96,15 @@ export function severityOf(line: Line): Severity | undefined {
 
 /**
  * `url` tails an SSE endpoint; streamed logs are never stored, so the buffer is
- * capped here. `lines` renders output the caller already holds.
+ * capped here. `lines` renders output the caller already holds. `build` reads
+ * BuildKit's `#N` lines as steps.
  */
 export function LogViewer({
 	url,
 	lines: given,
+	build = false,
 	className,
-}: { className?: string } & ({ url: string; lines?: never } | { lines: Line[]; url?: never })) {
+}: { className?: string; build?: boolean } & ({ url: string; lines?: never } | { lines: Line[]; url?: never })) {
 	const [streamed, setStreamed] = useState<Line[]>([])
 	const [paused, setPaused] = useState(false)
 	const [filter, setFilter] = useState('')
@@ -140,15 +152,17 @@ export function LogViewer({
 
 	const lines = given ?? streamed
 	const needle = filter.toLowerCase()
+	const steps = useMemo(() => (build ? buildSteps(lines) : null), [build, lines])
 	const visible = useMemo(
 		() =>
 			lines.filter(line => {
+				if (!plain && steps?.closing.has(line)) return false
 				if (needle && !line.text.toLowerCase().includes(needle)) return false
 				if (level === 'all') return true
 				const severity = severityOf(line)
 				return level === 'error' ? severity === 'error' : severity === 'error' || severity === 'warn'
 			}),
-		[lines, needle, level],
+		[lines, needle, level, plain, steps],
 	)
 
 	useEffect(() => {
@@ -244,7 +258,7 @@ export function LogViewer({
 								{line.text}
 							</div>
 						) : (
-							<LogLine key={index} line={line} />
+							<LogLine key={index} line={line} build={build} result={steps?.results.get(line)} />
 						),
 					)
 				)}
@@ -254,15 +268,38 @@ export function LogViewer({
 	)
 }
 
-const LogLine = memo(function LogLine({ line }: { line: Line }) {
-	const { time, timestamp, body, level } = parseLogLine(line.text)
+/** Pairs each BuildKit step with the line that closed it, so the step shows the outcome and a clean close can go. */
+function buildSteps(lines: Line[]) {
+	const opened = new Map<string, Line>()
+	const results = new Map<Line, BuildResult>()
+	const closing = new Set<Line>()
+	for (const line of lines) {
+		const buildLine = parseBuildLine(parseLogLine(line.text).coloredBody)
+		if (!buildLine) continue
+		if (buildLine.kind === 'step') {
+			opened.set(buildLine.id, line)
+			continue
+		}
+		const step = opened.get(buildLine.id)
+		const result = parseBuildResult(buildLine.text)
+		if (!step || !result) continue
+		results.set(step, result)
+		// An ERROR line carries the reason, so only a clean close is hidden.
+		if (!result.failed) closing.add(line)
+	}
+	return { results, closing }
+}
+
+const LogLine = memo(function LogLine({ line, build, result }: { line: Line; build: boolean; result?: BuildResult }) {
+	const { time, timestamp, body, coloredBody, level } = parseLogLine(line.text)
 	const request = parseAccessLine(body)
 	const severity = severityFrom(line.stream, level, request?.status)
 	const tone =
 		line.stream === 'stderr' ? 'text-console-stderr' : level && severity ? severityColor[severity] : undefined
+	const buildLine = build ? parseBuildLine(coloredBody) : null
 
 	return (
-		<div className='flex gap-3'>
+		<div className={cn('flex gap-3', buildLine?.kind === 'step' && 'mt-2 border-t border-console-border pt-1')}>
 			<span
 				aria-hidden
 				className={cn('-ml-1 w-[3px] shrink-0 rounded-full', severity && gutterColor[severity])}
@@ -281,11 +318,66 @@ const LogLine = memo(function LogLine({ line }: { line: Line }) {
 					<span className='shrink-0 text-console-muted'>{request.client}</span>
 				</>
 			) : (
-				<span className={cn('min-w-0 break-all whitespace-pre-wrap', tone)}>{body}</span>
+				<LineBody text={coloredBody} buildLine={buildLine} result={result} tone={tone} />
 			)}
 		</div>
 	)
 })
+
+function LineBody({
+	text,
+	buildLine,
+	result,
+	tone,
+}: {
+	text: string
+	buildLine: ReturnType<typeof parseBuildLine>
+	result?: BuildResult
+	tone?: string
+}) {
+	if (buildLine?.kind === 'step') {
+		const StepIcon = result?.failed ? IconX : IconCheck
+		return (
+			<>
+				<span className='flex h-lh w-12 shrink-0 items-center'>
+					{result ? (
+						<StepIcon className={cn('size-3.5', result.failed ? 'text-red-400' : 'text-emerald-400')} />
+					) : null}
+				</span>
+				<span className='min-w-0 flex-1 break-all whitespace-pre-wrap'>
+					<span className='text-sky-400'>{buildLine.stage}</span>{' '}
+					<span className='font-semibold text-foreground'>{buildLine.command}</span>
+				</span>
+				<span className='shrink-0 text-console-muted tabular-nums'>{result?.label}</span>
+			</>
+		)
+	}
+	if (buildLine) {
+		return (
+			<>
+				<span className='w-12 shrink-0 text-console-muted tabular-nums'>{buildLine.elapsed}</span>
+				<Ansi text={buildLine.text} className={tone} />
+			</>
+		)
+	}
+	return <Ansi text={text} className={tone} />
+}
+
+function Ansi({ text, className }: { text: string; className?: string }) {
+	return (
+		<span className={cn('min-w-0 break-all whitespace-pre-wrap', className)}>
+			{ansiSegments(text).map((segment, index) =>
+				segment.color || segment.bold ? (
+					<span key={index} className={cn(segment.bold && 'font-semibold')} style={{ color: segment.color }}>
+						{segment.text}
+					</span>
+				) : (
+					segment.text
+				),
+			)}
+		</span>
+	)
+}
 
 function download(lines: Line[]) {
 	const blob = new Blob([lines.map(line => line.text).join('\n')], { type: 'text/plain' })
