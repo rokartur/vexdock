@@ -149,6 +149,13 @@ func (c *Client) ListVolumes(ctx context.Context) (volume.ListResponse, error) {
 	return c.api.VolumeList(ctx, volume.ListOptions{})
 }
 
+// VolumeUsage lists volumes with their size and reference count, which only
+// the disk-usage endpoint fills in; VolumeList leaves UsageData nil.
+func (c *Client) VolumeUsage(ctx context.Context) ([]*volume.Volume, error) {
+	usage, err := c.api.DiskUsage(ctx, types.DiskUsageOptions{Types: []types.DiskUsageObject{types.VolumeObject}})
+	return usage.Volumes, err
+}
+
 func (c *Client) RemoveVolume(ctx context.Context, name string, force bool) error {
 	return c.api.VolumeRemove(ctx, name, force)
 }

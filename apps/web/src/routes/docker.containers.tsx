@@ -18,7 +18,8 @@ import {
 	Section,
 	Status,
 } from '../components/primitives'
-import { api, type ContainerAction, type ContainerSummary, type Project } from '../lib/api'
+import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
+import { projectLabels } from '../lib/environment'
 import { bytes, percent } from '../lib/format'
 
 /** The sampler records once a minute, so nothing is gained by asking faster. */
@@ -41,16 +42,6 @@ type ContainerActions = {
 	showLogs: (id: string) => void
 	act: (id: string, action: ContainerAction) => void
 	projectLabel: (composeProject: string) => string
-}
-
-function projectLabels(projects: Project[]) {
-	const labels = new Map<string, string>()
-	for (const project of projects) {
-		for (const env of project.environments) {
-			labels.set(env.compose_project_name, env.is_default ? project.name : `${project.name} / ${env.name}`)
-		}
-	}
-	return labels
 }
 
 function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions): Columns<ContainerSummary> {
