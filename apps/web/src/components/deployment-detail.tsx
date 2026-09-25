@@ -110,7 +110,7 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 					) : null}
 				</div>
 
-				<LogViewer lines={logLines} className='h-[60dvh] min-w-0 flex-1' />
+				<LogViewer lines={logLines} build className='h-[60dvh] min-w-0 flex-1' />
 			</div>
 		</div>
 	)
