@@ -192,6 +192,11 @@ validation fails, the previous configuration is restored byte for byte and the
 error is surfaced to the user, so an invalid domain cannot take down every other
 site on the server.
 
+A hostname with no vhost of its own never reaches another one. On port 80 the
+default server answers 404; on 443 it refuses the TLS handshake, so a bare IP or
+a domain whose certificate is not issued yet gets no other site's certificate
+or content.
+
 A service's redirects and basic-auth users are rendered into the `location /`
 of each of its vhosts, never into the ACME challenge location, so certificate
 renewal keeps working behind a password. Redirect regexes must compile as RE2
