@@ -135,18 +135,20 @@ included, from a laptop:
 ```bash
 export DOKPLOY_URL=https://dokploy.example.com DOKPLOY_API_KEY=...
 export VEXDOCK_URL=https://vexdock.example.com VEXDOCK_TOKEN=...
-export DOKPLOY_SSH=root@old-server VEXDOCK_SSH=root@new-server   # only for named volumes
 export VEXDOCK_GIT_PROVIDER=<GitHub connection id>   # for GitHub apps
 bun scripts/migrate-dokploy.ts "my project"
 ```
 
 It recreates each application, compose service and Postgres database with its
-variables, domains, published ports and database credentials, then stops the
-project's applications on Dokploy. Each Postgres database is started on vexdock
-and filled by a `pg_dump` of Dokploy's through its external port, which the
-Dokploy database must have. Named volumes of applications and compose services
-cross with `tar` over ssh, as a user in the `docker` group on both servers.
-Then the Dokploy databases stop and the project deploys.
+variables, domains and database credentials, then stops the project's
+applications on Dokploy. Published ports are dropped and listed at the end,
+since domains reach services through nginx. Each Postgres database is started on
+vexdock and filled by a `pg_dump` of Dokploy's through its external port, which
+the Dokploy database must have. A named volume crosses as an encrypted tar: a
+temporary `vexdock-export` compose on Dokploy serves it on port 18080 under a
+random path and a temporary `vexdock-import` service on vexdock pulls it, so the
+vexdock server must reach port 18080 on the Dokploy one. Then the Dokploy
+databases stop and the project deploys.
 Dokploy's copy is stopped, not deleted, so starting it again is the way back.
 Move DNS once the deploy is green. It refuses what it cannot carry over (other
 database engines, build args, bind mounts) and prints what it dropped, such as
