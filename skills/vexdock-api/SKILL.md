@@ -37,7 +37,7 @@ Create a token from a session-authenticated context, or ask the user to:
 - JSON bodies, `Content-Type: application/json`. Unknown fields are rejected with `400`.
 - Errors: `{"error":{"code","message","details"?}}`. Codes: `INVALID_REQUEST` 400,
   `UNAUTHORIZED` 401, `CROSS_ORIGIN` 403, `NOT_FOUND` 404, `CONFIRMATION_REQUIRED` 428,
-  `CONFLICT` 409, `TASK_RUNNING` 409, `UNHEALTHY` 409, `GIT_PROVIDER_IN_USE` 409,
+  `CONFLICT` 409, `TASK_RUNNING` 409, `UNHEALTHY` 409, `GIT_PROVIDER_IN_USE` 409, `PROJECT_NOT_EMPTY` 409,
   `GIT_PROVIDER_UNAVAILABLE` 400, `GIT_PROVIDER_ERROR` 502, `CERTIFICATE_FAILED` 502, `INTERNAL` 500. `429` comes from Nginx without the envelope.
 - Ids are opaque strings. Resolve names to ids by listing; never guess.
 - Project routes act on the project's **default environment** unless `?environment={id}` is given.
@@ -45,8 +45,9 @@ Create a token from a session-authenticated context, or ask the user to:
 - Deploys return `202` immediately. Poll `GET /api/deployments/{id}` until `deployment.status` is
   `success`, `failed` or `cancelled` (`queued`/`running` meanwhile), or stream `.../events`.
 - A non-zero exit from `exec` or a task `run` is still `200`; read `exit_code`.
-- Destructive calls: volume deletes and `cleanup/volumes` need `?confirm=true`; project and
-  environment deletes take `?volumes=true` to also drop data. Confirm with the user before
+- Destructive calls: volume deletes and `cleanup/volumes` need `?confirm=true`; an
+  environment delete takes `?volumes=true` to also drop data. A project deletes only once it has no
+  services (`409 PROJECT_NOT_EMPTY`). Confirm with the user before
   passing either flag. Every mutation is audit-logged.
 - Streams are SSE: `curl -N` and read `event:`/`data:` lines. The terminal is a WebSocket; use
   `POST .../exec` instead.
@@ -113,7 +114,7 @@ vx /api/system/info
 ```sh
 vx /api/projects -d '{"name":"shop"}'                                    # 201
 vx /api/services/$SERVICE -X PATCH -d '{"auto_deploy":true}'
-vx /api/projects/$PROJECT -X DELETE                                      # add ?volumes=true to drop data
+vx /api/projects/$PROJECT -X DELETE                                      # only once it has no services
 
 # git application
 vx /api/projects/$PROJECT/services -d '{"name":"web","provider":"github","repository_url":"https://github.com/o/r","branch":"main"}'

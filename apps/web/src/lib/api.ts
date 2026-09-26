@@ -657,8 +657,7 @@ export const api = {
 			tags: string[]
 		}>,
 	) => request<Project>(`/api/projects/${id}`, { method: 'PATCH', body }),
-	deleteProject: (id: string, removeVolumes: boolean) =>
-		request<{ ok: boolean }>(`/api/projects/${id}?volumes=${removeVolumes}`, { method: 'DELETE' }),
+	deleteProject: (id: string) => request<{ ok: boolean }>(`/api/projects/${id}`, { method: 'DELETE' }),
 	/** Queues one deployment per service of the environment. */
 	deploy: (id: string, environmentId?: string) =>
 		request<Deployment[]>(`/api/projects/${id}/deploy${environmentQuery(environmentId)}`, { method: 'POST' }),

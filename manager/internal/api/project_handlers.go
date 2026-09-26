@@ -200,29 +200,21 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	if lookupFailed(w, err) {
 		return
 	}
-	envs, err := s.DB.ListEnvironments(r.Context(), project.ID)
+	services, err := s.DB.ListProjectServices(r.Context(), project.ID)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
-	removeVolumes := r.URL.Query().Get("volumes") == "true"
-	for i := range envs {
-		env := &envs[i]
-		// The compose project name lives only in these rows. Deleting them after a
-		// failed teardown leaves containers running that nothing can find or stop,
-		// so the project stays deletable on retry instead.
-		composeProject, err := s.Projects.ComposeProject(r.Context(), project, env)
-		if errors.Is(err, projects.ErrNoServices) {
-			continue
-		}
-		if err == nil {
-			err = composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes)
-		}
-		if err != nil {
-			s.Log.Error("compose down during delete", "environment", env.ID, "error", err)
-			serverError(w, fmt.Errorf("stop environment %s: %w", env.Name, err))
-			return
-		}
+	if len(services) > 0 {
+		writeError(w, http.StatusConflict, "PROJECT_NOT_EMPTY",
+			fmt.Sprintf("%d service(s) still in this project; delete them first", len(services)),
+			map[string]any{"services": len(services)})
+		return
+	}
+	envs, err := s.DB.ListEnvironments(r.Context(), project.ID)
+	if err != nil {
+		serverError(w, err)
+		return
 	}
 	if err := s.DB.DeleteProject(r.Context(), project.ID); err != nil {
 		serverError(w, err)

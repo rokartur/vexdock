@@ -26,7 +26,7 @@ function ProjectLayout() {
 	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
 
 	const remove = useMutation({
-		mutationFn: () => api.deleteProject(projectId, false),
+		mutationFn: () => api.deleteProject(projectId),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ['projects'] })
 			await navigate({ to: '/projects' })
@@ -55,10 +55,16 @@ function ProjectLayout() {
 						render={<IconButton icon={IconDots} label='Project actions' size='default' />}
 					/>
 					<DropdownMenuContent align='end'>
-						{project.data ? (
+						{project.data && project.data.service_count > 0 ? (
+							<DropdownMenuItem disabled>
+								<IconTrash />
+								Delete its {project.data.service_count} services first
+							</DropdownMenuItem>
+						) : null}
+						{project.data?.service_count === 0 ? (
 							<Confirm
 								title='Delete this project?'
-								description='Every service, deployment and domain in it goes with it. Volumes are kept.'
+								description='Its environments, variables and domains go with it.'
 								type={project.data.name}
 								onConfirm={() => remove.mutate()}
 							>
