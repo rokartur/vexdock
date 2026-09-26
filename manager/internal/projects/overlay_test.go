@@ -342,3 +342,18 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestWithServiceEnvFileAppendsTheServiceFile(t *testing.T) {
+	const svcEnv = `"/p/services/web.env"`
+	for _, tc := range []struct{ name, in, want string }{
+		{"none", "image: a\n", "image: a\nenv_file: [" + svcEnv + "]"},
+		{"scalar", "image: a\nenv_file: \"/p/.env\"\n", "image: a\nenv_file: [\"/p/.env\", " + svcEnv + "]"},
+		{"flow", "env_file: [a.env, b.env]\nimage: a", "env_file: [a.env, b.env, " + svcEnv + "]\nimage: a"},
+		{"block", "env_file:\n  - a.env\nimage: a", "env_file:\n  - a.env\n  - " + svcEnv + "\nimage: a"},
+		{"nested key untouched", "image: a\nlabels:\n  env_file: x", "image: a\nlabels:\n  env_file: x\nenv_file: [" + svcEnv + "]"},
+	} {
+		if got := withServiceEnvFile(tc.in, "/p/services/web.env"); got != tc.want {
+			t.Errorf("%s:\ngot  %q\nwant %q", tc.name, got, tc.want)
+		}
+	}
+}

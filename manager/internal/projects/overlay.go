@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -152,6 +153,7 @@ func (s *Service) renderService(env *database.Environment, svc database.Service,
 			return "", nil, err
 		}
 		fragment := retargetDotEnv(svc.ComposeFragment, s.EnvFilePath(env))
+		fragment = withServiceEnvFile(fragment, s.ServiceEnvFilePath(env, svc.ComposeServiceName))
 		return indent(fragment, 4), vols, nil
 	default:
 		return "", nil, fmt.Errorf("unknown provider %q", svc.Provider)
@@ -299,8 +301,42 @@ func retargetDotEnv(fragment, envPath string) string {
 	return fragment
 }
 
-func namedVolumes(fragment string) ([]string, error) {
-	lines := strings.Split(fragment, "\n")
+// withServiceEnvFile lists the service's own env file last in the fragment's
+// env_file, so its variables reach the container and win over the project's.
+func withServiceEnvFile(fragment, envPath string) string {
+	q := fmt.Sprintf("%q", envPath)
+	lines := strings.Split(strings.TrimRight(fragment, "\n"), "\n")
+	pad := strings.Repeat(" ", max(fragmentKeyIndent(lines), 0))
+	for i, line := range lines {
+		rest, ok := strings.CutPrefix(line, pad+"env_file:")
+		if !ok {
+			continue
+		}
+		rest, _, _ = strings.Cut(rest, " #")
+		rest = strings.TrimSpace(rest)
+		if rest != "" {
+			items := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(rest, "["), "]"))
+			if items != "" {
+				items += ", "
+			}
+			lines[i] = pad + "env_file: [" + items + q + "]"
+			return strings.Join(lines, "\n")
+		}
+		end := i + 1
+		for end < len(lines) && (strings.HasPrefix(lines[end], pad+" ") || strings.HasPrefix(lines[end], pad+"-")) {
+			end++
+		}
+		itemPad := pad
+		if end > i+1 {
+			itemPad = lines[i+1][:len(lines[i+1])-len(strings.TrimLeft(lines[i+1], " "))]
+		}
+		return strings.Join(slices.Insert(lines, end, itemPad+"- "+q), "\n")
+	}
+	return strings.Join(append(lines, pad+"env_file: ["+q+"]"), "\n")
+}
+
+// fragmentKeyIndent is the indentation of a fragment's top-level keys, -1 when it has none.
+func fragmentKeyIndent(lines []string) int {
 	keyIndent := -1
 	for _, line := range lines {
 		trim := strings.TrimSpace(line)
@@ -312,6 +348,12 @@ func namedVolumes(fragment string) ([]string, error) {
 			keyIndent = ind
 		}
 	}
+	return keyIndent
+}
+
+func namedVolumes(fragment string) ([]string, error) {
+	lines := strings.Split(fragment, "\n")
+	keyIndent := fragmentKeyIndent(lines)
 	if keyIndent < 0 {
 		return nil, nil
 	}

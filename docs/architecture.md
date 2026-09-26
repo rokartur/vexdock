@@ -89,8 +89,9 @@ database cannot mount the first one's data. Deleting a service leaves the volume
 behind: recreating it under the same name picks the data back up, and dropping a
 database stays an explicit act. A compose fragment that mounts a named volume
 gets that volume declared at the top of the overlay. `env_file: .env` in a
-fragment is rewritten to the project env file, which is what the Environment
-tab writes.
+fragment is rewritten to the project env file, and the service's own env file
+is appended last to its `env_file`, so its variables reach the container and
+win a collision.
 
 A rendered service declares no `networks:`, so it joins the environment's
 default network and is reachable from its siblings at its own service name. A
