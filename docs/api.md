@@ -86,6 +86,7 @@ Every error uses one envelope:
 | `TASK_RUNNING` | 409 | A manual run of a task that is already running |
 | `UNHEALTHY` | 409 | Self-update refused while a health check fails |
 | `GIT_PROVIDER_IN_USE` | 409 | Deleting a git connection services still clone through |
+| `PROJECT_NOT_EMPTY` | 409 | Deleting a project that still has services |
 | `GIT_PROVIDER_UNAVAILABLE` | 400 | The git connection is not usable yet (unfinished install or missing token) |
 | `GIT_PROVIDER_ERROR` | 502 | The git host rejected or failed a call; `message` is its answer |
 | `SIGNATURE_INVALID` | 401 | A push webhook with a missing or wrong signature |
@@ -124,7 +125,7 @@ its event names are a contract: `deployment.queued`, `deployment.success`,
 | `POST /api/projects` | `{"name", "tags"?}`. `201` |
 | `GET /api/projects/{id}` | One project, same shape |
 | `PATCH /api/projects/{id}` | Any of `name`, `tags`; omitted fields are left alone |
-| `DELETE /api/projects/{id}` | Stops every environment and drops the project; `?volumes=true` takes its data too. An environment that will not stop is `500` and the project stays, because dropping the row would strand its containers |
+| `DELETE /api/projects/{id}` | Drops an empty project with its environments and variables; `409 PROJECT_NOT_EMPTY` while any environment still has a service |
 
 ## Environments
 

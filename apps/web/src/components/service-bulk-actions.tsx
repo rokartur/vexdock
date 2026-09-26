@@ -71,6 +71,7 @@ export function ServiceBulkActions({
 			setMoving(false)
 			await queryClient.invalidateQueries({ queryKey: ['services'] })
 			await queryClient.invalidateQueries({ queryKey: ['projects'] })
+			await queryClient.invalidateQueries({ queryKey: ['project'] })
 		},
 	})
 

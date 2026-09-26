@@ -173,7 +173,8 @@ curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/environments/$ENVIR
 pass 'environment removed'
 
 step 'cleanup'
-curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/projects/$PROJECT_ID?volumes=true" >/dev/null
+curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/services/$default_service" >/dev/null
+curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/projects/$PROJECT_ID" >/dev/null
 pass 'project removed'
 
 printf '\nSmoke test passed.\n'

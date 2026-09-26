@@ -22,6 +22,7 @@ function ServiceAdvanced() {
 		mutationFn: () => api.deleteService(serviceId),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
+			await queryClient.invalidateQueries({ queryKey: ['project', projectId] })
 			await navigate({ to: '/projects/$projectId', params: { projectId } })
 		},
 	})
