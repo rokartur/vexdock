@@ -603,14 +603,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 	if (response.status === 204) return undefined as T
 
 	const text = await response.text()
-	// A proxy error page or a restarting manager can return non-JSON; surface
-	// that as a normal ApiError instead of an unhandled parse exception.
+	// A proxy in front of the manager (Cloudflare, Nginx) answers an outage with an HTML page;
+	// its <title> ("host | 502: Bad gateway") says what happened, the markup does not.
 	let payload: unknown
 	if (text) {
 		try {
 			payload = JSON.parse(text)
 		} catch {
-			throw new ApiError('BAD_RESPONSE', text.slice(0, 200), response.status)
+			const title = new DOMParser().parseFromString(text, 'text/html').title.trim()
+			throw new ApiError('BAD_RESPONSE', title || `HTTP ${response.status}`, response.status)
 		}
 	}
 

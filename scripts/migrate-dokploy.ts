@@ -1,9 +1,8 @@
 #!/usr/bin/env bun
 // Moves one Dokploy project, named volumes included, onto a vexdock server.
 // Usage: bun scripts/migrate-dokploy.ts "<dokploy project name>"
-// Env: DOKPLOY_URL DOKPLOY_API_KEY VEXDOCK_URL VEXDOCK_TOKEN, VEXDOCK_GIT_PROVIDER for github sources,
-//      DOKPLOY_SSH VEXDOCK_SSH only when an app or compose has a named volume
-import { $ } from 'bun'
+// Env: DOKPLOY_URL DOKPLOY_API_KEY VEXDOCK_URL VEXDOCK_TOKEN, VEXDOCK_GIT_PROVIDER for github sources
+import { randomBytes } from 'node:crypto'
 
 type DokployDomain = {
 	host: string
@@ -49,6 +48,7 @@ type DokployPostgres = {
 	externalPort: number | null
 }
 type DokployEnvironment = {
+	environmentId: string
 	applications: { applicationId: string }[]
 	compose: { composeId: string }[]
 	postgres: { postgresId: string }[]
@@ -94,9 +94,6 @@ if (source.composes.filter(c => c.env?.trim()).length > 1)
 for (const pg of source.postgres) await createPostgres(pg)
 for (const app of source.apps) await createApp(app)
 for (const compose of source.composes) await createCompose(compose)
-// Only plain volumes cross over ssh; databases travel as a dump through their published port.
-const dokploySsh = copies.length > 0 ? env('DOKPLOY_SSH') : ''
-const vexdockSsh = copies.length > 0 ? env('VEXDOCK_SSH') : ''
 const dokployIp = await dokploy<string>('GET', 'settings.getIp')
 
 console.log(`stopping ${projectName}'s applications on Dokploy`)
@@ -135,7 +132,7 @@ async function readDokployProject(name: string) {
 	const postgres: DokployPostgres[] = []
 	for (const { postgresId } of dokployEnv.postgres)
 		postgres.push(await dokploy('GET', 'postgres.one', { postgresId }))
-	return { apps, composes, postgres }
+	return { environmentId: dokployEnv.environmentId, apps, composes, postgres }
 }
 
 async function createApp(app: DokployApp) {
@@ -197,7 +194,9 @@ async function createCompose(compose: DokployCompose) {
 
 // Traefik labels, dokploy-network and a fixed container_name belong to Dokploy's proxy and naming.
 function rawFragment(body: Record<string, unknown>) {
-	const { labels, networks, container_name: _, ...rest } = body
+	const { labels, networks, ports, container_name: _, ...rest } = body
+	if (ports !== undefined)
+		skipped.push(`published ports ${JSON.stringify(ports)} dropped; domains reach services through nginx`)
 	if (Array.isArray(labels)) {
 		const kept = labels.filter(l => typeof l === 'string' && !l.startsWith('traefik.'))
 		if (kept.length > 0) rest.labels = kept
@@ -240,24 +239,12 @@ async function createPostgres(pg: DokployPostgres) {
 	})
 	dumps.push({ serviceId: created.id, name: pg.name, port: pg.externalPort })
 	renamedHosts.set(pg.appName, created.compose_service_name)
-	await vexdock('POST', `/api/services/${created.id}/ports`, {
-		published: pg.externalPort,
-		target: 5432,
-		protocol: 'tcp',
-	})
 }
 
 // Same user, password and database on both sides, so the container's own env logs in to Dokploy too.
 async function restoreDump({ serviceId, name, port }: DatabaseDump) {
 	console.log(`restoring ${name} from ${dokployIp}:${port}`)
-	const deploy = await vexdock<{ id: string; status: string }>('POST', `/api/services/${serviceId}/deploy`)
-	let status = deploy.status
-	while (status === 'queued' || status === 'running') {
-		await Bun.sleep(2000)
-		status = (await vexdock<{ deployment: { status: string } }>('GET', `/api/deployments/${deploy.id}`)).deployment
-			.status
-	}
-	if (status !== 'success') throw new Error(`${name}: deploy ${deploy.id} ended ${status}`)
+	await deployAndWait(serviceId, name)
 	// The entrypoint's init server listens on the socket only, so a TCP answer means the final server is up.
 	const command = [
 		'set -o pipefail',
@@ -303,18 +290,89 @@ async function createDomains(service: string, domains: DokployDomain[]) {
 	}
 }
 
-// Streams tar over both ssh sessions; the volume is created with compose's labels so the deploy adopts it.
-async function copyVolume({ from, to }: VolumeCopy) {
-	console.log(`copying volume ${from} -> ${to}`)
-	await $`ssh ${dokploySsh} docker volume inspect ${from}`.quiet()
-	const composeVolume = to.slice(volumePrefix.length)
-	await $`ssh ${vexdockSsh} docker volume create --label com.docker.compose.project=${environment.compose_project_name} --label com.docker.compose.volume=${composeVolume} ${to}`.quiet()
-	await $`ssh ${dokploySsh} docker run --rm -v ${from}:/from:ro alpine tar -C /from -cf - . | ssh ${vexdockSsh} docker run --rm -i -v ${to}:/to alpine tar -C /to -xpf -`
+async function deployAndWait(serviceId: string, name: string) {
+	const deploy = await vexdock<{ id: string; status: string }>('POST', `/api/services/${serviceId}/deploy`)
+	let status = deploy.status
+	while (status === 'queued' || status === 'running') {
+		await Bun.sleep(2000)
+		status = (await vexdock<{ deployment: { status: string } }>('GET', `/api/deployments/${deploy.id}`)).deployment
+			.status
+	}
+	if (status !== 'success') throw new Error(`${name}: deploy ${deploy.id} ended ${status}`)
 }
 
-async function dokploy<T>(method: 'GET' | 'POST', procedure: string, input: Record<string, string> = {}) {
+// A Dokploy compose serves the volume as an AES-encrypted tar under a random path, and a throwaway
+// vexdock service that declares the target volume pulls it, so the later deploy adopts the volume.
+async function copyVolume({ from, to }: VolumeCopy) {
+	console.log(`copying volume ${from} -> ${to}`)
+	const exportPort = 18080
+	const key = randomBytes(32).toString('hex')
+	const secretPath = randomBytes(16).toString('hex')
+	const importer = await vexdock<VexdockService>('POST', `/api/projects/${project.id}/services`, {
+		name: 'vexdock-import',
+		provider: 'raw',
+		compose_fragment: `image: alpine:3.22\ncommand: sleep infinity\nvolumes:\n  - ${to.slice(volumePrefix.length)}:/dst\n`,
+	})
+	await deployAndWait(importer.id, 'vexdock-import')
+	const serve = [
+		'apk add -q --no-cache openssl busybox-extras',
+		`mkdir -p /www/${secretPath}`,
+		`cd /www/${secretPath}`,
+		`tar c -C /src . | openssl enc -aes-256-cbc -pbkdf2 -pass pass:${key} -out data.enc`,
+		'sha256sum data.enc > data.sha256',
+		'exec busybox-extras httpd -f -p 8080 -h /www',
+	].join(' && ')
+	const composeFile = `services:
+  export:
+    image: alpine:3.22
+    command: ["sh", "-c", ${JSON.stringify(serve)}]
+    ports:
+      - "${exportPort}:8080"
+    volumes:
+      - src:/src:ro
+volumes:
+  src:
+    external: true
+    name: ${from}
+`
+	const exporter = await dokploy<{ composeId: string }>('POST', 'compose.create', {
+		name: 'vexdock-export',
+		environmentId: source.environmentId,
+		composeType: 'docker-compose',
+	})
+	try {
+		await dokploy('POST', 'compose.update', { composeId: exporter.composeId, composeFile, sourceType: 'raw' })
+		await dokploy('POST', 'compose.deploy', { composeId: exporter.composeId })
+		const url = `http://${dokployIp}:${exportPort}/${secretPath}`
+		const command = [
+			'set -eo pipefail',
+			'apk add -q --no-cache openssl',
+			'cd /tmp',
+			`for i in $(seq 60); do wget -q -O data.sha256 ${url}/data.sha256 && wget -q -O data.enc ${url}/data.enc && break; sleep 5; done`,
+			'sha256sum -c data.sha256',
+			`openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:${key} -in data.enc | tar x -C /dst`,
+			'rm data.enc data.sha256',
+			'echo "$(find /dst -type f | wc -l) files, $(du -sh /dst | cut -f1)"',
+		].join('\n')
+		const result = await vexdock<{ exit_code: number; output: string }>(
+			'POST',
+			`/api/services/${importer.id}/exec`,
+			{
+				command,
+				shell: 'sh',
+			},
+		)
+		if (result.exit_code !== 0) throw new Error(`${to}: import exited ${result.exit_code}\n${result.output}`)
+		console.log(result.output.trim())
+	} finally {
+		await dokploy('POST', 'compose.delete', { composeId: exporter.composeId, deleteVolumes: false })
+	}
+	await vexdock('DELETE', `/api/services/${importer.id}`)
+}
+
+async function dokploy<T>(method: 'GET' | 'POST', procedure: string, input: Record<string, string | boolean> = {}) {
 	const url = new URL(`${dokployUrl}/api/${procedure}`)
-	if (method === 'GET') for (const [k, v] of Object.entries(input)) url.searchParams.set(k, v)
+	if (method === 'GET') for (const [k, v] of Object.entries(input)) url.searchParams.set(k, String(v))
 	const res = await fetch(url, {
 		method,
 		headers: { 'x-api-key': dokployKey, 'content-type': 'application/json' },
