@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { retainSearchParams, useSearch } from '@tanstack/react-router'
-import { api, type Project } from './api'
+import type { Project } from './api'
+import { environmentsQuery } from './queries'
 
 /** Spread into the project and service route branches. In the URL, not a store, so a pasted link lands where it
  * was copied from. */
@@ -22,7 +23,7 @@ export function useEnvironmentId(): string | undefined {
 /** The environment the page is acting on, and the list it came from. One query key, so every caller shares the fetch. */
 export function useCurrentEnvironment(projectId: string) {
 	const selected = useEnvironmentId()
-	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
+	const environments = useQuery(environmentsQuery(projectId))
 	return { environments, current: environments.data?.find(env => (selected ? env.id === selected : env.is_default)) }
 }
 

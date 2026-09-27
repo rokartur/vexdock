@@ -4,8 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Fact, Facts, Meter, Page, Refresh, Section, Status } from '../components/primitives'
-import { api } from '../lib/api'
 import { bytes } from '../lib/format'
+import { healthQuery, preload, systemInfoQuery } from '../lib/queries'
 
 type HealthRow = { name: string; result: string }
 
@@ -35,11 +35,15 @@ const healthTableColumns: Columns<HealthRow> = (() => {
 	]
 })()
 
-export const Route = createFileRoute('/system/')({ component: SystemOverview })
+export const Route = createFileRoute('/system/')({
+	loader: ({ context: { queryClient } }) =>
+		Promise.all([preload(queryClient, systemInfoQuery), preload(queryClient, healthQuery)]),
+	component: SystemOverview,
+})
 
 function SystemOverview() {
-	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo })
-	const health = useQuery({ queryKey: ['health'], queryFn: api.health })
+	const info = useQuery(systemInfoQuery)
+	const health = useQuery(healthQuery)
 
 	const healthRows = useMemo<HealthRow[]>(
 		() => Object.entries(health.data?.checks ?? {}).map(([name, result]) => ({ name, result })),

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { IconAlertTriangle, IconKey, IconPlus, IconTrash } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -17,8 +17,14 @@ import {
 	Section,
 } from '../components/primitives'
 import { api, type ApiToken } from '../lib/api'
+import { preload } from '../lib/queries'
 
-export const Route = createFileRoute('/system/settings/tokens')({ component: ApiTokens })
+const tokensQuery = queryOptions({ queryKey: ['tokens'], queryFn: api.tokens })
+
+export const Route = createFileRoute('/system/settings/tokens')({
+	loader: ({ context: { queryClient } }) => preload(queryClient, tokensQuery),
+	component: ApiTokens,
+})
 
 function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 	const cell = columnsFor<ApiToken>()
@@ -74,7 +80,7 @@ function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 
 function ApiTokens() {
 	const queryClient = useQueryClient()
-	const tokens = useQuery({ queryKey: ['tokens'], queryFn: api.tokens })
+	const tokens = useQuery(tokensQuery)
 	const [creating, setCreating] = useState(false)
 	const [name, setName] = useState('')
 	const [issued, setIssued] = useState('')

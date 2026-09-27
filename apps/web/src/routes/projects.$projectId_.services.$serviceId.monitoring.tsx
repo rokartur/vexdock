@@ -1,15 +1,24 @@
 import { useMemo, useState } from 'react'
 import { IconActivity, IconAffiliate, IconCpu, IconDatabase, IconServer } from '@tabler/icons-react'
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { MetricCard, type Point, ratesOf, seriesOf, totalOf, useHistory } from '../components/metric-chart'
 import { Cells, EmptyState, Fact, Facts, RelativeTime, Section, Segmented } from '../components/primitives'
 import { api, type ContainerStats, type MetricWindow, type ServicePoint } from '../lib/api'
 import { bytes, percent } from '../lib/format'
+import { preload } from '../lib/queries'
 import { useEventSource } from '../lib/sse'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
+const metricsQuery = (serviceId: string, range: MetricWindow) =>
+	queryOptions({
+		queryKey: ['service', serviceId, 'metrics', range],
+		queryFn: () => api.serviceMetrics(serviceId, range),
+	})
+
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/monitoring')({
+	loader: ({ context: { queryClient }, params: { serviceId } }) =>
+		preload(queryClient, metricsQuery(serviceId, '30m')),
 	component: ServiceMonitoring,
 })
 
@@ -72,10 +81,7 @@ function ServiceMonitoring() {
 	const span = windows.find(option => option.value === range)?.ms ?? windows[0].ms
 
 	const service = useService(serviceId)
-	const recorded = useQuery({
-		queryKey: ['service', serviceId, 'metrics', range],
-		queryFn: () => api.serviceMetrics(serviceId, range),
-	})
+	const recorded = useQuery(metricsQuery(serviceId, range))
 
 	const running = service.data?.state === 'running'
 	useEventSource(running ? `/api/services/${serviceId}/stats` : null, {

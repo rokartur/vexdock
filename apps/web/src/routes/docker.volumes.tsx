@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { IconDatabase, IconTrash } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
@@ -16,6 +16,7 @@ import {
 import { api, type VolumeSummary } from '../lib/api'
 import { composeProjects } from '../lib/environment'
 import { bytes } from '../lib/format'
+import { preload } from '../lib/queries'
 
 function volumeTableColumns(
 	remove: (name: string) => void,
@@ -107,12 +108,17 @@ function projectName(volume: VolumeSummary, projects: ReturnType<typeof composeP
 	return isAnonymous(volume) ? 'anonymous' : '-'
 }
 
-export const Route = createFileRoute('/docker/volumes')({ component: VolumesPage })
+const volumesQuery = queryOptions({ queryKey: ['volumes'], queryFn: api.volumes })
+
+export const Route = createFileRoute('/docker/volumes')({
+	loader: ({ context: { queryClient } }) => preload(queryClient, volumesQuery),
+	component: VolumesPage,
+})
 
 function VolumesPage() {
 	const queryClient = useQueryClient()
 
-	const volumes = useQuery({ queryKey: ['volumes'], queryFn: api.volumes })
+	const volumes = useQuery(volumesQuery)
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
 	const remove = useMutation({

@@ -6,8 +6,14 @@ import { EnvironmentCrumb, ProjectCrumb } from '../components/crumb-picker'
 import { Confirm, ErrorText, IconButton, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 import { environmentSearch } from '../lib/environment'
+import { environmentsQuery, preload, projectQuery } from '../lib/queries'
 
 export const Route = createFileRoute('/projects/$projectId')({
+	loader: ({ context: { queryClient }, params: { projectId } }) =>
+		Promise.all([
+			preload(queryClient, projectQuery(projectId)),
+			preload(queryClient, environmentsQuery(projectId)),
+		]),
 	component: ProjectLayout,
 	...environmentSearch,
 })
@@ -22,8 +28,7 @@ function ProjectLayout() {
 	const { projectId } = Route.useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	// The query the crumb picker already runs, so this reads the cache.
-	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
+	const project = useQuery(projectQuery(projectId))
 
 	const remove = useMutation({
 		mutationFn: () => api.deleteProject(projectId),

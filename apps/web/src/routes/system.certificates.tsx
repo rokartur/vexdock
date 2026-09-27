@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { IconCertificate, IconUpload } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
@@ -19,6 +19,7 @@ import {
 } from '../components/primitives'
 import { api, type Certificate, type Domain } from '../lib/api'
 import { until } from '../lib/format'
+import { certificatesQuery, preload } from '../lib/queries'
 
 /** Days of validity left, over the horizon the bar drains across. */
 const RUNWAY_DAYS = 90
@@ -74,12 +75,18 @@ function certificateTableColumns(replace: (hostname: string) => void): Columns<C
 	]
 }
 
-export const Route = createFileRoute('/system/certificates')({ component: Certificates })
+const domainsQuery = queryOptions({ queryKey: ['domains'], queryFn: api.domains })
+
+export const Route = createFileRoute('/system/certificates')({
+	loader: ({ context: { queryClient } }) =>
+		Promise.all([preload(queryClient, certificatesQuery), preload(queryClient, domainsQuery)]),
+	component: Certificates,
+})
 
 function Certificates() {
 	const queryClient = useQueryClient()
-	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
-	const domains = useQuery({ queryKey: ['domains'], queryFn: api.domains })
+	const certificates = useQuery(certificatesQuery)
+	const domains = useQuery(domainsQuery)
 	const [uploading, setUploading] = useState(false)
 	const [hostname, setHostname] = useState('')
 	const [certPem, setCertPem] = useState('')

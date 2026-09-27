@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from '@tanstack/react-router'
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createRootRouteWithContext, HeadContent, Outlet, Scripts, useRouterState } from '@tanstack/react-router'
 import { Toaster } from '@/components/ui/toast'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthGate } from '../components/auth-gate'
@@ -10,19 +10,7 @@ import { Shell } from '../components/shell'
 // prerendered shell, which does not match the client build's hash.
 import '../styles.css'
 
-const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			// The panel is a live view of a server: short staleness, no aggressive
-			// refetch storms.
-			staleTime: 5000,
-			retry: 1,
-			refetchOnWindowFocus: true,
-		},
-	},
-})
-
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
 	head: () => ({
 		meta: [
 			{ charSet: 'utf-8' },
@@ -41,6 +29,7 @@ const publicRoutes = new Set(['/login', '/setup'])
 function RootComponent() {
 	const pathname = useRouterState({ select: state => state.location.pathname })
 	const isPublic = publicRoutes.has(pathname)
+	const { queryClient } = Route.useRouteContext()
 
 	return (
 		<RootDocument>

@@ -9,7 +9,7 @@ import {
 	IconStack2,
 	IconTag,
 } from '@tabler/icons-react'
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
@@ -17,6 +17,7 @@ import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
 import { Cell, Cells, Meter, Page, Refresh, RelativeTime, Section, Status } from '../components/primitives'
 import { api, type Certificate, type HostPoint, type HostStats, type Project, type SystemInfo } from '../lib/api'
 import { bytes, percent, until } from '../lib/format'
+import { certificatesQuery, preload, projectsQuery, systemInfoQuery, versionQuery } from '../lib/queries'
 import { useEventSource } from '../lib/sse'
 
 /** The live stream carries a load average the recorded buckets do not. */
@@ -98,17 +99,25 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 	]
 }
 
-export const Route = createFileRoute('/')({ component: DashboardPage })
+const metricsQuery = queryOptions({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
+
+export const Route = createFileRoute('/')({
+	loader: ({ context: { queryClient } }) =>
+		Promise.all([
+			preload(queryClient, systemInfoQuery),
+			preload(queryClient, metricsQuery),
+			preload(queryClient, versionQuery),
+			preload(queryClient, certificatesQuery),
+		]),
+	component: DashboardPage,
+})
 
 function DashboardPage() {
-	const info = useQuery({ queryKey: ['system', 'info'], queryFn: api.systemInfo })
-	const recorded = useQuery({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
-	// Same key the shell uses, so this rides its cache instead of re-fetching.
-	const version = useQuery({ queryKey: ['version'], queryFn: api.version })
-	// Same key the projects page uses.
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
-	// Same key the certificates page uses.
-	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
+	const info = useQuery(systemInfoQuery)
+	const recorded = useQuery(metricsQuery)
+	const version = useQuery(versionQuery)
+	const projects = useQuery(projectsQuery)
+	const certificates = useQuery(certificatesQuery)
 	const [stats, setStats] = useState<HostSample | null>(null)
 	const [openDeployment, setOpenDeployment] = useState<string | null>(null)
 

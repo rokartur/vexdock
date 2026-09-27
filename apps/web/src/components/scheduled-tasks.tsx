@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since } from '../lib/format'
+import { tasksQuery } from '../lib/queries'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { LogViewer } from './log-viewer'
 import {
@@ -210,10 +211,8 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 	const [form, setForm] = useState<TaskForm | null>(null)
 	const [selected, setSelected] = useState<string | null>(null)
 
-	const queryKey = serviceId ? ['service', serviceId, 'tasks'] : ['tasks']
 	const tasks = useQuery({
-		queryKey,
-		queryFn: () => (serviceId ? api.serviceTasks(serviceId) : api.tasks()),
+		...tasksQuery(serviceId),
 		// The server computes next_run at fetch time, so a still list would count
 		// down to zero and stay there.
 		refetchInterval: 30_000,

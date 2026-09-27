@@ -21,6 +21,7 @@ import {
 import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
 import { composeProjects } from '../lib/environment'
 import { bytes, containerName, percent } from '../lib/format'
+import { containersQuery, preload, projectsQuery } from '../lib/queries'
 
 /** The sampler records once a minute, so nothing is gained by asking faster. */
 const USAGE_TICK_MS = 60_000
@@ -144,6 +145,7 @@ export const Route = createFileRoute('/docker/containers')({
 	validateSearch: (search: Record<string, unknown>) => ({
 		q: typeof search.q === 'string' ? search.q : undefined,
 	}),
+	loader: ({ context: { queryClient } }) => preload(queryClient, containersQuery),
 	component: ContainersPage,
 })
 
@@ -156,13 +158,9 @@ function ContainersPage() {
 	const { q } = Route.useSearch()
 	const [logsFor, setLogsFor] = useState<string | null>(null)
 
-	const containers = useQuery({
-		queryKey: ['containers'],
-		queryFn: api.containers,
-		refetchInterval: USAGE_TICK_MS,
-	})
+	const containers = useQuery({ ...containersQuery, refetchInterval: USAGE_TICK_MS })
 
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+	const projects = useQuery(projectsQuery)
 
 	const act = useMutation({
 		mutationFn: ({ id, action }: { id: string; action: ContainerAction }) => api.containerAction(id, action),

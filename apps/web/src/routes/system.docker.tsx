@@ -7,15 +7,21 @@ import {
 	IconTrash,
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Confirm, ErrorText, IconButton, Meter, Page, Refresh, Section } from '../components/primitives'
 import { api } from '../lib/api'
 import { bytes } from '../lib/format'
+import { preload } from '../lib/queries'
 
-export const Route = createFileRoute('/system/docker')({ component: CleanupPage })
+const cleanupQuery = queryOptions({ queryKey: ['cleanup'], queryFn: api.cleanupPreview })
+
+export const Route = createFileRoute('/system/docker')({
+	loader: ({ context: { queryClient } }) => preload(queryClient, cleanupQuery),
+	component: CleanupPage,
+})
 
 const targets = [
 	{ kind: 'images', label: 'Unused images', field: 'unused_images', icon: IconStack2 },
@@ -71,7 +77,7 @@ function CleanupPage() {
 	const queryClient = useQueryClient()
 	const [result, setResult] = useState('')
 
-	const preview = useQuery({ queryKey: ['cleanup'], queryFn: api.cleanupPreview })
+	const preview = useQuery(cleanupQuery)
 
 	const cleanup = useMutation({
 		mutationFn: (kind: (typeof targets)[number]['kind']) => api.cleanup(kind),

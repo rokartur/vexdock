@@ -12,6 +12,8 @@ import { Button } from './primitives'
 export function AuthGate({ children }: { children: ReactNode }) {
 	const navigate = useNavigate()
 	const pathname = useRouterState({ select: state => state.location.pathname })
+	// Holding back until the first route's loaders settle paints the shell and the page in one frame.
+	const routeLoaded = useRouterState({ select: state => state.resolvedLocation !== undefined })
 
 	const setup = useQuery({ queryKey: ['auth', 'setup'], queryFn: fetchSetupStatus, retry: false })
 	const session = useSession()
@@ -36,7 +38,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 		}
 	}, [resolved, needsSetup, authenticated, pathname, navigate])
 
-	if (!resolved) {
+	if (!resolved || !routeLoaded) {
 		// A failed status query never fills `setup.data`, so both the error and the
 		// silent-for-too-long case have to be answered from inside the unresolved
 		// branch or the gate would sit on "connecting" forever.

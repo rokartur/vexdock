@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { IconArchive, IconDatabase, IconTrash } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
@@ -16,6 +16,7 @@ import {
 } from '../components/primitives'
 import { api, type Backup } from '../lib/api'
 import { bytes } from '../lib/format'
+import { preload } from '../lib/queries'
 
 function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 	const cell = columnsFor<Backup>()
@@ -63,11 +64,16 @@ function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 	]
 }
 
-export const Route = createFileRoute('/system/backups')({ component: BackupsPage })
+const backupsQuery = queryOptions({ queryKey: ['backups'], queryFn: api.backups })
+
+export const Route = createFileRoute('/system/backups')({
+	loader: ({ context: { queryClient } }) => preload(queryClient, backupsQuery),
+	component: BackupsPage,
+})
 
 function BackupsPage() {
 	const queryClient = useQueryClient()
-	const backups = useQuery({ queryKey: ['backups'], queryFn: api.backups })
+	const backups = useQuery(backupsQuery)
 
 	const create = useMutation({
 		mutationFn: api.createBackup,

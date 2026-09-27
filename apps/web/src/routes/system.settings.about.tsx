@@ -14,8 +14,17 @@ import { cn } from '@/utils/cn'
 import { Button, Cell, Cells, ErrorText, FormSection, Switch } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
 import { since } from '../lib/format'
+import { healthQuery, preload, updateStateQuery, versionQuery } from '../lib/queries'
 
-export const Route = createFileRoute('/system/settings/about')({ component: Version })
+export const Route = createFileRoute('/system/settings/about')({
+	loader: ({ context: { queryClient } }) =>
+		Promise.all([
+			preload(queryClient, versionQuery),
+			preload(queryClient, healthQuery),
+			preload(queryClient, updateStateQuery),
+		]),
+	component: Version,
+})
 
 /**
  * The update timeline. `phase` values from the state file map onto a step;
@@ -34,12 +43,10 @@ const RESULT_TTL_SECONDS = 3600
 function Version() {
 	const queryClient = useQueryClient()
 	// The shell already polls this key for the release check; this rides its cache.
-	const version = useQuery({ queryKey: ['version'], queryFn: api.version })
-	const health = useQuery({ queryKey: ['health'], queryFn: api.health })
+	const version = useQuery(versionQuery)
+	const health = useQuery(healthQuery)
 	const state = useQuery({
-		queryKey: ['update-state'],
-		queryFn: api.updateState,
-		retry: false,
+		...updateStateQuery,
 		// Poll tightly while an update moves or the manager is down (the restart
 		// gap manifests as fetch errors); otherwise a slow heartbeat is plenty.
 		refetchInterval: query => (updateActive(query.state.data?.phase) || query.state.error ? 2000 : 15_000),
