@@ -20,14 +20,10 @@ import {
 } from '../components/primitives'
 import { api, type ContainerAction, type ContainerSummary } from '../lib/api'
 import { composeProjects } from '../lib/environment'
-import { bytes, percent } from '../lib/format'
+import { bytes, containerName, percent } from '../lib/format'
 
 /** The sampler records once a minute, so nothing is gained by asking faster. */
 const USAGE_TICK_MS = 60_000
-
-function containerName(container: ContainerSummary) {
-	return container.names[0]?.replace(/^\//u, '') ?? container.id.slice(0, 12)
-}
 
 /**
  * Whether the usage columns have anything to say. A stopped container's last

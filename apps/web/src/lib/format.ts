@@ -1,3 +1,5 @@
+import type { ContainerSummary } from './api'
+
 export function bytes(value: number | undefined | null): string {
 	if (!value || value < 0) return '0 B'
 	const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -55,6 +57,10 @@ export function duration(start: string, end: string): string {
 
 export function shortSha(sha: string | undefined): string {
 	return sha ? sha.slice(0, 7) : '-'
+}
+
+export function containerName(container: ContainerSummary): string {
+	return container.names[0]?.replace(/^\//u, '') ?? container.id.slice(0, 12)
 }
 
 export function clock(iso: string): string {
