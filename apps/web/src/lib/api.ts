@@ -274,6 +274,8 @@ export type ContainerSummary = {
 	project: string
 	service: string
 	networks: string[] | null
+	/** Only ports bound on the host. Docker lists one per address family, so a public port shows up for 0.0.0.0 and ::. */
+	ports: { ip: string; published: number; target: number; protocol: string }[]
 	/** The newest recorded minute. Zero on a container the sampler has not reached yet. */
 	cpu_percent: number
 	memory_usage: number

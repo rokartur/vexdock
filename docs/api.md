@@ -524,7 +524,7 @@ are listed too, with `managed` false, rather than being left out.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/docker/containers` | Every container, with its compose project, service and last half hour of usage |
+| `GET /api/docker/containers` | Every container, with its compose project, service, host ports (`ip`, `published`, `target`, `protocol`) and last half hour of usage |
 | `POST /api/docker/containers/{id}/{action}` | `start`, `stop`, `restart` or `remove`; remove takes `?force=true` |
 | `GET /api/docker/images` | Images with their size and the containers (`id`, `name`) created from them |
 | `POST /api/docker/images/pull` | `{"reference"}`; answers with the daemon's output once the pull has finished |

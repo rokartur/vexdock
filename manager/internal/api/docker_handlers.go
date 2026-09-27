@@ -36,8 +36,17 @@ type containerView struct {
 	Project  string            `json:"project"`
 	Service  string            `json:"service"`
 	Networks []string          `json:"networks"`
+	Ports    []portView        `json:"ports"`
 	// Recorded by the sampler, so a container younger than one tick has none.
 	database.ContainerUsage
+}
+
+// portView is a port bound on the host; IP is "0.0.0.0" or "::" when it listens on every address.
+type portView struct {
+	IP        string `json:"ip"`
+	Published uint16 `json:"published"`
+	Target    uint16 `json:"target"`
+	Protocol  string `json:"protocol"`
 }
 
 func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
@@ -70,12 +79,20 @@ func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
 			Managed:        managed[project],
 			Project:        project,
 			Service:        c.Labels[dockersdk.ComposeServiceLabel],
+			Ports:          []portView{},
 			ContainerUsage: usage[c.ID],
 		}
 		if c.NetworkSettings != nil {
 			for name := range c.NetworkSettings.Networks {
 				view.Networks = append(view.Networks, name)
 			}
+		}
+		for _, p := range c.Ports {
+			// An exposed but unpublished port has no host side.
+			if p.PublicPort == 0 {
+				continue
+			}
+			view.Ports = append(view.Ports, portView{IP: p.IP, Published: p.PublicPort, Target: p.PrivatePort, Protocol: p.Type})
 		}
 		out = append(out, view)
 	}
