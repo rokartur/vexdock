@@ -61,7 +61,7 @@ function domainTableColumns({ certificateFor, renew, renewing, replace, remove }
 				>
 					<IconWorld className='size-4 text-muted-foreground' />
 					<span className='font-mono text-label'>{original.hostname}</span>
-					<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100' />
+					<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
 				</a>
 			),
 		}),
@@ -233,13 +233,13 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 				<ErrorText error={remove.error ?? issue.error} />
 				{warning ? (
 					<Alert className='mb-3'>
-						<IconAlertTriangle className='text-amber-400' />
+						<IconAlertTriangle className='text-warning' />
 						<AlertDescription>{warning}</AlertDescription>
 					</Alert>
 				) : null}
 				{certificates.data?.some(cert => cert.status === 'failed') ? (
 					<Alert className='mb-3'>
-						<IconAlertTriangle className='text-amber-400' />
+						<IconAlertTriangle className='text-warning' />
 						<AlertDescription>
 							{certificates.data.find(cert => cert.status === 'failed')?.last_error}
 						</AlertDescription>

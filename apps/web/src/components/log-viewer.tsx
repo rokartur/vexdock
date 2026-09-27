@@ -31,10 +31,10 @@ const MAX_LINES = 5000
 
 /** HTTP status classes read faster as color than as three digits. */
 const statusColor: Record<string, string> = {
-	'2': 'text-emerald-400',
-	'3': 'text-sky-400',
-	'4': 'text-amber-400',
-	'5': 'text-red-400',
+	'2': 'text-success',
+	'3': 'text-info',
+	'4': 'text-warning',
+	'5': 'text-destructive',
 }
 
 type Severity = 'error' | 'warn' | 'info' | 'debug'
@@ -57,16 +57,16 @@ const levelSeverity: Record<string, Severity> = {
 }
 
 const severityColor: Record<Severity, string> = {
-	error: 'text-red-400',
-	warn: 'text-amber-400',
-	info: 'text-sky-400',
+	error: 'text-destructive',
+	warn: 'text-warning',
+	info: 'text-info',
 	debug: 'text-console-muted',
 }
 
 /** Only the two that want attention get a gutter; the rest would be a stripe down the whole console. */
 const gutterColor: Partial<Record<Severity, string>> = {
-	error: 'bg-red-400',
-	warn: 'bg-amber-400',
+	error: 'bg-destructive',
+	warn: 'bg-warning',
 }
 
 const levelFilters = [
@@ -235,7 +235,7 @@ export function LogViewer({
 						<span
 							className={cn(
 								'mr-1.5 inline-block size-1.5 rounded-full',
-								connected ? 'bg-emerald-400' : 'bg-muted-foreground',
+								connected ? 'bg-success' : 'bg-muted-foreground',
 							)}
 						/>
 					) : null}
@@ -341,11 +341,11 @@ function LineBody({
 			<>
 				<span className='flex h-lh w-12 shrink-0 items-center'>
 					{result ? (
-						<StepIcon className={cn('size-3.5', result.failed ? 'text-red-400' : 'text-emerald-400')} />
+						<StepIcon className={cn('size-3.5', result.failed ? 'text-destructive' : 'text-success')} />
 					) : null}
 				</span>
 				<span className='min-w-0 flex-1 break-all whitespace-pre-wrap'>
-					<span className='text-sky-400'>{buildLine.stage}</span>{' '}
+					<span className='text-info'>{buildLine.stage}</span>{' '}
 					<span className='font-semibold text-foreground'>{buildLine.command}</span>
 				</span>
 				<span className='shrink-0 text-console-muted tabular-nums'>{result?.label}</span>

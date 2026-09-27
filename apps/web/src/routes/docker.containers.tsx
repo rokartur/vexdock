@@ -49,8 +49,10 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconBox className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{containerName(row.original)}</span>
+					<IconBox className='size-4 shrink-0 text-muted-foreground' />
+					<span title={containerName(row.original)} className='max-w-32 truncate font-mono text-label'>
+						{containerName(row.original)}
+					</span>
 					{row.original.managed ? null : <Badge variant='outline'>external</Badge>}
 				</span>
 			),
@@ -60,7 +62,16 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			header: 'State',
 			cell: ({ row }) => <Status value={row.original.state} />,
 		}),
-		cell.accessor(container => container.image, { id: 'image', header: 'Image', meta: { mono: true } }),
+		cell.accessor(container => container.image, {
+			id: 'image',
+			header: 'Image',
+			meta: { mono: true },
+			cell: ({ getValue }) => (
+				<span title={getValue()} className='block max-w-28 truncate'>
+					{getValue()}
+				</span>
+			),
+		}),
 		cell.accessor(container => projectLabel(container.project) || '-', {
 			id: 'project',
 			header: 'Project',

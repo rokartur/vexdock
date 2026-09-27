@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/inter';
 @import '@xterm/xterm/css/xterm.css';
@@ -19,20 +18,16 @@
 	--text-title: 15px;
 	/* The one size that is allowed to be big: a live reading in a Cells grid. */
 	--text-reading: 22px;
+	/* components/ui/* sizes with text-sm; pinned to body so CLI output sits on the scale unedited. */
+	--text-sm: 13px;
 
-	/* Motion. Tailwind's own curves are too soft to read at the 100-200ms a
-	 * dashboard animates in, so both are the stronger variants. Overriding
-	 * tw-animate-css's --animate-in/--animate-out is what puts ease-out under
-	 * every popover, menu, select, dialog and tooltip in one place: they enter
-	 * fast and settle, instead of easing in and feeling late. */
+	/* Tailwind's own curves are too soft to read at the 100-200ms a dashboard
+	 * animates in. ease-in delays the frame the user is watching, so it is unset. */
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-	--animate-in: enter var(--tw-animation-duration, var(--tw-duration, 0.15s)) var(--tw-ease, var(--ease-out))
-		var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
-		var(--tw-animation-fill-mode, none);
-	--animate-out: exit var(--tw-animation-duration, var(--tw-duration, 0.15s)) var(--tw-ease, var(--ease-out))
-		var(--tw-animation-delay, 0s) var(--tw-animation-iteration-count, 1) var(--tw-animation-direction, normal)
-		var(--tw-animation-fill-mode, none);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+	--ease-in: initial;
+	--default-transition-timing-function: var(--ease-out);
 }
 
 /* Dark-only app: <html class="dark"> is hardcoded in routes/__root.tsx and there
@@ -134,6 +129,11 @@
 	 * (the `=`, a comment) is --muted-foreground. */
 	--code-key: #52a8ff;
 	--code-value: #7ce38b;
+
+	/* Status hues, Tailwind's emerald, amber and sky 400. A failure is --destructive. */
+	--success: oklch(0.765 0.177 163.223);
+	--warning: oklch(0.828 0.189 84.429);
+	--info: oklch(0.746 0.16 232.661);
 }
 
 @theme inline {
@@ -152,6 +152,9 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-info: var(--info);
 	--color-border: var(--border);
 	--color-rule: var(--rule);
 	--color-input: var(--input);
@@ -197,7 +200,7 @@
 	::backdrop,
 	::file-selector-button {
 		@apply box-border;
-		@apply border-border outline-ring/50;
+		@apply border-border outline-ring;
 	}
 
 	/* Scrollbar thumbs are the text color at low opacity and wake up while the
@@ -223,17 +226,15 @@
 	}
 
 	body {
-		@apply scroll-smooth bg-background text-foreground antialiased;
+		@apply bg-background text-foreground antialiased;
 		font-size: 13px;
 		line-height: 1.5;
 		/* A panel of readings, durations and sizes: digits line up by default,
 		 * everywhere, instead of each surface opting in. */
 		font-variant-numeric: tabular-nums;
-		scroll-behavior: auto;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 		scrollbar-width: thin;
-		scrollbar-color: gray transparent;
 	}
 
 	:root.use-pointer-cursors
@@ -274,6 +275,41 @@
 	box-shadow: inset 0 1px 0 var(--highlight);
 }
 
+/* Transitions, not keyframes, on everything that opens: a transition retargets
+ * from where it is when reopened mid-close, a keyframe restarts from zero. */
+@utility press {
+	transition-property: scale;
+	transition-duration: 150ms;
+	transition-timing-function: var(--ease-out);
+	&:active:not(:disabled, [data-disabled], [aria-disabled='true']) {
+		scale: 0.97;
+	}
+}
+
+@utility popup {
+	transition-property: opacity, scale;
+	transition-duration: var(--tw-duration, 200ms);
+	transition-timing-function: var(--tw-ease, var(--ease-out));
+	&[data-starting-style],
+	&[data-ending-style] {
+		opacity: 0;
+		scale: 0.96;
+	}
+	&[data-instant] {
+		transition-duration: 0ms;
+	}
+}
+
+@utility scrim {
+	transition-property: opacity;
+	transition-duration: var(--tw-duration, 200ms);
+	transition-timing-function: var(--ease-out);
+	&[data-starting-style],
+	&[data-ending-style] {
+		opacity: 0;
+	}
+}
+
 @layer utilities {
 	.interactive-cursor {
 		cursor: default;
@@ -311,21 +347,13 @@ body,
 }
 
 /* Reduced motion drops movement, not feedback: the fades that say a thing
- * opened or closed stay, the travel and the scaling that cause motion sickness
- * go. Zeroing tw-animate-css's enter/exit variables leaves the keyframe in
- * place with only its opacity step. */
+ * opened or closed stay, the travel, scaling and height that cause motion
+ * sickness snap. */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	::before,
 	::after {
-		--tw-enter-translate-x: 0 !important;
-		--tw-enter-translate-y: 0 !important;
-		--tw-enter-scale: 1 !important;
-		--tw-enter-rotate: 0 !important;
-		--tw-exit-translate-x: 0 !important;
-		--tw-exit-translate-y: 0 !important;
-		--tw-exit-scale: 1 !important;
-		--tw-exit-rotate: 0 !important;
 		transition-property: opacity, visibility, color, background-color, border-color, fill, stroke !important;
+		scroll-behavior: auto !important;
 	}
 }

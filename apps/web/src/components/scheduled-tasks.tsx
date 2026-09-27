@@ -155,7 +155,7 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 				return (
 					<button
 						type='button'
-						className={`cursor-pointer hover:underline ${last.exit_code === 0 ? '' : 'text-red-400'}`}
+						className={`hover:underline ${last.exit_code === 0 ? '' : 'text-destructive'}`}
 						onClick={() => select(row.original.id)}
 					>
 						<RelativeTime at={last.started_at} />
@@ -496,7 +496,7 @@ function TaskRuns({ task }: { task: ScheduledTask }) {
 							value={item.id}
 							className='text-label text-muted-foreground aria-pressed:text-foreground'
 						>
-							<span className={item.exit_code === 0 ? undefined : 'text-red-400'}>
+							<span className={item.exit_code === 0 ? undefined : 'text-destructive'}>
 								{since(item.started_at)}
 							</span>
 							<span className='font-mono text-muted-foreground'>

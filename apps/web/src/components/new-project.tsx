@@ -136,7 +136,7 @@ function TagInput({
 									onClick={() => onChange(value.filter(other => other !== tag))}
 								/>
 							}
-							className='cursor-pointer hover:bg-accent'
+							className='hover:bg-accent'
 						>
 							{tag}
 							<IconX />

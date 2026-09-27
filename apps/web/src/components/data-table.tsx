@@ -218,8 +218,9 @@ export function DataTable<TData extends RowData>({
 						fill ? 'min-h-0 flex-1' : 'max-h-[70vh]',
 					)}
 				>
-					{/* Row separators are the quiet hairline; the card's own edge stays --border. */}
-					<ShadcnTable className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_th:first-child]:pl-4'>
+					{/* Row separators are the quiet hairline; the card's own edge stays --border. An inline-flex cell that starts
+					    with an icon or dot takes its baseline from that box's bottom, so cell content centres instead. */}
+					<ShadcnTable className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_td>*]:align-middle [&_th:first-child]:pl-4'>
 						<TableHeader>
 							{table.getHeaderGroups().map(headerGroup => (
 								<TableRow key={headerGroup.id} className='hover:bg-transparent'>
@@ -240,7 +241,7 @@ export function DataTable<TData extends RowData>({
 													<button
 														type='button'
 														onClick={() => header.column.toggleSorting()}
-														className='inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-foreground'
+														className='inline-flex h-8 items-center gap-1 transition-colors hover:text-foreground'
 													>
 														<table.FlexRender header={header} />
 														{sorted === 'asc' ? (
@@ -378,8 +379,7 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
 				<TableRow key={index} className='hover:bg-transparent'>
 					{Array.from({ length: columns }, (_cell, cell) => (
 						<TableCell key={cell} className='h-8 py-0.5 pr-3 pl-0'>
-							{/* animate-none: a pulse repaints for as long as the fetch takes. */}
-							<Skeleton className='h-3 w-24 animate-none' />
+							<Skeleton className='h-3 w-24' />
 						</TableCell>
 					))}
 				</TableRow>

@@ -258,7 +258,7 @@ function DashboardPage() {
 							version.data?.update_available ? (
 								<Link
 									to='/system/settings/about'
-									className='text-amber-400 underline-offset-4 hover:underline'
+									className='text-warning underline-offset-4 hover:underline'
 								>
 									{info.data?.version} · update
 								</Link>

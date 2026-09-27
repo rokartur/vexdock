@@ -131,7 +131,7 @@ function ApiTokens() {
 
 			{issued ? (
 				<Alert className='mb-4'>
-					<IconAlertTriangle className='text-amber-400' />
+					<IconAlertTriangle className='text-warning' />
 					<AlertTitle>Copy it now. It is not shown again.</AlertTitle>
 					<AlertDescription className='font-mono text-label break-all'>{issued}</AlertDescription>
 				</Alert>

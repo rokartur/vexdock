@@ -76,7 +76,7 @@ function useBootScreenPhase() {
 
 function BootScreen({ stalled = false }: { stalled?: boolean }) {
 	return (
-		<div className='flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center'>
+		<div className='flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center'>
 			{/* Static on purpose: a spinning loader repaints for the whole boot wait. */}
 			{stalled ? (
 				<IconAlertCircle className='size-5 text-muted-foreground' />
