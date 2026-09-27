@@ -41,9 +41,13 @@ import {
 import { api, type BuildType, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { duration } from '../lib/format'
+import { deploymentsQuery, preload } from '../lib/queries'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/')({
+	loaderDeps: ({ search }) => ({ env: search.env }),
+	loader: ({ context: { queryClient }, params: { projectId }, deps: { env } }) =>
+		preload(queryClient, deploymentsQuery(projectId, env)),
 	component: ServiceGeneral,
 })
 
@@ -94,10 +98,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 	const environmentId = useEnvironmentId()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const deployments = useQuery({
-		queryKey: ['deployments', projectId, environmentId],
-		queryFn: () => api.deployments(projectId, environmentId),
-	})
+	const deployments = useQuery(deploymentsQuery(projectId, environmentId))
 	const latest = deployments.data?.find(deployment => deployment.service_name === service.compose_service_name)
 	const params = { projectId, serviceId: service.id }
 	const running = service.state === 'running'

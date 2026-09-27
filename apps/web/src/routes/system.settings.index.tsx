@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { IconCloud, IconTrash, IconWorld } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
 	Button,
@@ -13,8 +13,15 @@ import {
 	Switch,
 } from '../components/primitives'
 import { api, type Certificate } from '../lib/api'
+import { certificatesQuery, preload } from '../lib/queries'
 
-export const Route = createFileRoute('/system/settings/')({ component: GeneralSettings })
+const settingsQuery = queryOptions({ queryKey: ['settings'], queryFn: api.settings })
+
+export const Route = createFileRoute('/system/settings/')({
+	loader: ({ context: { queryClient } }) =>
+		Promise.all([preload(queryClient, settingsQuery), preload(queryClient, certificatesQuery)]),
+	component: GeneralSettings,
+})
 
 /**
  * The API writes settings as one object, so every Save is the same call and replays the fields its card does not own.
@@ -22,8 +29,8 @@ export const Route = createFileRoute('/system/settings/')({ component: GeneralSe
  */
 function GeneralSettings() {
 	const queryClient = useQueryClient()
-	const settings = useQuery({ queryKey: ['settings'], queryFn: api.settings })
-	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
+	const settings = useQuery(settingsQuery)
+	const certificates = useQuery(certificatesQuery)
 	const [draft, setDraft] = useState({ domain: '', https: true, token: '' })
 
 	useEffect(() => {

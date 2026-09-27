@@ -36,6 +36,7 @@ import { ServiceBulkActions } from '../components/service-bulk-actions'
 import { api, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent } from '../lib/format'
+import { deploymentsQuery, preload, projectDomainsQuery, servicesQuery } from '../lib/queries'
 
 /** What the New service menu opens: the three service kinds, plus the import escape hatch. */
 type Creating = ServiceKind | 'import'
@@ -182,7 +183,16 @@ function serviceTableColumns(selection: {
 	]
 }
 
-export const Route = createFileRoute('/projects/$projectId/')({ component: ProjectServices })
+export const Route = createFileRoute('/projects/$projectId/')({
+	loaderDeps: ({ search }) => ({ env: search.env }),
+	loader: ({ context: { queryClient }, params: { projectId }, deps: { env } }) =>
+		Promise.all([
+			preload(queryClient, servicesQuery(projectId, env)),
+			preload(queryClient, deploymentsQuery(projectId, env)),
+			preload(queryClient, projectDomainsQuery(projectId)),
+		]),
+	component: ProjectServices,
+})
 
 function ProjectServices() {
 	const { projectId } = Route.useParams()
@@ -192,15 +202,9 @@ function ProjectServices() {
 	const [selected, setSelected] = useState<string[]>([])
 
 	const environmentId = useEnvironmentId()
-	const services = useQuery({
-		queryKey: ['services', projectId, environmentId],
-		queryFn: () => api.services(projectId, environmentId),
-	})
-	const deployments = useQuery({
-		queryKey: ['deployments', projectId, environmentId],
-		queryFn: () => api.deployments(projectId, environmentId),
-	})
-	const domains = useQuery({ queryKey: ['domains', projectId], queryFn: () => api.projectDomains(projectId) })
+	const services = useQuery(servicesQuery(projectId, environmentId))
+	const deployments = useQuery(deploymentsQuery(projectId, environmentId))
+	const domains = useQuery(projectDomainsQuery(projectId))
 
 	// One deployment per service, so there is no single log to open; each
 	// service's own tab has its own.

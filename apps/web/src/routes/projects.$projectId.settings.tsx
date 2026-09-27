@@ -9,7 +9,7 @@ import {
 	IconTrash,
 	IconUpload,
 } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -28,13 +28,25 @@ import {
 } from '../components/primitives'
 import { api, type Environment } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
+import { environmentsQuery, preload, projectQuery } from '../lib/queries'
 
-export const Route = createFileRoute('/projects/$projectId/settings')({ component: ProjectSettings })
+const exportQuery = (projectId: string, secrets: boolean, environmentId: string | undefined) =>
+	queryOptions({
+		queryKey: ['export', projectId, secrets, environmentId],
+		queryFn: () => api.exportServices(projectId, secrets, environmentId),
+	})
+
+export const Route = createFileRoute('/projects/$projectId/settings')({
+	loaderDeps: ({ search }) => ({ env: search.env }),
+	loader: ({ context: { queryClient }, params: { projectId }, deps: { env } }) =>
+		preload(queryClient, exportQuery(projectId, false, env)),
+	component: ProjectSettings,
+})
 
 function ProjectSettings() {
 	const { projectId } = Route.useParams()
 	const queryClient = useQueryClient()
-	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
+	const project = useQuery(projectQuery(projectId))
 
 	const [name, setName] = useState('')
 
@@ -153,7 +165,7 @@ function Environments({ projectId }: { projectId: string }) {
 	const [name, setName] = useState('')
 	const [branch, setBranch] = useState('')
 
-	const environments = useQuery({ queryKey: ['environments', projectId], queryFn: () => api.environments(projectId) })
+	const environments = useQuery(environmentsQuery(projectId))
 	const refresh = () => queryClient.invalidateQueries({ queryKey: ['environments', projectId] })
 
 	const create = useMutation({
@@ -206,7 +218,12 @@ function Environments({ projectId }: { projectId: string }) {
 			>
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Name'>
-						<Input required value={name} onChange={event => setName(event.target.value)} placeholder='Staging' />
+						<Input
+							required
+							value={name}
+							onChange={event => setName(event.target.value)}
+							placeholder='Staging'
+						/>
 					</Field>
 					<Field label='Branch (optional)'>
 						<Input value={branch} onChange={event => setBranch(event.target.value)} placeholder='develop' />
@@ -224,10 +241,7 @@ function ExportServices({ projectId }: { projectId: string }) {
 	const [copyError, setCopyError] = useState<string | null>(null)
 	const environmentId = useEnvironmentId()
 
-	const exported = useQuery({
-		queryKey: ['export', projectId, secrets, environmentId],
-		queryFn: () => api.exportServices(projectId, secrets, environmentId),
-	})
+	const exported = useQuery(exportQuery(projectId, secrets, environmentId))
 
 	return (
 		<FormSection

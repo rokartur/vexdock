@@ -1,6 +1,6 @@
 import { Fragment, useMemo } from 'react'
 import { IconStack2, IconTrash } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
@@ -17,6 +17,7 @@ import {
 } from '../components/primitives'
 import { api, type ImageSummary } from '../lib/api'
 import { bytes } from '../lib/format'
+import { preload } from '../lib/queries'
 
 function shortId(image: ImageSummary) {
 	return image.id.replace('sha256:', '').slice(0, 12)
@@ -132,12 +133,17 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 	]
 }
 
-export const Route = createFileRoute('/docker/images')({ component: ImagesPage })
+const imagesQuery = queryOptions({ queryKey: ['images'], queryFn: api.images })
+
+export const Route = createFileRoute('/docker/images')({
+	loader: ({ context: { queryClient } }) => preload(queryClient, imagesQuery),
+	component: ImagesPage,
+})
 
 function ImagesPage() {
 	const queryClient = useQueryClient()
 
-	const images = useQuery({ queryKey: ['images'], queryFn: api.images })
+	const images = useQuery(imagesQuery)
 
 	const remove = useMutation({
 		mutationFn: (id: string) => api.removeImage(id, false),

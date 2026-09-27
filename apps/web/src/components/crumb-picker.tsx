@@ -4,8 +4,8 @@ import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { api } from '../lib/api'
 import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
+import { projectQuery, projectsQuery, serviceQuery, servicesQuery } from '../lib/queries'
 import { Status } from './primitives'
 
 /** A breadcrumb segment that switches: the current name plus a searchable list of siblings. For `Page`'s `labels`. */
@@ -57,10 +57,10 @@ function CrumbPicker({
 /** Switches between projects, keyed by the id already in the URL. */
 export function ProjectCrumb({ projectId }: { projectId: string }) {
 	const navigate = useNavigate()
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+	const projects = useQuery(projectsQuery)
 	// Shared with the project's own pages, so the name is usually already cached
 	// even when the list is still in flight.
-	const current = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
+	const current = useQuery(projectQuery(projectId))
 
 	return (
 		<CrumbPicker
@@ -164,14 +164,11 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serviceId: string }) {
 	const navigate = useNavigate()
 	const environmentId = useEnvironmentId()
-	const services = useQuery({
-		queryKey: ['services', projectId, environmentId],
-		queryFn: () => api.services(projectId, environmentId),
-	})
+	const services = useQuery(servicesQuery(projectId, environmentId))
 	// The name and state come from the service's own query, which the page around
 	// this crumb polls and every action invalidates, so the crumb survives a
 	// failure of the sibling list without a second poll of its own.
-	const current = useQuery({ queryKey: ['service', serviceId], queryFn: () => api.service(serviceId) })
+	const current = useQuery(serviceQuery(serviceId))
 
 	return (
 		<CrumbPicker

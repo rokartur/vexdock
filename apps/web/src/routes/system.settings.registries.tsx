@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { IconBrandDocker, IconPlus, IconTrash } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
@@ -16,8 +16,14 @@ import {
 	Section,
 } from '../components/primitives'
 import { api, type Registry } from '../lib/api'
+import { preload } from '../lib/queries'
 
-export const Route = createFileRoute('/system/settings/registries')({ component: Registries })
+const registriesQuery = queryOptions({ queryKey: ['registries'], queryFn: api.registries })
+
+export const Route = createFileRoute('/system/settings/registries')({
+	loader: ({ context: { queryClient } }) => preload(queryClient, registriesQuery),
+	component: Registries,
+})
 
 function registryTableColumns(remove: (id: string) => void): Columns<Registry> {
 	const cell = columnsFor<Registry>()
@@ -61,7 +67,7 @@ const emptyForm = { name: '', url: '', username: '', password: '' }
 
 function Registries() {
 	const queryClient = useQueryClient()
-	const registries = useQuery({ queryKey: ['registries'], queryFn: api.registries })
+	const registries = useQuery(registriesQuery)
 	const [adding, setAdding] = useState(false)
 	const [form, setForm] = useState(emptyForm)
 

@@ -1,11 +1,12 @@
 import { Fragment, type ReactNode, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Page, Refresh, Section } from '../components/primitives'
 import { api, type ContainerSummary, type NetworkSummary } from '../lib/api'
 import { composeProjects } from '../lib/environment'
 import { containerName } from '../lib/format'
+import { containersQuery, preload } from '../lib/queries'
 
 type ComposeProjects = ReturnType<typeof composeProjects>
 type ComposeProject = NonNullable<ReturnType<ComposeProjects['get']>>
@@ -238,11 +239,17 @@ function ProjectLink({ project }: { project: ComposeProject }) {
 	)
 }
 
-export const Route = createFileRoute('/docker/networks')({ component: NetworksPage })
+const networksQuery = queryOptions({ queryKey: ['networks'], queryFn: api.networks })
+
+export const Route = createFileRoute('/docker/networks')({
+	loader: ({ context: { queryClient } }) =>
+		Promise.all([preload(queryClient, networksQuery), preload(queryClient, containersQuery)]),
+	component: NetworksPage,
+})
 
 function NetworksPage() {
-	const networks = useQuery({ queryKey: ['networks'], queryFn: api.networks })
-	const containers = useQuery({ queryKey: ['containers'], queryFn: api.containers })
+	const networks = useQuery(networksQuery)
+	const containers = useQuery(containersQuery)
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
 	const byName = useMemo(() => composeProjects(projects.data ?? []), [projects.data])

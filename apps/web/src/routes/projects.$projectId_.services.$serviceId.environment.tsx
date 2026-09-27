@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
 import { IconVariable } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { VariablesEditor } from '../components/env-editor'
 import { ErrorText, FormSection, SaveButton } from '../components/primitives'
 import { api } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
+import { preload } from '../lib/queries'
+
+const serviceVariablesQuery = (serviceId: string) =>
+	queryOptions({ queryKey: ['service', serviceId, 'environment'], queryFn: () => api.serviceVariables(serviceId) })
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/environment')({
+	loader: ({ context: { queryClient }, params: { serviceId } }) =>
+		preload(queryClient, serviceVariablesQuery(serviceId)),
 	component: ServiceEnvironment,
 })
 
@@ -20,10 +26,7 @@ function ServiceEnvironment() {
 	const queryClient = useQueryClient()
 	const [text, setText] = useState('')
 
-	const environment = useQuery({
-		queryKey: ['service', serviceId, 'environment'],
-		queryFn: () => api.serviceVariables(serviceId),
-	})
+	const environment = useQuery(serviceVariablesQuery(serviceId))
 
 	useEffect(() => {
 		if (environment.data) setText(toDotenv(environment.data))

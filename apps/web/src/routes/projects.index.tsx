@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { NewProjectDialog } from '../components/new-project'
 import { Button, Meter, Page, Refresh, RelativeTime, Section, StatStrip, Status } from '../components/primitives'
-import { api, type Project } from '../lib/api'
+import type { Project } from '../lib/api'
+import { preload, projectsQuery } from '../lib/queries'
 
 const projectTableColumns: Columns<Project> = (() => {
 	const cell = columnsFor<Project>()
@@ -71,12 +72,15 @@ const projectTableColumns: Columns<Project> = (() => {
 	]
 })()
 
-export const Route = createFileRoute('/projects/')({ component: ProjectsPage })
+export const Route = createFileRoute('/projects/')({
+	loader: ({ context: { queryClient } }) => preload(queryClient, projectsQuery),
+	component: ProjectsPage,
+})
 
 function ProjectsPage() {
 	const navigate = useNavigate()
 	const [creating, setCreating] = useState(false)
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+	const projects = useQuery(projectsQuery)
 
 	const data = projects.data ?? []
 	const services = data.reduce((total, project) => total + project.service_count, 0)

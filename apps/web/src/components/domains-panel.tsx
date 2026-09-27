@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { api, type Certificate, type CertificateSource, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
+import { certificatesQuery, projectDomainsQuery } from '../lib/queries'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import {
 	Button,
@@ -127,9 +128,9 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 	const queryClient = useQueryClient()
 	const [warning, setWarning] = useState('')
 
-	const domains = useQuery({ queryKey: ['domains', projectId], queryFn: () => api.projectDomains(projectId) })
+	const domains = useQuery(projectDomainsQuery(projectId))
 	const environmentId = useEnvironmentId()
-	const certificates = useQuery({ queryKey: ['certificates'], queryFn: api.certificates })
+	const certificates = useQuery(certificatesQuery)
 
 	const [adding, setAdding] = useState(false)
 	const [hostname, setHostname] = useState('')

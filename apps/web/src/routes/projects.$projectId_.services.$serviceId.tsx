@@ -1,22 +1,35 @@
-import { useQuery } from '@tanstack/react-query'
+import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { ErrorText, Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
-import { api } from '../lib/api'
 import { environmentSearch } from '../lib/environment'
 import { bytes, percent } from '../lib/format'
+import { environmentsQuery, preload, projectQuery, serviceQuery, tasksQuery } from '../lib/queries'
 
 // A service is not one of the project's tabs, so it hangs off `$projectId_`:
 // same URL, own header, own toolbar. The environment still travels with it, so
 // the crumb above names the environment the service was reached through.
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId')({
+	loader: ({ context: { queryClient }, params: { projectId, serviceId } }) =>
+		Promise.all([
+			preload(queryClient, projectQuery(projectId)),
+			preload(queryClient, environmentsQuery(projectId)),
+			preloadServiceAndTasks(queryClient, serviceId),
+		]),
 	component: ServiceLayout,
 	...environmentSearch,
 })
 
+async function preloadServiceAndTasks(queryClient: QueryClient, serviceId: string) {
+	await preload(queryClient, serviceQuery(serviceId))
+	// A database has no Tasks tab, so the layout never asks for its tasks.
+	if (queryClient.getQueryData(serviceQuery(serviceId).queryKey)?.type === 'database') return
+	await preload(queryClient, tasksQuery(serviceId))
+}
+
 /** The service a section is about: one cache entry, refreshed on container events. */
 export function useService(serviceId: string) {
-	return useQuery({ queryKey: ['service', serviceId], queryFn: () => api.service(serviceId) })
+	return useQuery(serviceQuery(serviceId))
 }
 
 // Dokploy's order: what you configure first, what you watch after.
@@ -39,8 +52,7 @@ function ServiceLayout() {
 	// Same key the tasks tab uses, so the count comes from the cache once that tab has been open.
 	const isDatabase = service.data?.type === 'database'
 	const tasks = useQuery({
-		queryKey: ['service', serviceId, 'tasks'],
-		queryFn: () => api.serviceTasks(serviceId),
+		...tasksQuery(serviceId),
 		enabled: service.data !== undefined && !isDatabase,
 	})
 	const running = service.data?.state === 'running'

@@ -5,6 +5,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { api, type Deployment, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { duration, shortSha } from '../lib/format'
+import { deploymentsQuery } from '../lib/queries'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { DeploymentDetail } from './deployment-detail'
 import { ErrorText, IconButton, Refresh, RelativeTime, Section, Status } from './primitives'
@@ -104,10 +105,7 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 		})
 	}
 
-	const deployments = useQuery({
-		queryKey: ['deployments', projectId, environmentId],
-		queryFn: () => api.deployments(projectId, environmentId),
-	})
+	const deployments = useQuery(deploymentsQuery(projectId, environmentId))
 
 	const rollback = useMutation({
 		mutationFn: api.rollback,

@@ -28,6 +28,7 @@ import {
 	Status,
 } from '../components/primitives'
 import { api, type GitProvider, type GitProviderType } from '../lib/api'
+import { gitProvidersQuery, preload } from '../lib/queries'
 
 export const Route = createFileRoute('/system/settings/git')({
 	// A host that refuses the handshake sends the owner back here, and a redirect
@@ -35,6 +36,7 @@ export const Route = createFileRoute('/system/settings/git')({
 	validateSearch: (search: Record<string, unknown>) => ({
 		error: typeof search.error === 'string' ? search.error : undefined,
 	}),
+	loader: ({ context: { queryClient } }) => preload(queryClient, gitProvidersQuery),
 	component: GitProviders,
 })
 
@@ -241,7 +243,7 @@ function saveLabel(pending: boolean, editing: boolean) {
 function GitProviders() {
 	const queryClient = useQueryClient()
 	const { error: redirectError } = Route.useSearch()
-	const providers = useQuery({ queryKey: ['git-providers'], queryFn: api.gitProviders })
+	const providers = useQuery(gitProvidersQuery)
 	const origin = useOrigin()
 	const [open, setOpen] = useState(false)
 	const [form, setForm] = useState(emptyForm)
