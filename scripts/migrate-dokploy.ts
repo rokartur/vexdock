@@ -27,6 +27,7 @@ type DokployApp = {
 	buildArgs: string | null
 	domains: DokployDomain[]
 	mounts: DokployMount[]
+	ports: { publishedPort: number; targetPort: number; protocol: string }[]
 }
 type DokployCompose = {
 	composeId: string
@@ -153,6 +154,13 @@ async function createApp(app: DokployApp) {
 		dockerfile: app.dockerfile ?? '',
 		mounts: mounts.join('\n'),
 	})
+	for (const port of app.ports) {
+		await vexdock('POST', `/api/services/${created.id}/ports`, {
+			published: port.publishedPort,
+			target: port.targetPort,
+			protocol: port.protocol,
+		})
+	}
 	await putVariables(`/api/services/${created.id}/variables`, app.env)
 	await createDomains(created.compose_service_name, app.domains)
 }
@@ -194,9 +202,7 @@ async function createCompose(compose: DokployCompose) {
 
 // Traefik labels, dokploy-network and a fixed container_name belong to Dokploy's proxy and naming.
 function rawFragment(body: Record<string, unknown>) {
-	const { labels, networks, ports, container_name: _, ...rest } = body
-	if (ports !== undefined)
-		skipped.push(`published ports ${JSON.stringify(ports)} dropped; domains reach services through nginx`)
+	const { labels, networks, container_name: _, ...rest } = body
 	if (Array.isArray(labels)) {
 		const kept = labels.filter(l => typeof l === 'string' && !l.startsWith('traefik.'))
 		if (kept.length > 0) rest.labels = kept
@@ -236,6 +242,11 @@ async function createPostgres(pg: DokployPostgres) {
 			user: pg.databaseUser,
 			password: pg.databasePassword,
 		},
+	})
+	await vexdock('POST', `/api/services/${created.id}/ports`, {
+		published: pg.externalPort,
+		target: 5432,
+		protocol: 'tcp',
 	})
 	dumps.push({ serviceId: created.id, name: pg.name, port: pg.externalPort })
 	renamedHosts.set(pg.appName, created.compose_service_name)
