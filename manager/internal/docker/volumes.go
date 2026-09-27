@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
@@ -13,17 +12,11 @@ import (
 // SelfImage returns the image the manager itself runs from, the one image that
 // is guaranteed to be on the host without a pull.
 func (c *Client) SelfImage(ctx context.Context) (string, error) {
-	// Inside a container the hostname is the container ID unless it was
-	// overridden, which the platform's own compose file never does.
-	host, err := os.Hostname()
+	info, err := c.self(ctx)
 	if err != nil {
 		return "", err
 	}
-	self, err := c.Inspect(ctx, host)
-	if err != nil {
-		return "", fmt.Errorf("could not identify the manager container: %w", err)
-	}
-	return self.Image, nil
+	return info.Image, nil
 }
 
 // ErrVolumeMissing separates "there was nothing to copy" from a copy that

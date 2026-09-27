@@ -144,8 +144,20 @@ func run() error {
 	go metrics.NewSampler(db, dockerClient, cfg.Root, log.With("component", "metrics")).Run(ctx)
 	go taskRunner.Run(ctx)
 
+	addrs, err := listenAddrs(ctx, cfg, dockerClient)
+	if err != nil {
+		return err
+	}
+	listeners := make([]net.Listener, 0, len(addrs))
+	for _, addr := range addrs {
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			return err
+		}
+		listeners = append(listeners, l)
+	}
+
 	httpServer := &http.Server{
-		Addr:              cfg.ListenAddr,
 		Handler:           server.Handler(),
 		ReadHeaderTimeout: 15 * time.Second,
 		// Long-lived SSE streams and terminals need an unbounded write deadline.
@@ -154,13 +166,15 @@ func run() error {
 		BaseContext:  func(net.Listener) context.Context { return context.Background() },
 	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("listening", "addr", cfg.ListenAddr)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-	}()
+	errCh := make(chan error, len(listeners))
+	for _, l := range listeners {
+		go func() {
+			log.Info("listening", "addr", l.Addr().String())
+			if err := httpServer.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- err
+			}
+		}()
+	}
 
 	select {
 	case err := <-errCh:
@@ -172,6 +186,23 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	return httpServer.Shutdown(shutdownCtx)
+}
+
+// listenAddrs keeps the API off every network except the platform's own, so a
+// user network the manager joins for Studio cannot reach it. Loopback serves the healthcheck.
+func listenAddrs(ctx context.Context, cfg *config.Config, dockerClient *docker.Client) ([]string, error) {
+	host, port, err := net.SplitHostPort(cfg.ListenAddr)
+	if err != nil {
+		return nil, fmt.Errorf("PLATFORM_LISTEN: %w", err)
+	}
+	if host != "" {
+		return []string{cfg.ListenAddr}, nil
+	}
+	ip, err := dockerClient.SelfIP(ctx, cfg.InternalNetwork)
+	if err != nil {
+		return nil, fmt.Errorf("binding the API to %s (set a host in PLATFORM_LISTEN outside a container): %w", cfg.InternalNetwork, err)
+	}
+	return []string{net.JoinHostPort(ip, port), net.JoinHostPort("127.0.0.1", port)}, nil
 }
 
 // loadCloudflareToken applies the stored DNS-01 credential to the issuer at

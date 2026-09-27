@@ -22,7 +22,7 @@ manager: ## Build the manager binary into ./bin
 
 .PHONY: run
 run: ## Run the manager against ./.vexdock on :8080
-	cd manager && PLATFORM_ROOT=$(PLATFORM_ROOT) PLATFORM_LOG_LEVEL=debug go run ./cmd/server
+	cd manager && PLATFORM_ROOT=$(PLATFORM_ROOT) PLATFORM_LISTEN=127.0.0.1:8080 PLATFORM_LOG_LEVEL=debug go run ./cmd/server
 
 .PHONY: test
 test: ## Run Go tests

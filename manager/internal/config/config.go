@@ -31,6 +31,9 @@ type Config struct {
 
 	// ProxyNetwork is the shared docker network joining Nginx and user services.
 	ProxyNetwork string
+	// InternalNetwork is the manager's own network with Nginx and auth. With no host
+	// in ListenAddr the API binds only there and on loopback, so Studio can join user networks.
+	InternalNetwork string
 	// NginxContainer is the container name used for `nginx -t` and reloads.
 	NginxContainer string
 
@@ -78,6 +81,7 @@ func Load() (*Config, error) {
 		SystemDir:       filepath.Join(root, "system"),
 		ListenAddr:      env("PLATFORM_LISTEN", ":8080"),
 		ProxyNetwork:    env("PLATFORM_PROXY_NETWORK", "vexdock-proxy"),
+		InternalNetwork: env("PLATFORM_INTERNAL_NETWORK", "vexdock-internal"),
 		NginxContainer:  env("PLATFORM_NGINX_CONTAINER", "vexdock-nginx"),
 		PublicURL:       strings.TrimSuffix(env("PLATFORM_PUBLIC_URL", ""), "/"),
 		Version:         env("PLATFORM_VERSION", "dev"),
