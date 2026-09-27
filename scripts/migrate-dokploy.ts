@@ -267,9 +267,16 @@ async function putVariables(path: string, dotenv: string | null) {
 		if (!trimmed || trimmed.startsWith('#')) continue
 		const at = trimmed.indexOf('=')
 		if (at < 1) throw new Error(`unparseable env line: ${trimmed.slice(0, 40)}`)
-		variables.push({ key: trimmed.slice(0, at), value: trimmed.slice(at + 1), is_secret: true })
+		variables.push({ key: trimmed.slice(0, at), value: dotenvValue(trimmed.slice(at + 1)), is_secret: true })
 	}
 	if (variables.length > 0) await vexdock('PUT', path, { variables })
+}
+
+// Dokploy's env is dotenv text: KEY="a@b.c" reaches the app as a@b.c, and \n inside double quotes as a newline.
+function dotenvValue(raw: string) {
+	const unquoted = raw.replace(/^(['"`])([\s\S]*)\1$/, '$2')
+	if (!raw.startsWith('"')) return unquoted
+	return unquoted.replaceAll('\\n', '\n').replaceAll('\\r', '\r')
 }
 
 async function createDomains(service: string, domains: DokployDomain[]) {
