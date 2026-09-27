@@ -5,8 +5,18 @@
 The manager holds the Docker socket, which is equivalent to root on the host.
 Everything in front of it is therefore treated as untrusted input.
 
-- The manager listens only on the internal Docker network. Nginx is the sole
-  public entry point.
+- The manager listens only on its address on the internal Docker network and on
+  loopback, which the container's health check uses. It joins project networks
+  for Studio but does not listen on them, so a deployed application cannot reach
+  the API around Nginx. Nginx is the sole public entry point. A `PLATFORM_LISTEN`
+  that names a host is taken as is: `0.0.0.0:8080` would open the API to every
+  project network the manager has joined.
+- Studio opens a database with the credentials in the service's variables and
+  sends none of them to the browser. Values are bound as parameters and
+  identifiers checked against the introspected schema; the query console runs
+  what it is given with the service's own credentials, which is the point of
+  it. Every change and query is a `POST`, so it passes the CSRF check and lands
+  in the audit log.
 - Accounts, password hashing and sessions belong to better-auth, running as its
   own service with its own SQLite database. The manager never issues a
   credential; it validates the session cookie by reading that database.

@@ -1,5 +1,5 @@
 import { type QueryClient, useQuery } from '@tanstack/react-query'
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { ErrorText, Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
 import { environmentSearch } from '../lib/environment'
@@ -34,8 +34,10 @@ export function useService(serviceId: string) {
 
 // Dokploy's order: what you configure first, what you watch after.
 // A database is only reached on the internal network, so the dashboard offers it no domains and no tasks.
-const serviceTabs = (isDatabase: boolean, taskCount: number | undefined) => [
+// Studio speaks the catalog engines' protocols; a custom image's is unknown.
+const serviceTabs = (isDatabase: boolean, engine: string | undefined, taskCount: number | undefined) => [
 	{ suffix: '', label: 'General' },
+	...(isDatabase && engine !== 'custom' ? [{ suffix: '/studio', label: 'Studio' }] : []),
 	{ suffix: '/environment', label: 'Environment' },
 	...(isDatabase ? [] : [{ suffix: '/domains', label: 'Domains' }]),
 	{ suffix: '/deployments', label: 'Deployments' },
@@ -56,9 +58,12 @@ function ServiceLayout() {
 		enabled: service.data !== undefined && !isDatabase,
 	})
 	const running = service.data?.state === 'running'
+	// Studio's grid takes the rest of the window and scrolls inside itself.
+	const studio = useMatch({ from: '/projects/$projectId_/services/$serviceId/studio', shouldThrow: false })
 
 	return (
 		<Page
+			fill={studio !== undefined}
 			name={service.data?.compose_service_name}
 			// The name and its state live in the trail's service picker.
 			labels={{
@@ -75,7 +80,7 @@ function ServiceLayout() {
 			toolbar={
 				<Tabs
 					base={`/projects/${projectId}/services/${serviceId}`}
-					tabs={serviceTabs(isDatabase, tasks.data?.length)}
+					tabs={serviceTabs(isDatabase, service.data?.engine, tasks.data?.length)}
 				/>
 			}
 		>

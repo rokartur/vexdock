@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/docker/docker/api/types"
@@ -209,6 +210,112 @@ func (c *Client) ConnectWithAlias(ctx context.Context, networkName, containerID,
 		}
 	}
 	return c.api.NetworkConnect(ctx, networkName, containerID, &network.EndpointSettings{Aliases: []string{alias}})
+}
+
+// self inspects the manager's own container. Inside a container the hostname is
+// the container ID unless it was overridden, which the platform's compose file never does.
+func (c *Client) self(ctx context.Context) (container.InspectResponse, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		return container.InspectResponse{}, err
+	}
+	info, err := c.api.ContainerInspect(ctx, host)
+	if err != nil {
+		return container.InspectResponse{}, fmt.Errorf("could not identify the manager container: %w", err)
+	}
+	return info, nil
+}
+
+// SelfIP is the manager's address on one of its networks.
+func (c *Client) SelfIP(ctx context.Context, networkName string) (string, error) {
+	info, err := c.self(ctx)
+	if err != nil {
+		return "", err
+	}
+	endpoint, ok := info.NetworkSettings.Networks[networkName]
+	if !ok || endpoint.IPAddress == "" {
+		return "", fmt.Errorf("the manager is not attached to network %s", networkName)
+	}
+	return endpoint.IPAddress, nil
+}
+
+// ReachContainer attaches the manager to one of the container's compose
+// project networks, the kind LeaveProjectNetworks detaches before `down`, and
+// returns the container's address there. The address is read on every call
+// because a redeploy recreates the container with a new one.
+func (c *Client) ReachContainer(ctx context.Context, containerID, composeProject string) (string, error) {
+	target, err := c.api.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return "", err
+	}
+	for name, endpoint := range target.NetworkSettings.Networks {
+		if endpoint.IPAddress == "" {
+			continue
+		}
+		candidate, err := c.api.NetworkInspect(ctx, name, network.InspectOptions{})
+		if err != nil {
+			return "", err
+		}
+		if candidate.Labels[ComposeProjectLabel] != composeProject {
+			continue
+		}
+		if err := c.joinNetwork(ctx, name); err != nil {
+			return "", err
+		}
+		return endpoint.IPAddress, nil
+	}
+	return "", fmt.Errorf("the container is on no network of compose project %s", composeProject)
+}
+
+func (c *Client) joinNetwork(ctx context.Context, networkName string) error {
+	info, err := c.self(ctx)
+	// `make run` puts the manager on the host, which reaches bridge addresses on Linux as is.
+	if client.IsErrNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, ok := info.NetworkSettings.Networks[networkName]; ok {
+		return nil
+	}
+	if err := c.api.NetworkConnect(ctx, networkName, info.ID, nil); err != nil {
+		// Two requests can race to connect; the loser still ends up attached.
+		again, inspectErr := c.self(ctx)
+		if inspectErr != nil {
+			return err
+		}
+		if _, ok := again.NetworkSettings.Networks[networkName]; !ok {
+			return err
+		}
+	}
+	return nil
+}
+
+// LeaveProjectNetworks detaches the manager from every network of a compose
+// project so `compose down` can remove them; one it is still on has active endpoints.
+func (c *Client) LeaveProjectNetworks(ctx context.Context, composeProject string) error {
+	info, err := c.self(ctx)
+	// `make run` puts the manager on the host, where it never joined anything.
+	if client.IsErrNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for name := range info.NetworkSettings.Networks {
+		attached, err := c.api.NetworkInspect(ctx, name, network.InspectOptions{})
+		if err != nil {
+			return err
+		}
+		if attached.Labels[ComposeProjectLabel] != composeProject {
+			continue
+		}
+		if err := c.api.NetworkDisconnect(ctx, name, info.ID, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Client) DiskUsage(ctx context.Context) (types.DiskUsage, error) {

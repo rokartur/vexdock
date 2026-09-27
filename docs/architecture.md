@@ -117,6 +117,15 @@ proxy_pass $upstream;
 Without the variable, Nginx would resolve the name once at startup and keep
 serving a dead IP after a redeploy.
 
+The manager itself sits on `vexdock-internal` (`PLATFORM_INTERNAL_NETWORK`) and,
+when `PLATFORM_LISTEN` names no host, listens on its address there and on
+loopback, never on the networks it joins for Studio. Studio reaches a database
+without a published port: on each request the manager joins one of the
+database's compose project networks, never `vexdock-proxy`, and dials the
+container's address there, read afresh because a redeploy changes it. Before
+`compose down` removes an environment it leaves every network of that project,
+since Docker refuses to remove a network with the manager still on it.
+
 ## Deployment pipeline
 
 ```

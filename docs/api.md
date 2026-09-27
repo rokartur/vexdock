@@ -83,6 +83,9 @@ Every error uses one envelope:
 | `SETUP_CLOSED` | 409 | An administrator already exists (from the auth service) |
 | `CONFIRMATION_REQUIRED` | 428 | Destructive action needs `confirm=true` |
 | `CONFLICT` | 409 | A basic-auth username or published host port is already taken |
+| `DATABASE_NOT_RUNNING` | 409 | [Studio](#studio) on a database with no running container |
+| `STUDIO_UNSUPPORTED` | 400 | Studio on a service that is not a catalog database |
+| `QUERY_FAILED` | 400 | The database refused a Studio read, write or query; `message` is its answer |
 | `TASK_RUNNING` | 409 | A manual run of a task that is already running |
 | `UNHEALTHY` | 409 | Self-update refused while a health check fails |
 | `GIT_PROVIDER_IN_USE` | 409 | Deleting a git connection services still clone through |
@@ -182,6 +185,10 @@ last three minutes, so the list never shows a dead container's last numbers.
 | `POST /api/services/{id}/duplicate` | `{"name", "environment_id"?}`; copies the service with its variables and scheduled tasks, by default beside the original |
 | `POST /api/services/{id}/move` | `{"environment_id"}`; hands it to another environment with its volume data, domains and tasks |
 | `GET /api/services/{id}/database` | Connection details, database services only |
+| `GET /api/services/{id}/studio` | [Studio](#studio): the database's schemas, tables and columns |
+| `GET /api/services/{id}/studio/rows` | One page of a table: `?schema&table&limit&offset&sort&order&where` |
+| `POST /api/services/{id}/studio/changes` | `{"schema", "table", "updates", "inserts", "deletes"}` in one transaction; answers `{"affected"}` |
+| `POST /api/services/{id}/studio/query` | `{"schema", "query"}`; runs it, answers `{"columns", "rows", "affected", "duration_ms", "truncated"}` |
 | `GET \| PUT /api/services/{id}/variables` | Its own variables |
 | `POST /api/services/{id}/deploy` | Deploy this service only |
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
@@ -317,6 +324,53 @@ id and its name, and copies its volume data under the target environment's
 compose project name; the originals stay where they are. It also removes the
 container it leaves behind, so the service is down until the next deploy. Both
 refuse a name the target environment already uses.
+
+### Studio
+
+Studio reads and edits a catalog database from the panel, so the database
+needs no published port. The manager joins the service's compose network,
+connects to the running container with the credentials in its variables, and
+never sends those to the browser. Every call connects afresh and gives up after
+30 seconds; a container that is not running is `409 DATABASE_NOT_RUNNING`, the
+`custom` engine is `400 STUDIO_UNSUPPORTED`.
+
+`GET /api/services/{id}/studio` answers
+`{"schemas":[{"name","tables":[{"name","view","columns":[{"name","type","nullable","primary_key","read_only"}]}]}]}`.
+A schema is a Postgres schema, the MySQL or MariaDB database, `main` for
+libSQL, a MongoDB database (a collection's columns come with its rows) and
+`db0` for Valkey, whose one table `keys` has a row per key: `key`, `type`,
+`ttl` and a preview of the `value`.
+
+Every cell is a string or `null`, whatever the column's type: bytes that are not
+UTF-8 come back as `\x` hex, MongoDB fields as relaxed Extended JSON. Rows
+answer `{"columns", "key", "rows", "total", "truncated"}`, where `key` names the
+columns that identify a row and is empty for a view or a table without a
+primary key, which are read-only. `limit` is 1 to 500 (50 by default), `order`
+is `asc` or `desc`, and `where` is a URL-encoded JSON list of
+`{"column", "op", "value"}` joined with AND; `op` is one of `eq`, `neq`, `gt`,
+`gte`, `lt`, `lte`, `contains`, `starts_with`, `is_null` and `is_not_null`.
+Valkey filters and sorts on `key` only, and pages through at most 10,000
+matching keys, with `truncated` set past that.
+
+A change names a row by its full key, as strings: `updates` is
+`[{"key":{"id":"7"},"values":{"name":"Ada","note":null}}]`, `inserts` a list of
+values, `deletes` `[{"key":{...}}]`. Values are bound, never spliced into the
+statement, and a read-only or generated column is refused. SQL engines apply
+the lot in one transaction; MongoDB applies them in order and stops at the
+first failure; Valkey edits string values and TTLs only, in one `MULTI`.
+
+The query runs as typed, in autocommit, against the given schema: SQL for the
+SQL engines, one Extended JSON command document for MongoDB
+(`{"find":"users","limit":5}`), one command line for Valkey. At most 1,000
+rows come back, with `truncated` set when there were more.
+
+```sh
+curl -fsS -X POST \
+  -H "Authorization: Bearer $VEXDOCK_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema":"public","query":"select count(*) from users"}' \
+  https://panel.example.com/api/services/$SERVICE_ID/studio/query
+```
 
 ### Templates
 

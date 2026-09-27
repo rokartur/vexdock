@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/vexdock/platform/manager/internal/compose"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/projects"
 )
@@ -133,7 +135,7 @@ func (s *Server) handleDeleteEnvironment(w http.ResponseWriter, r *http.Request)
 	// failed teardown leaves containers nothing can find or stop.
 	composeProject, err := s.Projects.ComposeProject(r.Context(), project, env)
 	if err == nil {
-		err = composeProject.Down(r.Context(), logWriter{s.Log}, removeVolumes)
+		err = s.composeDown(r.Context(), composeProject, removeVolumes)
 	}
 	if err != nil && !errors.Is(err, projects.ErrNoServices) {
 		s.Log.Error("compose down during environment delete", "environment", env.ID, "error", err)
@@ -189,4 +191,13 @@ func (s *Server) handlePutEnvironmentVariables(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusOK, vars)
+}
+
+// composeDown detaches the manager first: Studio may have joined the project's
+// network, and compose cannot remove a network the manager is still on.
+func (s *Server) composeDown(ctx context.Context, p compose.Project, removeVolumes bool) error {
+	if err := s.Docker.LeaveProjectNetworks(ctx, p.Name); err != nil {
+		return err
+	}
+	return p.Down(ctx, logWriter{s.Log}, removeVolumes)
 }

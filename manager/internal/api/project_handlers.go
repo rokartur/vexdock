@@ -302,7 +302,7 @@ func (s *Server) handleStopProject(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
-	if err := composeProject.Down(r.Context(), logWriter{s.Log}, false); err != nil {
+	if err := s.composeDown(r.Context(), composeProject, false); err != nil {
 		serverError(w, err)
 		return
 	}

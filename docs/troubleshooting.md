@@ -14,6 +14,10 @@ curl with your cookie or read them from the panel. A failing `nginx` check does
 not make the manager unhealthy, precisely so the panel stays reachable while you
 fix the proxy.
 
+A manager that exits at boot with `binding the API to vexdock-internal` is not
+on the network `PLATFORM_INTERNAL_NETWORK` names. The stock `compose.yml` puts
+it there; a hand-edited one has to as well.
+
 When the log says too little, add `LOG_LEVEL=debug` to `/opt/vexdock/.env` and
 run `docker compose up -d` in `/opt/vexdock`; remove it again afterwards.
 
@@ -33,6 +37,27 @@ Open the deployment and read the step that failed. The step name says where:
 
 For `healthcheck` failures, open the service's Logs tab: the application's own
 output is almost always the answer.
+
+## Studio cannot open a database
+
+- `DATABASE_NOT_RUNNING`: the service has no running container. Deploy or
+  start it; Studio does not start it for you.
+- `QUERY_FAILED` with `connection refused` right after a deploy: the database
+  is still starting. Try again once the service shows healthy.
+- `QUERY_FAILED` with an authentication error: the service's variables no
+  longer match the credentials the data volume was initialised with. The
+  database kept the first ones; change the password inside the database, or
+  restore the variable.
+- An `INTERNAL` error naming a network: the manager could not join the
+  database's compose network. `docker network inspect <project>_default` shows
+  whether it exists; a redeploy recreates it.
+
+## An environment delete fails with "has active endpoints"
+
+A container outside the compose project is still attached to one of its
+networks. The manager leaves them itself before `compose down`; anything
+attached by hand has to go with
+`docker network disconnect <network> <container>` before deleting again.
 
 ## A domain returns 502
 
