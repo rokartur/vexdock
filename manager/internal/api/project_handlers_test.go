@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/vexdock/platform/manager/internal/database"
 )
 
@@ -39,5 +40,23 @@ func TestDeleteProjectRefusesWhileServicesRemain(t *testing.T) {
 	}
 	if _, err := db.ProjectByID(ctx, "p1"); err != nil {
 		t.Fatalf("project gone: %v", err)
+	}
+}
+
+func TestCrashedIgnoresStoppedContainers(t *testing.T) {
+	cases := []struct {
+		state container.State
+		want  bool
+	}{
+		{container.State{ExitCode: 0}, false},
+		{container.State{ExitCode: 143}, false},
+		{container.State{ExitCode: 137}, false},
+		{container.State{ExitCode: 137, OOMKilled: true}, true},
+		{container.State{ExitCode: 1}, true},
+	}
+	for _, c := range cases {
+		if got := crashed(&c.state); got != c.want {
+			t.Errorf("crashed(%+v) = %v, want %v", c.state, got, c.want)
+		}
 	}
 }
