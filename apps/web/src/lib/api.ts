@@ -548,6 +548,75 @@ export type DatabaseConnection = {
 	data_volume: string
 }
 
+/** Every Studio cell is text or null, whatever the column's type. */
+export type StudioCell = string | null
+
+export type StudioColumn = {
+	name: string
+	type: string
+	nullable: boolean
+	primary_key: boolean
+	read_only: boolean
+}
+
+/** A Postgres schema, a MySQL database, libSQL's `main`, a MongoDB database or Valkey's `db0`. */
+export type StudioSchema = {
+	name: string
+	/** MongoDB collections list no columns; they come with the rows. */
+	tables: { name: string; view: boolean; columns: StudioColumn[] }[]
+}
+
+export type StudioFilterOp =
+	| 'eq'
+	| 'neq'
+	| 'gt'
+	| 'gte'
+	| 'lt'
+	| 'lte'
+	| 'contains'
+	| 'starts_with'
+	| 'is_null'
+	| 'is_not_null'
+
+export type StudioFilter = { column: string; op: StudioFilterOp; value: string }
+
+export type StudioRowsQuery = {
+	schema: string
+	table: string
+	limit?: number
+	offset?: number
+	sort?: string
+	order?: 'asc' | 'desc'
+	where?: StudioFilter[]
+}
+
+export type StudioRows = {
+	columns: StudioColumn[]
+	/** The columns that identify a row; empty for a read-only view or keyless table. */
+	key: string[]
+	rows: StudioCell[][]
+	total: number
+	truncated: boolean
+}
+
+export type StudioValues = Record<string, StudioCell>
+
+export type StudioChanges = {
+	schema: string
+	table: string
+	updates?: { key: Record<string, string>; values: StudioValues }[]
+	inserts?: StudioValues[]
+	deletes?: { key: Record<string, string> }[]
+}
+
+export type StudioResult = {
+	columns: string[]
+	rows: StudioCell[][]
+	affected: number
+	duration_ms: number
+	truncated: boolean
+}
+
 export type Settings = {
 	dashboard_domain: string
 	dashboard_https: boolean
@@ -784,6 +853,19 @@ export const api = {
 	moveService: (id: string, environmentId: string) =>
 		request<Service>(`/api/services/${id}/move`, { method: 'POST', body: { environment_id: environmentId } }),
 	serviceDatabase: (id: string) => request<DatabaseConnection>(`/api/services/${id}/database`),
+	studioSchema: (id: string) => request<{ schemas: StudioSchema[] }>(`/api/services/${id}/studio`),
+	studioRows: (id: string, { where, limit, offset, ...query }: StudioRowsQuery) => {
+		const params = new URLSearchParams(query)
+		if (limit !== undefined) params.set('limit', String(limit))
+		if (offset !== undefined) params.set('offset', String(offset))
+		if (where?.length) params.set('where', JSON.stringify(where))
+		return request<StudioRows>(`/api/services/${id}/studio/rows?${params}`)
+	},
+	/** SQL engines apply the whole set in one transaction. */
+	studioChanges: (id: string, body: StudioChanges) =>
+		request<{ affected: number }>(`/api/services/${id}/studio/changes`, { method: 'POST', body }),
+	studioQuery: (id: string, body: { schema: string; query: string }) =>
+		request<StudioResult>(`/api/services/${id}/studio/query`, { method: 'POST', body }),
 	serviceVariables: (id: string) => request<EnvVar[]>(`/api/services/${id}/variables`),
 	saveServiceVariables: (id: string, variables: EnvVar[]) =>
 		request<undefined>(`/api/services/${id}/variables`, { method: 'PUT', body: { variables } }),

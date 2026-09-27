@@ -40,8 +40,11 @@ import { Route as ProjectsProjectIdServicesServiceIdDomainsRouteImport } from '.
 import { Route as ProjectsProjectIdServicesServiceIdEnvironmentRouteImport } from './routes/projects.$projectId_.services.$serviceId.environment'
 import { Route as ProjectsProjectIdServicesServiceIdLogsRouteImport } from './routes/projects.$projectId_.services.$serviceId.logs'
 import { Route as ProjectsProjectIdServicesServiceIdMonitoringRouteImport } from './routes/projects.$projectId_.services.$serviceId.monitoring'
+import { Route as ProjectsProjectIdServicesServiceIdStudioRouteImport } from './routes/projects.$projectId_.services.$serviceId.studio'
 import { Route as ProjectsProjectIdServicesServiceIdTasksRouteImport } from './routes/projects.$projectId_.services.$serviceId.tasks'
 import { Route as ProjectsProjectIdServicesServiceIdTerminalRouteImport } from './routes/projects.$projectId_.services.$serviceId.terminal'
+import { Route as ProjectsProjectIdServicesServiceIdStudioIndexRouteImport } from './routes/projects.$projectId_.services.$serviceId.studio.index'
+import { Route as ProjectsProjectIdServicesServiceIdStudioConsoleRouteImport } from './routes/projects.$projectId_.services.$serviceId.studio.console'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -209,6 +212,12 @@ const ProjectsProjectIdServicesServiceIdMonitoringRoute =
     path: '/monitoring',
     getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
   } as any)
+const ProjectsProjectIdServicesServiceIdStudioRoute =
+  ProjectsProjectIdServicesServiceIdStudioRouteImport.update({
+    id: '/studio',
+    path: '/studio',
+    getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
+  } as any)
 const ProjectsProjectIdServicesServiceIdTasksRoute =
   ProjectsProjectIdServicesServiceIdTasksRouteImport.update({
     id: '/tasks',
@@ -220,6 +229,18 @@ const ProjectsProjectIdServicesServiceIdTerminalRoute =
     id: '/terminal',
     path: '/terminal',
     getParentRoute: () => ProjectsProjectIdServicesServiceIdRoute,
+  } as any)
+const ProjectsProjectIdServicesServiceIdStudioIndexRoute =
+  ProjectsProjectIdServicesServiceIdStudioIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ProjectsProjectIdServicesServiceIdStudioRoute,
+  } as any)
+const ProjectsProjectIdServicesServiceIdStudioConsoleRoute =
+  ProjectsProjectIdServicesServiceIdStudioConsoleRouteImport.update({
+    id: '/console',
+    path: '/console',
+    getParentRoute: () => ProjectsProjectIdServicesServiceIdStudioRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -253,9 +274,12 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId/environment': typeof ProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/projects/$projectId/services/$serviceId/logs': typeof ProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/monitoring': typeof ProjectsProjectIdServicesServiceIdMonitoringRoute
+  '/projects/$projectId/services/$serviceId/studio': typeof ProjectsProjectIdServicesServiceIdStudioRouteWithChildren
   '/projects/$projectId/services/$serviceId/tasks': typeof ProjectsProjectIdServicesServiceIdTasksRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/services/$serviceId/': typeof ProjectsProjectIdServicesServiceIdIndexRoute
+  '/projects/$projectId/services/$serviceId/studio/console': typeof ProjectsProjectIdServicesServiceIdStudioConsoleRoute
+  '/projects/$projectId/services/$serviceId/studio/': typeof ProjectsProjectIdServicesServiceIdStudioIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -288,6 +312,8 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/$serviceId/tasks': typeof ProjectsProjectIdServicesServiceIdTasksRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdIndexRoute
+  '/projects/$projectId/services/$serviceId/studio/console': typeof ProjectsProjectIdServicesServiceIdStudioConsoleRoute
+  '/projects/$projectId/services/$serviceId/studio': typeof ProjectsProjectIdServicesServiceIdStudioIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -321,9 +347,12 @@ export interface FileRoutesById {
   '/projects/$projectId_/services/$serviceId/environment': typeof ProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/projects/$projectId_/services/$serviceId/logs': typeof ProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId_/services/$serviceId/monitoring': typeof ProjectsProjectIdServicesServiceIdMonitoringRoute
+  '/projects/$projectId_/services/$serviceId/studio': typeof ProjectsProjectIdServicesServiceIdStudioRouteWithChildren
   '/projects/$projectId_/services/$serviceId/tasks': typeof ProjectsProjectIdServicesServiceIdTasksRoute
   '/projects/$projectId_/services/$serviceId/terminal': typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId_/services/$serviceId/': typeof ProjectsProjectIdServicesServiceIdIndexRoute
+  '/projects/$projectId_/services/$serviceId/studio/console': typeof ProjectsProjectIdServicesServiceIdStudioConsoleRoute
+  '/projects/$projectId_/services/$serviceId/studio/': typeof ProjectsProjectIdServicesServiceIdStudioIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -358,9 +387,12 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/environment'
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/monitoring'
+    | '/projects/$projectId/services/$serviceId/studio'
     | '/projects/$projectId/services/$serviceId/tasks'
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/services/$serviceId/'
+    | '/projects/$projectId/services/$serviceId/studio/console'
+    | '/projects/$projectId/services/$serviceId/studio/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -393,6 +425,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/tasks'
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/services/$serviceId'
+    | '/projects/$projectId/services/$serviceId/studio/console'
+    | '/projects/$projectId/services/$serviceId/studio'
   id:
     | '__root__'
     | '/'
@@ -425,9 +459,12 @@ export interface FileRouteTypes {
     | '/projects/$projectId_/services/$serviceId/environment'
     | '/projects/$projectId_/services/$serviceId/logs'
     | '/projects/$projectId_/services/$serviceId/monitoring'
+    | '/projects/$projectId_/services/$serviceId/studio'
     | '/projects/$projectId_/services/$serviceId/tasks'
     | '/projects/$projectId_/services/$serviceId/terminal'
     | '/projects/$projectId_/services/$serviceId/'
+    | '/projects/$projectId_/services/$serviceId/studio/console'
+    | '/projects/$projectId_/services/$serviceId/studio/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -668,6 +705,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdMonitoringRouteImport
       parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
     }
+    '/projects/$projectId_/services/$serviceId/studio': {
+      id: '/projects/$projectId_/services/$serviceId/studio'
+      path: '/studio'
+      fullPath: '/projects/$projectId/services/$serviceId/studio'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdStudioRouteImport
+      parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
+    }
     '/projects/$projectId_/services/$serviceId/tasks': {
       id: '/projects/$projectId_/services/$serviceId/tasks'
       path: '/tasks'
@@ -681,6 +725,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId/services/$serviceId/terminal'
       preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdTerminalRouteImport
       parentRoute: typeof ProjectsProjectIdServicesServiceIdRoute
+    }
+    '/projects/$projectId_/services/$serviceId/studio/': {
+      id: '/projects/$projectId_/services/$serviceId/studio/'
+      path: '/'
+      fullPath: '/projects/$projectId/services/$serviceId/studio/'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdStudioIndexRouteImport
+      parentRoute: typeof ProjectsProjectIdServicesServiceIdStudioRoute
+    }
+    '/projects/$projectId_/services/$serviceId/studio/console': {
+      id: '/projects/$projectId_/services/$serviceId/studio/console'
+      path: '/console'
+      fullPath: '/projects/$projectId/services/$serviceId/studio/console'
+      preLoaderRoute: typeof ProjectsProjectIdServicesServiceIdStudioConsoleRouteImport
+      parentRoute: typeof ProjectsProjectIdServicesServiceIdStudioRoute
     }
   }
 }
@@ -720,6 +778,24 @@ const SystemSettingsRouteWithChildren = SystemSettingsRoute._addFileChildren(
   SystemSettingsRouteChildren,
 )
 
+interface ProjectsProjectIdServicesServiceIdStudioRouteChildren {
+  ProjectsProjectIdServicesServiceIdStudioConsoleRoute: typeof ProjectsProjectIdServicesServiceIdStudioConsoleRoute
+  ProjectsProjectIdServicesServiceIdStudioIndexRoute: typeof ProjectsProjectIdServicesServiceIdStudioIndexRoute
+}
+
+const ProjectsProjectIdServicesServiceIdStudioRouteChildren: ProjectsProjectIdServicesServiceIdStudioRouteChildren =
+  {
+    ProjectsProjectIdServicesServiceIdStudioConsoleRoute:
+      ProjectsProjectIdServicesServiceIdStudioConsoleRoute,
+    ProjectsProjectIdServicesServiceIdStudioIndexRoute:
+      ProjectsProjectIdServicesServiceIdStudioIndexRoute,
+  }
+
+const ProjectsProjectIdServicesServiceIdStudioRouteWithChildren =
+  ProjectsProjectIdServicesServiceIdStudioRoute._addFileChildren(
+    ProjectsProjectIdServicesServiceIdStudioRouteChildren,
+  )
+
 interface ProjectsProjectIdServicesServiceIdRouteChildren {
   ProjectsProjectIdServicesServiceIdAdvancedRoute: typeof ProjectsProjectIdServicesServiceIdAdvancedRoute
   ProjectsProjectIdServicesServiceIdDeploymentsRoute: typeof ProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -727,6 +803,7 @@ interface ProjectsProjectIdServicesServiceIdRouteChildren {
   ProjectsProjectIdServicesServiceIdEnvironmentRoute: typeof ProjectsProjectIdServicesServiceIdEnvironmentRoute
   ProjectsProjectIdServicesServiceIdLogsRoute: typeof ProjectsProjectIdServicesServiceIdLogsRoute
   ProjectsProjectIdServicesServiceIdMonitoringRoute: typeof ProjectsProjectIdServicesServiceIdMonitoringRoute
+  ProjectsProjectIdServicesServiceIdStudioRoute: typeof ProjectsProjectIdServicesServiceIdStudioRouteWithChildren
   ProjectsProjectIdServicesServiceIdTasksRoute: typeof ProjectsProjectIdServicesServiceIdTasksRoute
   ProjectsProjectIdServicesServiceIdTerminalRoute: typeof ProjectsProjectIdServicesServiceIdTerminalRoute
   ProjectsProjectIdServicesServiceIdIndexRoute: typeof ProjectsProjectIdServicesServiceIdIndexRoute
@@ -746,6 +823,8 @@ const ProjectsProjectIdServicesServiceIdRouteChildren: ProjectsProjectIdServices
       ProjectsProjectIdServicesServiceIdLogsRoute,
     ProjectsProjectIdServicesServiceIdMonitoringRoute:
       ProjectsProjectIdServicesServiceIdMonitoringRoute,
+    ProjectsProjectIdServicesServiceIdStudioRoute:
+      ProjectsProjectIdServicesServiceIdStudioRouteWithChildren,
     ProjectsProjectIdServicesServiceIdTasksRoute:
       ProjectsProjectIdServicesServiceIdTasksRoute,
     ProjectsProjectIdServicesServiceIdTerminalRoute:

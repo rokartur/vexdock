@@ -19,7 +19,7 @@ import {
 	IconTrash,
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
-import { Link, useRouter, useRouterState } from '@tanstack/react-router'
+import { Link, type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
 import { createPortal } from 'react-dom'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -894,6 +894,36 @@ export function Confirm({
 	)
 }
 
+/** Asks before a navigation drops unsaved changes. `useBlocker({ withResolver: true })` drives it. */
+export function ConfirmLeave({ blocker }: { blocker: ReturnType<typeof useBlocker> }) {
+	return (
+		<AlertDialog
+			open={blocker.status === 'blocked'}
+			onOpenChange={open => {
+				if (!open && blocker.status === 'blocked') blocker.reset()
+			}}
+		>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Discard the unsaved changes?</AlertDialogTitle>
+					<AlertDialogDescription>Leaving drops them. Stay and save to keep them.</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>Stay</AlertDialogCancel>
+					<AlertDialogAction
+						variant='destructive'
+						onClick={() => {
+							if (blocker.status === 'blocked') blocker.proceed()
+						}}
+					>
+						Discard and leave
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	)
+}
+
 /**
  * The one way to add to or edit a row of a list: never a form under the table. The caller owns `open`, so a header
  * button and a row action can open the same dialog, and closes it in the mutation's `onSuccess`.
@@ -1168,8 +1198,16 @@ export function Input({ mono, ...props }: Omit<ComponentProps<typeof ShadcnInput
 	return <ShadcnInput className={cn('text-base md:text-body', mono && 'font-mono md:text-label')} {...props} />
 }
 
-export function Textarea(props: Omit<ComponentProps<typeof ShadcnTextarea>, 'className'>) {
-	return <ShadcnTextarea className='min-h-20 text-base md:text-body' {...props} />
+export function Textarea({
+	mono,
+	...props
+}: Omit<ComponentProps<typeof ShadcnTextarea>, 'className'> & { mono?: boolean }) {
+	return (
+		<ShadcnTextarea
+			className={cn('min-h-20 text-base md:text-body', mono && 'font-mono md:text-label')}
+			{...props}
+		/>
+	)
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
