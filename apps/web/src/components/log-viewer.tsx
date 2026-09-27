@@ -23,11 +23,19 @@ import {
 	parseLogLine,
 } from '../lib/format'
 import { useEventSource } from '../lib/sse'
-import { IconButton, Segmented } from './primitives'
+import { IconButton, Segmented, Select } from './primitives'
 
 export type Line = { stream: string; text: string }
 
-const MAX_LINES = 5000
+/** One number is both the server's `tail` and the buffer's cap, so the view holds exactly the last N lines. */
+const lineLimits = [
+	{ value: '100', label: '100 lines' },
+	{ value: '500', label: '500 lines' },
+	{ value: '1000', label: '1000 lines' },
+	{ value: '5000', label: '5000 lines' },
+] as const
+
+type LineLimit = (typeof lineLimits)[number]['value']
 
 /** HTTP status classes read faster as color than as three digits. */
 const statusColor: Record<string, string> = {
@@ -111,18 +119,19 @@ export function LogViewer({
 	const [level, setLevel] = useState<LevelFilter>('all')
 	const [follow, setFollow] = useState(true)
 	const [plain, setPlain] = useState(false)
+	const [limit, setLimit] = useState<LineLimit>('1000')
 	const bottomRef = useRef<HTMLDivElement>(null)
 	// Lines land in a ref and flush on a timer: a chatty container emits faster
 	// than React can render, and one setState per line re-renders every row.
 	const pending = useRef<Line[]>([])
 	const flushTimer = useRef(0)
-	// A reconnect replays the server's tail=200, so the buffer restarts at the
-	// first line of the new stream rather than growing a second copy of it.
+	// A reconnect, or a new limit, replays the server's tail, so the buffer restarts
+	// at the first line of the new stream rather than growing a second copy of it.
 	const restart = useRef(false)
 
 	// Pausing keeps the stream open. Reopening it would replay the server's
-	// tail=200 and duplicate everything already on screen.
-	const connected = useEventSource(url ?? null, {
+	// tail and duplicate everything already on screen.
+	const connected = useEventSource(url ? `${url}?tail=${limit}` : null, {
 		log: data => {
 			if (paused) return
 			if (restart.current) {
@@ -137,8 +146,8 @@ export function LogViewer({
 				const batch = pending.current
 				pending.current = []
 				setStreamed(current => {
-					const next = current.concat(batch)
-					return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next
+					const next = [...current, ...batch]
+					return next.slice(-Number(limit))
 				})
 			}, 200)
 		},
@@ -185,6 +194,9 @@ export function LogViewer({
 					/>
 				</InputGroup>
 				<Segmented value={level} options={levelFilters} onChange={setLevel} />
+				{url ? (
+					<Select value={limit} options={lineLimits} onChange={setLimit} label='Lines' className='w-auto' />
+				) : null}
 				<ButtonGroup>
 					{url ? (
 						<>
