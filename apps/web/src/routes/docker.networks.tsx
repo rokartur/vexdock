@@ -1,5 +1,4 @@
-import { Fragment, useMemo } from 'react'
-import { IconAffiliate, IconPlug } from '@tabler/icons-react'
+import { Fragment, type ReactNode, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
@@ -8,14 +7,29 @@ import { api, type ContainerSummary, type NetworkSummary } from '../lib/api'
 import { composeProjects } from '../lib/environment'
 import { containerName } from '../lib/format'
 
+type ComposeProjects = ReturnType<typeof composeProjects>
+type ComposeProject = NonNullable<ReturnType<ComposeProjects['get']>>
+
+const DOCKER_DEFAULT_NETWORKS = new Set(['bridge', 'host', 'none'])
+
 type PublishedPort = {
 	key: string
 	addresses: string[]
 	published: number
 	target: number
 	protocol: string
-	container: string
-	project: string
+	container: ContainerSummary
+}
+
+type ServiceRef = { name: string; container: string }
+type ServiceGroup = { compose: string; label: string; services: ServiceRef[] }
+
+type NetworkRow = {
+	network: NetworkSummary
+	label: string
+	project: ComposeProject | undefined
+	builtin: boolean
+	groups: ServiceGroup[]
 }
 
 /** One row per container port; Docker reports it once for 0.0.0.0 and again for ::. */
@@ -35,131 +49,193 @@ function publishedPorts(containers: ContainerSummary[]): PublishedPort[] {
 				published: port.published,
 				target: port.target,
 				protocol: port.protocol,
-				container: containerName(container),
-				project: container.project,
+				container,
 			})
 		}
 	}
 	return [...byKey.values()].sort((a, b) => a.published - b.published)
 }
 
-function portTableColumns(projects: ReturnType<typeof composeProjects>): Columns<PublishedPort> {
+function reach(addresses: string[]): string {
+	if (addresses.some(ip => ip === '0.0.0.0' || ip === '::')) return 'Public'
+	if (addresses.every(ip => ip === '127.0.0.1' || ip === '::1')) return 'Local only'
+	return addresses.join(', ')
+}
+
+function serviceName(container: ContainerSummary): string {
+	return container.service || containerName(container)
+}
+
+function networkRows(
+	networks: NetworkSummary[],
+	containers: ContainerSummary[],
+	projects: ComposeProjects,
+): NetworkRow[] {
+	const byId = new Map(containers.map(container => [container.id, container]))
+	const rows = networks.map(network => {
+		// Compose names a project's own network <project>_default.
+		const project = network.name.endsWith('_default')
+			? projects.get(network.name.slice(0, -'_default'.length))
+			: undefined
+		return {
+			network,
+			label: project?.label ?? network.name,
+			project,
+			builtin: DOCKER_DEFAULT_NETWORKS.has(network.name),
+			groups: serviceGroups(network, byId, projects),
+		}
+	})
+	return rows.sort((a, b) => Number(a.builtin) - Number(b.builtin) || a.label.localeCompare(b.label))
+}
+
+function serviceGroups(
+	network: NetworkSummary,
+	byId: Map<string, ContainerSummary>,
+	projects: ComposeProjects,
+): ServiceGroup[] {
+	const groups = new Map<string, ServiceGroup>()
+	for (const member of network.containers) {
+		const container = byId.get(member.id)
+		const compose = container?.project ?? ''
+		const service = { name: container ? serviceName(container) : member.name, container: member.name }
+		const group = groups.get(compose)
+		if (group) {
+			group.services.push(service)
+			continue
+		}
+		groups.set(compose, { compose, label: projects.get(compose)?.label ?? compose, services: [service] })
+	}
+	for (const group of groups.values()) {
+		group.services.sort((a, b) => a.name.localeCompare(b.name))
+	}
+	return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label))
+}
+
+function portTableColumns(projects: ComposeProjects): Columns<PublishedPort> {
 	const cell = columnsFor<PublishedPort>()
 	return [
 		cell.accessor(port => `${port.published}/${port.protocol}`, {
 			id: 'port',
 			header: 'Port',
-			cell: ({ getValue }) => (
-				<span className='inline-flex items-center gap-2'>
-					<IconPlug className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{getValue()}</span>
-				</span>
-			),
-		}),
-		cell.accessor(port => port.addresses.join(', '), { id: 'address', header: 'Listens on', meta: { mono: true } }),
-		cell.accessor(port => port.target, { id: 'target', header: 'Container port', meta: { mono: true } }),
-		cell.accessor(port => port.container, {
-			id: 'container',
-			header: 'Container',
 			meta: { mono: true },
+		}),
+		cell.accessor(port => port.target, { id: 'target', header: 'Container port', meta: { mono: true } }),
+		cell.accessor(port => reach(port.addresses), {
+			id: 'reach',
+			header: 'Reachable from',
 			cell: ({ getValue }) => (
-				<Link
-					to='/docker/containers'
-					search={{ q: getValue() }}
-					className='underline-offset-2 hover:text-foreground hover:underline'
-				>
-					{getValue()}
-				</Link>
+				<span className={getValue() === 'Public' ? 'text-amber-400' : undefined}>{getValue()}</span>
 			),
 		}),
-		cell.accessor(port => projects.get(port.project)?.label ?? (port.project || '-'), {
+		cell.accessor(port => serviceName(port.container), {
+			id: 'service',
+			header: 'Service',
+			meta: { mono: true },
+			cell: ({ row, getValue }) => (
+				<ContainerLink name={containerName(row.original.container)}>{getValue()}</ContainerLink>
+			),
+		}),
+		cell.accessor(port => projects.get(port.container.project)?.label ?? (port.container.project || '-'), {
 			id: 'project',
 			header: 'Project',
 			cell: ({ row, getValue }) => {
-				const project = projects.get(row.original.project)
-				if (!project) {
-					return getValue()
-				}
-				return (
-					<Link
-						to='/projects/$projectId'
-						params={{ projectId: project.projectId }}
-						search={{ env: project.environmentId }}
-						className='underline-offset-2 hover:underline'
-					>
-						{project.label}
-					</Link>
-				)
+				const project = projects.get(row.original.container.project)
+				return project ? <ProjectLink project={project} /> : getValue()
 			},
 		}),
 	]
 }
 
-/** Usable IPv4 hosts across a network's subnets; null when it has none (IPv6-only or unconfigured). */
-function usableHosts(subnets: string[]): number | null {
-	let total = 0
-	for (const subnet of subnets) {
-		const [address, prefix] = subnet.split('/')
-		if (!(address?.includes('.') && prefix)) continue
-		total += 2 ** (32 - Number(prefix)) - 2
-	}
-	return total > 0 ? total : null
-}
-
-function networkTableColumns(): Columns<NetworkSummary> {
-	const cell = columnsFor<NetworkSummary>()
+function networkTableColumns(): Columns<NetworkRow> {
+	const cell = columnsFor<NetworkRow>()
 	return [
-		cell.accessor(network => network.name, {
-			id: 'name',
-			header: 'Name',
-			cell: ({ row }) => (
-				<span className='inline-flex items-center gap-2'>
-					<IconAffiliate className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{row.original.name}</span>
-				</span>
-			),
+		cell.accessor(row => row.label, {
+			id: 'network',
+			header: 'Network',
+			cell: ({ row }) => {
+				if (row.original.project) return <ProjectLink project={row.original.project} />
+				return (
+					<span
+						className={
+							row.original.builtin ? 'font-mono text-label text-muted-foreground' : 'font-mono text-label'
+						}
+					>
+						{row.original.label}
+					</span>
+				)
+			},
 		}),
-		cell.accessor(network => network.driver, { id: 'driver', header: 'Driver', meta: { mono: true } }),
-		cell.accessor(network => network.scope, { id: 'scope', header: 'Scope', meta: { mono: true } }),
-		cell.accessor(network => network.subnets.join(', ') || '-', {
+		cell.accessor(row => row.network.subnets.join(', ') || '-', {
 			id: 'subnet',
 			header: 'Subnet',
 			meta: { mono: true },
 		}),
-		cell.accessor(
-			network => {
-				const capacity = usableHosts(network.subnets)
-				return capacity === null
-					? String(network.containers.length)
-					: `${network.containers.length} / ${capacity}`
-			},
-			{ id: 'ips', header: 'IPs in use', meta: { mono: true, align: 'right' } },
-		),
-		cell.accessor(network => network.containers.map(container => container.name).join(', ') || '-', {
+		cell.accessor(row => row.network.containers.length, {
 			id: 'containers',
-			header: 'Connected containers',
-			meta: { mono: true },
-			cell: ({ row }) =>
-				row.original.containers.length === 0 ? (
-					'-'
-				) : (
-					<span>
-						{row.original.containers.map((container, index) => (
-							<Fragment key={container.id}>
-								{index > 0 ? ', ' : null}
-								<Link
-									to='/docker/containers'
-									search={{ q: container.name }}
-									className='underline-offset-2 hover:text-foreground hover:underline'
-								>
-									{container.name}
-								</Link>
-							</Fragment>
-						))}
-					</span>
-				),
+			header: 'Containers',
+			meta: { mono: true, align: 'right' },
 		}),
+		cell.accessor(
+			row =>
+				row.groups
+					.map(group => `${group.label} ${group.services.map(service => service.name).join(' ')}`)
+					.join(' '),
+			{
+				id: 'services',
+				header: 'Services',
+				meta: { mono: true },
+				cell: ({ row }) => <Services row={row.original} />,
+			},
+		),
 	]
+}
+
+function Services({ row }: { row: NetworkRow }) {
+	if (row.groups.length === 0) {
+		return <span className='text-muted-foreground'>{row.builtin ? 'Docker default' : '-'}</span>
+	}
+	return (
+		<span className='flex flex-col gap-0.5'>
+			{row.groups.map(group => (
+				<span key={group.compose}>
+					{row.groups.length > 1 && group.label ? (
+						<span className='text-muted-foreground'>{group.label} </span>
+					) : null}
+					{group.services.map((service, index) => (
+						<Fragment key={service.container}>
+							{index > 0 ? ', ' : null}
+							<ContainerLink name={service.container}>{service.name}</ContainerLink>
+						</Fragment>
+					))}
+				</span>
+			))}
+		</span>
+	)
+}
+
+function ContainerLink({ name, children }: { name: string; children: ReactNode }) {
+	return (
+		<Link
+			to='/docker/containers'
+			search={{ q: name }}
+			className='underline-offset-2 hover:text-foreground hover:underline'
+		>
+			{children}
+		</Link>
+	)
+}
+
+function ProjectLink({ project }: { project: ComposeProject }) {
+	return (
+		<Link
+			to='/projects/$projectId'
+			params={{ projectId: project.projectId }}
+			search={{ env: project.environmentId }}
+			className='underline-offset-2 hover:underline'
+		>
+			{project.label}
+		</Link>
+	)
 }
 
 export const Route = createFileRoute('/docker/networks')({ component: NetworksPage })
@@ -169,10 +245,14 @@ function NetworksPage() {
 	const containers = useQuery({ queryKey: ['containers'], queryFn: api.containers })
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
-	const data = networks.data ?? []
-	const columns = useMemo(networkTableColumns, [])
+	const byName = useMemo(() => composeProjects(projects.data ?? []), [projects.data])
 	const ports = useMemo(() => publishedPorts(containers.data ?? []), [containers.data])
-	const portColumns = useMemo(() => portTableColumns(composeProjects(projects.data ?? [])), [projects.data])
+	const rows = useMemo(
+		() => networkRows(networks.data ?? [], containers.data ?? [], byName),
+		[networks.data, containers.data, byName],
+	)
+	const portColumns = useMemo(() => portTableColumns(byName), [byName])
+	const columns = useMemo(networkTableColumns, [])
 
 	return (
 		<Page>
@@ -192,16 +272,16 @@ function NetworksPage() {
 				/>
 			</Section>
 			<Section
-				title='All networks'
-				description={`${data.length} total`}
+				title='Networks'
+				description={`${rows.length} total`}
 				actions={<Refresh onClick={() => networks.refetch()} busy={networks.isFetching} />}
 			>
 				<DataTable
-					data={data}
+					data={rows}
 					columns={columns}
 					loading={networks.isLoading}
 					error={networks.error}
-					getRowId={network => network.id}
+					getRowId={row => row.network.id}
 					filter='Filter networks'
 					empty='No networks'
 				/>
