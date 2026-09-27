@@ -62,6 +62,21 @@ pass 'the manager validates the better-auth session'
 
 auth_post() { curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -H 'Content-Type: application/json' "$@"; }
 
+wait_for_deployment() {
+    for _ in $(seq 1 60); do
+        state=$(curl -fsS -b "$COOKIES" "$API/deployments/$1" | json "d['deployment']['status']")
+        case "$state" in
+            success) return ;;
+            failed|cancelled)
+                curl -fsS -b "$COOKIES" "$API/deployments/$1" | head -c 2000
+                fail "deployment finished as $state"
+                ;;
+        esac
+        sleep 2
+    done
+    fail "deployment did not succeed in time (last state: $state)"
+}
+
 step 'cross-origin protection'
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIES" -X POST -H 'Origin: https://evil.example.com' \
     -H 'Content-Type: application/json' -d '{"name":"x"}' "$API/projects")
@@ -100,18 +115,7 @@ deployment=$(auth_post -X POST "$API/projects/$PROJECT_ID/deploy")
 DEPLOYMENT_ID=$(echo "$deployment" | json "d[0]['id']")
 [ "$(echo "$deployment" | json "d[0]['service_name']")" = "web" ] ||
     fail 'the queued deployment is not scoped to the service'
-for _ in $(seq 1 60); do
-    state=$(curl -fsS -b "$COOKIES" "$API/deployments/$DEPLOYMENT_ID" | json "d['deployment']['status']")
-    case "$state" in
-        success) break ;;
-        failed|cancelled)
-            curl -fsS -b "$COOKIES" "$API/deployments/$DEPLOYMENT_ID" | head -c 2000
-            fail "deployment finished as $state"
-            ;;
-    esac
-    sleep 2
-done
-[ "$state" = "success" ] || fail "deployment did not succeed in time (last state: $state)"
+wait_for_deployment "$DEPLOYMENT_ID"
 pass 'deployment succeeded'
 
 steps=$(curl -fsS -b "$COOKIES" "$API/deployments/$DEPLOYMENT_ID" | json "' '.join(s['name'] for s in d['steps'])")
@@ -169,6 +173,21 @@ default_service=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services" |
 [ "$staging_service" != "$default_service" ] || fail 'staging shares the default environment'\''s service row'
 pass 'services are copied into the new environment and scoped to it'
 
+step 'studio'
+db_service=$(auth_post -d '{"name":"db","database":{"engine":"postgres","version":"17-alpine"}}' \
+    "$API/projects/$PROJECT_ID/services?environment=$ENVIRONMENT_ID" | json "d['id']")
+wait_for_deployment "$(auth_post -X POST "$API/services/$db_service/deploy" | json "d['id']")"
+schemas=$(curl -fsS -b "$COOKIES" "$API/services/$db_service/studio" | json "' '.join(s['name'] for s in d['schemas'])")
+echo "$schemas" | grep -qw public || fail "studio listed schemas '$schemas', expected public"
+auth_post -d '{"schema":"public","query":"create table smoke (id int primary key, note text)"}' \
+    "$API/services/$db_service/studio/query" >/dev/null
+auth_post -d '{"schema":"public","table":"smoke","inserts":[{"id":"1","note":"hi"}]}' \
+    "$API/services/$db_service/studio/changes" >/dev/null
+note=$(curl -fsS -b "$COOKIES" "$API/services/$db_service/studio/rows?schema=public&table=smoke" | json "d['rows'][0][1]")
+[ "$note" = "hi" ] || fail "studio read back '$note' after inserting 'hi'"
+pass 'studio reads and writes an unpublished database'
+
+# The manager joined staging's network for Studio; compose down fails unless it leaves first.
 curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/environments/$ENVIRONMENT_ID?volumes=true" >/dev/null
 pass 'environment removed'
 

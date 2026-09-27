@@ -38,6 +38,7 @@ Create a token from a session-authenticated context, or ask the user to:
 - Errors: `{"error":{"code","message","details"?}}`. Codes: `INVALID_REQUEST` 400,
   `UNAUTHORIZED` 401, `CROSS_ORIGIN` 403, `NOT_FOUND` 404, `CONFIRMATION_REQUIRED` 428,
   `CONFLICT` 409, `TASK_RUNNING` 409, `UNHEALTHY` 409, `GIT_PROVIDER_IN_USE` 409, `PROJECT_NOT_EMPTY` 409,
+  `DATABASE_NOT_RUNNING` 409, `STUDIO_UNSUPPORTED` 400, `QUERY_FAILED` 400,
   `GIT_PROVIDER_UNAVAILABLE` 400, `GIT_PROVIDER_ERROR` 502, `CERTIFICATE_FAILED` 502, `INTERNAL` 500. `429` comes from Nginx without the envelope.
 - Ids are opaque strings. Resolve names to ids by listing; never guess.
 - Project routes act on the project's **default environment** unless `?environment={id}` is given.
@@ -89,6 +90,25 @@ vx /api/services/$SERVICE/exec -d '{"command":"php artisan migrate --force"}'
 Runs in the service's container, never on the host. After 10 minutes the call
 gives up but the command keeps running, so check before retrying it; output
 over 1 MiB keeps its tail. The container must be running.
+
+## Query a database (Studio)
+
+Catalog databases only; the manager connects over the compose network, no published port needed.
+
+```sh
+vx /api/services/$SERVICE/studio | jq '.schemas[] | {name, tables: [.tables[].name]}'
+vx "/api/services/$SERVICE/studio/rows?schema=public&table=users&limit=20&sort=id&order=desc"
+vx /api/services/$SERVICE/studio/query -d '{"schema":"public","query":"select count(*) from users"}'
+# → {"columns":["count"],"rows":[["42"]],"affected":0,"duration_ms":3,"truncated":false}
+vx /api/services/$SERVICE/studio/changes -d '{"schema":"public","table":"users","updates":[{"key":{"id":"7"},"values":{"name":"Ada"}}]}'
+```
+
+- Every cell is a string or `null`; non-UTF-8 bytes come as `\x` hex, MongoDB fields as relaxed Extended JSON.
+- `where` is URL-encoded JSON `[{"column","op","value"}]`; `op`: `eq neq gt gte lt lte contains starts_with is_null is_not_null`.
+- `limit` 1-500; query results stop at 1,000 rows (`truncated`). A table whose `key` is empty is read-only.
+- The query is SQL, one Extended JSON command for MongoDB (`{"find":"users","limit":5}`),
+  or one command line for Valkey (schema `db0`, table `keys`). It runs in autocommit: confirm writes with the user first.
+- `QUERY_FAILED` carries the database's own error message.
 
 ## Lifecycle without a pipeline
 
