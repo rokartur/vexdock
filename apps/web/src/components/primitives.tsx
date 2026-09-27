@@ -134,10 +134,7 @@ export function IconButton({
 			>
 				<Icon />
 			</TooltipTrigger>
-			{/* Base UI marks a tooltip opened inside the group's window as instant; a
-			    toolbar of these should then read as one label following the cursor,
-			    not as five separate entrances. */}
-			<TooltipContent className='data-instant:duration-0'>{label}</TooltipContent>
+			<TooltipContent>{label}</TooltipContent>
 		</Tooltip>
 	)
 }
@@ -162,18 +159,18 @@ export function Keys({ keys }: { keys: string[] }) {
 }
 
 const stateColor: Record<string, string> = {
-	running: 'text-emerald-400',
-	healthy: 'text-emerald-400',
-	success: 'text-emerald-400',
-	issued: 'text-emerald-400',
-	connected: 'text-emerald-400',
-	starting: 'text-amber-400',
-	queued: 'text-amber-400',
-	restarting: 'text-amber-400',
-	pending: 'text-amber-400',
-	unhealthy: 'text-red-400',
-	failed: 'text-red-400',
-	dead: 'text-red-400',
+	running: 'text-success',
+	healthy: 'text-success',
+	success: 'text-success',
+	issued: 'text-success',
+	connected: 'text-success',
+	starting: 'text-warning',
+	queued: 'text-warning',
+	restarting: 'text-warning',
+	pending: 'text-warning',
+	unhealthy: 'text-destructive',
+	failed: 'text-destructive',
+	dead: 'text-destructive',
 	exited: 'text-muted-foreground',
 	stopped: 'text-muted-foreground',
 	cancelled: 'text-muted-foreground',
@@ -439,7 +436,7 @@ export function SaveButton({
 	if (saved) {
 		return (
 			<Button type='submit' variant='default'>
-				<IconCheck className='text-emerald-400' />
+				<IconCheck className='text-success' />
 				Saved
 			</Button>
 		)
@@ -494,7 +491,7 @@ export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; n
 				onClick={onReveal}
 				aria-label={`${label} ${noun} below, scroll to the end`}
 				className={cn(
-					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-full border bg-popover/60 pr-3.5 pl-2.5 text-label text-foreground shadow-lg raised backdrop-blur-xl backdrop-saturate-150 transition-[opacity,visibility,scale,background-color] duration-200 ease-out hover:bg-accent/70',
+					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-md border bg-popover pr-3 pl-2 text-label text-foreground raised transition-[opacity,visibility,scale,background-color] duration-200 ease-out hover:bg-accent',
 					shown ? 'visible scale-100 opacity-100' : 'invisible scale-95 opacity-0',
 				)}
 			>
@@ -700,7 +697,7 @@ export function Facts({ children, className }: { children: ReactNode; className?
 /** One row of a `Facts` list. */
 export function Fact({ label, value }: { label: string; value: ReactNode }) {
 	return (
-		<Item size='sm' className='min-h-9 flex-nowrap rounded-none border-x-0 border-b-0 px-0 py-1 text-body'>
+		<Item size='sm' className='min-h-8 flex-nowrap rounded-none border-x-0 border-b-0 px-0 py-1 text-body'>
 			<ItemContent className='shrink-0'>
 				<ItemTitle className='font-normal text-muted-foreground'>{label}</ItemTitle>
 			</ItemContent>
@@ -1168,11 +1165,11 @@ export function Combo<TValue extends string>({
 
 /** `mono` is for machine text typed by hand: a variable name, a value, an id. */
 export function Input({ mono, ...props }: Omit<ComponentProps<typeof ShadcnInput>, 'className'> & { mono?: boolean }) {
-	return <ShadcnInput className={cn('text-body md:text-body', mono && 'font-mono text-label')} {...props} />
+	return <ShadcnInput className={cn('text-base md:text-body', mono && 'font-mono md:text-label')} {...props} />
 }
 
 export function Textarea(props: Omit<ComponentProps<typeof ShadcnTextarea>, 'className'>) {
-	return <ShadcnTextarea className='min-h-20 text-body md:text-body' {...props} />
+	return <ShadcnTextarea className='min-h-20 text-base md:text-body' {...props} />
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {

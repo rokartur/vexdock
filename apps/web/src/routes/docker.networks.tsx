@@ -125,7 +125,7 @@ function portTableColumns(projects: ComposeProjects): Columns<PublishedPort> {
 			id: 'reach',
 			header: 'Reachable from',
 			cell: ({ getValue }) => (
-				<span className={getValue() === 'Public' ? 'text-amber-400' : undefined}>{getValue()}</span>
+				<span className={getValue() === 'Public' ? 'text-warning' : undefined}>{getValue()}</span>
 			),
 		}),
 		cell.accessor(port => serviceName(port.container), {

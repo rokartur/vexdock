@@ -109,7 +109,7 @@ function CleanupPage() {
 				<ErrorText error={cleanup.error} />
 				{result ? (
 					<Alert className='mb-3'>
-						<IconCircleCheck className='text-emerald-400' />
+						<IconCircleCheck className='text-success' />
 						<AlertDescription>{result}</AlertDescription>
 					</Alert>
 				) : null}

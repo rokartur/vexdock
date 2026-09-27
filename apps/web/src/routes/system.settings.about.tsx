@@ -113,7 +113,7 @@ function Version() {
 			<ErrorText error={update.error ?? setSettings.error ?? check.error} />
 			{showResult && state.data && phase === 'done' ? (
 				<Alert className='mb-4'>
-					<IconCircleCheck className='text-emerald-400' />
+					<IconCircleCheck className='text-success' />
 					<AlertTitle>Updated to {state.data.target}.</AlertTitle>
 				</Alert>
 			) : null}
@@ -172,7 +172,7 @@ function Version() {
 					<Cell
 						label='Latest'
 						value={
-							<span className={cn('font-mono', version.data?.update_available && 'text-emerald-400')}>
+							<span className={cn('font-mono', version.data?.update_available && 'text-success')}>
 								{version.data?.latest || 'unknown'}
 							</span>
 						}
@@ -196,18 +196,20 @@ function Version() {
 										<span
 											className={cn(
 												'size-1.5 shrink-0 self-center rounded-full',
-												result === 'ok' ? 'bg-emerald-400' : 'bg-red-400',
+												result === 'ok' ? 'bg-success' : 'bg-destructive',
 											)}
 										/>
 										<span className='w-20 font-mono text-label text-muted-foreground'>{name}</span>
-										<span className={result === 'ok' ? 'text-muted-foreground' : 'text-red-400'}>
+										<span
+											className={result === 'ok' ? 'text-muted-foreground' : 'text-destructive'}
+										>
 											{result}
 										</span>
 									</div>
 								))
 							)}
 							{healthy || health.isLoading ? null : (
-								<p className='text-body text-red-400'>
+								<p className='text-body text-destructive'>
 									Updates are blocked until the failing checks recover; the server refuses them too.
 								</p>
 							)}
@@ -258,13 +260,13 @@ function UpdateTimeline({ phase, target }: { phase: UpdatePhase; target: string 
 						key={step.phase}
 						className={cn(
 							'relative border-l pb-3.5 pl-4 last:border-l-transparent last:pb-0',
-							done && 'border-l-emerald-400/40',
+							done && 'border-l-success/40',
 						)}
 					>
 						<span
 							className={cn(
 								'absolute top-1 -left-1 size-2 rounded-full border-2 border-background',
-								done && 'bg-emerald-400',
+								done && 'bg-success',
 								now && 'bg-foreground',
 								!(done || now) && 'bg-muted',
 							)}

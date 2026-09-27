@@ -10,7 +10,7 @@ import { cn } from '@/utils/cn'
 export function Terminal({ url }: { url: string }) {
 	const hostRef = useRef<HTMLDivElement>(null)
 	const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting')
-	const statusDot = { connecting: 'bg-amber-400', open: 'bg-emerald-400', closed: 'bg-muted-foreground' }[status]
+	const statusDot = { connecting: 'bg-warning', open: 'bg-success', closed: 'bg-muted-foreground' }[status]
 
 	useEffect(() => {
 		const host = hostRef.current

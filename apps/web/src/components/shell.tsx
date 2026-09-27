@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { Collapsible } from '@base-ui/react/collapsible'
 import {
 	IconActivity,
 	IconAffiliate,
@@ -30,7 +31,7 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
-import { api, updateActive, type Project } from '../lib/api'
+import { api, updateActive, type Project, type Service } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
 import { useEnvironmentId } from '../lib/environment'
 import { useSystemEvents } from '../lib/sse'
@@ -64,7 +65,7 @@ const system: NavItem[] = [
 const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
 const navRow =
-	'flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors data-[on=false]:text-muted-foreground data-[on=false]:hover:bg-muted data-[on=false]:hover:text-foreground data-[on=true]:bg-muted data-[on=true]:font-medium data-[on=true]:text-foreground'
+	'flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors pointer-coarse:min-h-11 data-[on=false]:text-muted-foreground data-[on=false]:hover:bg-muted data-[on=false]:hover:text-foreground data-[on=true]:bg-muted data-[on=true]:font-medium data-[on=true]:text-foreground'
 
 function SideLink({ item, active }: { item: NavItem; active: boolean }) {
 	return (
@@ -133,21 +134,27 @@ function ProjectBranch({
 	environmentId: string | undefined
 	onToggle: () => void
 }) {
+	// The same key the project's own page uses, so opening a branch you are
+	// already on costs nothing.
+	const services = useQuery({
+		queryKey: ['services', project.id, environmentId],
+		queryFn: () => api.services(project.id, environmentId),
+		enabled: open,
+	})
+
+	// The panel waits for the rows: opened empty, it would grow to 0 and then pop.
 	return (
-		<div>
+		<Collapsible.Root open={open && services.data !== undefined} onOpenChange={onToggle}>
 			<div className='flex items-center gap-0.5'>
-				<button
-					type='button'
-					onClick={onToggle}
-					aria-expanded={open}
+				<Collapsible.Trigger
 					aria-label={`${open ? 'Collapse' : 'Expand'} ${project.name}`}
-					className='rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+					className='grid press place-items-center rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:size-11'
 				>
 					<IconChevronRight
 						stroke={1.5}
-						className={cn('size-3.5 transition-transform', open && 'rotate-90')}
+						className={cn('size-3.5 transition-[rotate] duration-200', open && 'rotate-90')}
 					/>
-				</button>
+				</Collapsible.Trigger>
 				<Link
 					to='/projects/$projectId'
 					params={{ projectId: project.id }}
@@ -163,27 +170,31 @@ function ProjectBranch({
 					</span>
 				</Link>
 			</div>
-			{open ? <BranchServices projectId={project.id} environmentId={environmentId} /> : null}
-		</div>
+			<Collapsible.Panel className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 data-ending-style:h-0 data-starting-style:h-0'>
+				{services.data ? (
+					<BranchServices projectId={project.id} environmentId={environmentId} services={services.data} />
+				) : null}
+			</Collapsible.Panel>
+		</Collapsible.Root>
 	)
 }
 
-function BranchServices({ projectId, environmentId }: { projectId: string; environmentId: string | undefined }) {
+function BranchServices({
+	projectId,
+	environmentId,
+	services,
+}: {
+	projectId: string
+	environmentId: string | undefined
+	services: Service[]
+}) {
 	const { serviceId } = useParams({ strict: false })
-	// The same key the project's own page uses, so opening a branch you are
-	// already on costs nothing.
-	const services = useQuery({
-		queryKey: ['services', projectId, environmentId],
-		queryFn: () => api.services(projectId, environmentId),
-	})
-
-	if (!services.data) return null
 	return (
 		<div className='mt-0.5 ml-3.5 border-l pl-2'>
-			{services.data.length === 0 ? (
+			{services.length === 0 ? (
 				<div className='px-2 py-1 text-label text-muted-foreground'>No services</div>
 			) : (
-				services.data.map(service => (
+				services.map(service => (
 					<Link
 						key={service.id}
 						to='/projects/$projectId/services/$serviceId'
@@ -239,13 +250,13 @@ export function Shell({ children }: { children: ReactNode }) {
 	let versionText = version.data?.current ?? 'dev'
 	let versionClass = 'text-muted-foreground'
 	if (updating) {
-		updateDot = 'bg-amber-400'
+		updateDot = 'bg-warning'
 		versionText = restarting ? 'restarting…' : `updating → ${updateState.data?.target}`
-		versionClass = 'text-amber-400'
+		versionClass = 'text-warning'
 	} else if (updateAvailable) {
-		updateDot = 'bg-emerald-400'
+		updateDot = 'bg-success'
 		versionText = `${version.data?.current} → ${version.data?.latest}`
-		versionClass = 'text-emerald-400'
+		versionClass = 'text-success'
 	}
 	const session = useSession()
 
@@ -259,6 +270,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') setNavOpen(false)
 			// Cmd/Ctrl+S submits the FormSection the caret is in (requestSubmit, so
 			// its `required` inputs are checked first); anywhere else it is swallowed
 			// so the browser never offers to save the page.
@@ -279,19 +291,21 @@ export function Shell({ children }: { children: ReactNode }) {
 
 	return (
 		<div className='flex h-dvh min-h-0 overflow-hidden'>
-			{navOpen ? (
-				<button
-					type='button'
-					aria-label='Close navigation'
-					onClick={() => setNavOpen(false)}
-					className='fixed inset-0 z-40 bg-black/60 md:hidden'
-				/>
-			) : null}
+			<button
+				type='button'
+				aria-label='Close navigation'
+				onClick={() => setNavOpen(false)}
+				className={cn(
+					'fixed inset-0 z-40 bg-black/60 transition-[opacity,visibility] duration-400 md:hidden',
+					!navOpen && 'invisible opacity-0',
+				)}
+			/>
 
+			{/* invisible, not hidden: visibility flips after the slide, and still drops the closed panel from the tab order. */}
 			<aside
 				className={cn(
-					'w-64 shrink-0 flex-col border-r bg-background max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72',
-					navOpen ? 'flex' : 'hidden md:flex',
+					'flex w-64 shrink-0 flex-col border-r bg-background max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:transition-[translate,visibility] max-md:duration-400 max-md:ease-drawer',
+					!navOpen && 'max-md:invisible max-md:-translate-x-full',
 				)}
 			>
 				<div className='flex h-12 shrink-0 items-center gap-2 border-b px-3'>
@@ -301,7 +315,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						className='mr-auto flex min-w-0 items-center gap-2 rounded-md p-1 text-body hover:bg-muted'
 					>
 						<Avatar className='size-5 rounded-sm'>
-							<AvatarFallback className='rounded-sm bg-primary text-[10px] font-semibold text-primary-foreground'>
+							<AvatarFallback className='rounded-sm bg-primary text-meta font-semibold text-primary-foreground'>
 								VX
 							</AvatarFallback>
 						</Avatar>
@@ -353,14 +367,14 @@ export function Shell({ children }: { children: ReactNode }) {
 							render={
 								<button
 									type='button'
-									aria-label='Account'
+									aria-label={name}
 									className='flex w-full items-center gap-2 rounded-md p-1.5 text-left hover:bg-muted'
 								/>
 							}
 						>
 							<Avatar className='size-6 shrink-0 rounded-md'>
-								<AvatarFallback className='rounded-md bg-secondary text-[10px] font-medium'>
-									{(email || '?').slice(0, 2).toUpperCase()}
+								<AvatarFallback aria-hidden className='rounded-md bg-secondary text-meta font-medium'>
+									{name.slice(0, 2).toUpperCase()}
 								</AvatarFallback>
 							</Avatar>
 							<span className='min-w-0 flex-1'>
@@ -399,8 +413,9 @@ export function Shell({ children }: { children: ReactNode }) {
 					<button
 						type='button'
 						aria-label='Navigation'
+						aria-expanded={navOpen}
 						onClick={() => setNavOpen(true)}
-						className='-ml-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden'
+						className='-ml-1 press rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden'
 					>
 						<IconMenu2 stroke={1.5} className='size-4' />
 					</button>

@@ -161,7 +161,7 @@ export function EnvEditor({
 	// Height is rows of leading-5 line boxes plus py-2 top and bottom.
 	return (
 		<div
-			className='overflow-auto rounded-lg border border-input bg-console font-mono text-label leading-5 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50'
+			className='overflow-auto rounded-lg border border-input bg-console font-mono text-base leading-5 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:text-label'
 			style={{ height: rows * 20 + 16 }}
 		>
 			<div className='flex w-fit min-w-full'>
@@ -186,6 +186,7 @@ export function EnvEditor({
 						value={value}
 						onChange={event => onChange(event.target.value)}
 						placeholder={placeholder}
+						aria-label='Environment variables'
 						spellCheck={false}
 						wrap='off'
 						className='col-start-1 row-start-1 w-full resize-none overflow-hidden bg-transparent px-3 py-2 font-mono whitespace-pre text-transparent caret-foreground outline-none placeholder:text-muted-foreground'

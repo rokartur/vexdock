@@ -144,7 +144,7 @@ function serviceTableColumns(selection: {
 							className='group inline-flex items-center gap-1 underline-offset-4 hover:underline'
 						>
 							{hostname}
-							<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100' />
+							<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
 						</a>
 						{more.length > 0 ? <span className='text-muted-foreground'>+{more.length}</span> : null}
 					</span>
