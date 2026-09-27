@@ -854,8 +854,10 @@ export const api = {
 		request<Service>(`/api/services/${id}/move`, { method: 'POST', body: { environment_id: environmentId } }),
 	serviceDatabase: (id: string) => request<DatabaseConnection>(`/api/services/${id}/database`),
 	studioSchema: (id: string) => request<{ schemas: StudioSchema[] }>(`/api/services/${id}/studio`),
-	studioRows: (id: string, { where, limit, offset, ...query }: StudioRowsQuery) => {
-		const params = new URLSearchParams(query)
+	studioRows: (id: string, { schema, table, sort, order, where, limit, offset }: StudioRowsQuery) => {
+		const params = new URLSearchParams({ schema, table })
+		if (sort !== undefined) params.set('sort', sort)
+		if (order !== undefined) params.set('order', order)
 		if (limit !== undefined) params.set('limit', String(limit))
 		if (offset !== undefined) params.set('offset', String(offset))
 		if (where?.length) params.set('where', JSON.stringify(where))
