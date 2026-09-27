@@ -67,7 +67,7 @@ export type Project = {
 	updated_at: string
 	service_count: number
 	running_count: number
-	/** Containers Docker gave up on or keeps restarting; the rest is idle. */
+	/** Containers that crashed, died or keep restarting; a stopped one counts as idle. */
 	errored_count: number
 	database_count: number
 	compose_count: number

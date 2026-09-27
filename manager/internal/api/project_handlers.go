@@ -25,8 +25,8 @@ type projectView struct {
 	Environments []database.Environment `json:"environments"`
 	ServiceCount int                    `json:"service_count"`
 	RunningCount int                    `json:"running_count"`
-	// ErroredCount is containers Docker gave up on or keeps restarting. What is
-	// neither running nor errored is idle: created, paused, or never deployed.
+	// ErroredCount is containers that crashed, died or keep restarting. What is
+	// neither running nor errored is idle: created, paused, stopped or never deployed.
 	ErroredCount int `json:"errored_count"`
 	// DatabaseCount and ComposeCount split ServiceCount by what the service is:
 	// a curated database image, a service the project's own compose file
@@ -109,14 +109,30 @@ func (s *Server) projectView(ctx context.Context, p *database.Project, container
 		switch c.State {
 		case "running":
 			view.RunningCount++
-		case "exited", "dead", "restarting":
+		case "dead", "restarting":
 			view.ErroredCount++
+		case "exited":
+			if info, err := s.Docker.Inspect(ctx, c.ID); err == nil && crashed(info.State) {
+				view.ErroredCount++
+			}
 		}
 	}
 	if recent, err := s.DB.ListProjectDeployments(ctx, p.ID, 1); err == nil && len(recent) > 0 {
 		view.LatestDeployment = &recent[0]
 	}
 	return view, nil
+}
+
+// crashed tells a crash from a stop: docker stop exits 0, 143 (SIGTERM) or 137
+// (SIGKILL after the grace period), and 137 is only a crash when the OOM killer sent it.
+func crashed(state *container.State) bool {
+	switch state.ExitCode {
+	case 0, 143:
+		return false
+	case 137:
+		return state.OOMKilled
+	}
+	return true
 }
 
 type createProjectRequest struct {
