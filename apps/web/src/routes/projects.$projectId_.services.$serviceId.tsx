@@ -20,14 +20,15 @@ export function useService(serviceId: string) {
 }
 
 // Dokploy's order: what you configure first, what you watch after.
-const serviceTabs = (taskCount: number | undefined) => [
+// A database is only reached on the internal network, so the dashboard offers it no domains and no tasks.
+const serviceTabs = (isDatabase: boolean, taskCount: number | undefined) => [
 	{ suffix: '', label: 'General' },
 	{ suffix: '/environment', label: 'Environment' },
-	{ suffix: '/domains', label: 'Domains' },
+	...(isDatabase ? [] : [{ suffix: '/domains', label: 'Domains' }]),
 	{ suffix: '/deployments', label: 'Deployments' },
 	{ suffix: '/logs', label: 'Logs' },
 	{ suffix: '/terminal', label: 'Terminal' },
-	{ suffix: '/tasks', label: 'Tasks', count: taskCount },
+	...(isDatabase ? [] : [{ suffix: '/tasks', label: 'Tasks', count: taskCount }]),
 	{ suffix: '/monitoring', label: 'Monitoring' },
 	{ suffix: '/advanced', label: 'Advanced' },
 ]
@@ -36,7 +37,12 @@ function ServiceLayout() {
 	const { projectId, serviceId } = Route.useParams()
 	const service = useService(serviceId)
 	// Same key the tasks tab uses, so the count comes from the cache once that tab has been open.
-	const tasks = useQuery({ queryKey: ['service', serviceId, 'tasks'], queryFn: () => api.serviceTasks(serviceId) })
+	const isDatabase = service.data?.type === 'database'
+	const tasks = useQuery({
+		queryKey: ['service', serviceId, 'tasks'],
+		queryFn: () => api.serviceTasks(serviceId),
+		enabled: service.data !== undefined && !isDatabase,
+	})
 	const running = service.data?.state === 'running'
 
 	return (
@@ -55,7 +61,10 @@ function ServiceLayout() {
 				[serviceId]: <ServiceCrumb projectId={projectId} serviceId={serviceId} />,
 			}}
 			toolbar={
-				<Tabs base={`/projects/${projectId}/services/${serviceId}`} tabs={serviceTabs(tasks.data?.length)} />
+				<Tabs
+					base={`/projects/${projectId}/services/${serviceId}`}
+					tabs={serviceTabs(isDatabase, tasks.data?.length)}
+				/>
 			}
 		>
 			{/* The same line under every tab, so what the service is doing never depends on which one is open. */}
