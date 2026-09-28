@@ -17,14 +17,8 @@ import {
 	tableFeatures,
 	useTable,
 } from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Input } from '@/components/ui/input'
-import {
-	Pagination,
-	PaginationContent,
-	PaginationItem,
-	PaginationNext,
-	PaginationPrevious,
-} from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/utils/cn'
@@ -32,8 +26,10 @@ import { DetailDialog, EmptyState, ErrorText, MoreBelow, useFill } from './primi
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
-/** Client-side sorting and filtering only. DataTable slices the result itself, which lets it clamp the page
- * without an effect. */
+/** An h-8 cell plus the row's hairline. Only a guess for rows not yet on screen; each rendered row is measured. */
+const ROW_HEIGHT = 33
+
+/** Client-side sorting and filtering only. DataTable renders the rows in view itself. */
 const tableFeatureSet = tableFeatures({
 	rowSortingFeature,
 	sortedRowModel: createSortedRowModel(),
@@ -69,8 +65,6 @@ type DataTableProps<TData extends RowData> = {
 	/** Shown instead of rows when there is nothing to display. A string becomes the empty state's title. */
 	empty?: ReactNode
 	getRowId?: (row: TData, index: number) => string
-	/** Rows per page. The pager only appears when there is more than one page. */
-	pageSize?: number
 	/** Placeholder for a text box above the rows, which keeps the rows whose accessor values contain what was typed. */
 	filter?: string
 	/** Seeds the filter box, for a page reached with a term already in its URL. */
@@ -87,10 +81,10 @@ type DataTableProps<TData extends RowData> = {
 	}
 }
 
-/** How many rows end below the visible part of `ref`, kept current through scrolling, resizing and new rows.
- * `rendered` is the number of real rows on screen (-1 while loading): skeleton rows swapped for as many real ones
- * resize nothing, so the count has to be told. */
-function useRowsBelow(ref: RefObject<HTMLDivElement | null>, rendered: number) {
+/** Rows ending below the visible part of `ref`: rendered ones past its edge plus every row after the rendered window.
+ * `total` (0 while loading) and `lastRendered` are passed in because a moving window swaps rows between the spacers
+ * without resizing anything the observer could see. */
+function useRowsBelow(ref: RefObject<HTMLDivElement | null>, total: number, lastRendered: number) {
 	const [below, setBelow] = useState(0)
 	useEffect(() => {
 		const viewport = ref.current
@@ -100,10 +94,10 @@ function useRowsBelow(ref: RefObject<HTMLDivElement | null>, rendered: number) {
 			// slack, so a fractional row height never counts a row that is fully in view.
 			const edge = viewport.getBoundingClientRect().top + viewport.clientTop + viewport.clientHeight + 1
 			let hidden = 0
-			for (const row of viewport.querySelectorAll('tbody tr[data-row]')) {
+			for (const row of viewport.querySelectorAll('tbody tr[data-index]')) {
 				if (row.getBoundingClientRect().bottom > edge) hidden += 1
 			}
-			setBelow(hidden)
+			setBelow(hidden + total - 1 - lastRendered)
 		}
 		// A scroll fires several times a frame; measure once per frame.
 		let frame = 0
@@ -124,7 +118,7 @@ function useRowsBelow(ref: RefObject<HTMLDivElement | null>, rendered: number) {
 			viewport.removeEventListener('scroll', schedule)
 			resize.disconnect()
 		}
-	}, [ref, rendered])
+	}, [ref, total, lastRendered])
 	return below
 }
 
@@ -144,7 +138,6 @@ export function DataTable<TData extends RowData>({
 	error,
 	empty = 'No results',
 	getRowId,
-	pageSize = 20,
 	filter,
 	initialFilter = '',
 	onRowClick,
@@ -155,7 +148,6 @@ export function DataTable<TData extends RowData>({
 	const [sorting, setSorting] = useState<SortingState>([])
 	const viewport = useRef<HTMLDivElement>(null)
 	const [globalFilter, setGlobalFilter] = useState(initialFilter)
-	const [pageIndex, setPageIndex] = useState(0)
 	// table-core caches accessor values per row and rebuilds rows only on new `data`; an accessor reading outside
 	// state (a project name that loads after the list) needs new columns to rebuild them too.
 	const tableData = useMemo(() => [...data], [data, columns])
@@ -171,15 +163,26 @@ export function DataTable<TData extends RowData>({
 		onGlobalFilterChange: setGlobalFilter,
 	})
 
-	// Clamp instead of resetting in an effect, so removing the last row of the
-	// last page never flashes an empty page.
-	const visible = table.getSortedRowModel().rows
-	const pageCount = Math.max(1, Math.ceil(visible.length / pageSize))
-	const safePageIndex = Math.min(pageIndex, pageCount - 1)
-	const rows = visible.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize)
+	const { rows } = table.getSortedRowModel()
+	// ponytail: auto column widths follow the rendered rows, so a list longer than its window can shift a column while
+	// scrolling; give columns fixed sizes if that shows.
+	const count = loading ? 0 : rows.length
+	const virtualizer = useVirtualizer({
+		count,
+		getScrollElement: () => viewport.current,
+		estimateSize: () => ROW_HEIGHT,
+		overscan: 10,
+	})
+	const windowed = virtualizer.getVirtualItems()
+	const first = windowed[0]?.index ?? 0
+	const last = windowed.at(-1)?.index ?? -1
+	// Spacer rows stand in for the rows outside the window, so the scrollbar and the sticky header act as if all were there.
+	const before = windowed[0]?.start ?? 0
+	const after = virtualizer.getTotalSize() - (windowed.at(-1)?.end ?? 0)
+	const headerRows = table.getHeaderGroups().length
 	const columnCount = table.getAllLeafColumns().length
-	const below = useRowsBelow(viewport, loading ? -1 : rows.length)
-	// Looked up in the whole data set, not the page: a row opened from the URL may sit on another page or be filtered out.
+	const below = useRowsBelow(viewport, count, last)
+	// Looked up in the whole data set, not the window: a row opened from the URL may be scrolled away or filtered out.
 	const openRow =
 		detail === undefined || detail.openId === null
 			? undefined
@@ -196,7 +199,7 @@ export function DataTable<TData extends RowData>({
 						value={globalFilter}
 						onChange={event => {
 							setGlobalFilter(event.target.value)
-							setPageIndex(0)
+							virtualizer.scrollToOffset(0)
 						}}
 						placeholder={filter}
 						aria-label={filter}
@@ -220,10 +223,18 @@ export function DataTable<TData extends RowData>({
 				>
 					{/* Row separators are the quiet hairline; the card's own edge stays --border. An inline-flex cell that starts
 					    with an icon or dot takes its baseline from that box's bottom, so cell content centres instead. */}
-					<ShadcnTable className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_td>*]:align-middle [&_th:first-child]:pl-4'>
+					<ShadcnTable
+						// Only the rows in view are in the DOM, so a screen reader is told the full count and each row's place.
+						aria-rowcount={rows.length > 0 ? headerRows + rows.length : undefined}
+						className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_td>*]:align-middle [&_th:first-child]:pl-4'
+					>
 						<TableHeader>
-							{table.getHeaderGroups().map(headerGroup => (
-								<TableRow key={headerGroup.id} className='hover:bg-transparent'>
+							{table.getHeaderGroups().map((headerGroup, index) => (
+								<TableRow
+									key={headerGroup.id}
+									aria-rowindex={index + 1}
+									className='hover:bg-transparent'
+								>
 									{headerGroup.headers.map(header => {
 										const sorted = header.column.getIsSorted()
 										return (
@@ -275,90 +286,62 @@ export function DataTable<TData extends RowData>({
 									</TableCell>
 								</TableRow>
 							) : (
-								rows.map(row => {
-									const open = detail?.openId === row.id
-									const activate = detail
-										? () => detail.onOpenChange(row.id)
-										: onRowClick && (() => onRowClick(row.original))
-									return (
-										// An activatable row is the control: focusable, and Enter or Space does what the click does.
-										<TableRow
-											key={row.id}
-											data-row
-											data-state={open ? 'selected' : undefined}
-											className={cn(activate && 'cursor-pointer')}
-											tabIndex={activate ? 0 : undefined}
-											onClick={activate}
-											onKeyDown={
-												activate &&
-												(event => {
-													// A key pressed on a control inside the row belongs to that control.
-													if (event.target !== event.currentTarget) return
-													if (event.key !== 'Enter' && event.key !== ' ') return
-													event.preventDefault()
-													activate()
-												})
-											}
-										>
-											{row.getAllCells().map(cell => (
-												<TableCell
-													key={cell.id}
-													className={cn(
-														'h-8 py-0.5 pr-3 pl-0',
-														cell.column.columnDef.meta?.align === 'right' && 'text-right',
-														cell.column.columnDef.meta?.mono && 'font-mono text-label',
-													)}
-												>
-													<table.FlexRender cell={cell} />
-												</TableCell>
-											))}
-										</TableRow>
-									)
-								})
+								<>
+									<SpacerRow height={before} columns={columnCount} />
+									{rows.slice(first, last + 1).map((row, offset) => {
+										const index = first + offset
+										const open = detail?.openId === row.id
+										const activate = detail
+											? () => detail.onOpenChange(row.id)
+											: onRowClick && (() => onRowClick(row.original))
+										return (
+											// An activatable row is the control: focusable, and Enter or Space does what the click does.
+											// Keyed by row, not recycled by slot: a refetch that shifts the rows would hand an open
+											// Confirm to the next row, and Remove would delete that row's container.
+											<TableRow
+												key={row.id}
+												ref={virtualizer.measureElement}
+												data-index={index}
+												aria-rowindex={headerRows + index + 1}
+												data-state={open ? 'selected' : undefined}
+												className={cn(activate && 'cursor-pointer')}
+												tabIndex={activate ? 0 : undefined}
+												onClick={activate}
+												onKeyDown={
+													activate &&
+													(event => {
+														// A key pressed on a control inside the row belongs to that control.
+														if (event.target !== event.currentTarget) return
+														if (event.key !== 'Enter' && event.key !== ' ') return
+														event.preventDefault()
+														activate()
+													})
+												}
+											>
+												{row.getAllCells().map(cell => (
+													<TableCell
+														key={cell.id}
+														className={cn(
+															'h-8 py-0.5 pr-3 pl-0',
+															cell.column.columnDef.meta?.align === 'right' &&
+																'text-right',
+															cell.column.columnDef.meta?.mono && 'font-mono text-label',
+														)}
+													>
+														<table.FlexRender cell={cell} />
+													</TableCell>
+												))}
+											</TableRow>
+										)
+									})}
+									<SpacerRow height={after} columns={columnCount} />
+								</>
 							)}
 						</TableBody>
 					</ShadcnTable>
 				</div>
 				<MoreBelow count={below} onReveal={() => revealEnd(viewport.current)} />
 			</div>
-			{pageCount > 1 && (
-				<div className='flex items-center justify-between gap-2 border-t border-rule px-4 py-1.5 text-label text-muted-foreground'>
-					<span className='font-mono'>
-						{safePageIndex * pageSize + 1}–{Math.min((safePageIndex + 1) * pageSize, visible.length)} of{' '}
-						{visible.length}
-					</span>
-					<Pagination className='mx-0 w-auto'>
-						<PaginationContent>
-							<PaginationItem>
-								{/* The pager links are anchors, so a disabled one is also kept
-								    out of the tab order and guarded: Enter on it must not page. */}
-								<PaginationPrevious
-									href='#'
-									aria-disabled={safePageIndex === 0}
-									tabIndex={safePageIndex === 0 ? -1 : undefined}
-									className='h-7 text-label aria-disabled:pointer-events-none aria-disabled:opacity-40'
-									onClick={event => {
-										event.preventDefault()
-										if (safePageIndex > 0) setPageIndex(safePageIndex - 1)
-									}}
-								/>
-							</PaginationItem>
-							<PaginationItem>
-								<PaginationNext
-									href='#'
-									aria-disabled={safePageIndex >= pageCount - 1}
-									tabIndex={safePageIndex >= pageCount - 1 ? -1 : undefined}
-									className='h-7 text-label aria-disabled:pointer-events-none aria-disabled:opacity-40'
-									onClick={event => {
-										event.preventDefault()
-										if (safePageIndex < pageCount - 1) setPageIndex(safePageIndex + 1)
-									}}
-								/>
-							</PaginationItem>
-						</PaginationContent>
-					</Pagination>
-				</div>
-			)}
 			{detail ? (
 				<DetailDialog
 					open={openRow !== undefined}
@@ -369,6 +352,16 @@ export function DataTable<TData extends RowData>({
 				</DetailDialog>
 			) : null}
 		</div>
+	)
+}
+
+function SpacerRow({ height, columns }: { height: number; columns: number }) {
+	if (height <= 0) return null
+	// The td is hidden too because jsx-a11y reads an empty cell as an unlabeled control.
+	return (
+		<tr aria-hidden>
+			<td aria-hidden colSpan={columns} style={{ height }} />
+		</tr>
 	)
 }
 
