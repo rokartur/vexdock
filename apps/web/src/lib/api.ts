@@ -157,6 +157,8 @@ export type Service = {
 	status: string
 	/** What the container was actually started from; drifts from image until the next deploy. */
 	running_image: string
+	/** Host ports the container holds open now; drift from the service's ports until the next deploy. */
+	published_ports: HostPort[]
 	health: string
 	restart_count: number
 	created_unix: number
@@ -262,6 +264,9 @@ export type Certificate = {
 	source: CertificateSource
 }
 
+/** A port bound on the host; ip is 0.0.0.0 or :: when it listens on every address. */
+export type HostPort = { ip: string; published: number; target: number; protocol: string }
+
 export type ContainerSummary = {
 	id: string
 	names: string[]
@@ -275,7 +280,7 @@ export type ContainerSummary = {
 	service: string
 	networks: string[] | null
 	/** Only ports bound on the host. Docker lists one per address family, so a public port shows up for 0.0.0.0 and ::. */
-	ports: { ip: string; published: number; target: number; protocol: string }[]
+	ports: HostPort[]
 	/** The newest recorded minute. Zero on a container the sampler has not reached yet. */
 	cpu_percent: number
 	memory_usage: number
