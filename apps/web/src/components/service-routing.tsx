@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react'
 import { IconArrowForwardUp, IconLock, IconPlugConnected, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+	api,
+	type HostPort,
+	type PortProtocol,
+	type Service,
+	type ServiceBasicAuthUser,
+	type ServicePort,
+	type ServiceRedirect,
+} from '../lib/api'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import {
 	Button,
@@ -15,14 +24,6 @@ import {
 	Select,
 	Switch,
 } from './primitives'
-import {
-	api,
-	type PortProtocol,
-	type Service,
-	type ServiceBasicAuthUser,
-	type ServicePort,
-	type ServiceRedirect,
-} from '../lib/api'
 
 /** The service's redirects, basic auth and host ports. A compose fragment owns its own ports, so it gets no Ports card. */
 export function ServiceRouting({ service }: { service: Service }) {
@@ -30,7 +31,7 @@ export function ServiceRouting({ service }: { service: Service }) {
 		<>
 			<Redirects serviceId={service.id} />
 			<BasicAuth serviceId={service.id} />
-			{service.provider === 'raw' ? null : <Ports serviceId={service.id} />}
+			{service.provider === 'raw' ? null : <Ports serviceId={service.id} live={service.published_ports} />}
 		</>
 	)
 }
@@ -153,8 +154,15 @@ function redirectColumns(remove: (id: string) => void, removing: boolean): Colum
 	const cell = columnsFor<ServiceRedirect>()
 	return [
 		cell.accessor(redirect => redirect.regex, { id: 'regex', header: 'Regex', meta: { mono: true } }),
-		cell.accessor(redirect => redirect.replacement, { id: 'replacement', header: 'Replacement', meta: { mono: true } }),
-		cell.accessor(redirect => (redirect.permanent ? '301 permanent' : '302 temporary'), { id: 'status', header: 'Status' }),
+		cell.accessor(redirect => redirect.replacement, {
+			id: 'replacement',
+			header: 'Replacement',
+			meta: { mono: true },
+		}),
+		cell.accessor(redirect => (redirect.permanent ? '301 permanent' : '302 temporary'), {
+			id: 'status',
+			header: 'Status',
+		}),
 		cell.display({
 			id: 'actions',
 			header: '',
@@ -284,7 +292,7 @@ const protocolOptions = [
 	{ value: 'udp', label: 'UDP' },
 ] as const satisfies readonly { value: PortProtocol; label: string }[]
 
-function Ports({ serviceId }: { serviceId: string }) {
+function Ports({ serviceId, live }: { serviceId: string; live: HostPort[] }) {
 	const [adding, setAdding] = useState(false)
 	const [published, setPublished] = useState('')
 	const [target, setTarget] = useState('')
@@ -309,6 +317,8 @@ function Ports({ serviceId }: { serviceId: string }) {
 
 	const { mutate: removePort, isPending: removing } = remove
 	const columns = useMemo(() => portColumns(removePort, removing), [removePort, removing])
+	// Docker lists a public port once per address family.
+	const open = [...new Set(live.map(port => `${port.published} → ${port.target}/${port.protocol}`))]
 
 	return (
 		<FormSection
@@ -316,6 +326,11 @@ function Ports({ serviceId }: { serviceId: string }) {
 			description='Publishes a container port on the server, bypassing the proxy.'
 			icon={IconPlugConnected}
 			hint='Takes effect on the next deploy.'
+			aside={
+				open.length > 0
+					? [{ label: 'Open now', value: <span className='font-mono'>{open.join(', ')}</span> }]
+					: undefined
+			}
 			actions={
 				<Button variant='primary' onClick={() => setAdding(true)}>
 					<IconPlus />
@@ -347,7 +362,7 @@ function Ports({ serviceId }: { serviceId: string }) {
 							required
 							type='number'
 							min={1}
-							max={65535}
+							max={65_535}
 							value={published}
 							onChange={event => setPublished(event.target.value)}
 							placeholder='8080'
@@ -358,7 +373,7 @@ function Ports({ serviceId }: { serviceId: string }) {
 							required
 							type='number'
 							min={1}
-							max={65535}
+							max={65_535}
 							value={target}
 							onChange={event => setTarget(event.target.value)}
 							placeholder='80'

@@ -169,10 +169,12 @@ a time. A service belongs to one environment, and a name is free again in each
 of them.
 
 Each listed service carries its live container alongside the stored record:
-`state`, `status`, `health`, `running_image`, `restart_count`, `created_unix`,
-and `cpu_percent` with `memory_usage` from the sampler's newest reading. Usage
-is zero when the service is not running or when nothing was recorded in the
-last three minutes, so the list never shows a dead container's last numbers.
+`state`, `status`, `health`, `running_image`, `published_ports` (host ports the
+container holds open now, same shape as a container's `ports`), `restart_count`,
+`created_unix`, and `cpu_percent` with `memory_usage` from the sampler's newest
+reading. Usage is zero when the service is not running or when nothing was
+recorded in the last three minutes, so the list never shows a dead container's
+last numbers.
 
 | Endpoint | Does |
 |---|---|

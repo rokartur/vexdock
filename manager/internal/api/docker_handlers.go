@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+
 	"github.com/vexdock/platform/manager/internal/database"
 	dockersdk "github.com/vexdock/platform/manager/internal/docker"
 	"github.com/vexdock/platform/manager/internal/metrics"
@@ -49,6 +51,18 @@ type portView struct {
 	Protocol  string `json:"protocol"`
 }
 
+// hostPorts keeps the ports a container publishes on the host; an exposed but unpublished port has no host side.
+func hostPorts(ports []container.Port) []portView {
+	out := []portView{}
+	for _, p := range ports {
+		if p.PublicPort == 0 {
+			continue
+		}
+		out = append(out, portView{IP: p.IP, Published: p.PublicPort, Target: p.PrivatePort, Protocol: p.Type})
+	}
+	return out
+}
+
 func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
 	containers, err := s.Docker.ListContainers(r.Context(), "")
 	if err != nil {
@@ -79,20 +93,13 @@ func (s *Server) handleListContainers(w http.ResponseWriter, r *http.Request) {
 			Managed:        managed[project],
 			Project:        project,
 			Service:        c.Labels[dockersdk.ComposeServiceLabel],
-			Ports:          []portView{},
+			Ports:          hostPorts(c.Ports),
 			ContainerUsage: usage[c.ID],
 		}
 		if c.NetworkSettings != nil {
 			for name := range c.NetworkSettings.Networks {
 				view.Networks = append(view.Networks, name)
 			}
-		}
-		for _, p := range c.Ports {
-			// An exposed but unpublished port has no host side.
-			if p.PublicPort == 0 {
-				continue
-			}
-			view.Ports = append(view.Ports, portView{IP: p.IP, Published: p.PublicPort, Target: p.PrivatePort, Protocol: p.Type})
 		}
 		out = append(out, view)
 	}

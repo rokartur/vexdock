@@ -192,9 +192,10 @@ function ContainersPage() {
 	const running = data.filter(container => container.state === 'running').length
 
 	return (
-		<Page>
+		<Page fill>
 			<Section
 				title='All containers'
+				fill
 				description={`${data.length} total · ${running} running`}
 				actions={<Refresh onClick={() => containers.refetch()} busy={containers.isFetching} />}
 			>

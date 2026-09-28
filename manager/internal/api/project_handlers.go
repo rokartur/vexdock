@@ -392,9 +392,12 @@ type serviceView struct {
 	// RunningImage is what the container was actually started from, which drifts
 	// from the service's configured image between an edit and the next deploy.
 	RunningImage string `json:"running_image"`
-	Health       string `json:"health"`
-	Restarts     int    `json:"restart_count"`
-	CreatedUnix  int64  `json:"created_unix"`
+	// PublishedPorts are the host ports the container holds open now, which drift
+	// from the service's ports the same way until the next deploy.
+	PublishedPorts []portView `json:"published_ports"`
+	Health         string     `json:"health"`
+	Restarts       int        `json:"restart_count"`
+	CreatedUnix    int64      `json:"created_unix"`
 	// The sampler's newest reading, so a list of services can show usage without
 	// opening a stats stream per row. Zero when nothing recent was recorded.
 	CPUPercent  float64 `json:"cpu_percent"`
@@ -442,13 +445,14 @@ func (s *Server) serviceViews(ctx context.Context, env *database.Environment) ([
 	}
 	out := make([]serviceView, 0, len(services))
 	for _, svc := range services {
-		view := serviceView{Service: svc}
+		view := serviceView{Service: svc, PublishedPorts: []portView{}}
 		if idx, ok := byService[svc.ComposeServiceName]; ok {
 			c := containers[idx]
 			view.ContainerID = c.ID
 			view.State = c.State
 			view.Status = c.Status
 			view.RunningImage = c.Image
+			view.PublishedPorts = hostPorts(c.Ports)
 			view.CreatedUnix = c.Created
 			if info, err := s.Docker.Inspect(ctx, c.ID); err == nil {
 				view.Restarts = info.RestartCount
