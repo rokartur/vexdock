@@ -109,7 +109,7 @@ The generated vhost resolves that alias at request time through Docker's
 embedded DNS:
 
 ```nginx
-resolver 127.0.0.11 valid=10s ipv6=off;
+resolver 127.0.0.11 valid=1s ipv6=off;
 set $upstream http://p_01jabc_web:3000;
 proxy_pass $upstream;
 ```
@@ -160,6 +160,16 @@ as soon as they are saved.
 `healthcheck` waits for containers to be running and, where a healthcheck is
 declared, for Docker to report them healthy. A container that exits non-zero
 fails the deployment immediately rather than after the timeout.
+
+Compose stops a container before it starts its replacement, so `start` covers
+the gap for a running service with a domain and no volumes: it first runs the
+new build as a one-off, `<compose-project>-<service>-standby`, under the same
+alias, and waits until it is healthy and Nginx opens its port (`nc -z` from
+the Nginx container). A build that never gets there fails the deployment with
+the old container still serving. After `proxy` reattaches the recreated
+container and Nginx reaches it, the standby is stopped and removed. A service
+with volumes skips the standby, since two containers would write one volume,
+and drops requests while it restarts.
 
 ## Reconciliation
 

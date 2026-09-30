@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+
 	"github.com/vexdock/platform/manager/internal/config"
 	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/docker"
@@ -305,6 +307,13 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	p.begin(StepStart)
+	standby, ports, err := p.startStandby(ctx, composeProject, service)
+	if standby != "" {
+		defer p.removeStandby(standby)
+	}
+	if err != nil {
+		return p.fail(err)
+	}
 	if err := composeProject.Up(ctx, p, p.target); err != nil {
 		return p.fail(err)
 	}
@@ -321,6 +330,11 @@ func (p *pipeline) execute(ctx context.Context) error {
 		return p.fail(err)
 	}
 	p.printf("Proxy configuration reconciled")
+	if standby != "" {
+		if err := p.handOver(ctx, ports); err != nil {
+			return p.fail(err)
+		}
+	}
 	p.complete()
 
 	return nil
@@ -415,15 +429,9 @@ func (p *pipeline) pruneBuildCache(ctx context.Context) {
 func (p *pipeline) waitHealthy(ctx context.Context) error {
 	deadline := time.Now().Add(healthTimeout)
 	for {
-		all, err := p.e.docker.ListContainers(ctx, p.environment.ComposeProjectName)
+		containers, err := p.targetContainers(ctx)
 		if err != nil {
 			return err
-		}
-		containers := all[:0]
-		for _, c := range all {
-			if c.Labels[docker.ComposeServiceLabel] == p.target {
-				containers = append(containers, c)
-			}
 		}
 		if len(containers) == 0 {
 			return fmt.Errorf("compose started no container for service %s", p.target)
@@ -474,6 +482,20 @@ func (p *pipeline) waitHealthy(ctx context.Context) error {
 		case <-time.After(3 * time.Second):
 		}
 	}
+}
+
+func (p *pipeline) targetContainers(ctx context.Context) ([]container.Summary, error) {
+	all, err := p.e.docker.ListContainers(ctx, p.environment.ComposeProjectName)
+	if err != nil {
+		return nil, err
+	}
+	containers := all[:0]
+	for _, c := range all {
+		if c.Labels[docker.ComposeServiceLabel] == p.target {
+			containers = append(containers, c)
+		}
+	}
+	return containers, nil
 }
 
 func (p *pipeline) finish(err error) {
