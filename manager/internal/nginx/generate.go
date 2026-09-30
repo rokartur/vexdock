@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Upstream is one generated vhost: a hostname routed to a container alias on
@@ -53,6 +54,10 @@ const AuthUpstream = "auth:8081"
 // ManagerUpstream is the manager API, reachable from Nginx on the internal
 // network only.
 const ManagerUpstream = "manager:8080"
+
+// ResolverValid is how long Nginx caches an alias's addresses. A deploy waits
+// it out after attaching a container, before stopping the one it replaces.
+const ResolverValid = time.Second
 
 // FileName is the deterministic config filename for a hostname.
 func FileName(hostname string) string { return hostname + ".conf" }
@@ -144,7 +149,7 @@ func proxyLocation(u Upstream) string {
 	var b strings.Builder
 	b.WriteString("    location / {\n")
 	b.WriteString(accessRules(u))
-	b.WriteString("        resolver 127.0.0.11 valid=10s ipv6=off;\n")
+	fmt.Fprintf(&b, "        resolver 127.0.0.11 valid=%ds ipv6=off;\n", int(ResolverValid.Seconds()))
 	fmt.Fprintf(&b, "        set $upstream http://%s:%d;\n", u.Alias, u.Port)
 	b.WriteString("        proxy_pass $upstream;\n\n")
 	b.WriteString("        proxy_http_version 1.1;\n\n")
