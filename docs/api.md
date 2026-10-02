@@ -232,9 +232,10 @@ no build context never triggers it.
 `dockerfile`, relative to that context and `Dockerfile` when empty, stopping at
 the stage in `build_target` when one is set. `static` ignores both: when
 `build_path` has a `package.json` with a `build` script it runs `bun install`
-and `bun run build` (Node is there too), then serves the first of `dist/client`,
-`dist`, `build`, `out`, `.output/public`, `public` or `build_path` itself that
-holds an `index.html`, with nginx on port 80, falling back to `index.html` for
+and `bun run build` (Node is there too), then serves `output_dir`, relative to
+`build_path`, or when it is empty the first of `dist/client`, `dist`, `build`,
+`out`, `.output/public`, `public` or `build_path` itself that holds an
+`index.html`. Only that directory reaches the image, served by nginx on port 80, falling back to `index.html` for
 any path it does not find, so a single-page app's routes resolve.
 
 `mounts` attaches named volumes to an `image` or git service, set through

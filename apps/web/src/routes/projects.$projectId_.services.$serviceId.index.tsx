@@ -510,6 +510,7 @@ function BuildSection({ service }: { service: Service }) {
 	const [buildPath, setBuildPath] = useState(service.build_path)
 	const [dockerfile, setDockerfile] = useState(service.dockerfile)
 	const [buildTarget, setBuildTarget] = useState(service.build_target)
+	const [outputDir, setOutputDir] = useState(service.output_dir)
 
 	const save = useMutation({
 		mutationFn: () =>
@@ -518,6 +519,7 @@ function BuildSection({ service }: { service: Service }) {
 				build_path: buildPath,
 				dockerfile,
 				build_target: buildTarget,
+				output_dir: outputDir,
 			}),
 		onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
 	})
@@ -529,7 +531,7 @@ function BuildSection({ service }: { service: Service }) {
 			icon={IconHammer}
 			hint={
 				buildType === 'static'
-					? 'Runs the package.json build script if there is one, then serves the output with nginx on port 80; unknown paths fall back to index.html.'
+					? 'Runs the root directory package.json build script if there is one, then serves only the output directory with nginx on port 80; unknown paths fall back to index.html.'
 					: 'Applied on the next deploy.'
 			}
 			onSave={() => save.mutate()}
@@ -539,7 +541,10 @@ function BuildSection({ service }: { service: Service }) {
 			<div className='mb-4'>
 				<Segmented value={buildType} onChange={setBuildType} options={buildTypeOptions} />
 			</div>
-			<Field label={buildType === 'static' ? 'Root directory' : 'Context path'}>
+			<Field
+				label={buildType === 'static' ? 'Root directory' : 'Context path'}
+				hint={buildType === 'static' ? 'Where package.json is; the build runs here.' : undefined}
+			>
 				<Input value={buildPath} placeholder='.' onChange={event => setBuildPath(event.target.value)} mono />
 			</Field>
 			{buildType === 'dockerfile' ? (
@@ -561,7 +566,14 @@ function BuildSection({ service }: { service: Service }) {
 						/>
 					</Field>
 				</div>
-			) : null}
+			) : (
+				<Field
+					label='Output directory'
+					hint='Relative to the root directory. Empty serves the first of dist/client, dist, build, out, .output/public, public holding an index.html.'
+				>
+					<Input value={outputDir} placeholder='dist' onChange={event => setOutputDir(event.target.value)} mono />
+				</Field>
+			)}
 		</FormSection>
 	)
 }

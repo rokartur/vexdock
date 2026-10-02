@@ -196,6 +196,10 @@ func (s *Service) renderService(env *database.Environment, svc database.Service,
 		fmt.Fprintf(&b, "    build:\n      context: %q\n", buildContext)
 		if svc.BuildType == database.BuildStatic {
 			b.WriteString("      dockerfile_inline: |\n" + indent(staticDockerfile, 8))
+			// A build arg, never spliced into the Dockerfile: the shell only ever sees it quoted.
+			if svc.OutputDir != "" {
+				fmt.Fprintf(&b, "      args:\n        OUTPUT_DIR: %q\n", svc.OutputDir)
+			}
 			break
 		}
 		if svc.Dockerfile != "" {
@@ -240,8 +244,9 @@ func builtImageName(projectSlug, envSlug, service string) string {
 }
 
 // staticDockerfile runs package.json's build script when there is one, then
-// serves the first directory holding an index.html as a single-page app on
-// port 80. $$ is compose's escape for a literal $; .git is never served.
+// serves OUTPUT_DIR, or else the first directory holding an index.html, as a
+// single-page app on port 80. Only that directory reaches the final image.
+// $$ is compose's escape for a literal $; .git is never served.
 // ponytail: build env comes from nothing but the repo, pass build args if a site needs its variables.
 const staticDockerfile = `FROM node:lts-slim AS build
 COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
@@ -250,7 +255,9 @@ ENV NODE_OPTIONS=--dns-result-order=ipv4first
 WORKDIR /src
 COPY . .
 RUN if [ -f package.json ] && bun -e 'process.exit(require("./package.json").scripts?.build ? 0 : 1)'; then bun install && bun run build; fi
-RUN for dir in dist/client dist build out .output/public public .; do \
+ARG OUTPUT_DIR
+RUN if [ -n "$$OUTPUT_DIR" ]; then cp -r "$$OUTPUT_DIR" /site && rm -rf /site/.git && exit 0; fi; \
+    for dir in dist/client dist build out .output/public public .; do \
       if [ -f "$$dir/index.html" ]; then cp -r "$$dir" /site && rm -rf /site/.git && exit 0; fi; \
     done; \
     echo 'no index.html in dist/client, dist, build, out, .output/public, public or the build path' >&2; exit 1
