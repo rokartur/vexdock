@@ -302,7 +302,7 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	site.BuildType = database.BuildStatic
+	site.BuildType, site.OutputDir = database.BuildStatic, "web/dist"
 	api, err := svc.db.ServiceByName(ctx, env.ID, "api")
 	if err != nil {
 		t.Fatal(err)
@@ -330,6 +330,7 @@ func TestOverlayRendersBuildTypes(t *testing.T) {
 	for _, want := range []string{
 		"      dockerfile_inline: |\n        FROM node:lts-slim AS build\n",
 		`bun run build`,
+		"      args:\n        OUTPUT_DIR: \"web/dist\"\n",
 		"try_files $$uri $$uri/ /index.html;",
 		`      dockerfile: "docker/api.Dockerfile"`,
 		`      target: "production"`,

@@ -232,6 +232,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		BuildType        *string `json:"build_type"`
 		Dockerfile       *string `json:"dockerfile"`
 		BuildTarget      *string `json:"build_target"`
+		OutputDir        *string `json:"output_dir"`
 		Mounts           *string `json:"mounts"`
 		RegistryURL      *string `json:"registry_url"`
 		RegistryUsername *string `json:"registry_username"`
@@ -257,6 +258,7 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 		assignValid(&service.BuildType, req.BuildType, validateBuildType),
 		assignValid(&service.Dockerfile, req.Dockerfile, security.ValidateSubPath),
 		assignValid(&service.BuildTarget, req.BuildTarget, security.ValidateBuildTarget),
+		assignValid(&service.OutputDir, req.OutputDir, security.ValidateSubPath),
 		assignValid(&service.Mounts, req.Mounts, security.ValidateMounts),
 	} {
 		if err != nil {

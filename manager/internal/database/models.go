@@ -149,10 +149,12 @@ type Service struct {
 	// sweep runs, not what it covers.
 	PruneBuildCache bool `json:"prune_build_cache"`
 	// BuildType says how a git-sourced service becomes an image. Dockerfile and
-	// BuildTarget apply to BuildDockerfile only; BuildPath is the context either way.
+	// BuildTarget apply to BuildDockerfile only, OutputDir to BuildStatic only;
+	// BuildPath is the context either way.
 	BuildType   string `json:"build_type"`
 	Dockerfile  string `json:"dockerfile"`
 	BuildTarget string `json:"build_target"`
+	OutputDir   string `json:"output_dir"`
 	// Mounts are an image or git service's named volumes, one "volume:/path" per line.
 	Mounts string `json:"mounts"`
 	// RegistryURL and RegistryUsername log an image-sourced service into a
