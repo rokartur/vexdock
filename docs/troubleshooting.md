@@ -67,9 +67,7 @@ attached by hand has to go with
 3. Does DNS point at this server? `dig +short app.example.com`.
 
 The proxy resolves the service by network alias at request time, so a redeployed
-container recovers on its own within seconds. A deploy keeps a standby serving
-while the container is replaced, except for a service with volumes (see the
-deployment pipeline in [architecture.md](architecture.md#deployment-pipeline)). If it does not, the reconcile
+container recovers on its own within seconds. If it does not, the reconcile
 sweep runs every two minutes; the manager log records each pass.
 
 ## A certificate is not issued

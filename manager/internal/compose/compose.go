@@ -38,7 +38,6 @@ type ConfigService struct {
 	Ports       []ConfigPort      `json:"ports"`
 	Environment map[string]any    `json:"environment"`
 	Labels      map[string]string `json:"labels"`
-	Volumes     []any             `json:"volumes"`
 }
 
 type ConfigPort struct {
@@ -110,13 +109,6 @@ func (p Project) Build(ctx context.Context, w io.Writer, service string) error {
 // siblings down just because they were not named.
 func (p Project) Up(ctx context.Context, w io.Writer, service string) error {
 	return p.Run(ctx, w, "up", "-d", service)
-}
-
-// Standby starts a one-off copy of service named name. Compose up never
-// recreates or removes a one-off, and run publishes none of the service's host
-// ports, so it can serve beside the container being replaced.
-func (p Project) Standby(ctx context.Context, w io.Writer, service, name string) error {
-	return p.Run(ctx, w, "run", "--detach", "--no-deps", "--name", name, service)
 }
 
 func (p Project) Down(ctx context.Context, w io.Writer, removeVolumes bool) error {

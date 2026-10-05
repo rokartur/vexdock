@@ -57,9 +57,6 @@ Options, restoring a backup and uninstalling: [docs/install.md](docs/install.md)
   a deploy from CI with an API token.
 - **A pipeline you can watch.** `clone → checkout → validate → pull → build →
   start → healthcheck → proxy → finish`, every step streamed live to the browser.
-- **Zero-downtime redeploys.** A service with a domain keeps a standby serving
-  while Compose recreates it. A build that never gets healthy fails with the
-  old container still up.
 - **Instant rollback.** Every deployment records its commit. Redeploy any of
   them from the history.
 - **Environments.** Production and staging in one project, each with its own

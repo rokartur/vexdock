@@ -307,13 +307,6 @@ func (p *pipeline) execute(ctx context.Context) error {
 	p.complete()
 
 	p.begin(StepStart)
-	standby, ports, err := p.startStandby(ctx, composeProject, service)
-	if standby != "" {
-		defer p.removeStandby(standby)
-	}
-	if err != nil {
-		return p.fail(err)
-	}
 	if err := composeProject.Up(ctx, p, p.target); err != nil {
 		return p.fail(err)
 	}
@@ -330,11 +323,6 @@ func (p *pipeline) execute(ctx context.Context) error {
 		return p.fail(err)
 	}
 	p.printf("Proxy configuration reconciled")
-	if standby != "" {
-		if err := p.handOver(ctx, ports); err != nil {
-			return p.fail(err)
-		}
-	}
 	p.complete()
 
 	return nil
