@@ -35,7 +35,6 @@ Every Go package opens with a comment naming what it owns and why it exists.
 | **Step** | A stage of the pipeline: `clone`, `checkout`, `validate`, `pull`, `build`, `start`, `healthcheck`, `proxy`, `finish`. |
 | **Domain** | A hostname mapped to one service and one container port. Gets a generated Nginx vhost and a certificate. |
 | **Alias** | The stable name `p_<environment-id>_<service>` a service carries on the `vexdock-proxy` network. Nginx resolves it at request time, so a recreated container needs no proxy change. |
-| **Standby** | A one-off copy of the new build a deploy runs under the service's alias while compose recreates the service, then removes. `deployments/standby.go`. |
 | **Reconcile** | The full convergence pass: attach every domain's container to the proxy network under its alias, render every vhost, `nginx -t`, reload. Runs on Docker events and every two minutes. |
 | **Git provider** | A stored connection to a git host (GitHub App, GitLab, Bitbucket, Gitea OAuth) used to list repositories and clone. Distinct from a service's `provider` field, which only says what kind of source it is. |
 | **Task** | A cron job that runs a command inside a service's container. |
@@ -109,9 +108,7 @@ sequenceDiagram
    for that deployment and streams every step and output line.
 9. `run` takes the per-environment lock, then walks the steps. Each step is
    written to the database and published on the bus as it changes. `start`
-   shells out through `internal/compose`, first starting a standby when
-   `deployments/standby.go` says the service needs one; `proxy` calls
-   `domains.Reconcile` and then retires the standby.
+   shells out through `internal/compose`; `proxy` calls `domains.Reconcile`.
 10. On finish the engine publishes `deployment.success` (or `failed`) on the
     system topic. `lib/sse.ts` `useSystemEvents`, mounted once in the shell,
     listens on `/api/system/events` and invalidates the whole query cache, so

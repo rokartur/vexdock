@@ -161,15 +161,11 @@ as soon as they are saved.
 declared, for Docker to report them healthy. A container that exits non-zero
 fails the deployment immediately rather than after the timeout.
 
-Compose stops a container before it starts its replacement, so `start` covers
-the gap for a running service with a domain and no volumes: it first runs the
-new build as a one-off, `<compose-project>-<service>-standby`, under the same
-alias, and waits until it is healthy and Nginx opens its port (`nc -z` from
-the Nginx container). A build that never gets there fails the deployment with
-the old container still serving. After `proxy` reattaches the recreated
-container and Nginx reaches it, the standby is stopped and removed. A service
-with volumes skips the standby, since two containers would write one volume,
-and drops requests while it restarts.
+`start` is `docker compose up -d <service>`, the way Dokploy deploys a compose
+app: compose stops the old container, then starts the new one. Two builds never
+serve under one alias at once, so a page never loads HTML from one build and
+hashed assets from the other; the price is a short gap while the container
+restarts.
 
 ## Reconciliation
 

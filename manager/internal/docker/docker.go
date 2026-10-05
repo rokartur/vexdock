@@ -54,7 +54,7 @@ func (c *Client) Ping(ctx context.Context) error {
 func (c *Client) Info(ctx context.Context) (system.Info, error) { return c.api.Info(ctx) }
 
 // ListContainers returns every container, or the service containers of one
-// compose project, leaving out the one-off standby a deploy runs beside them.
+// compose project, leaving out `compose run` one-offs.
 func (c *Client) ListContainers(ctx context.Context, composeProject string) ([]container.Summary, error) {
 	opts := container.ListOptions{All: true}
 	if composeProject != "" {
@@ -107,15 +107,6 @@ func (c *Client) Restart(ctx context.Context, id string) error {
 
 func (c *Client) Remove(ctx context.Context, id string, force bool) error {
 	return c.api.ContainerRemove(ctx, id, container.RemoveOptions{Force: force})
-}
-
-// RemoveIfPresent force-removes a container and succeeds when there is none.
-func (c *Client) RemoveIfPresent(ctx context.Context, name string) error {
-	err := c.api.ContainerRemove(ctx, name, container.RemoveOptions{Force: true})
-	if client.IsErrNotFound(err) {
-		return nil
-	}
-	return err
 }
 
 // Logs streams container output. The reader is multiplexed unless the container
