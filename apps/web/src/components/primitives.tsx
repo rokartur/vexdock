@@ -6,6 +6,7 @@ import {
 	type ReactNode,
 	useContext,
 	useEffect,
+	useId,
 	useState,
 } from 'react'
 import {
@@ -20,6 +21,7 @@ import {
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { Link, type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
+import { motion } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -68,6 +70,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { labelOf, trailOf } from '@/lib/breadcrumb'
 import { since, until } from '@/lib/format'
+import { spring } from '@/lib/motion'
 import { cn } from '@/utils/cn'
 
 // The rules every primitive below follows: one black canvas, a hairline border
@@ -330,7 +333,7 @@ export function Page({
 					{filters ? <div className='ml-auto flex items-center gap-2'>{filters}</div> : null}
 				</div>
 			) : null}
-			<div className={cn('min-h-0 flex-1 overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>
+			<div className={cn('min-h-0 flex-1 enter-children overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>
 				<FillContext.Provider value={fill}>{children}</FillContext.Provider>
 			</div>
 		</>
@@ -346,6 +349,7 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	const active = tabs.find(tab =>
 		tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(base + tab.suffix),
 	)
+	const pill = useId()
 
 	return (
 		<ShadcnTabs value={active?.label ?? ''}>
@@ -356,8 +360,11 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 						value={tab.label}
 						render={<Link to={base + tab.suffix} />}
 						nativeButton={false}
-						className='h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 data-active:bg-accent dark:data-active:bg-accent'
+						className='isolate h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 dark:data-active:border-transparent dark:data-active:bg-transparent'
 					>
+						{tab === active ? (
+							<ActivePill id={pill} className='-inset-px border border-input bg-accent' />
+						) : null}
 						{tab.label}
 						{tab.count ? (
 							<span className='font-mono text-meta text-muted-foreground'>{tab.count}</span>
@@ -380,6 +387,7 @@ export function Segmented<TValue extends string>({
 	options: readonly { value: NoInfer<TValue>; label: string; icon?: TablerIcon }[]
 	onChange: (value: TValue) => void
 }) {
+	const pill = useId()
 	return (
 		<ToggleGroup
 			variant='outline'
@@ -396,13 +404,29 @@ export function Segmented<TValue extends string>({
 				<ToggleGroupItem
 					key={option.value}
 					value={option.value}
-					className='text-body text-muted-foreground aria-pressed:bg-foreground aria-pressed:text-background'
+					className='relative isolate text-body text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-background'
 				>
+					{option.value === value ? (
+						<ActivePill id={pill} className='rounded-[inherit] bg-foreground' />
+					) : null}
 					{option.icon ? <option.icon /> : null}
 					{option.label}
 				</ToggleGroupItem>
 			))}
 		</ToggleGroup>
+	)
+}
+
+/** The selected item's background. It slides from the item selected before; `id` names the set it moves within, and
+ * the item is `relative isolate`. */
+export function ActivePill({ id, className }: { id: string; className?: string }) {
+	return (
+		<motion.span
+			aria-hidden
+			layoutId={id}
+			transition={spring}
+			className={cn('absolute inset-0 -z-10', className)}
+		/>
 	)
 }
 
@@ -728,7 +752,14 @@ export function Meter({
 	return (
 		<div className={cn('min-w-16', className)}>
 			<div className='truncate font-mono text-label leading-none tabular-nums'>{label}</div>
-			{max > 0 ? <Progress value={value} max={max} className='mt-1.5 gap-0' aria-label={String(label)} /> : null}
+			{max > 0 ? (
+				<Progress
+					value={value}
+					max={max}
+					className='mt-1.5 gap-0 [&_[data-slot=progress-indicator]]:rise [&_[data-slot=progress-indicator]]:duration-300 [&_[data-slot=progress-indicator]]:ease-out'
+					aria-label={String(label)}
+				/>
+			) : null}
 		</div>
 	)
 }

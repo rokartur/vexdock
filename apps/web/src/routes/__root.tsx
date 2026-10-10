@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts, useRouterState } from '@tanstack/react-router'
+import { MotionConfig } from 'motion/react'
 import { Toaster } from '@/components/ui/toast'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthGate } from '../components/auth-gate'
@@ -33,20 +34,22 @@ function RootComponent() {
 
 	return (
 		<RootDocument>
-			<QueryClientProvider client={queryClient}>
-				<TooltipProvider delay={300}>
-					<AuthGate>
-						{isPublic ? (
-							<Outlet />
-						) : (
-							<Shell>
+			<MotionConfig reducedMotion='user'>
+				<QueryClientProvider client={queryClient}>
+					<TooltipProvider delay={300}>
+						<AuthGate>
+							{isPublic ? (
 								<Outlet />
-							</Shell>
-						)}
-					</AuthGate>
-					<Toaster />
-				</TooltipProvider>
-			</QueryClientProvider>
+							) : (
+								<Shell>
+									<Outlet />
+								</Shell>
+							)}
+						</AuthGate>
+						<Toaster />
+					</TooltipProvider>
+				</QueryClientProvider>
+			</MotionConfig>
 		</RootDocument>
 	)
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { IconActivity, IconAffiliate, IconCpu, IconDatabase, IconServer } from '@tabler/icons-react'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { AnimatedNumber } from '../components/animated-number'
 import { MetricCard, type Point, ratesOf, seriesOf, totalOf, useHistory } from '../components/metric-chart'
 import { Cells, EmptyState, Fact, Facts, RelativeTime, Section, Segmented } from '../components/primitives'
 import { api, type ContainerStats, type MetricWindow, type ServicePoint } from '../lib/api'
@@ -122,7 +123,7 @@ function ServiceMonitoring() {
 					<MetricCard
 						label='CPU'
 						icon={IconCpu}
-						value={current ? percent(current.cpu_percent) : '-'}
+						value={current ? <AnimatedNumber value={current.cpu_percent} format={percent} /> : '-'}
 						series={[cpu]}
 						format={([value]) => percent(value)}
 						hint={`avg ${percent(meanOf(cpu))} · peak ${percent(peakOf(cpu))} · 100% is one core`}
@@ -133,7 +134,7 @@ function ServiceMonitoring() {
 					<MetricCard
 						label='Memory'
 						icon={IconServer}
-						value={current ? bytes(current.memory_usage) : '-'}
+						value={current ? <AnimatedNumber value={current.memory_usage} format={bytes} /> : '-'}
 						series={[memory]}
 						format={([value]) => bytes(value)}
 						hint={`of ${bytes(current?.memory_limit)} · peak ${bytes(peakOf(memory))}`}

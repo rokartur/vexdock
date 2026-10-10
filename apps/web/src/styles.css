@@ -300,6 +300,44 @@
 	}
 }
 
+/* A page's blocks arrive one after another; past the fifth they come together. Without sibling-index() all at once. */
+@utility enter-children {
+	& > * {
+		animation: enter 240ms var(--ease-out) backwards;
+		animation-delay: calc(min(sibling-index() - 1, 4) * 70ms);
+		@media (prefers-reduced-motion: reduce) {
+			animation-name: fade;
+		}
+	}
+}
+
+@keyframes enter {
+	from {
+		opacity: 0;
+		translate: 0 12px;
+	}
+}
+
+@keyframes fade {
+	from {
+		opacity: 0;
+	}
+}
+
+@utility rise {
+	transform-origin: left;
+	animation: rise 400ms var(--ease-out) 150ms backwards;
+	@media (prefers-reduced-motion: reduce) {
+		animation: none;
+	}
+}
+
+@keyframes rise {
+	from {
+		scale: 0 1;
+	}
+}
+
 @utility scrim {
 	transition-property: opacity;
 	transition-duration: var(--tw-duration, 200ms);

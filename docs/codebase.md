@@ -374,6 +374,7 @@ serves. React Query holds server state; component state stays local.
 | `src/components/studio-grid.tsx` | `StudioGrid`: the Studio's editable cell grid, shared by the table editor and the console's results |
 | `src/routes/projects.$projectId_.services.$serviceId.studio*.tsx` | A database's Studio tab: the layout (table sidebar, `useStudio`), the table editor at its index (edits held until Save, one transaction) and `console` |
 | `src/components/metric-chart.tsx` | `MetricCard` for a page's own chart, `useHistory` for the rolling samples behind it, `Sparkline` for the 30-minute trend that fits in a table cell |
+| `src/components/animated-number.tsx`, `src/lib/motion.ts` | `AnimatedNumber` for a live reading that counts to its new value; the `easeOut` curve and `spring` that `motion` code shares. `ActivePill` in `primitives.tsx` is the selection that slides between sidebar rows, tabs and `Segmented` options |
 | `src/components/new-project.tsx` | `NewProjectDialog`, reached from the projects page and the sidebar's Projects label |
 | `src/components/service-routing.tsx` | A service's Redirects, Security (basic auth) and Ports cards on its Advanced tab |
 | `src/components/ui/*` | shadcn output. Pages reach for it only for what `primitives.tsx` has no word for |
