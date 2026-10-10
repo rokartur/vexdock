@@ -111,6 +111,9 @@ function Version() {
 	return (
 		<div className='max-w-3xl'>
 			<ErrorText error={update.error ?? setSettings.error ?? check.error} />
+			<ErrorText
+				error={version.data?.check_error && `Could not check for updates: ${version.data.check_error}`}
+			/>
 			{showResult && state.data && phase === 'done' ? (
 				<Alert className='mb-4'>
 					<IconCircleCheck className='text-success' />
