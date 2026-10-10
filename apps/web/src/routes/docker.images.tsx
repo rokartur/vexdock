@@ -2,7 +2,7 @@ import { Fragment, useMemo } from 'react'
 import { IconStack2, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/arc/badge'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
 import {
 	Confirm,
@@ -70,9 +70,7 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 				cell: ({ row }) => (
 					<span className='flex flex-wrap gap-1'>
 						{imageTags(row.original).map(({ tag }) => (
-							<Badge key={tag} variant='outline'>
-								{tag}
-							</Badge>
+							<Badge key={tag}>{tag}</Badge>
 						))}
 					</span>
 				),

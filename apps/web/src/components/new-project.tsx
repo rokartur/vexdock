@@ -2,18 +2,15 @@ import { useState } from 'react'
 import { IconPlus, IconX } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/arc/badge'
+import { Dialog, DialogContent } from '@/components/arc/dialog'
 import { api } from '../lib/api'
-import { Button, ErrorText, Field, Input } from './primitives'
+import { Button, DialogFooter, ErrorText, Field, Input } from './primitives'
 
 export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className='sm:max-w-lg'>
-				<DialogHeader>
-					<DialogTitle>New project</DialogTitle>
-				</DialogHeader>
+			<DialogContent title='New project' className='[--dialog-width:32rem]'>
 				<NewProjectForm onDone={() => onOpenChange(false)} />
 			</DialogContent>
 		</Dialog>
@@ -65,9 +62,9 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
 				<Button variant='ghost' onClick={onDone}>
 					Cancel
 				</Button>
-				<Button type='submit' variant='primary' disabled={create.isPending}>
+				<Button type='submit' variant='primary' loading={create.isPending}>
 					<IconPlus />
-					{create.isPending ? 'Creating…' : 'Create'}
+					Create
 				</Button>
 			</DialogFooter>
 		</form>
@@ -126,21 +123,14 @@ function TagInput({
 			{value.length > 0 ? (
 				<div className='mt-2 flex flex-wrap gap-1.5'>
 					{value.map(tag => (
-						<Badge
+						<button
 							key={tag}
-							variant='outline'
-							render={
-								<button
-									type='button'
-									aria-label={`Remove ${tag}`}
-									onClick={() => onChange(value.filter(other => other !== tag))}
-								/>
-							}
-							className='hover:bg-accent'
+							type='button'
+							aria-label={`Remove ${tag}`}
+							onClick={() => onChange(value.filter(other => other !== tag))}
 						>
-							{tag}
-							<IconX />
-						</Badge>
+							<Badge icon={<IconX />}>{tag}</Badge>
+						</button>
 					))}
 				</div>
 			) : null}

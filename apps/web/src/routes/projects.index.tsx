@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { IconFolder, IconPlus } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/arc/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { NewProjectDialog } from '../components/new-project'
 import { Button, Meter, Page, Refresh, RelativeTime, Section, StatStrip, Status } from '../components/primitives'
@@ -31,9 +31,7 @@ const projectTableColumns: Columns<Project> = (() => {
 				return (
 					<span className='flex flex-wrap gap-1'>
 						{tags.map(tag => (
-							<Badge key={tag} variant='outline'>
-								{tag}
-							</Badge>
+							<Badge key={tag}>{tag}</Badge>
 						))}
 					</span>
 				)

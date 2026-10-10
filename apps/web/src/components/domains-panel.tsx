@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-	IconAlertTriangle,
 	IconCertificate,
 	IconExternalLink,
 	IconLock,
@@ -11,7 +10,7 @@ import {
 	IconWorld,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert } from '@/components/arc/alert'
 import { api, type Certificate, type CertificateSource, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { certificatesQuery, projectDomainsQuery } from '../lib/queries'
@@ -131,6 +130,7 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 	const domains = useQuery(projectDomainsQuery(projectId))
 	const environmentId = useEnvironmentId()
 	const certificates = useQuery(certificatesQuery)
+	const failedCertificate = certificates.data?.find(cert => cert.status === 'failed')
 
 	const [adding, setAdding] = useState(false)
 	const [hostname, setHostname] = useState('')
@@ -231,19 +231,9 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 				}
 			>
 				<ErrorText error={remove.error ?? issue.error} />
-				{warning ? (
-					<Alert className='mb-3'>
-						<IconAlertTriangle className='text-warning' />
-						<AlertDescription>{warning}</AlertDescription>
-					</Alert>
-				) : null}
-				{certificates.data?.some(cert => cert.status === 'failed') ? (
-					<Alert className='mb-3'>
-						<IconAlertTriangle className='text-warning' />
-						<AlertDescription>
-							{certificates.data.find(cert => cert.status === 'failed')?.last_error}
-						</AlertDescription>
-					</Alert>
+				{warning ? <Alert tone='warning' title={warning} className='mb-3' /> : null}
+				{failedCertificate ? (
+					<Alert tone='warning' title={failedCertificate.last_error} className='mb-3' />
 				) : null}
 				<DataTable
 					data={rows}

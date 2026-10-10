@@ -1,9 +1,7 @@
 @import 'tailwindcss';
-@import 'shadcn/tailwind.css';
+@import './components/arc/foundation.css';
 @import '@fontsource-variable/inter';
 @import '@xterm/xterm/css/xterm.css';
-
-@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
 	/* Mono is the system stack, kept for the surfaces that are literally machine
@@ -18,9 +16,6 @@
 	--text-title: 15px;
 	/* The one size that is allowed to be big: a live reading in a Cells grid. */
 	--text-reading: 22px;
-	/* components/ui/* sizes with text-sm; pinned to body so CLI output sits on the scale unedited. */
-	--text-sm: 13px;
-
 	/* Tailwind's own curves are too soft to read at the 100-200ms a dashboard
 	 * animates in. ease-in delays the frame the user is watching, so it is unset. */
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -30,92 +25,28 @@
 	--default-transition-timing-function: var(--ease-out);
 }
 
-/* Dark-only app: <html class="dark"> is hardcoded in routes/__root.tsx and there
- * is no theme toggle, so the light palette shadcn ships would never render.
- * Only theme-independent tokens live here; every color is in .dark below. */
+/* Arc's foundation.css owns the palette (dark only) and already defines --background, --foreground,
+ * --border, --accent, --success and --warning. Below are only the names Tailwind and the dashboard use
+ * that Arc spells differently. */
 :root {
-	/* The one radius knob, set by the bY64 preset. Every other step in the scale
-	 * is derived from it in the @theme inline block below, so corners stay in
-	 * proportion: 10px on controls, 16px on cards. */
-	--radius: 0.625rem;
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--rule: oklch(0.955 0 0);
-	--highlight: transparent;
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-	/* The bY64 palette: neutral, the canvas a shade off black, cards lighter
-	 * again, a hairline border on everything instead of shadows. Every value here
-	 * is what `shadcn apply --preset bY64` writes; do not hand-tune one. */
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--destructive-foreground: #ffffff;
-	/* Two weights of hairline. --border is a container's edge: the outline of a
-	 * card, a table, an input. --rule is a separator inside one, a table row or a
-	 * fact, and is quieter so a list does not read as a stack of boxes. */
-	--border: oklch(1 0 0 / 10%);
-	--rule: oklch(1 0 0 / 6%);
-	/* A one-pixel inset highlight along the top of anything raised, which is what
-	 * makes a card read as lit from above without a shadow. */
-	--highlight: rgb(255 255 255 / 0.045);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
+	/* Arc's control radius; the @theme inline ladder below derives the rest from it. */
+	--radius: var(--radius-control);
+	--card: var(--surface);
+	--card-foreground: var(--foreground);
+	--popover: var(--surface-raised);
+	--popover-foreground: var(--foreground);
+	--primary: var(--control-on);
+	--primary-foreground: var(--control-glyph);
+	--secondary: var(--surface-muted);
+	--muted: var(--surface-muted);
+	--muted-foreground: var(--text-muted);
+	--destructive: var(--danger);
+	/* --border is a container's edge; --rule is a separator inside one, quieter so a list does not read as boxes. */
+	--rule: var(--border-subtle);
+	--input: var(--border-strong);
+	--ring: var(--border-strong);
+	--info: oklch(78% 0.13 240);
 	--chart-1: var(--foreground);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
 
 	/* Console surfaces (log tail, container shell): darker than the cards
 	 * around them, framed by the same hairline. */
@@ -129,11 +60,6 @@
 	 * (the `=`, a comment) is --muted-foreground. */
 	--code-key: #52a8ff;
 	--code-value: #7ce38b;
-
-	/* Status hues, Tailwind's emerald, amber and sky 400. A failure is --destructive. */
-	--success: oklch(0.765 0.177 163.223);
-	--warning: oklch(0.828 0.189 84.429);
-	--info: oklch(0.746 0.16 232.661);
 }
 
 @theme inline {
@@ -146,11 +72,11 @@
 	--color-primary: var(--primary);
 	--color-primary-foreground: var(--primary-foreground);
 	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
 	--color-muted: var(--muted);
 	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
+	/* Arc's --accent is a full-strength brand color; the dashboard's `accent` is a hover and selection tint. */
+	--color-accent: var(--accent-subtle);
+	--color-accent-foreground: var(--foreground);
 	--color-destructive: var(--destructive);
 	--color-success: var(--success);
 	--color-warning: var(--warning);
@@ -160,18 +86,6 @@
 	--color-input: var(--input);
 	--color-ring: var(--ring);
 	--color-chart-1: var(--chart-1);
-	--color-chart-2: var(--chart-2);
-	--color-chart-3: var(--chart-3);
-	--color-chart-4: var(--chart-4);
-	--color-chart-5: var(--chart-5);
-	--color-sidebar: var(--sidebar);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-ring: var(--sidebar-ring);
 	--color-console: var(--console);
 	--color-console-foreground: var(--console-foreground);
 	--color-console-muted: var(--console-muted);
@@ -250,9 +164,7 @@
 			[role='radio'],
 			[role='switch'],
 			[role='tab'],
-			[data-slot='checkbox'],
-			[data-slot='radio-group-item'],
-			[data-slot='switch']
+			[role='checkbox']
 		):not(:disabled):not([aria-disabled='true']):not([data-disabled]):not([data-disabled='true']) {
 		cursor: pointer;
 	}
@@ -270,43 +182,17 @@
 	}
 }
 
-/* Raised surfaces carry one lit edge. Cards, tables, cells, buttons. */
+/* Raised surfaces sit on Arc's resting shadow. Cards, tables, cells. */
 @utility raised {
-	box-shadow: inset 0 1px 0 var(--highlight);
+	box-shadow: var(--shadow-resting);
 }
 
-/* Transitions, not keyframes, on everything that opens: a transition retargets
- * from where it is when reopened mid-close, a keyframe restarts from zero. */
 @utility press {
 	transition-property: scale;
 	transition-duration: 150ms;
 	transition-timing-function: var(--ease-out);
 	&:active:not(:disabled, [data-disabled], [aria-disabled='true']) {
 		scale: 0.97;
-	}
-}
-
-@utility popup {
-	transition-property: opacity, scale;
-	transition-duration: var(--tw-duration, 200ms);
-	transition-timing-function: var(--tw-ease, var(--ease-out));
-	&[data-starting-style],
-	&[data-ending-style] {
-		opacity: 0;
-		scale: 0.96;
-	}
-	&[data-instant] {
-		transition-duration: 0ms;
-	}
-}
-
-@utility scrim {
-	transition-property: opacity;
-	transition-duration: var(--tw-duration, 200ms);
-	transition-timing-function: var(--ease-out);
-	&[data-starting-style],
-	&[data-ending-style] {
-		opacity: 0;
 	}
 }
 

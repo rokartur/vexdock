@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
 	IconClock,
 	IconDeviceFloppy,
@@ -11,16 +11,14 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Badge } from '@/components/arc/badge'
+import { Dialog, DialogContent } from '@/components/arc/dialog'
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since } from '../lib/format'
 import { tasksQuery } from '../lib/queries'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { LogViewer } from './log-viewer'
 import {
-	ActivePill,
 	Button,
 	Confirm,
 	ErrorText,
@@ -29,6 +27,7 @@ import {
 	Input,
 	RelativeTime,
 	Section,
+	Segmented,
 	Select,
 	StatStrip,
 	Switch,
@@ -107,7 +106,7 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 					<span className='min-w-0'>
 						<span className='flex items-center gap-2 font-medium'>
 							{row.original.name}
-							{row.original.enabled ? null : <Badge variant='outline'>paused</Badge>}
+							{row.original.enabled ? null : <Badge>paused</Badge>}
 						</span>
 						{row.original.description ? (
 							<span className='block max-w-64 truncate text-label text-muted-foreground'>
@@ -335,10 +334,7 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 					save.reset()
 				}}
 			>
-				<DialogContent className='sm:max-w-lg'>
-					<DialogHeader>
-						<DialogTitle>{form?.id ? 'Edit task' : 'New task'}</DialogTitle>
-					</DialogHeader>
+				<DialogContent title={form?.id ? 'Edit task' : 'New task'} className='[--dialog-width:32rem]'>
 					{form ? (
 						<TaskFormFields
 							form={form}
@@ -357,10 +353,10 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 					if (!open) setSelected(null)
 				}}
 			>
-				<DialogContent className='sm:max-w-2xl'>
-					<DialogHeader>
-						<DialogTitle>{selectedTask ? `Runs of ${selectedTask.name}` : ''}</DialogTitle>
-					</DialogHeader>
+				<DialogContent
+					title={selectedTask ? `Runs of ${selectedTask.name}` : ''}
+					className='[--dialog-width:42rem]'
+				>
 					{selectedTask ? <TaskRuns task={selectedTask} /> : null}
 				</DialogContent>
 			</Dialog>
@@ -474,7 +470,6 @@ function TaskFormFields({
 /** Recent executions of one task, newest first, with the output it produced. */
 function TaskRuns({ task }: { task: ScheduledTask }) {
 	const [openRun, setOpenRun] = useState<string | null>(null)
-	const pillId = useId()
 	const runs = useQuery({ queryKey: ['task', task.id, 'runs'], queryFn: () => api.taskRuns(task.id) })
 
 	const shown = runs.data?.find(candidate => candidate.id === openRun) ?? runs.data?.[0]
@@ -482,32 +477,26 @@ function TaskRuns({ task }: { task: ScheduledTask }) {
 	return (
 		<div>
 			{runs.data?.length ? (
-				<ToggleGroup
-					variant='outline'
-					size='sm'
-					spacing={2}
-					className='flex-wrap'
-					value={shown ? [shown.id] : []}
-					onValueChange={([id]) => {
-						if (typeof id === 'string') setOpenRun(id)
-					}}
-				>
-					{runs.data.map(item => (
-						<ToggleGroupItem
-							key={item.id}
-							value={item.id}
-							className='relative isolate text-label text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-foreground'
-						>
-							{item.id === shown?.id ? <ActivePill layoutId={pillId} className='bg-muted' /> : null}
-							<span className={item.exit_code === 0 ? undefined : 'text-destructive'}>
-								{since(item.started_at)}
-							</span>
-							<span className='font-mono text-muted-foreground'>
+				<Segmented
+					label='Runs'
+					value={shown?.id ?? ''}
+					onChange={setOpenRun}
+					options={runs.data.map(item => ({
+						value: item.id,
+						label: since(item.started_at),
+						accessory: (
+							<span
+								className={
+									item.exit_code === 0
+										? 'font-mono text-muted-foreground'
+										: 'font-mono text-destructive'
+								}
+							>
 								{item.finished_at ? duration(item.started_at, item.finished_at) : 'running'}
 							</span>
-						</ToggleGroupItem>
-					))}
-				</ToggleGroup>
+						),
+					}))}
+				/>
 			) : (
 				<p className='text-body text-muted-foreground'>This task has not run yet.</p>
 			)}

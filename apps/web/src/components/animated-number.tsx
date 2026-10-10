@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { animate, m, useMotionValue, useReducedMotion, useTransform } from 'motion/react'
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react'
 
 /** A reading that counts to its new value instead of jumping. */
 export function AnimatedNumber({ value, format }: { value: number; format: (value: number) => string }) {
@@ -13,5 +13,5 @@ export function AnimatedNumber({ value, format }: { value: number; format: (valu
 		return () => controls.stop()
 	}, [motionValue, value, reduced])
 
-	return <m.span>{text}</m.span>
+	return <motion.span>{text}</motion.span>
 }

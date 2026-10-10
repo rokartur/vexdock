@@ -80,15 +80,15 @@ breadcrumb derives itself from the URL. A section of a page is a child route, ne
 `projects.$projectId_.services.$serviceId.*` is the pattern, and the trailing
 `_` is what keeps it out of the project's own tab strip.
 
-**UI.** Pages import `components/primitives.tsx`, which maps shadcn to the
-dashboard's vocabulary. `components/ui/*` is CLI output, so a design change
-lands in `primitives.tsx` alone; a bare `<input>` or a hand-styled button is a
+**UI.** Pages import `components/primitives.tsx`, which maps Arc UI to the
+dashboard's vocabulary. `components/arc/*` is Arc's registry output, so a design
+change lands in `primitives.tsx` or Arc's tokens; a bare `<input>` or a hand-styled button is a
 bug. Sub-navigation and page filters belong in `Page`'s `toolbar` and
 `filters`, actions in its `actions`; the breadcrumb and actions ride up into the
 shell's header and the rest becomes the page's own first row, so a page never
 draws chrome of its own. `Tabs` moves through the URL, `Segmented` moves a value; never
-hand-roll a third switch. A selected row, tab or option draws its background
-with `ActivePill`, so the selection slides instead of jumping. Every action has
+hand-roll a third switch. Both slide their own selection; a selected sidebar row
+draws its background with `ActivePill` for the same reason. Every action has
 a Tabler icon: a row action is an
 `IconButton`, anything destructive is wrapped in `Confirm`. A settings page is
 a stack of `FormSection` cards, each with its hint and its own Save in the

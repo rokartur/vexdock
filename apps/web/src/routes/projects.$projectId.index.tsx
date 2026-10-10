@@ -13,9 +13,9 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Badge } from '@/components/arc/badge'
+import { Dialog, DialogContent } from '@/components/arc/dialog'
+import { DropdownMenu } from '@/components/arc/dropdown-menu'
 import { AnimatedNumber } from '../components/animated-number'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
@@ -99,7 +99,7 @@ function serviceTableColumns(selection: {
 					<span className='inline-flex items-center gap-2 font-medium'>
 						<Icon className='size-4 text-muted-foreground' />
 						{original.service.compose_service_name}
-						<Badge variant='outline'>{original.service.type === 'database' ? 'db' : 'app'}</Badge>
+						<Badge>{original.service.type === 'database' ? 'db' : 'app'}</Badge>
 					</span>
 				)
 			},
@@ -300,20 +300,19 @@ function ProjectServices() {
 							<IconDownload />
 							Import
 						</Button>
-						<DropdownMenu>
-							<DropdownMenuTrigger render={<Button variant='primary' />}>
-								<IconPlus />
-								New service
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align='end'>
-								{creatable.map(entry => (
-									<DropdownMenuItem key={entry.kind} onClick={() => setCreating(entry.kind)}>
-										<entry.icon />
-										{entry.label}
-									</DropdownMenuItem>
-								))}
-							</DropdownMenuContent>
-						</DropdownMenu>
+						<DropdownMenu
+							trigger={
+								<Button variant='primary'>
+									<IconPlus />
+									New service
+								</Button>
+							}
+							items={creatable.map(entry => ({
+								label: entry.label,
+								icon: <entry.icon />,
+								onSelect: () => setCreating(entry.kind),
+							}))}
+						/>
 						<Refresh onClick={() => services.refetch()} busy={services.isFetching} />
 					</>
 				}
@@ -323,10 +322,7 @@ function ProjectServices() {
 					<ServiceBulkActions services={data} selected={selected} onDone={() => setSelected([])} />
 				) : null}
 				<Dialog open={creating !== null} onOpenChange={open => !open && setCreating(null)}>
-					<DialogContent className='sm:max-w-lg'>
-						<DialogHeader>
-							<DialogTitle>{dialogTitle(creating)}</DialogTitle>
-						</DialogHeader>
+					<DialogContent title={dialogTitle(creating)} className='[--dialog-width:32rem]'>
 						{creating === 'import' ? (
 							<ImportServicesForm
 								projectId={projectId}

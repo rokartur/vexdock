@@ -1,11 +1,22 @@
 import { useId, useState } from 'react'
 import { IconEye, IconEyeOff, IconPlus, IconRefresh } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { DialogFooter } from '@/components/ui/dialog'
 import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { engineMarks } from '../lib/engine-marks'
 import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
-import { ActivePill, Button, Combo, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
+import {
+	ActivePill,
+	Button,
+	Combo,
+	DialogFooter,
+	ErrorText,
+	Field,
+	IconButton,
+	Input,
+	Select,
+	Switch,
+	Textarea,
+} from './primitives'
 
 /** An application is created as a bare name. Repository or published image is answered later, in its own settings. */
 export type ServiceKind = 'application' | 'database' | 'compose'
@@ -203,6 +214,7 @@ export function NewServiceForm({
 								}
 							>
 								<Combo
+									label='Version'
 									value={version}
 									options={(versions.data?.versions ?? selected?.versions ?? []).map(tag => ({
 										value: tag,
