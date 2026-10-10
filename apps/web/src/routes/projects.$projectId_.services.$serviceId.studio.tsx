@@ -3,7 +3,7 @@ import { IconDatabaseOff, IconEye, IconPlayerPlay, IconRocket, IconTable, IconTe
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { cn } from '@/utils/cn'
-import { Button, EmptyState, ErrorText, Input, Select } from '../components/primitives'
+import { ActivePill, Button, EmptyState, ErrorText, Input, Select } from '../components/primitives'
 import { api } from '../lib/api'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
@@ -119,27 +119,32 @@ function StudioPane() {
 						search={{ schema: schema.name }}
 						className={cn(entryClass, onConsole && activeClass)}
 					>
+						{onConsole ? <ActivePill layoutId='studio' className='bg-muted' /> : null}
 						<IconTerminal className='size-4 shrink-0' />
 						Console
 					</Link>
 					{tables
 						.filter(t => t.name.toLowerCase().includes(needle))
-						.map(t => (
-							<Link
-								key={t.name}
-								to='/projects/$projectId/services/$serviceId/studio'
-								params={params}
-								search={{ schema: schema.name, table: t.name }}
-								className={cn(entryClass, !onConsole && table?.name === t.name && activeClass)}
-							>
-								{t.view ? (
-									<IconEye aria-label='View' className='size-4 shrink-0' />
-								) : (
-									<IconTable className='size-4 shrink-0' />
-								)}
-								<span className='truncate'>{t.name}</span>
-							</Link>
-						))}
+						.map(t => {
+							const active = !onConsole && table?.name === t.name
+							return (
+								<Link
+									key={t.name}
+									to='/projects/$projectId/services/$serviceId/studio'
+									params={params}
+									search={{ schema: schema.name, table: t.name }}
+									className={cn(entryClass, active && activeClass)}
+								>
+									{active ? <ActivePill layoutId='studio' className='bg-muted' /> : null}
+									{t.view ? (
+										<IconEye aria-label='View' className='size-4 shrink-0' />
+									) : (
+										<IconTable className='size-4 shrink-0' />
+									)}
+									<span className='truncate'>{t.name}</span>
+								</Link>
+							)
+						})}
 				</nav>
 			</aside>
 			<div className='flex min-w-0 flex-1 flex-col'>
@@ -150,5 +155,5 @@ function StudioPane() {
 }
 
 const entryClass =
-	'flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-const activeClass = 'bg-muted text-foreground'
+	'relative isolate flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+const activeClass = 'text-foreground'

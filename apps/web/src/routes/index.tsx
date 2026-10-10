@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { AnimatedNumber } from '../components/animated-number'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
 import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
@@ -196,7 +197,7 @@ function DashboardPage() {
 					<MetricCard
 						label='CPU'
 						icon={IconCpu}
-						value={current ? percent(current.cpu_percent) : '-'}
+						value={current ? <AnimatedNumber value={current.cpu_percent} format={percent} /> : '-'}
 						series={[seriesOf(history, sample => sample.cpu_percent)]}
 						max={100}
 						format={([cpu]) => percent(cpu)}
@@ -207,7 +208,7 @@ function DashboardPage() {
 					<MetricCard
 						label='Memory'
 						icon={IconServer}
-						value={current ? bytes(current.memory_used) : '-'}
+						value={current ? <AnimatedNumber value={current.memory_used} format={bytes} /> : '-'}
 						series={[seriesOf(history, sample => sample.memory_used)]}
 						max={current?.memory_total}
 						format={([used]) => bytes(used)}

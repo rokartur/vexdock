@@ -26,6 +26,7 @@
 		"class-variance-authority": "^0.7.1",
 		"cmdk": "^1.1.1",
 		"cn": "^0.3.0",
+		"motion": "^14.1.0",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
 		"recharts": "^3.10.1"

@@ -87,7 +87,9 @@ bug. Sub-navigation and page filters belong in `Page`'s `toolbar` and
 `filters`, actions in its `actions`; the breadcrumb and actions ride up into the
 shell's header and the rest becomes the page's own first row, so a page never
 draws chrome of its own. `Tabs` moves through the URL, `Segmented` moves a value; never
-hand-roll a third switch. Every action has a Tabler icon: a row action is an
+hand-roll a third switch. A selected row, tab or option draws its background
+with `ActivePill`, so the selection slides instead of jumping. Every action has
+a Tabler icon: a row action is an
 `IconButton`, anything destructive is wrapped in `Confirm`. A settings page is
 a stack of `FormSection` cards, each with its hint and its own Save in the
 footer, the way a service's General tab does it.
@@ -106,7 +108,8 @@ value with a Table/Text `Segmented`; the .env text stays the source of truth on
 both sides, so the two views cannot disagree.
 
 **Density.** A number that moves gets the word for how it moves: `Meter` for a
-value against a ceiling, `Sparkline` (`metric-chart.tsx`) for a series in a
+value against a ceiling, `AnimatedNumber` for a live reading that counts to its
+new value, `Sparkline` (`metric-chart.tsx`) for a series in a
 table cell, `StatStrip` for the line of facts above a page, `Timeline` for
 ordered steps, `RelativeTime` for a stamp that ticks on its own, past (`3m
 ago`) or future (`in 2h`); raw `since()` and `until()` stay for a stamp inside

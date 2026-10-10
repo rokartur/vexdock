@@ -16,6 +16,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { AnimatedNumber } from '../components/animated-number'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
 import { NewServiceForm, newServiceTitles, type ServiceKind } from '../components/new-service-form'
@@ -270,8 +271,18 @@ function ProjectServices() {
 						) : null
 					}
 				/>
-				<Cell label='CPU' icon={IconCpu} value={percent(cpu)} hint='across its services' />
-				<Cell label='Memory' icon={IconServer} value={bytes(memory)} hint='across its services' />
+				<Cell
+					label='CPU'
+					icon={IconCpu}
+					value={<AnimatedNumber key={projectId} value={cpu} format={percent} />}
+					hint='across its services'
+				/>
+				<Cell
+					label='Memory'
+					icon={IconServer}
+					value={<AnimatedNumber key={projectId} value={memory} format={bytes} />}
+					hint='across its services'
+				/>
 			</Cells>
 
 			<Section

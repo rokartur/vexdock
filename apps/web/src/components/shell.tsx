@@ -36,7 +36,7 @@ import { signOut, useSession } from '../lib/auth-client'
 import { useEnvironmentId } from '../lib/environment'
 import { useSystemEvents } from '../lib/sse'
 import { NewProjectDialog } from './new-project'
-import { PageChrome, stateTone } from './primitives'
+import { ActivePill, PageChrome, stateTone } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
@@ -65,7 +65,7 @@ const system: NavItem[] = [
 const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
 const navRow =
-	'flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors pointer-coarse:min-h-11 data-[on=false]:text-muted-foreground data-[on=false]:hover:bg-muted data-[on=false]:hover:text-foreground data-[on=true]:bg-muted data-[on=true]:font-medium data-[on=true]:text-foreground'
+	'relative isolate flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors pointer-coarse:min-h-11 data-[on=false]:text-muted-foreground data-[on=false]:hover:bg-muted data-[on=false]:hover:text-foreground data-[on=true]:font-medium data-[on=true]:text-foreground'
 
 function SideLink({ item, active }: { item: NavItem; active: boolean }) {
 	return (
@@ -76,6 +76,7 @@ function SideLink({ item, active }: { item: NavItem; active: boolean }) {
 			data-on={active}
 			className={navRow}
 		>
+			{active ? <ActivePill layoutId='nav' className='bg-muted' /> : null}
 			<item.icon stroke={1.5} className='size-4 shrink-0' />
 			<span className='truncate'>{item.label}</span>
 		</Link>
@@ -164,6 +165,7 @@ function ProjectBranch({
 					data-on={active}
 					className={cn(navRow, 'min-w-0 flex-1')}
 				>
+					{active ? <ActivePill layoutId='nav' className='bg-muted' /> : null}
 					<span className='truncate'>{project.name}</span>
 					<span className='ml-auto shrink-0 font-mono text-meta text-muted-foreground'>
 						{project.service_count}
@@ -194,24 +196,29 @@ function BranchServices({
 			{services.length === 0 ? (
 				<div className='px-2 py-1 text-label text-muted-foreground'>No services</div>
 			) : (
-				services.map(service => (
-					<Link
-						key={service.id}
-						to='/projects/$projectId/services/$serviceId'
-						params={{ projectId, serviceId: service.id }}
-						search={{ env: environmentId }}
-						draggable={false}
-						aria-current={service.id === serviceId ? 'page' : undefined}
-						data-on={service.id === serviceId}
-						className={cn(navRow, 'py-1')}
-					>
-						<span
-							aria-hidden
-							className={cn('size-1.5 shrink-0 rounded-full bg-current', stateTone(service.state))}
-						/>
-						<span className='truncate'>{service.compose_service_name}</span>
-					</Link>
-				))
+				services.map(service => {
+					const active = service.id === serviceId
+					return (
+						<Link
+							key={service.id}
+							to='/projects/$projectId/services/$serviceId'
+							params={{ projectId, serviceId: service.id }}
+							search={{ env: environmentId }}
+							draggable={false}
+							aria-current={active ? 'page' : undefined}
+							data-on={active}
+							className={cn(navRow, 'py-1')}
+						>
+							{/* Own layoutId: the project row above stays selected too. */}
+							{active ? <ActivePill layoutId='nav-service' className='bg-muted' /> : null}
+							<span
+								aria-hidden
+								className={cn('size-1.5 shrink-0 rounded-full bg-current', stateTone(service.state))}
+							/>
+							<span className='truncate'>{service.compose_service_name}</span>
+						</Link>
+					)
+				})
 			)}
 		</div>
 	)

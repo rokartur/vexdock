@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { IconEye, IconEyeOff, IconPlus, IconRefresh } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { DialogFooter } from '@/components/ui/dialog'
 import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { engineMarks } from '../lib/engine-marks'
 import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
-import { Button, Combo, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
+import { ActivePill, Button, Combo, ErrorText, Field, IconButton, Input, Select, Switch, Textarea } from './primitives'
 
 /** An application is created as a bare name. Repository or published image is answered later, in its own settings. */
 export type ServiceKind = 'application' | 'database' | 'compose'
@@ -35,7 +35,7 @@ const sqldNodes: readonly { value: SqldNode; label: string }[] = [
  * getRandomValues rather than randomUUID: the install docs hand out a plain
  * http://IP:3000 URL, and randomUUID is undefined outside a secure context. */
 const generatePassword = () =>
-	Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('')
+	Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('')
 
 /** Application and compose pass straight through. A database is generated, so it asks for an engine and a version
  * and lets the manager write the rest. */
@@ -336,6 +336,7 @@ function EnginePicker({
 	value: string
 	onChange: (slug: string) => void
 }) {
+	const pillId = useId()
 	return (
 		<div className='overflow-hidden rounded-lg border border-input'>
 			{engines.map(engine => {
@@ -346,8 +347,9 @@ function EnginePicker({
 						type='button'
 						aria-pressed={engine.slug === value}
 						onClick={() => onChange(engine.slug)}
-						className='flex w-full items-center gap-2.5 border-b border-input px-2.5 py-2 text-body last:border-b-0 hover:bg-muted aria-pressed:bg-accent'
+						className='relative isolate flex w-full items-center gap-2.5 border-b border-input px-2.5 py-2 text-body last:border-b-0 hover:bg-muted'
 					>
+						{engine.slug === value ? <ActivePill layoutId={pillId} className='bg-accent' /> : null}
 						<svg className='size-4 shrink-0' viewBox={mark?.viewBox ?? '0 0 24 24'} aria-hidden='true'>
 							{mark ? (
 								<path d={mark.d} fill={mark.fill} fillRule={mark.fillRule} />

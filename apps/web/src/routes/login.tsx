@@ -29,7 +29,7 @@ function LoginPage() {
 	})
 
 	return (
-		<div className='mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6'>
+		<div className='mx-auto flex min-h-dvh max-w-sm enter-children flex-col justify-center px-6'>
 			<div className='mb-6 flex items-center gap-2.5'>
 				<span className='flex size-7 items-center justify-center rounded-md bg-primary text-meta font-semibold text-primary-foreground'>
 					VX

@@ -4,8 +4,10 @@ import {
 	Fragment,
 	type ReactElement,
 	type ReactNode,
+	memo,
 	useContext,
 	useEffect,
+	useId,
 	useState,
 } from 'react'
 import {
@@ -20,6 +22,7 @@ import {
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { Link, type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
+import { m } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -330,7 +333,7 @@ export function Page({
 					{filters ? <div className='ml-auto flex items-center gap-2'>{filters}</div> : null}
 				</div>
 			) : null}
-			<div className={cn('min-h-0 flex-1 overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>
+			<div className={cn('min-h-0 flex-1 enter-children overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>
 				<FillContext.Provider value={fill}>{children}</FillContext.Provider>
 			</div>
 		</>
@@ -346,6 +349,7 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	const active = tabs.find(tab =>
 		tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(base + tab.suffix),
 	)
+	const layoutId = useId()
 
 	return (
 		<ShadcnTabs value={active?.label ?? ''}>
@@ -356,8 +360,9 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 						value={tab.label}
 						render={<Link to={base + tab.suffix} />}
 						nativeButton={false}
-						className='h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 data-active:bg-accent dark:data-active:bg-accent'
+						className='relative isolate h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent'
 					>
+						{tab === active ? <ActivePill layoutId={layoutId} className={selectedPill} /> : null}
 						{tab.label}
 						{tab.count ? (
 							<span className='font-mono text-meta text-muted-foreground'>{tab.count}</span>
@@ -380,6 +385,7 @@ export function Segmented<TValue extends string>({
 	options: readonly { value: NoInfer<TValue>; label: string; icon?: TablerIcon }[]
 	onChange: (value: TValue) => void
 }) {
+	const layoutId = useId()
 	return (
 		<ToggleGroup
 			variant='outline'
@@ -396,13 +402,34 @@ export function Segmented<TValue extends string>({
 				<ToggleGroupItem
 					key={option.value}
 					value={option.value}
-					className='text-body text-muted-foreground aria-pressed:bg-foreground aria-pressed:text-background'
+					className='relative isolate text-body text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-foreground'
 				>
+					{option.value === value ? <ActivePill layoutId={layoutId} className={selectedPill} /> : null}
 					{option.icon ? <option.icon /> : null}
 					{option.label}
 				</ToggleGroupItem>
 			))}
 		</ToggleGroup>
+	)
+}
+
+// An inset shadow, not a border: layout projection scales the pill mid-slide and would stretch a border.
+const selectedPill = '-inset-px bg-accent shadow-[inset_0_0_0_1px_var(--color-input)]'
+
+const spring = { type: 'spring', duration: 0.3, bounce: 0 } as const
+
+/** The selected item's background; it slides from the one selected before within the same `layoutId`. Its parent
+ * must be `relative isolate`. */
+export const ActivePill = memo(Pill)
+
+function Pill({ layoutId, className }: { layoutId: string; className?: string }) {
+	return (
+		<m.span
+			aria-hidden
+			layoutId={layoutId}
+			transition={spring}
+			className={cn('absolute inset-0 -z-10 rounded-[inherit]', className)}
+		/>
 	)
 }
 
@@ -728,7 +755,14 @@ export function Meter({
 	return (
 		<div className={cn('min-w-16', className)}>
 			<div className='truncate font-mono text-label leading-none tabular-nums'>{label}</div>
-			{max > 0 ? <Progress value={value} max={max} className='mt-1.5 gap-0' aria-label={String(label)} /> : null}
+			{max > 0 ? (
+				<Progress
+					value={value}
+					max={max}
+					className='mt-1.5 gap-0 [&_[data-slot=progress-indicator]]:rise'
+					aria-label={String(label)}
+				/>
+			) : null}
 		</div>
 	)
 }

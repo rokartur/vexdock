@@ -1,5 +1,6 @@
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router'
+import { AnimatedNumber } from '../components/animated-number'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { ErrorText, Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
 import { environmentSearch } from '../lib/environment'
@@ -94,8 +95,22 @@ function ServiceLayout() {
 						{ label: 'Health', value: service.data.health || '-' },
 						{ label: 'Image', value: service.data.running_image || service.data.image || '-' },
 						{ label: 'Started', value: <RelativeTime at={service.data.created_unix} /> },
-						{ label: 'CPU', value: running ? percent(service.data.cpu_percent) : '-' },
-						{ label: 'Memory', value: running ? bytes(service.data.memory_usage) : '-' },
+						{
+							label: 'CPU',
+							value: running ? (
+								<AnimatedNumber key={serviceId} value={service.data.cpu_percent} format={percent} />
+							) : (
+								'-'
+							),
+						},
+						{
+							label: 'Memory',
+							value: running ? (
+								<AnimatedNumber key={serviceId} value={service.data.memory_usage} format={bytes} />
+							) : (
+								'-'
+							),
+						},
 					]}
 				/>
 			) : null}

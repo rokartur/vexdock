@@ -346,6 +346,64 @@ body,
 	padding: 8px;
 }
 
+/* Blocks rise 70ms apart, the fifth and later together; a lone wrapper hands the stagger to its children. */
+@utility enter-children {
+	& > :not(:only-child),
+	& > :only-child > * {
+		animation: enter 240ms var(--ease-out) backwards;
+		animation-delay: calc(var(--enter-step, 0) * 70ms);
+		@media (prefers-reduced-motion: reduce) {
+			animation-name: fade;
+		}
+	}
+	& > :nth-child(2),
+	& > :only-child > :nth-child(2) {
+		--enter-step: 1;
+	}
+	& > :nth-child(3),
+	& > :only-child > :nth-child(3) {
+		--enter-step: 2;
+	}
+	& > :nth-child(4),
+	& > :only-child > :nth-child(4) {
+		--enter-step: 3;
+	}
+	& > :nth-child(n + 5),
+	& > :only-child > :nth-child(n + 5) {
+		--enter-step: 4;
+	}
+}
+
+@keyframes enter {
+	from {
+		opacity: 0;
+		translate: 0 12px;
+	}
+}
+
+@keyframes fade {
+	from {
+		opacity: 0;
+	}
+}
+
+/* A bar grows from its start on mount, then follows its value. */
+@utility rise {
+	transform-origin: left;
+	animation: rise 400ms var(--ease-out) 150ms backwards;
+	transition-duration: 300ms;
+	transition-timing-function: var(--ease-out);
+	@media (prefers-reduced-motion: reduce) {
+		animation: none;
+	}
+}
+
+@keyframes rise {
+	from {
+		scale: 0 1;
+	}
+}
+
 /* Reduced motion drops movement, not feedback: the fades that say a thing
  * opened or closed stay, the travel, scaling and height that cause motion
  * sickness snap. */

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts, useRouterState } from '@tanstack/react-router'
+import { LazyMotion, MotionConfig } from 'motion/react'
 import { Toaster } from '@/components/ui/toast'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthGate } from '../components/auth-gate'
@@ -26,6 +27,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 /** Routes that render without the authenticated shell. */
 const publicRoutes = new Set(['/login', '/setup'])
 
+// Animation features load after first paint; `m.*` components render static until they arrive.
+async function loadMotionFeatures() {
+	const features = await import('../lib/motion-features')
+	return features.default
+}
+
 function RootComponent() {
 	const pathname = useRouterState({ select: state => state.location.pathname })
 	const isPublic = publicRoutes.has(pathname)
@@ -33,20 +40,24 @@ function RootComponent() {
 
 	return (
 		<RootDocument>
-			<QueryClientProvider client={queryClient}>
-				<TooltipProvider delay={300}>
-					<AuthGate>
-						{isPublic ? (
-							<Outlet />
-						) : (
-							<Shell>
-								<Outlet />
-							</Shell>
-						)}
-					</AuthGate>
-					<Toaster />
-				</TooltipProvider>
-			</QueryClientProvider>
+			<LazyMotion features={loadMotionFeatures} strict>
+				<MotionConfig reducedMotion='user'>
+					<QueryClientProvider client={queryClient}>
+						<TooltipProvider delay={300}>
+							<AuthGate>
+								{isPublic ? (
+									<Outlet />
+								) : (
+									<Shell>
+										<Outlet />
+									</Shell>
+								)}
+							</AuthGate>
+							<Toaster />
+						</TooltipProvider>
+					</QueryClientProvider>
+				</MotionConfig>
+			</LazyMotion>
 		</RootDocument>
 	)
 }
