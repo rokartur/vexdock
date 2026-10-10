@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { IconBox, IconFileText, IconPlayerPlay, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/arc/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
 import { Sparkline } from '../components/metric-chart'
@@ -53,7 +53,7 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 					<span title={containerName(row.original)} className='max-w-32 truncate font-mono text-label'>
 						{containerName(row.original)}
 					</span>
-					{row.original.managed ? null : <Badge variant='outline'>external</Badge>}
+					{row.original.managed ? null : <Badge>external</Badge>}
 				</span>
 			),
 		}),

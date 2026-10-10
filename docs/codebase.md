@@ -369,7 +369,7 @@ serves. React Query holds server state; component state stays local.
 | `src/components/auth-gate.tsx` | Sends the visitor to `/setup`, `/login` or the app, holding the first paint until the first route's loaders settle |
 | `src/components/shell.tsx` | Sidebar with the project tree, page header, the one `useSystemEvents` subscription |
 | `src/components/crumb-picker.tsx` | `ProjectCrumb`, `EnvironmentCrumb`, `ServiceCrumb`: breadcrumb segments that open a picker to jump to a sibling |
-| `src/components/primitives.tsx` | The dashboard's vocabulary over shadcn: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... and the density words `Meter`, `StatStrip`, `Timeline`, `RelativeTime`. `DetailDialog` is the wide modal a list opens a record in. `SaveButton` takes its card's mutation and shows a two-second `Saved` receipt; `FormSection`'s `aside` is the read-only facts column beside the controls. `fill` on a `Page` and its last `Section` fits the page to the window so only that section scrolls (a context, `useFill`, that every other section and every dialog resets); `MoreBelow` is the progressive blur and glass count over a scroll region's bottom edge, fading in and out as rows go under it. `Cell`'s `inline` puts a chart beside its reading once the cell itself is wide enough. `Page`'s blocks enter staggered (`enter-children` in `styles.css`); `ActivePill` is the selection that slides between sidebar rows, tabs and `Segmented` options |
+| `src/components/primitives.tsx` | The dashboard's vocabulary over Arc UI: `Page`, `Section`, `FormSection`, `Cell`, `Field`, `Input`, `Select`, `Button`, `IconButton`, `Confirm`, `Status`, `EmptyState`, ... and the density words `Meter`, `StatStrip`, `Timeline`, `RelativeTime`. `DetailDialog` is the wide modal a list opens a record in. `SaveButton` takes its card's mutation and shows a two-second `Saved` receipt; `FormSection`'s `aside` is the read-only facts column beside the controls. `fill` on a `Page` and its last `Section` fits the page to the window so only that section scrolls (a context, `useFill`, that every other section and every dialog resets); `MoreBelow` is the progressive blur and glass count over a scroll region's bottom edge, fading in and out as rows go under it. `Cell`'s `inline` puts a chart beside its reading once the cell itself is wide enough. `Page`'s blocks enter staggered (`enter-children` in `styles.css`); `ActivePill` is the selection that slides between sidebar rows |
 | `src/components/data-table.tsx` | `DataTable` and `columnsFor`; every table on every page. `detail` opens a clicked row in a `DetailDialog`; inside a `fill` Section it takes the height left to it instead of capping at 70vh. No pager: only the rows in view are rendered (`@tanstack/react-virtual`), and rows past the bottom edge get `MoreBelow` |
 | `src/components/studio-grid.tsx` | `StudioGrid`: the Studio's editable cell grid, shared by the table editor and the console's results |
 | `src/routes/projects.$projectId_.services.$serviceId.studio*.tsx` | A database's Studio tab: the layout (table sidebar, `useStudio`), the table editor at its index (edits held until Save, one transaction) and `console` |
@@ -377,7 +377,7 @@ serves. React Query holds server state; component state stays local.
 | `src/components/animated-number.tsx` | `AnimatedNumber`, a live reading that counts to its new value |
 | `src/components/new-project.tsx` | `NewProjectDialog`, reached from the projects page and the sidebar's Projects label |
 | `src/components/service-routing.tsx` | A service's Redirects, Security (basic auth) and Ports cards on its Advanced tab |
-| `src/components/ui/*` | shadcn output. Pages reach for it only for what `primitives.tsx` has no word for |
+| `src/components/arc/*.tsx` | Arc UI (uiarc.dev) components, one flat file each, added with `bunx shadcn add @uiarc/<name>` and converted to Tailwind and from Radix to Base UI. Beside them: `foundation.css` (the palette and tokens), `motion-tokens.ts`, `swap.tsx` (the shared swap and height-morph helpers), `arc-provider.tsx` (the router link Arc renders) and `table.tsx`, the plain table Arc does not ship. Patched where the app needed more (`render` on `Button`, a `trigger` on `DropdownMenu`, link tabs, optional labels); pages reach for it only for what `primitives.tsx` has no word for |
 | `src/components/*-panel.tsx`, `*-form.tsx` | Pieces a route composes. Domains and deployments are service-scoped, so their panels take the service they belong to |
 | `src/components/deployment-detail.tsx` | One deployment's steps and live log, the body of the `DetailDialog` a deployments list opens |
 | `src/components/log-viewer.tsx` | `LogViewer`: tails an SSE log stream (`url`, capped buffer) or renders lines already held (`lines`), colored by `severityOf` |
@@ -388,12 +388,11 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/auth-client.ts` | better-auth client: `signIn`, `signUp`, `signOut`, `useSession` |
 | `src/lib/sse.ts` | `useEventSource` for one stream, `useSystemEvents` for cache invalidation |
 | `src/lib/format.ts`, `dotenv.ts`, `breadcrumb.ts` | Pure helpers, each with a test beside it |
-| `src/lib/motion-features.ts` | The `motion` features `LazyMotion` in `__root.tsx` loads after first paint |
 | `src/router.tsx` | The TanStack router built from `routeTree.gen.ts`, owning the `QueryClient` it hands every loader as context; links preload on hover |
 | `src/lib/queries.ts` | `queryOptions` for data more than one file reads, and `preload`, the loader's non-throwing prefetch |
 | `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
-| `src/styles.css` | Every design token. A reskin is an edit here, never on a page |
+| `src/styles.css` | Maps Tailwind's and the pages' token names onto `arc/foundation.css`, plus the type scale and console colors |
 
 A page is: a `queryOptions` (from `lib/queries.ts`, or a local `const` when
 only that route reads it), a `loader` that `preload`s it so the page paints
@@ -404,7 +403,7 @@ with the data inside primitives. Refetch-on-event comes from the shell, so a pag
 exception: nothing announces a CPU reading, so the containers table polls on the
 sampler's own minute.
 
-Design rules (tokens, radius, hairlines, the Vercel look) are in
+Design rules (tokens, radius, hairlines, Arc's dark theme) are in
 [CONTRIBUTING.md](../CONTRIBUTING.md#conventions).
 
 ## Auth service

@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import { IconFileText, IconTable, IconTrash } from '@tabler/icons-react'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/arc/badge'
 import type { EnvVar } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
 import { cn } from '../utils/cn'
@@ -110,9 +110,7 @@ function VariableRows({
 					/>
 					{shared ? (
 						<span>
-							{shared.some(above => above.key === variable.key) ? (
-								<Badge variant='outline'>overrides</Badge>
-							) : null}
+							{shared.some(above => above.key === variable.key) ? <Badge>overrides</Badge> : null}
 						</span>
 					) : null}
 					<span className='text-label'>

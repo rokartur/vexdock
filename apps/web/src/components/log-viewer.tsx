@@ -6,12 +6,11 @@ import {
 	IconEraser,
 	IconPlayerPause,
 	IconPlayerPlay,
-	IconSearch,
 	IconTextWrap,
 	IconX,
 } from '@tabler/icons-react'
-import { ButtonGroup } from '@/components/ui/button-group'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { ButtonGroup } from '@/components/arc/button-group'
+import { SearchField } from '@/components/arc/search-field'
 import { cn } from '@/utils/cn'
 import {
 	type BuildResult,
@@ -23,7 +22,7 @@ import {
 	parseLogLine,
 } from '../lib/format'
 import { useEventSource } from '../lib/sse'
-import { IconButton, Segmented, Select } from './primitives'
+import { Segmented, Select } from './primitives'
 
 export type Line = { stream: string; text: string }
 
@@ -181,67 +180,64 @@ export function LogViewer({
 	return (
 		<div>
 			<div className='mb-2 flex flex-wrap items-center gap-2'>
-				<InputGroup className='h-8 w-56'>
-					<InputGroupAddon>
-						<IconSearch />
-					</InputGroupAddon>
-					<InputGroupInput
-						value={filter}
+				<div className='w-56'>
+					<SearchField
+						label='Search lines'
+						hideLabel
 						placeholder='Search'
-						aria-label='Search lines'
-						onChange={event => setFilter(event.target.value)}
-						className='text-body'
+						value={filter}
+						onValueChange={setFilter}
 					/>
-				</InputGroup>
+				</div>
 				<Segmented value={level} options={levelFilters} onChange={setLevel} />
 				{url ? (
 					<Select value={limit} options={lineLimits} onChange={setLimit} label='Lines' className='w-auto' />
 				) : null}
-				<ButtonGroup>
-					{url ? (
-						<>
-							<IconButton
-								icon={paused ? IconPlayerPlay : IconPlayerPause}
-								label={paused ? 'Resume' : 'Pause'}
-								variant='default'
-								size='default'
-								onClick={() => setPaused(value => !value)}
-							/>
-							<IconButton
-								icon={IconArrowDown}
-								label={follow ? 'Stop following' : 'Follow'}
-								variant='default'
-								size='default'
-								aria-pressed={follow}
-								onClick={() => setFollow(value => !value)}
-							/>
-						</>
-					) : null}
-					<IconButton
-						icon={IconTextWrap}
-						label={plain ? 'Formatted' : 'Plain text'}
-						variant='default'
-						size='default'
-						aria-pressed={plain}
-						onClick={() => setPlain(value => !value)}
-					/>
-					{url ? (
-						<IconButton
-							icon={IconEraser}
-							label='Clear'
-							variant='default'
-							size='default'
-							onClick={() => setStreamed([])}
-						/>
-					) : null}
-					<IconButton
-						icon={IconDownload}
-						label='Download'
-						variant='default'
-						size='default'
-						onClick={() => download(visible)}
-					/>
-				</ButtonGroup>
+				<ButtonGroup
+					label='Log actions'
+					items={[
+						...(url
+							? [
+									{
+										id: 'pause',
+										label: paused ? 'Resume' : 'Pause',
+										icon: paused ? <IconPlayerPlay /> : <IconPlayerPause />,
+										onSelect: () => setPaused(value => !value),
+									},
+									{
+										id: 'follow',
+										label: follow ? 'Stop following' : 'Follow',
+										icon: <IconArrowDown />,
+										pressed: follow,
+										onSelect: () => setFollow(value => !value),
+									},
+								]
+							: []),
+						{
+							id: 'plain',
+							label: plain ? 'Formatted' : 'Plain text',
+							icon: <IconTextWrap />,
+							pressed: plain,
+							onSelect: () => setPlain(value => !value),
+						},
+						...(url
+							? [
+									{
+										id: 'clear',
+										label: 'Clear',
+										icon: <IconEraser />,
+										onSelect: () => setStreamed([]),
+									},
+								]
+							: []),
+						{
+							id: 'download',
+							label: 'Download',
+							icon: <IconDownload />,
+							onSelect: () => download(visible),
+						},
+					]}
+				/>
 				<span className='text-label text-muted-foreground'>
 					{url ? (
 						<span
@@ -302,7 +298,7 @@ function buildSteps(lines: Line[]) {
 	return { results, closing }
 }
 
-const LogLine = memo(function LogLine({ line, build, result }: { line: Line; build: boolean; result?: BuildResult }) {
+const LogLine = memo(({ line, build, result }: { line: Line; build: boolean; result?: BuildResult }) => {
 	const { time, timestamp, body, coloredBody, level } = parseLogLine(line.text)
 	const request = parseAccessLine(body)
 	const severity = severityFrom(line.stream, level, request?.status)

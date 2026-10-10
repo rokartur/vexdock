@@ -93,14 +93,8 @@ function providerColumns(edit: (provider: GitProvider) => void, remove: (id: str
 			cell: ({ row }) => (
 				<div className='flex items-center justify-end gap-1'>
 					{row.original.github ? (
-						<Button
-							variant='ghost'
-							render={
-								<a href={installationURL(row.original)}>
-									{row.original.github.github_installation_id ? 'Repositories' : 'Finish install'}
-								</a>
-							}
-						>
+						// oxlint-disable-next-line jsx-a11y/control-has-associated-label -- Button renders its children into the link
+						<Button variant='ghost' render={<a href={installationURL(row.original)} />}>
 							<IconSettings />
 							{row.original.github.github_installation_id ? 'Repositories' : 'Finish install'}
 						</Button>

@@ -109,8 +109,8 @@ export default defineConfig({
 			'*.svg',
 			'*.conf',
 			'*.lock',
-			// Synced verbatim from rarv; lint them there, not here.
-			'apps/web/src/components/ui/**',
+			// Arc UI registry output (uiarc.dev), patched only where the app needs it.
+			'apps/web/src/components/arc/**',
 			'apps/web/src/components/icons/**',
 			'apps/web/src/utils/**',
 		],

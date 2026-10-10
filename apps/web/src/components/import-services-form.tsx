@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { IconDownload } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { DialogFooter } from '@/components/ui/dialog'
 import { api, type EnvVar, GIT_PROVIDERS, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
-import { Button, Check, ErrorText, Field, Textarea } from './primitives'
+import { Button, Check, DialogFooter, ErrorText, Field, Textarea } from './primitives'
 
 const providers = ['unconfigured', ...GIT_PROVIDERS, 'image', 'raw'] as readonly string[]
 

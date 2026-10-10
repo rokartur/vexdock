@@ -1,5 +1,5 @@
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from 'react'
-import { IconArrowNarrowDown, IconArrowNarrowUp, IconSearch } from '@tabler/icons-react'
+import { IconArrowNarrowDown, IconArrowNarrowUp } from '@tabler/icons-react'
 import {
 	type ColumnDef,
 	type RowData,
@@ -18,9 +18,8 @@ import {
 	useTable,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { SearchField } from '@/components/arc/search-field'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/arc/table'
 import { cn } from '@/utils/cn'
 import { DetailDialog, EmptyState, ErrorText, MoreBelow, useFill } from './primitives'
 
@@ -191,25 +190,29 @@ export function DataTable<TData extends RowData>({
 	return (
 		/* The table is a card: hairline border for the outer edge, rows separated by their own hairlines.
 		   overflow-hidden clips the edge-to-edge sticky header background at the rounded corners. */
-		<div className={cn('overflow-hidden rounded-xl border bg-card raised', fill && 'flex min-h-0 flex-1 flex-col')}>
+		<div
+			className={cn(
+				'overflow-hidden rounded-(--radius-panel) border bg-card raised',
+				fill && 'flex min-h-0 flex-1 flex-col',
+			)}
+		>
 			{filter ? (
-				<div className='relative border-b border-rule'>
-					<IconSearch className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' />
-					<Input
+				<div className='border-b border-rule p-2'>
+					<SearchField
+						label={filter}
+						hideLabel
+						placeholder={filter}
 						value={globalFilter}
-						onChange={event => {
-							setGlobalFilter(event.target.value)
+						onValueChange={value => {
+							setGlobalFilter(value)
 							virtualizer.scrollToOffset(0)
 						}}
-						placeholder={filter}
-						aria-label={filter}
-						className='h-9 rounded-none border-0 bg-transparent pl-9 text-body focus-visible:ring-0 md:text-body dark:bg-transparent'
 					/>
 				</div>
 			) : null}
 			{/* Rows and hairlines run edge to edge; the gutter lives in each row's first and last cell. */}
 			<div className={cn('relative', fill && 'flex min-h-0 flex-1 flex-col')}>
-				{/* This scrolls both ways, so shadcn's own overflow-x wrapper is switched off: it would otherwise be the
+				{/* This scrolls both ways, so the table's own overflow-x wrapper is switched off: it would otherwise be the
 				    box the sticky header sticks to, and the header would scroll away with the rows. */}
 				<div
 					ref={viewport}
@@ -217,24 +220,20 @@ export function DataTable<TData extends RowData>({
 					tabIndex={-1}
 					className={cn(
 						// Scroll padding keeps a row reached by Tab clear of the sticky header and MoreBelow's band.
-						'scroll-pt-8 scroll-pb-20 overflow-auto outline-none [&>[data-slot=table-container]]:overflow-visible',
+						'scroll-pt-8 scroll-pb-20 overflow-auto outline-none [&>div]:overflow-visible',
 						fill ? 'min-h-0 flex-1' : 'max-h-[70vh]',
 					)}
 				>
 					{/* Row separators are the quiet hairline; the card's own edge stays --border. An inline-flex cell that starts
 					    with an icon or dot takes its baseline from that box's bottom, so cell content centres instead. */}
-					<ShadcnTable
+					<Table
 						// Only the rows in view are in the DOM, so a screen reader is told the full count and each row's place.
 						aria-rowcount={rows.length > 0 ? headerRows + rows.length : undefined}
-						className='text-body [&_tbody_tr]:border-rule [&_td:first-child]:pl-4 [&_td>*]:align-middle [&_th:first-child]:pl-4'
+						className='text-body [&_td:first-child]:pl-4 [&_td>*]:align-middle [&_th:first-child]:pl-4'
 					>
 						<TableHeader>
 							{table.getHeaderGroups().map((headerGroup, index) => (
-								<TableRow
-									key={headerGroup.id}
-									aria-rowindex={index + 1}
-									className='hover:bg-transparent'
-								>
+								<TableRow key={headerGroup.id} aria-rowindex={index + 1} static>
 									{headerGroup.headers.map(header => {
 										const sorted = header.column.getIsSorted()
 										return (
@@ -244,7 +243,7 @@ export function DataTable<TData extends RowData>({
 													// The hairline lives on the th (inset shadow), not the tr border: collapsed
 													// tr borders do not travel with sticky cells, which reads as a gap when rows
 													// scroll underneath.
-													'sticky top-0 z-10 h-8 bg-card pr-3 pl-0 text-label font-medium text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]',
+													'sticky top-0 z-10 h-8 border-b-0 bg-card pr-3 pl-0 text-label shadow-[inset_0_-1px_0_0_var(--border)]',
 													header.column.columnDef.meta?.align === 'right' && 'text-right',
 												)}
 											>
@@ -274,7 +273,7 @@ export function DataTable<TData extends RowData>({
 							{loading ? (
 								<SkeletonRows columns={columnCount} />
 							) : rows.length === 0 ? (
-								<TableRow className='hover:bg-transparent'>
+								<TableRow static>
 									<TableCell colSpan={columnCount} className='p-0'>
 										{error ? (
 											<ErrorText error={error} />
@@ -338,7 +337,7 @@ export function DataTable<TData extends RowData>({
 								</>
 							)}
 						</TableBody>
-					</ShadcnTable>
+					</Table>
 				</div>
 				<MoreBelow count={below} onReveal={() => revealEnd(viewport.current)} />
 			</div>
@@ -369,10 +368,11 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
 	return (
 		<>
 			{Array.from({ length: rows }, (_row, index) => (
-				<TableRow key={index} className='hover:bg-transparent'>
+				<TableRow key={index} static>
 					{Array.from({ length: columns }, (_cell, cell) => (
 						<TableCell key={cell} className='h-8 py-0.5 pr-3 pl-0'>
-							<Skeleton className='h-3 w-24' />
+							{/* Arc's Skeleton is a block of lines with its own status region; a cell needs one quiet bar. */}
+							<span className='block h-3 w-24 rounded-sm bg-muted' />
 						</TableCell>
 					))}
 				</TableRow>

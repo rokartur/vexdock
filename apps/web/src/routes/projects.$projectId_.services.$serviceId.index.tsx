@@ -400,6 +400,7 @@ function SourceSection({ service }: { service: Service }) {
 									/>
 								) : (
 									<Combo
+										label='Repository'
 										value={repository}
 										disabled={repositories.isPending}
 										placeholder={repositories.isPending ? 'Loading…' : 'Search repositories'}
@@ -413,6 +414,7 @@ function SourceSection({ service }: { service: Service }) {
 								<Field label='Branch' hint={branches.error?.message ?? undefined}>
 									{branches.isSuccess ? (
 										<Combo
+											label='Branch'
 											value={branch}
 											placeholder='Search branches'
 											empty='No branches'
@@ -571,7 +573,12 @@ function BuildSection({ service }: { service: Service }) {
 					label='Output directory'
 					hint='Relative to the root directory. Empty serves the first of dist/client, dist, build, out, .output/public, public holding an index.html.'
 				>
-					<Input value={outputDir} placeholder='dist' onChange={event => setOutputDir(event.target.value)} mono />
+					<Input
+						value={outputDir}
+						placeholder='dist'
+						onChange={event => setOutputDir(event.target.value)}
+						mono
+					/>
 				</Field>
 			)}
 		</FormSection>

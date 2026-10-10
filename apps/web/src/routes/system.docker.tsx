@@ -1,15 +1,8 @@
 import { useMemo, useState } from 'react'
-import {
-	IconBox,
-	IconCircleCheck,
-	IconDatabase,
-	IconStack2,
-	IconTrash,
-	type Icon as TablerIcon,
-} from '@tabler/icons-react'
+import { IconBox, IconDatabase, IconStack2, IconTrash, type Icon as TablerIcon } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert } from '@/components/arc/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Confirm, ErrorText, IconButton, Meter, Page, Refresh, Section } from '../components/primitives'
 import { api } from '../lib/api'
@@ -107,12 +100,7 @@ function CleanupPage() {
 				actions={<Refresh onClick={() => preview.refetch()} busy={preview.isFetching} />}
 			>
 				<ErrorText error={cleanup.error} />
-				{result ? (
-					<Alert className='mb-3'>
-						<IconCircleCheck className='text-success' />
-						<AlertDescription>{result}</AlertDescription>
-					</Alert>
-				) : null}
+				{result ? <Alert tone='success' title={result} className='mb-3' /> : null}
 				<DataTable
 					data={rows}
 					columns={columns}

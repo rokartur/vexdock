@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { IconAlertTriangle, IconKey, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconKey, IconPlus, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Alert } from '@/components/arc/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
@@ -130,10 +130,8 @@ function ApiTokens() {
 			</Section>
 
 			{issued ? (
-				<Alert className='mb-4'>
-					<IconAlertTriangle className='text-warning' />
-					<AlertTitle>Copy it now. It is not shown again.</AlertTitle>
-					<AlertDescription className='font-mono text-label break-all'>{issued}</AlertDescription>
+				<Alert tone='warning' title='Copy it now. It is not shown again.' className='mb-4'>
+					<span className='font-mono text-label break-all'>{issued}</span>
 				</Alert>
 			) : null}
 

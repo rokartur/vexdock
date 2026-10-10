@@ -1,105 +1,65 @@
 import {
 	type ComponentProps,
 	createContext,
-	Fragment,
 	type ReactElement,
 	type ReactNode,
 	memo,
 	useContext,
+	useMemo,
 	useEffect,
 	useId,
 	useState,
 } from 'react'
 import {
-	IconAlertCircle,
 	IconArrowDown,
 	IconCheck,
 	IconDeviceFloppy,
 	IconInbox,
 	IconRefresh,
-	IconSelector,
 	IconTrash,
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
-import { Link, type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
-import { m } from 'motion/react'
+import { type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
+import { motion } from 'motion/react'
 import { createPortal } from 'react-dom'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbLink,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
-import { Button as ShadcnButton } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from '@/components/ui/dialog'
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Field as ShadcnField, FieldDescription, FieldLabel } from '@/components/ui/field'
-import { Input as ShadcnInput } from '@/components/ui/input'
-import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
-import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Progress } from '@/components/ui/progress'
-import { Select as ShadcnSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch as ShadcnSwitch } from '@/components/ui/switch'
-import { Tabs as ShadcnTabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea as ShadcnTextarea } from '@/components/ui/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Alert } from '@/components/arc/alert'
+import { Breadcrumb } from '@/components/arc/breadcrumb'
+import { Button as ArcButton, type ButtonVariant as ArcButtonVariant } from '@/components/arc/button'
+import { Checkbox } from '@/components/arc/checkbox'
+import { Combobox } from '@/components/arc/combobox'
+import { Dialog, DialogClose, DialogContent, DialogTrigger } from '@/components/arc/dialog'
+import ArcEmptyState from '@/components/arc/empty-state'
+import { Input as ArcInput } from '@/components/arc/input'
+import { Progress } from '@/components/arc/progress'
+import SegmentedControl from '@/components/arc/segmented-control'
+import { Select as ArcSelect } from '@/components/arc/select'
+import { Switch as ArcSwitch } from '@/components/arc/switch'
+import { Tabs as ArcTabs, TabsList, TabsTrigger } from '@/components/arc/tabs'
+import { Textarea as ArcTextarea } from '@/components/arc/textarea'
+import { Tooltip } from '@/components/arc/tooltip'
 import { labelOf, trailOf } from '@/lib/breadcrumb'
 import { since, until } from '@/lib/format'
 import { cn } from '@/utils/cn'
 
-// The rules every primitive below follows: one black canvas, a hairline border
-// instead of a shadow, white on black for the one primary action, sentence case
-// everywhere, an icon on every action.
+// The rules every primitive below follows: Arc UI's look (components/arc, tokens in its foundation.css), one primary
+// action per view, sentence case everywhere, an icon on every action.
 
 type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost'
 
-// Intent names, so pages never spell out shadcn's "destructive" or "outline".
+// Intent names, so pages never spell out Arc's "secondary".
 const buttonVariants = {
-	default: 'outline',
-	primary: 'default',
-	danger: 'destructive',
+	default: 'secondary',
+	primary: 'primary',
+	danger: 'danger',
 	ghost: 'ghost',
-} as const satisfies Record<ButtonVariant, string>
+} as const satisfies Record<ButtonVariant, ArcButtonVariant>
 
-type ButtonProps = Omit<ComponentProps<typeof ShadcnButton>, 'variant' | 'size' | 'className'>
+type ButtonProps = Omit<ComponentProps<typeof ArcButton>, 'variant' | 'size' | 'icon' | 'className'>
 
-// Only the intent is ours; everything else passes through, so a Button can be
-// what a menu trigger renders as and still receive the handlers that needs.
+// Only the intent is ours; everything else passes through, so a Button can be a menu trigger (it takes the
+// trigger's handlers and ref) or, with `render`, a router link.
 export function Button({ variant = 'default', type = 'button', ...props }: ButtonProps & { variant?: ButtonVariant }) {
-	return (
-		<ShadcnButton
-			type={type}
-			variant={buttonVariants[variant]}
-			className={cn('text-body', variant === 'ghost' ? 'text-muted-foreground hover:text-foreground' : 'raised')}
-			{...props}
-		/>
-	)
+	return <ArcButton type={type} variant={buttonVariants[variant]} size='md' {...props} />
 }
 
 /** An icon-only action with its name in a tooltip. `sm` is the row size, `default` matches the buttons in a header. */
@@ -116,28 +76,17 @@ export function IconButton({
 	size?: 'sm' | 'default'
 }) {
 	return (
-		<Tooltip>
-			<TooltipTrigger
-				render={
-					<ShadcnButton
-						type='button'
-						variant={buttonVariants[variant]}
-						size={size === 'sm' ? 'icon-sm' : 'icon'}
-						aria-label={label}
-						// Rendered as a Link when `render` is given, so base-ui must not expect a <button>.
-						nativeButton={props.render === undefined}
-						// A pressed toggle (follow, wrap) reads as its hover state kept on.
-						className={cn(
-							variant === 'ghost' ? 'text-muted-foreground hover:text-foreground' : 'raised',
-							'aria-pressed:bg-muted aria-pressed:text-foreground',
-						)}
-						{...props}
-					/>
-				}
+		<Tooltip content={label}>
+			<ArcButton
+				type='button'
+				variant={buttonVariants[variant]}
+				size={size === 'sm' ? 'sm' : 'md'}
+				icon
+				aria-label={label}
+				{...props}
 			>
 				<Icon />
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
+			</ArcButton>
 		</Tooltip>
 	)
 }
@@ -147,17 +96,20 @@ export const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/u.t
 
 /**
  * A key combination shown next to the thing it triggers, one cap per key:
- * `<Keys keys={[mod, 'K']} />`. Inside a button it takes the button's color.
+ * `<Keys keys={[mod, 'K']} />`. Arc has no key cap, so this is one drawn on its tokens.
  */
 export function Keys({ keys }: { keys: string[] }) {
 	return (
-		<KbdGroup>
+		<span className='inline-flex items-center gap-0.5'>
 			{keys.map(key => (
-				<Kbd key={key} className='in-data-[slot=button]:bg-current/15 in-data-[slot=button]:text-current'>
+				<kbd
+					key={key}
+					className='inline-flex h-5 min-w-5 items-center justify-center rounded-sm border border-border bg-muted px-1 font-sans text-meta text-muted-foreground'
+				>
 					{key}
-				</Kbd>
+				</kbd>
 			))}
-		</KbdGroup>
+		</span>
 	)
 }
 
@@ -278,45 +230,16 @@ export function Page({
 
 	const head = (
 		<>
-			<Breadcrumb className='min-w-0 flex-1'>
-				<BreadcrumbList className='flex-nowrap gap-2 overflow-hidden text-body sm:gap-2'>
-					{trail.map(({ segment, to, linkable }, index) => {
-						const label = labels?.[segment]
-						const last = index === trail.length - 1
-						// A labeled segment renders a picker button, and a link around it would navigate on the
-						// click that opens the popover. Only a plain last segment is aria-current.
-						const crumbClass = cn(
-							'flex min-w-0 items-center gap-2 truncate',
-							last ? 'font-medium text-foreground' : 'text-muted-foreground',
-						)
-						let crumb: ReactNode
-						if (linkable && label === undefined) {
-							crumb = (
-								<BreadcrumbLink render={<Link to={to} />} className='truncate'>
-									{labelOf(segment)}
-								</BreadcrumbLink>
-							)
-						} else if (last && label === undefined) {
-							crumb = <BreadcrumbPage className={crumbClass}>{labelOf(segment)}</BreadcrumbPage>
-						} else {
-							crumb = <span className={crumbClass}>{label ?? labelOf(segment)}</span>
-						}
-						return (
-							<Fragment key={to}>
-								{index > 0 ? (
-									<BreadcrumbSeparator className='hidden text-muted-foreground/30 sm:block'>
-										/
-									</BreadcrumbSeparator>
-								) : null}
-								{/* Phone widths only fit the page's own crumb next to the actions. */}
-								<BreadcrumbItem className={cn('min-w-0 gap-2', last ? '' : 'hidden sm:inline-flex')}>
-									{crumb}
-								</BreadcrumbItem>
-							</Fragment>
-						)
-					})}
-				</BreadcrumbList>
-			</Breadcrumb>
+			{/* A labeled segment renders its own picker, never wrapped in a link that would navigate on the click
+			    that opens it. Only a plain segment links. */}
+			<Breadcrumb
+				className='min-w-0 flex-1'
+				items={trail.map(({ segment, to, linkable }) => ({
+					label: labelOf(segment),
+					href: linkable && labels?.[segment] === undefined ? to : undefined,
+					node: labels?.[segment],
+				}))}
+			/>
 			{/* Buttons carry their own shrink-0, so this only squeezes text actions. */}
 			{actions ? <div className='flex min-w-0 items-center gap-2'>{actions}</div> : null}
 		</>
@@ -349,28 +272,20 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	const active = tabs.find(tab =>
 		tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(base + tab.suffix),
 	)
-	const layoutId = useId()
 
 	return (
-		<ShadcnTabs value={active?.label ?? ''}>
-			<TabsList className='gap-0.5 bg-transparent p-0'>
+		<ArcTabs value={active?.label ?? ''}>
+			<TabsList>
 				{tabs.map(tab => (
-					<TabsTrigger
-						key={tab.label}
-						value={tab.label}
-						render={<Link to={base + tab.suffix} />}
-						nativeButton={false}
-						className='relative isolate h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent'
-					>
-						{tab === active ? <ActivePill layoutId={layoutId} className={selectedPill} /> : null}
+					<TabsTrigger key={tab.label} value={tab.label} href={base + tab.suffix}>
 						{tab.label}
 						{tab.count ? (
-							<span className='font-mono text-meta text-muted-foreground'>{tab.count}</span>
+							<span className='ml-1.5 font-mono text-meta text-muted-foreground'>{tab.count}</span>
 						) : null}
 					</TabsTrigger>
 				))}
 			</TabsList>
-		</ShadcnTabs>
+		</ArcTabs>
 	)
 }
 
@@ -380,41 +295,32 @@ export function Segmented<TValue extends string>({
 	value,
 	options,
 	onChange,
+	label,
 }: {
 	value: TValue
-	options: readonly { value: NoInfer<TValue>; label: string; icon?: TablerIcon }[]
+	/** `accessory` sits after the label: a run's duration, a count. */
+	options: readonly { value: NoInfer<TValue>; label: string; icon?: TablerIcon; accessory?: ReactNode }[]
 	onChange: (value: TValue) => void
+	/** Names the group for assistive tech. */
+	label?: string
 }) {
-	const layoutId = useId()
 	return (
-		<ToggleGroup
-			variant='outline'
-			spacing={0}
-			value={[value]}
+		<SegmentedControl
+			label={label}
+			value={value}
+			options={options.map(option => ({
+				value: option.value,
+				label: option.label,
+				icon: option.icon ? <option.icon /> : undefined,
+				accessory: option.accessory,
+			}))}
 			onValueChange={next => {
-				// Pressing the selected option again would clear the group; a switch
-				// always has a position, so that press is a no-op.
-				const [selected] = next as TValue[]
-				if (selected !== undefined) onChange(selected)
+				const picked = options.find(option => option.value === next)
+				if (picked) onChange(picked.value)
 			}}
-		>
-			{options.map(option => (
-				<ToggleGroupItem
-					key={option.value}
-					value={option.value}
-					className='relative isolate text-body text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-foreground'
-				>
-					{option.value === value ? <ActivePill layoutId={layoutId} className={selectedPill} /> : null}
-					{option.icon ? <option.icon /> : null}
-					{option.label}
-				</ToggleGroupItem>
-			))}
-		</ToggleGroup>
+		/>
 	)
 }
-
-// An inset shadow, not a border: layout projection scales the pill mid-slide and would stretch a border.
-const selectedPill = '-inset-px bg-accent shadow-[inset_0_0_0_1px_var(--color-input)]'
 
 const spring = { type: 'spring', duration: 0.3, bounce: 0 } as const
 
@@ -424,11 +330,11 @@ export const ActivePill = memo(Pill)
 
 function Pill({ layoutId, className }: { layoutId: string; className?: string }) {
 	return (
-		<m.span
+		<motion.span
 			aria-hidden
 			layoutId={layoutId}
 			transition={spring}
-			className={cn('absolute inset-0 -z-10 rounded-[inherit]', className)}
+			className={cn('absolute inset-0 -z-10 rounded-[inherit] bg-accent', className)}
 		/>
 	)
 }
@@ -604,22 +510,23 @@ export function FormSection({
 			children
 		)
 	const card = (
-		<Card className='mb-4 gap-0 py-0 raised ring-border'>
-			<CardHeader className='gap-0.5 px-5 pt-4'>
-				<CardTitle className='flex items-center gap-2 text-title'>
+		// Arc's Card is a content tile (media, quick look); a form group draws the same surface by hand.
+		<section className='mb-4 rounded-(--radius-panel) border border-border bg-card raised'>
+			<header className='flex flex-col gap-0.5 px-5 pt-4'>
+				<h3 className='flex items-center gap-2 text-title font-medium'>
 					{Icon ? <Icon className='size-4 text-muted-foreground' /> : null}
 					{title}
-				</CardTitle>
-				{description ? <CardDescription className='text-label'>{description}</CardDescription> : null}
-			</CardHeader>
-			<CardContent className='px-5 py-4'>{body}</CardContent>
+				</h3>
+				{description ? <p className='text-label text-muted-foreground'>{description}</p> : null}
+			</header>
+			<div className='px-5 py-4'>{body}</div>
 			{actions || hint ? (
-				<CardFooter className='min-h-12 flex-wrap justify-between gap-3 border-rule px-5 py-2.5 text-label text-muted-foreground'>
+				<footer className='flex min-h-12 flex-wrap items-center justify-between gap-3 border-t border-rule px-5 py-2.5 text-label text-muted-foreground'>
 					<span>{hint}</span>
 					<div className='ml-auto flex flex-wrap items-center gap-2'>{actions}</div>
-				</CardFooter>
+				</footer>
 			) : null}
-		</Card>
+		</section>
 	)
 	if (!onSave) return card
 	// A real form, so `required` inputs validate and Enter submits. `data-saves`
@@ -646,10 +553,7 @@ export function Cells({ children, className }: { children: ReactNode; className?
 	return (
 		<div
 			className={cn(
-				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-xl border bg-card [&>*]:bg-card [&>*]:outline [&>*]:outline-1 [&>*]:outline-border',
-				// The lit edge belongs to the grid's own top row, not to every cell: an
-				// interior cell is not raised above the one above it.
-				'raised',
+				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-(--radius-panel) border bg-card raised [&>*]:bg-card [&>*]:outline [&>*]:outline-1 [&>*]:outline-border',
 				className,
 			)}
 		>
@@ -710,28 +614,24 @@ export function Cell({
 /** Label left, value right, one hairline per row. The shape for attributes that are read, not edited. */
 export function Facts({ children, className }: { children: ReactNode; className?: string }) {
 	return (
-		<ItemGroup
+		<dl
 			className={cn(
-				'gap-0 rounded-xl border bg-card px-3 raised [&>*+*]:border-t [&>*+*]:border-rule',
+				'rounded-(--radius-panel) border bg-card px-4 raised [&>*+*]:border-t [&>*+*]:border-rule',
 				className,
 			)}
 		>
 			{children}
-		</ItemGroup>
+		</dl>
 	)
 }
 
 /** One row of a `Facts` list. */
 export function Fact({ label, value }: { label: string; value: ReactNode }) {
 	return (
-		<Item size='sm' className='min-h-8 flex-nowrap rounded-none border-x-0 border-b-0 px-0 py-1 text-body'>
-			<ItemContent className='shrink-0'>
-				<ItemTitle className='font-normal text-muted-foreground'>{label}</ItemTitle>
-			</ItemContent>
-			<ItemActions className='min-w-0 flex-1 justify-end truncate text-right font-mono text-label'>
-				{value}
-			</ItemActions>
-		</Item>
+		<div className='flex min-h-8 items-center gap-4 py-1 text-body'>
+			<dt className='shrink-0 text-muted-foreground'>{label}</dt>
+			<dd className='min-w-0 flex-1 truncate text-right font-mono text-label'>{value}</dd>
+		</div>
 	)
 }
 
@@ -759,8 +659,8 @@ export function Meter({
 				<Progress
 					value={value}
 					max={max}
-					className='mt-1.5 gap-0 [&_[data-slot=progress-indicator]]:rise'
-					aria-label={String(label)}
+					aria-label={typeof label === 'string' ? label : undefined}
+					className='mt-1.5'
 				/>
 			) : null}
 		</div>
@@ -772,7 +672,7 @@ export function StatStrip({ items, className }: { items: { label: string; value:
 	return (
 		<dl
 			className={cn(
-				'flex flex-wrap items-start gap-x-8 gap-y-3 rounded-xl border bg-card px-4 py-2.5 raised',
+				'flex flex-wrap items-start gap-x-8 gap-y-3 rounded-(--radius-panel) border bg-card px-4 py-2.5 raised',
 				className,
 			)}
 		>
@@ -833,12 +733,7 @@ export function RelativeTime({ at }: { at: string | number | null | undefined })
 export function ErrorText({ error }: { error: unknown }) {
 	if (!error) return null
 	const message = error instanceof Error ? error.message : String(error)
-	return (
-		<Alert variant='destructive' className='mb-3 text-body'>
-			<IconAlertCircle />
-			<AlertDescription className='text-body'>{message}</AlertDescription>
-		</Alert>
-	)
+	return <Alert tone='danger' title={message} className='mb-3' />
 }
 
 /** What a list shows when it has nothing to list, with optionally the action that fills it. */
@@ -849,32 +744,22 @@ export function EmptyState({
 	children,
 }: {
 	icon?: TablerIcon
-	title: ReactNode
-	description?: ReactNode
+	title: string
+	description?: string
 	children?: ReactNode
 }) {
-	return (
-		<Empty className='gap-3 border-0 py-8'>
-			<EmptyHeader className='gap-1'>
-				<EmptyMedia variant='icon' className='mb-1'>
-					<Icon />
-				</EmptyMedia>
-				<EmptyTitle className='text-body font-medium'>{title}</EmptyTitle>
-				{description ? <EmptyDescription className='text-label'>{description}</EmptyDescription> : null}
-			</EmptyHeader>
-			{children ? <EmptyContent>{children}</EmptyContent> : null}
-		</Empty>
-	)
+	return <ArcEmptyState icon={<Icon stroke={1.5} />} title={title} description={description} action={children} />
 }
 
-/** The one way to ask before something unrecoverable. The trigger is whatever `children` renders. */
+/** The one way to ask before something unrecoverable. The trigger is whatever `children` renders; a menu item, which
+ * closes its menu (and anything inside it) on select, opens it through `open` instead. */
 export function Confirm({
 	title,
 	description,
 	action = 'Delete',
 	type,
 	onConfirm,
-	children,
+	...trigger
 }: {
 	title: string
 	description?: string
@@ -882,37 +767,32 @@ export function Confirm({
 	/** A name the reader has to type before the action unlocks, for what takes data with it. */
 	type?: string
 	onConfirm: () => void
-	children: ReactElement
-}) {
-	// Owned state: base-ui's alert dialog has no Action part that closes, only
-	// Cancel does, so confirming has to close it by hand.
-	const [open, setOpen] = useState(false)
+} & ({ children: ReactElement } | { open: boolean; onOpenChange: (open: boolean) => void })) {
+	const [ownOpen, setOwnOpen] = useState(false)
 	const [typed, setTyped] = useState('')
+	const open = 'open' in trigger ? trigger.open : ownOpen
+	const setOpen = 'open' in trigger ? trigger.onOpenChange : setOwnOpen
 	const locked = type !== undefined && typed.trim() !== type
 	return (
-		<AlertDialog
+		<Dialog
 			open={open}
+			disablePointerDismissal
 			onOpenChange={next => {
 				setOpen(next)
 				setTyped('')
 			}}
 		>
-			<AlertDialogTrigger render={children} />
-			<AlertDialogContent>
-				{/* A volume or container name has no break point; unbroken it widens the dialog's grid past its edge. */}
-				<AlertDialogHeader className='wrap-anywhere'>
-					<AlertDialogTitle>{title}</AlertDialogTitle>
-					{description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
-				</AlertDialogHeader>
+			{'children' in trigger ? <DialogTrigger render={trigger.children} /> : null}
+			<AlertContent title={title} description={description}>
 				{type === undefined ? null : (
 					<Field label={`Type ${type} to confirm`}>
 						<Input value={typed} onChange={event => setTyped(event.target.value)} autoComplete='off' />
 					</Field>
 				)}
-				<AlertDialogFooter>
-					<AlertDialogCancel>Cancel</AlertDialogCancel>
-					<AlertDialogAction
-						variant='destructive'
+				<DialogFooter>
+					<DialogClose render={<Button variant='ghost'>Cancel</Button>} />
+					<Button
+						variant='danger'
 						disabled={locked}
 						onClick={() => {
 							setOpen(false)
@@ -921,40 +801,54 @@ export function Confirm({
 					>
 						<IconTrash />
 						{action}
-					</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+					</Button>
+				</DialogFooter>
+			</AlertContent>
+		</Dialog>
 	)
+}
+
+/** Arc has no alert dialog: this is its Dialog announced as one. Its Dialog takes `disablePointerDismissal`. */
+function AlertContent({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+	return (
+		<DialogContent role='alertdialog' title={title} description={description}>
+			{children}
+		</DialogContent>
+	)
+}
+
+/** The row of actions at the bottom of a dialog: Cancel, then the one that does it. */
+export function DialogFooter({ children }: { children: ReactNode }) {
+	return <div className='mt-4 flex flex-wrap justify-end gap-2'>{children}</div>
 }
 
 /** Asks before a navigation drops unsaved changes. `useBlocker({ withResolver: true })` drives it. */
 export function ConfirmLeave({ blocker }: { blocker: ReturnType<typeof useBlocker> }) {
 	return (
-		<AlertDialog
+		<Dialog
 			open={blocker.status === 'blocked'}
+			disablePointerDismissal
 			onOpenChange={open => {
 				if (!open && blocker.status === 'blocked') blocker.reset()
 			}}
 		>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>Discard the unsaved changes?</AlertDialogTitle>
-					<AlertDialogDescription>Leaving drops them. Stay and save to keep them.</AlertDialogDescription>
-				</AlertDialogHeader>
-				<AlertDialogFooter>
-					<AlertDialogCancel>Stay</AlertDialogCancel>
-					<AlertDialogAction
-						variant='destructive'
+			<AlertContent
+				title='Discard the unsaved changes?'
+				description='Leaving drops them. Stay and save to keep them.'
+			>
+				<DialogFooter>
+					<DialogClose render={<Button variant='ghost'>Stay</Button>} />
+					<Button
+						variant='danger'
 						onClick={() => {
 							if (blocker.status === 'blocked') blocker.proceed()
 						}}
 					>
 						Discard and leave
-					</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+					</Button>
+				</DialogFooter>
+			</AlertContent>
+		</Dialog>
 	)
 }
 
@@ -992,11 +886,11 @@ export function FormDialog({
 	}
 	return (
 		<Dialog open={open} onOpenChange={next => (next ? onOpenChange(true) : close())}>
-			<DialogContent className={wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'}>
-				<DialogHeader className='wrap-anywhere'>
-					<DialogTitle>{title}</DialogTitle>
-					{description ? <DialogDescription>{description}</DialogDescription> : null}
-				</DialogHeader>
+			<DialogContent
+				title={title}
+				description={description}
+				className={wide ? '[--dialog-width:42rem]' : '[--dialog-width:32rem]'}
+			>
 				<form
 					onSubmit={event => {
 						event.preventDefault()
@@ -1005,11 +899,11 @@ export function FormDialog({
 				>
 					<ErrorText error={mutation.error} />
 					<NoFill>{children}</NoFill>
-					<DialogFooter className='mt-2'>
+					<DialogFooter>
 						<Button variant='ghost' onClick={close}>
 							Cancel
 						</Button>
-						<Button type='submit' variant='primary' disabled={mutation.isPending}>
+						<Button type='submit' variant='primary' loading={mutation.isPending}>
 							<Icon />
 							{action}
 						</Button>
@@ -1039,20 +933,14 @@ export function DetailDialog({
 }) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className='flex max-h-[90dvh] flex-col sm:max-w-6xl'>
-				<DialogHeader className='wrap-anywhere'>
-					<DialogTitle>{title}</DialogTitle>
-					{description ? <DialogDescription>{description}</DialogDescription> : null}
-				</DialogHeader>
-				<div className='min-h-0 flex-1 overflow-y-auto'>
-					<NoFill>{children}</NoFill>
-				</div>
+			<DialogContent title={title} description={description} className='[--dialog-width:72rem]'>
+				<NoFill>{children}</NoFill>
 			</DialogContent>
 		</Dialog>
 	)
 }
 
-/** The only checkbox shape in the app. A <label> around it is safe: base-ui renders a hidden native input. */
+/** The only checkbox shape in the app. A <label> around it is safe: the box is a <button>, the label's first labelable child. */
 export function Check({
 	label,
 	name,
@@ -1074,7 +962,12 @@ export function Check({
 }) {
 	return (
 		<label className={cn('flex items-center gap-2 text-body', muted && 'text-muted-foreground', className)}>
-			<Checkbox aria-label={name} checked={checked} disabled={disabled} onCheckedChange={onChange} />
+			<Checkbox
+				aria-label={name ?? label}
+				checked={checked}
+				disabled={disabled}
+				onCheckedChange={next => onChange(next === true)}
+			/>
 			{label}
 		</label>
 	)
@@ -1096,8 +989,9 @@ export function Switch({
 }) {
 	return (
 		<label className='flex items-start gap-3 text-body'>
-			<ShadcnSwitch checked={checked} disabled={disabled} onCheckedChange={onChange} className='mt-0.5' />
-			<span className='flex flex-col gap-0.5'>
+			<ArcSwitch checked={checked} disabled={disabled} onCheckedChange={onChange} />
+			{/* The switch is a 44px hit area; the label's first line centers on it. */}
+			<span className='flex flex-col gap-0.5 pt-[calc((var(--control-height-md)-1lh)/2)]'>
 				{label}
 				{hint ? <span className='text-label text-muted-foreground'>{hint}</span> : null}
 			</span>
@@ -1127,31 +1021,25 @@ export function Select<TValue extends string>({
 	className?: string
 }) {
 	return (
-		<ShadcnSelect
-			items={options}
+		<ArcSelect
+			aria-label={label}
+			{...useFieldNaming(label)}
+			options={[...options]}
 			value={value}
 			onValueChange={next => {
-				if (next !== null) onChange(next)
+				const picked = options.find(option => option.value === next)
+				if (picked) onChange(picked.value)
 			}}
 			required={required}
 			disabled={disabled}
-		>
-			<SelectTrigger aria-label={label} className={cn('w-full text-body', className)}>
-				<SelectValue />
-			</SelectTrigger>
-			<SelectContent alignItemWithTrigger={false}>
-				{options.map(option => (
-					<SelectItem key={option.value} value={option.value} className='text-body'>
-						{option.label}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</ShadcnSelect>
+			className={className}
+		/>
 	)
 }
 
 /** A Select with a search box, for a long list from a provider. Under a hundred fixed choices, use Select. */
 export function Combo<TValue extends string>({
+	label,
 	value,
 	options,
 	onChange,
@@ -1160,9 +1048,12 @@ export function Combo<TValue extends string>({
 	empty = 'No matches',
 	custom,
 }: {
+	/** The accessible name; Field's label names the group, not the input inside it. */
+	label: string
 	value: TValue | ''
 	options: readonly { value: NoInfer<TValue>; label: string }[]
-	onChange: (value: TValue) => void
+	/** `''` when the picked value is cleared. */
+	onChange: (value: TValue | '') => void
 	disabled?: boolean
 	/** Shown while nothing is picked yet, or while the list is still loading. */
 	placeholder?: string
@@ -1171,85 +1062,61 @@ export function Combo<TValue extends string>({
 	/** Makes the search box a value of its own, for a field whose options are suggestions. */
 	custom?: (value: string) => void
 }) {
-	const [open, setOpen] = useState(false)
-	const [search, setSearch] = useState('')
-	const typed = search.trim()
-	const selected = options.find(option => option.value === value)
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger
-				render={
-					<button
-						type='button'
-						disabled={disabled}
-						className='flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-left text-body transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50'
-					>
-						<span className={cn('line-clamp-1', selected ? undefined : 'text-muted-foreground')}>
-							{selected?.label || value || placeholder}
-						</span>
-						<IconSelector className='size-4 shrink-0 text-muted-foreground' />
-					</button>
-				}
-			/>
-			<PopoverContent align='start' className='w-(--anchor-width) p-0'>
-				<Command>
-					<CommandInput placeholder={placeholder} value={search} onValueChange={setSearch} />
-					<CommandList>
-						<CommandEmpty>{empty}</CommandEmpty>
-						{custom && typed && !options.some(option => option.label === typed) ? (
-							<CommandItem
-								value={typed}
-								onSelect={() => {
-									custom(typed)
-									setOpen(false)
-								}}
-							>
-								Use "{typed}"
-							</CommandItem>
-						) : null}
-						{options.map(option => (
-							<CommandItem
-								key={option.value}
-								value={option.label}
-								data-checked={option.value === value}
-								onSelect={() => {
-									onChange(option.value)
-									setOpen(false)
-								}}
-							>
-								{option.label}
-							</CommandItem>
-						))}
-					</CommandList>
-				</Command>
-			</PopoverContent>
-		</Popover>
+		<Combobox
+			aria-label={label}
+			{...useFieldNaming(label)}
+			options={[...options]}
+			value={value}
+			onValueChange={next => onChange(options.find(option => option.value === next)?.value ?? '')}
+			onCustomValue={custom}
+			disabled={disabled}
+			placeholder={placeholder}
+			emptyMessage={empty}
+		/>
 	)
 }
 
 /** `mono` is for machine text typed by hand: a variable name, a value, an id. */
-export function Input({ mono, ...props }: Omit<ComponentProps<typeof ShadcnInput>, 'className'> & { mono?: boolean }) {
-	return <ShadcnInput className={cn('text-base md:text-body', mono && 'font-mono md:text-label')} {...props} />
+export function Input({ mono, ...props }: Omit<ComponentProps<typeof ArcInput>, 'className'> & { mono?: boolean }) {
+	return <ArcInput className={cn(mono && 'font-mono')} {...useFieldNaming(props['aria-label'])} {...props} />
 }
 
 export function Textarea({
 	mono,
 	...props
-}: Omit<ComponentProps<typeof ShadcnTextarea>, 'className'> & { mono?: boolean }) {
-	return (
-		<ShadcnTextarea
-			className={cn('min-h-20 text-base md:text-body', mono && 'font-mono md:text-label')}
-			{...props}
-		/>
-	)
+}: Omit<ComponentProps<typeof ArcTextarea>, 'className'> & { mono?: boolean }) {
+	return <ArcTextarea className={cn(mono && 'font-mono')} {...useFieldNaming(props['aria-label'])} {...props} />
 }
 
+const FieldContext = createContext<{ labelId: string; hintId: string | undefined } | null>(null)
+
+/** Field's label names the group, so the control inside takes it too; an own aria-label wins. */
+function useFieldNaming(ariaLabel: string | undefined) {
+	const field = useContext(FieldContext)
+	return {
+		'aria-labelledby': ariaLabel ? undefined : field?.labelId,
+		'aria-describedby': field?.hintId,
+	}
+}
+
+/** A label over one control, styled as Arc's own. A group, not a <label>: a field can hold a switch row or a picker
+ * that already labels itself. */
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+	const labelId = useId()
+	const hintId = useId()
+	const naming = useMemo(() => ({ labelId, hintId: hint ? hintId : undefined }), [labelId, hintId, hint])
 	return (
-		<ShadcnField className='mb-3 gap-1.5'>
-			<FieldLabel className='text-label'>{label}</FieldLabel>
-			{children}
-			{hint ? <FieldDescription className='text-label'>{hint}</FieldDescription> : null}
-		</ShadcnField>
+		<div role='group' aria-labelledby={labelId} className='mb-4 grid content-start gap-2'>
+			<span id={labelId} className='text-sm font-medium'>
+				{label}
+			</span>
+			<FieldContext value={naming}>{children}</FieldContext>
+			{hint ? (
+				<span id={hintId} className='text-xs text-muted-foreground'>
+					{hint}
+				</span>
+			) : null}
+		</div>
 	)
 }

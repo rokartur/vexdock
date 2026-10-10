@@ -1,5 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Collapsible } from '@base-ui/react/collapsible'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import {
 	IconActivity,
 	IconAffiliate,
@@ -22,14 +21,9 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { AnimatePresence, motion } from 'motion/react'
+import { Avatar } from '@/components/arc/avatar'
+import { DropdownMenu } from '@/components/arc/dropdown-menu'
 import { cn } from '@/utils/cn'
 import { api, updateActive, type Project, type Service } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
@@ -143,19 +137,25 @@ function ProjectBranch({
 		enabled: open,
 	})
 
+	const panelId = useId()
 	// The panel waits for the rows: opened empty, it would grow to 0 and then pop.
+	const rows = open ? services.data : undefined
 	return (
-		<Collapsible.Root open={open && services.data !== undefined} onOpenChange={onToggle}>
+		<div>
 			<div className='flex items-center gap-0.5'>
-				<Collapsible.Trigger
+				<button
+					type='button'
+					aria-expanded={rows !== undefined}
+					aria-controls={rows ? panelId : undefined}
 					aria-label={`${open ? 'Collapse' : 'Expand'} ${project.name}`}
+					onClick={onToggle}
 					className='grid press place-items-center rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:size-11'
 				>
 					<IconChevronRight
 						stroke={1.5}
 						className={cn('size-3.5 transition-[rotate] duration-200', open && 'rotate-90')}
 					/>
-				</Collapsible.Trigger>
+				</button>
 				<Link
 					to='/projects/$projectId'
 					params={{ projectId: project.id }}
@@ -172,12 +172,22 @@ function ProjectBranch({
 					</span>
 				</Link>
 			</div>
-			<Collapsible.Panel className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 data-ending-style:h-0 data-starting-style:h-0'>
-				{services.data ? (
-					<BranchServices projectId={project.id} environmentId={environmentId} services={services.data} />
+			<AnimatePresence initial={false}>
+				{rows ? (
+					<motion.div
+						key='panel'
+						id={panelId}
+						className='overflow-hidden'
+						initial={{ height: 0 }}
+						animate={{ height: 'auto' }}
+						exit={{ height: 0 }}
+						transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+					>
+						<BranchServices projectId={project.id} environmentId={environmentId} services={rows} />
+					</motion.div>
 				) : null}
-			</Collapsible.Panel>
-		</Collapsible.Root>
+			</AnimatePresence>
+		</div>
 	)
 }
 
@@ -321,11 +331,9 @@ export function Shell({ children }: { children: ReactNode }) {
 						draggable={false}
 						className='mr-auto flex min-w-0 items-center gap-2 rounded-md p-1 text-body hover:bg-muted'
 					>
-						<Avatar className='size-5 rounded-sm'>
-							<AvatarFallback className='rounded-sm bg-primary text-meta font-semibold text-primary-foreground'>
-								VX
-							</AvatarFallback>
-						</Avatar>
+						<span className='grid size-5 shrink-0 place-items-center rounded-sm bg-primary text-meta font-semibold text-primary-foreground'>
+							VX
+						</span>
 						<span className='truncate font-medium'>vexdock</span>
 					</Link>
 				</div>
@@ -369,41 +377,36 @@ export function Shell({ children }: { children: ReactNode }) {
 				</nav>
 
 				<div className='shrink-0 border-t p-2'>
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<button
-									type='button'
-									aria-label={name}
-									className='flex w-full items-center gap-2 rounded-md p-1.5 text-left hover:bg-muted'
-								/>
-							}
-						>
-							<Avatar className='size-6 shrink-0 rounded-md'>
-								<AvatarFallback aria-hidden className='rounded-md bg-secondary text-meta font-medium'>
-									{name.slice(0, 2).toUpperCase()}
-								</AvatarFallback>
-							</Avatar>
-							<span className='min-w-0 flex-1'>
-								<span className='block truncate text-body font-medium'>{name}</span>
-								{email ? (
-									<span className='block truncate text-label text-muted-foreground'>{email}</span>
-								) : null}
-							</span>
-							<IconChevronDown className='size-3.5! shrink-0 text-muted-foreground' />
-						</DropdownMenuTrigger>
-						<DropdownMenuContent side='top' align='start' sideOffset={8} className='w-56'>
-							<DropdownMenuItem render={<Link to='/system/settings' />}>
-								<IconSettings />
-								Settings
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem onClick={() => logout.mutate()}>
-								<IconLogout />
-								Log out
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					<DropdownMenu
+						side='top'
+						align='start'
+						menuClassName='w-56'
+						trigger={
+							<button
+								type='button'
+								aria-label={name}
+								className='flex w-full items-center gap-2 rounded-md p-1.5 text-left hover:bg-muted'
+							>
+								<Avatar name={name} aria-hidden />
+								<span className='min-w-0 flex-1'>
+									<span className='block truncate text-body font-medium'>{name}</span>
+									{email ? (
+										<span className='block truncate text-label text-muted-foreground'>{email}</span>
+									) : null}
+								</span>
+								<IconChevronDown className='size-3.5! shrink-0 text-muted-foreground' />
+							</button>
+						}
+						items={[
+							{ label: 'Settings', icon: <IconSettings />, href: '/system/settings' },
+							{
+								label: 'Log out',
+								icon: <IconLogout />,
+								separatorBefore: true,
+								onSelect: () => logout.mutate(),
+							},
+						]}
+					/>
 					<Link
 						to='/system/settings/about'
 						draggable={false}

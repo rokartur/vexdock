@@ -1,15 +1,8 @@
 import { useEffect } from 'react'
-import {
-	IconAlertCircle,
-	IconCircleCheck,
-	IconDownload,
-	IconExternalLink,
-	IconRefresh,
-	IconTag,
-} from '@tabler/icons-react'
+import { IconDownload, IconExternalLink, IconRefresh, IconTag } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Alert } from '@/components/arc/alert'
 import { cn } from '@/utils/cn'
 import { Button, Cell, Cells, ErrorText, FormSection, Switch } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
@@ -115,22 +108,16 @@ function Version() {
 				error={version.data?.check_error && `Could not check for updates: ${version.data.check_error}`}
 			/>
 			{showResult && state.data && phase === 'done' ? (
-				<Alert className='mb-4'>
-					<IconCircleCheck className='text-success' />
-					<AlertTitle>Updated to {state.data.target}.</AlertTitle>
-				</Alert>
+				<Alert tone='success' title={`Updated to ${state.data.target}.`} className='mb-4' />
 			) : null}
 			{showResult && state.data && phase === 'rolled-back' ? (
-				<Alert variant='destructive' className='mb-4'>
-					<IconAlertCircle />
-					<AlertTitle>
-						Update to {state.data.target} rolled back{state.data.error ? `: ${state.data.error}` : ''}.
-						Still on {state.data.previous}.
-					</AlertTitle>
+				<Alert
+					tone='danger'
+					title={`Update to ${state.data.target} rolled back${state.data.error ? `: ${state.data.error}` : ''}. Still on ${state.data.previous}.`}
+					className='mb-4'
+				>
 					{state.data.log ? (
-						<AlertDescription>
-							<pre className='max-w-full overflow-x-auto font-mono text-label'>{state.data.log}</pre>
-						</AlertDescription>
+						<pre className='max-w-full overflow-x-auto font-mono text-label'>{state.data.log}</pre>
 					) : null}
 				</Alert>
 			) : null}

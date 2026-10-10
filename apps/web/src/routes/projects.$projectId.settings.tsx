@@ -11,7 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/arc/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
@@ -110,7 +110,7 @@ function environmentColumns(remove: (id: string) => void, removing: boolean): Co
 				<span className='inline-flex items-center gap-2 font-medium'>
 					<IconLayersLinked className='size-4 text-muted-foreground' />
 					{row.original.name}
-					{row.original.is_default ? <Badge variant='outline'>default</Badge> : null}
+					{row.original.is_default ? <Badge>default</Badge> : null}
 				</span>
 			),
 		}),

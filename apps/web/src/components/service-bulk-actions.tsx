@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { IconArrowRight, IconCopy, IconPlayerPlay, IconPlayerStop, IconRocket, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/arc/dialog'
 import { api, type Service } from '../lib/api'
-import { Button, Confirm, ErrorText, Field, IconButton, Select } from './primitives'
+import { Button, Confirm, DialogFooter, ErrorText, Field, IconButton, Select } from './primitives'
 
 type Bulk = { kind: 'start' | 'stop' | 'deploy' | 'delete' | 'duplicate' } | { kind: 'move'; environmentId: string }
 
@@ -152,12 +152,7 @@ function MoveDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={next => !next && onCancel()}>
-			<DialogContent className='sm:max-w-md'>
-				<DialogHeader>
-					<DialogTitle>
-						Move {count} service{count === 1 ? '' : 's'}
-					</DialogTitle>
-				</DialogHeader>
+			<DialogContent title={`Move ${count} service${count === 1 ? '' : 's'}`}>
 				<Field label='Project'>
 					<Select
 						value={projectId}
@@ -186,11 +181,12 @@ function MoveDialog({
 					</Button>
 					<Button
 						variant='primary'
-						disabled={pending || !environment}
+						disabled={!environment}
+						loading={pending}
 						onClick={() => environment && onMove(environment.id)}
 					>
 						<IconArrowRight />
-						{pending ? 'Moving…' : 'Move'}
+						Move
 					</Button>
 				</DialogFooter>
 			</DialogContent>

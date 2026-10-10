@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconCircleOff, IconKey } from '@tabler/icons-react'
-import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/arc/table'
 import { cn } from '@/utils/cn'
 import type { StudioCell } from '../lib/api'
 import { Check, IconButton, Input } from './primitives'
@@ -37,10 +37,10 @@ export function StudioGrid({
 	const selectable = rows.some(row => row.select)
 
 	return (
-		<div className='min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible'>
-			<ShadcnTable className='w-max min-w-full font-mono text-label [&_tbody_tr]:border-rule'>
+		<div className='min-h-0 flex-1 overflow-auto [&>div]:overflow-visible'>
+			<Table className='w-max min-w-full font-mono text-label'>
 				<TableHeader>
-					<TableRow className='hover:bg-transparent'>
+					<TableRow static>
 						{selectable ? <TableHead className={cn(headClass, 'w-8 px-2')} /> : null}
 						{columns.map(column => {
 							const order = sort?.column === column.name ? sort.order : undefined
@@ -146,14 +146,14 @@ export function StudioGrid({
 						</TableRow>
 					))}
 				</TableBody>
-			</ShadcnTable>
+			</Table>
 		</div>
 	)
 }
 
 // The hairline is an inset shadow on the th: a collapsed tr border does not travel with a sticky cell.
 const headClass =
-	'sticky top-0 z-10 h-auto bg-card text-label text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]'
+	'sticky top-0 z-10 h-auto border-b-0 bg-card text-label text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]'
 
 function CellText({ value }: { value: StudioCell | undefined }) {
 	if (value === undefined) return <span className='text-muted-foreground/60 italic'>default</span>

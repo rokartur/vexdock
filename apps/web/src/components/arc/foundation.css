@@ -1,0 +1,177 @@
+:root {
+	/* Dark only: the dashboard has no light theme and no accent switch, so these are Arc's dark neutral values. */
+	color-scheme: dark;
+	--background: oklch(19% 0 0);
+	--surface: oklch(21.5% 0 0);
+	--surface-raised: oklch(24% 0 0);
+	/* Muted surfaces and hover states stay distinct from the base surface. */
+	--surface-muted: oklch(26% 0 0);
+	--foreground: oklch(96% 0 0);
+	--text-secondary: oklch(77% 0 0);
+	--text-muted: oklch(64% 0 0);
+	--border: oklch(29% 0 0);
+	--border-subtle: oklch(25% 0 0);
+	--border-strong: oklch(40% 0 0);
+	--accent: oklch(80% 0 0);
+	--accent-strong: oklch(91% 0 0);
+	--accent-subtle: oklch(80% 0 0 / 0.13);
+	/* Selection controls (switch, checkbox). --control-on fills a chosen control, --control-glyph is the check drawn on it.
+	   A near-white track carries a dark thumb, so on and off never read alike. */
+	--control-on: oklch(93% 0 0);
+	--control-glyph: oklch(19% 0 0);
+	--control-track: oklch(33% 0 0);
+	--control-track-hover: oklch(37% 0 0);
+	--control-thumb: oklch(97% 0 0);
+	--control-thumb-on: oklch(19% 0 0);
+	--control-thumb-shadow:
+		0 0 0 0.5px oklch(0% 0 0 / 0.3), 0 1px 2px oklch(0% 0 0 / 0.35), 0 2px 6px oklch(0% 0 0 / 0.2);
+	/* Pointer focus draws no ring (product decision). --focus-ring is the halo a few fields drew for any input method, so it stays transparent.
+     Keyboard focus uses the outline at the end of this file; tune it with --focus-outline, --focus-outline-width and --focus-outline-offset. */
+	--focus-ring: transparent;
+	--success: oklch(78% 0.18 150);
+	--warning: oklch(83% 0.17 80);
+	--danger: oklch(76% 0.2 25);
+	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.18);
+	--shadow-raised: 0 8px 22px oklch(0% 0 0 / 0.22);
+	--shadow-floating: 0 22px 55px oklch(0% 0 0 / 0.34);
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.25rem;
+	--space-6: 1.5rem;
+	--space-8: 2rem;
+	--space-10: 2.5rem;
+	--space-12: 3rem;
+	--space-16: 4rem;
+	--space-20: 5rem;
+	--space-24: 6rem;
+	/* Sizes, radii and durations are the dashboard's pre-Arc (shadcn bY64) values, not Arc's: 10px controls and
+	 * menus, 16px cards and dialogs, h-7 and h-8 controls, 125-300ms motion. */
+	--radius-control: 0.625rem;
+	--radius-panel: 1rem;
+	--radius-surface: 1rem;
+	--radius-pill: 9999px;
+	--control-height-sm: 1.75rem;
+	--control-height-md: 2rem;
+	--control-height-lg: 2.25rem;
+	--font-display: var(--font-geist, 'Geist Variable'), sans-serif;
+	--font-body: var(--font-inter, 'Inter Variable'), sans-serif;
+	--text-xs: 0.75rem;
+	--text-sm: 13px;
+	--text-base: 1rem;
+	--text-lg: 1.125rem;
+	--text-xl: 1.375rem;
+	--text-2xl: 1.75rem;
+	--text-3xl: 2.25rem;
+	--text-4xl: 3.25rem;
+	--text-5xl: 4.5rem;
+	--tracking-display: -0.03em;
+	--tracking-body: -0.01em;
+	--leading-display: 1.1;
+	--leading-body: 1.4;
+	--ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+	/* Spring with a gentle settle (bounce .15). Pair with --duration-spring for transform transitions. */
+	--ease-spring: linear(
+		0,
+		0.0258,
+		0.09,
+		0.1763,
+		0.2732,
+		0.3724,
+		0.4683,
+		0.5573,
+		0.6376,
+		0.7082,
+		0.7689,
+		0.8202,
+		0.8628,
+		0.8976,
+		0.9256,
+		0.9476,
+		0.9648,
+		0.9778,
+		0.9875,
+		0.9945,
+		0.9994,
+		1.0026,
+		1.0047,
+		1.0058,
+		1.0062,
+		1.0062,
+		1.0059,
+		1.0055,
+		1.0049,
+		1.0043,
+		1.0036,
+		1.0031,
+		1.0025,
+		1.002,
+		1.0016,
+		1.0013,
+		1
+	);
+	--duration-instant: 125ms;
+	--duration-fast: 150ms;
+	--duration-standard: 200ms;
+	--duration-considered: 300ms;
+	--duration-spring: 300ms;
+}
+
+/* Focus. Pointer focus never draws a ring (product decision). Keyboard focus (:focus-visible) draws a subtle accent outline, so keyboard users
+   can always see where they are (WCAG 2.4.7). Left out of the outline: text fields, which match :focus-visible on a mouse click too and show
+   focus with their border and caret; menu items and listbox options, whose highlight fill marks the keyboard position; and tabindex="-1"
+   targets (dialog panels, regions) that only receive focus from script.
+   Tune it on :root or any element, no !important needed:
+     --focus-outline           color (default: the accent, softened); set transparent to hide it
+     --focus-outline-width     default 2px
+     --focus-outline-offset    default 2px; components inside clipped containers set a negative offset */
+:focus:not(:focus-visible),
+:is(
+	input:not(
+		[type='button'],
+		[type='checkbox'],
+		[type='color'],
+		[type='file'],
+		[type='image'],
+		[type='radio'],
+		[type='range'],
+		[type='reset'],
+		[type='submit']
+	),
+	textarea,
+	[contenteditable]:not([contenteditable='false']),
+	[role='menuitem'],
+	[role='menuitemcheckbox'],
+	[role='menuitemradio'],
+	[role='option'],
+	[tabindex='-1']
+):focus {
+	outline: none !important;
+}
+:focus-visible:not(
+	input:not(
+		[type='button'],
+		[type='checkbox'],
+		[type='color'],
+		[type='file'],
+		[type='image'],
+		[type='radio'],
+		[type='range'],
+		[type='reset'],
+		[type='submit']
+	),
+	textarea,
+	[contenteditable]:not([contenteditable='false']),
+	[role='menuitem'],
+	[role='menuitemcheckbox'],
+	[role='menuitemradio'],
+	[role='option'],
+	[tabindex='-1']
+) {
+	outline: var(--focus-outline-width, 2px) solid
+		var(--focus-outline, color-mix(in oklab, var(--accent-strong) 72%, transparent)) !important;
+	outline-offset: var(--focus-outline-offset, 2px) !important;
+}

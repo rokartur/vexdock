@@ -206,7 +206,7 @@ make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 |---|---|
 | `manager/` | Go manager. Standard library HTTP, SQLite, Docker SDK. |
 | `apps/auth/` | Authentication. better-auth on Bun, its own SQLite database. |
-| `apps/web/` | Dashboard. TanStack Start in SPA mode with shadcn/ui, built to static files. |
+| `apps/web/` | Dashboard. TanStack Start in SPA mode with Arc UI, built to static files. |
 | `docker/` | Image definitions and the Nginx base configuration. |
 | `installer/install.sh` | Install, update and uninstall in one script. |
 

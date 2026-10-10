@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { IconDots, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu } from '@/components/arc/dropdown-menu'
 import { EnvironmentCrumb, ProjectCrumb } from '../components/crumb-picker'
 import { Confirm, ErrorText, IconButton, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
@@ -29,6 +30,7 @@ function ProjectLayout() {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const project = useQuery(projectQuery(projectId))
+	const [confirmingDelete, setConfirmingDelete] = useState(false)
 
 	const remove = useMutation({
 		mutationFn: () => api.deleteProject(projectId),
@@ -55,32 +57,35 @@ function ProjectLayout() {
 			actions={
 				// Deleting a project is rare and unrecoverable, so it sits behind the
 				// overflow instead of one stray click away on every page below here.
-				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={<IconButton icon={IconDots} label='Project actions' size='default' />}
-					/>
-					<DropdownMenuContent align='end'>
-						{project.data && project.data.service_count > 0 ? (
-							<DropdownMenuItem disabled>
-								<IconTrash />
-								Delete its {project.data.service_count} services first
-							</DropdownMenuItem>
-						) : null}
-						{project.data?.service_count === 0 ? (
-							<Confirm
-								title='Delete this project?'
-								description='Its environments, variables and domains go with it.'
-								type={project.data.name}
-								onConfirm={() => remove.mutate()}
-							>
-								<DropdownMenuItem variant='destructive' closeOnClick={false}>
-									<IconTrash />
-									Delete project
-								</DropdownMenuItem>
-							</Confirm>
-						) : null}
-					</DropdownMenuContent>
-				</DropdownMenu>
+				project.data ? (
+					<>
+						<DropdownMenu
+							trigger={<IconButton icon={IconDots} label='Project actions' size='default' />}
+							items={[
+								project.data.service_count > 0
+									? {
+											label: `Delete its ${project.data.service_count} services first`,
+											icon: <IconTrash />,
+											disabled: true,
+										}
+									: {
+											label: 'Delete project',
+											icon: <IconTrash />,
+											destructive: true,
+											onSelect: () => setConfirmingDelete(true),
+										},
+							]}
+						/>
+						<Confirm
+							open={confirmingDelete}
+							onOpenChange={setConfirmingDelete}
+							title='Delete this project?'
+							description='Its environments, variables and domains go with it.'
+							type={project.data.name}
+							onConfirm={() => remove.mutate()}
+						/>
+					</>
+				) : null
 			}
 			toolbar={<Tabs base={base} tabs={tabs} />}
 		>
