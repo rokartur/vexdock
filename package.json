@@ -10,14 +10,21 @@
 	"scripts": {
 		"auth": "cd apps/auth && bun run dev",
 		"build": "cd apps/web && bun run build",
-		"check": "ultracite check",
+		"check": "vp check",
 		"dev": "cd apps/web && bun run dev",
-		"fix": "ultracite fix",
+		"fix": "vp check --fix",
 		"typecheck": "cd apps/web && bun run typecheck && cd ../auth && bun run typecheck"
 	},
 	"devDependencies": {
-		"oxfmt": "^0.63.0",
-		"oxlint": "^1.78.0",
-		"ultracite": "7.10.5"
+		"ultracite": "7.12.4",
+		"vite": "catalog:",
+		"vite-plus": "catalog:"
+	},
+	"overrides": {
+		"vite": "catalog:"
+	},
+	"catalog": {
+		"vite": "npm:@voidzero-dev/vite-plus-core@1.1.0",
+		"vite-plus": "1.1.0"
 	}
 }

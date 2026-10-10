@@ -2,8 +2,8 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
 import svgr from 'vite-plugin-svgr'
+import { defineConfig, lazyPlugins } from 'vite-plus'
 
 export default defineConfig(({ command }) => ({
 	resolve: {
@@ -18,7 +18,7 @@ export default defineConfig(({ command }) => ({
 		// its module runner cannot evaluate a bundled-in CJS React at all.
 		noExternal: command === 'build' || undefined,
 	},
-	plugins: [
+	plugins: lazyPlugins(() => [
 		// SPA mode: the build emits a static shell plus client assets. Production
 		// has no JavaScript runtime, Nginx serves the files directly.
 		tanstackStart({
@@ -28,7 +28,7 @@ export default defineConfig(({ command }) => ({
 		tailwindcss(),
 		// The ui primitives import a few icons as SVG files, same as rarv.
 		svgr({ svgrOptions: { memo: true, icon: true, exportType: 'named' }, include: '**/*.svg' }),
-	],
+	]),
 	server: {
 		proxy: {
 			// Nginx from the local stack, which is the only thing that splits /api
