@@ -226,8 +226,9 @@ vx /api/docker/containers/$CONTAINER/remove?force=true -X POST
 vx /api/system/settings                                  # PUT writes the whole object; cloudflare_api_token is write-only
 vx /api/system/backup -X POST                            # ?volumes=true is slow and large; snapshot holds the master key
 vx /api/system/backups; vx /api/system/backups/2026-01-05T031500 -X DELETE
-vx /api/system/version; vx /api/system/version/check -X POST
-vx /api/system/update -X POST -d '{}'                    # latest on track; refuses 409 UNHEALTHY
+vx /api/system/version; vx /api/system/version/check -X POST   # check_error set: latest is stale, says why
+vx /api/system/update -X POST -d '{}'                    # latest on track; refuses 409 UNHEALTHY, 400 while check_error is set
+vx /api/system/update -X POST -d '{"version":"v0.1.0-beta.100"}'   # a named tag skips the lookup
 vx /api/system/update/status                             # phase: idle|backup|pulling|restarting|done|rolled-back
 vx /api/system/certificates
 vx /api/registries -d '{"name":"ghcr","url":"ghcr.io","username":"u","password":"..."}'   # login is verified on create

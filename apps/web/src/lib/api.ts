@@ -407,6 +407,8 @@ export type VersionStatus = {
 	latest: string
 	update_available: boolean
 	checked_at: string
+	/** Why the last lookup failed; `latest` and `checked_at` are then from the last one that worked. */
+	check_error: string
 	/** GitHub release notes for `latest`; empty when no release is known. */
 	release_url: string
 } & VersionSettings

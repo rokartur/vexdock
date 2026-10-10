@@ -64,6 +64,8 @@ type Service struct {
 	mu               sync.Mutex
 	latest           string
 	latestAt         time.Time
+	askedAt          time.Time
+	checkErr         error
 	cachedPrerelease bool
 	repo             string
 	releaseAPI       string
@@ -109,6 +111,10 @@ type Status struct {
 	// release is known or no repo is configured.
 	ReleaseURL string `json:"release_url"`
 
+	// CheckError says why the last lookup failed; Latest and CheckedAt then
+	// still describe the last one that succeeded. Empty after a success.
+	CheckError string `json:"check_error"`
+
 	// CleanupOldImages is filled in by the API from system_settings; the
 	// updater itself only receives it as an argument to Start.
 	CleanupOldImages bool `json:"cleanup_old_images"`
@@ -116,7 +122,11 @@ type Status struct {
 
 // Status reports the installed version and the newest release on the chosen track.
 func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
-	latest, checkedAt := s.latestVersion(ctx, includePrerelease)
+	latest, checkedAt, err := s.latestVersion(ctx, includePrerelease)
+	checkError := ""
+	if err != nil {
+		checkError = err.Error()
+	}
 	// Zero means no lookup ever succeeded; the panel says "never" rather than
 	// rendering year 1.
 	checked := ""
@@ -136,6 +146,7 @@ func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
 		UpdateAvailable: latest != "" && semver.Compare(semverTag(latest), semverTag(s.cfg.Version)) > 0,
 		Beta:            includePrerelease,
 		CheckedAt:       checked,
+		CheckError:      checkError,
 	}
 }
 
@@ -145,35 +156,53 @@ func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
 func (s *Service) Invalidate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.latestAt = time.Time{}
+	s.askedAt = time.Time{}
 }
 
-// latestVersion queries the release API at most once every 2 minutes per track
-// and reports when the returned answer was actually fetched.
-func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (string, time.Time) {
+// latestVersion asks GitHub at most once every 2 minutes per track, failures
+// included, and returns the last answer that succeeded with when it was fetched.
+func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (string, time.Time, error) {
+	if s.releaseAPI == "" {
+		return "", time.Time{}, nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.latestAt.IsZero() && time.Since(s.latestAt) < 2*time.Minute && s.cachedPrerelease == includePrerelease {
-		return s.latest, s.latestAt
+	if s.cachedPrerelease != includePrerelease {
+		s.latest, s.latestAt, s.askedAt, s.cachedPrerelease = "", time.Time{}, time.Time{}, includePrerelease
 	}
-	if s.releaseAPI == "" {
-		return "", s.latestAt
+	if time.Since(s.askedAt) < 2*time.Minute {
+		return s.latest, s.latestAt, s.checkErr
 	}
+	latest, err := s.fetchLatest(ctx, includePrerelease)
+	s.askedAt, s.checkErr = time.Now(), err
+	if err == nil {
+		s.latest, s.latestAt = latest, s.askedAt
+	}
+	return s.latest, s.latestAt, err
+}
+
+// fetchLatest returns the highest release on the track, or "" when none
+// matches, which the UI shows as "unknown".
+func (s *Service) fetchLatest(ctx context.Context, includePrerelease bool) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.releaseAPI, nil)
 	if err != nil {
-		return s.latest, s.latestAt
+		return "", err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "vexdock-updater")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return s.latest, s.latestAt
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return s.latest, s.latestAt
+		// Anonymous requests share 60 an hour per address; GitHub refuses the rest with 403 or 429.
+		if resp.Header.Get("X-RateLimit-Remaining") == "0" {
+			return "", errors.New("GitHub's hourly rate limit for this server's address is used up")
+		}
+		return "", fmt.Errorf("GitHub answered %s", resp.Status)
 	}
 	var payload []struct {
 		TagName    string `json:"tag_name"`
@@ -181,12 +210,10 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (st
 		Prerelease bool   `json:"prerelease"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return s.latest, s.latestAt
+		return "", fmt.Errorf("reading GitHub's release list: %w", err)
 	}
 	// GitHub orders this list by tag name, which sorts beta.10 below beta.2, so
-	// take the highest version on the track rather than the first entry. When
-	// nothing matches, latest stays empty (the UI shows "unknown") and the
-	// timestamp still moves so we do not hammer GitHub.
+	// take the highest version on the track rather than the first entry.
 	latest := ""
 	for _, rel := range payload {
 		if rel.Draft || !versionPattern.MatchString(rel.TagName) {
@@ -199,8 +226,7 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (st
 			latest = rel.TagName
 		}
 	}
-	s.latest, s.latestAt, s.cachedPrerelease = latest, time.Now(), includePrerelease
-	return latest, s.latestAt
+	return latest, nil
 }
 
 // Start backs up the platform and launches the detached updater container.
@@ -211,7 +237,11 @@ func (s *Service) Start(ctx context.Context, version string, includePrerelease, 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
 	defer cancel()
 	if version == "" {
-		version, _ = s.latestVersion(ctx, includePrerelease)
+		latest, _, err := s.latestVersion(ctx, includePrerelease)
+		if err != nil {
+			return fmt.Errorf("finding the latest release: %w", err)
+		}
+		version = latest
 	}
 	if !versionPattern.MatchString(version) {
 		return fmt.Errorf("invalid target version %q", version)

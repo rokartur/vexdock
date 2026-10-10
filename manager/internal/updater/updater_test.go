@@ -116,7 +116,7 @@ func TestLatestVersionRefreshesAfterTwoMinutes(t *testing.T) {
 	}
 
 	latest = "v0.1.0-beta.9"
-	s.latestAt = time.Now().Add(-2 * time.Minute)
+	s.askedAt = time.Now().Add(-2 * time.Minute)
 	st := s.Status(context.Background(), true)
 	if st.Latest != latest || !st.UpdateAvailable {
 		t.Fatalf("status after release = %+v, want latest %q", st, latest)
@@ -145,6 +145,40 @@ func TestInvalidateForcesFreshLookup(t *testing.T) {
 	s.Invalidate()
 	if st := s.Status(context.Background(), true); st.Latest != latest || !st.UpdateAvailable {
 		t.Fatalf("status after invalidate = %+v, want latest %q", st, latest)
+	}
+}
+
+// A failed lookup must not pass the last answer off as current, and the public
+// GET must not turn every poll into another request GitHub refuses.
+func TestFailedLookupKeepsLastAnswerAndSaysWhy(t *testing.T) {
+	limited, hits := false, 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		if limited {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		_, _ = w.Write([]byte(`[{"tag_name":"v0.1.0-beta.99","draft":false,"prerelease":true}]`))
+	}))
+	t.Cleanup(srv.Close)
+
+	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.99"}, releaseAPI: srv.URL}
+	good := s.Status(context.Background(), true)
+
+	limited = true
+	s.Invalidate()
+	st := s.Status(context.Background(), true)
+	if st.Latest != "v0.1.0-beta.99" || st.CheckedAt != good.CheckedAt {
+		t.Fatalf("status after a failed check = %+v, want the last answer and its checked_at %q", st, good.CheckedAt)
+	}
+	if !strings.Contains(st.CheckError, "rate limit") {
+		t.Fatalf("check_error = %q, want the rate limit named", st.CheckError)
+	}
+
+	s.Status(context.Background(), true)
+	if hits != 2 {
+		t.Fatalf("GitHub asked %d times, want 2: a failure is cached like an answer", hits)
 	}
 }
 

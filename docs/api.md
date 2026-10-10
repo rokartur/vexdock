@@ -513,7 +513,7 @@ connection does not cancel it.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `cleanup_old_images`, `update_available`, `release_url` (public) |
+| `GET /api/system/version` | Installed tag, latest on the chosen track, `beta`, `cleanup_old_images`, `update_available`, `release_url`, `checked_at`, `check_error` (public) |
 | `PUT /api/system/version` | `{"beta", "cleanup_old_images"}`, both update preferences, sent together; returns the same payload |
 | `POST /api/system/version/check` | Same payload, but queries GitHub instead of the cache |
 | `POST /api/system/update` | Start an in-place upgrade to `{"version"}` or to latest on the track |
@@ -527,12 +527,16 @@ the operator sets it explicitly. Draft GitHub releases are never offered.
 `release_url` points at the latest release's notes on GitHub, empty when no
 release is known.
 
-The release lookup is cached for two minutes per track, so `GET` can answer
-with a result up to that old; `checked_at` is when that answer was fetched, and
-is empty when no lookup has ever succeeded. `POST /api/system/version/check`
+The release lookup is cached for two minutes per track, failures included, so
+`GET` can answer with a result up to that old; `checked_at` is when that answer
+was fetched, and is empty when no lookup has ever succeeded. When the last
+lookup failed, `check_error` says why (GitHub's hourly limit for anonymous
+requests, a network error) and `latest` and `checked_at` stay those of the last
+lookup that worked; it is empty otherwise. `POST /api/system/version/check`
 drops the cache and asks GitHub again. It is authenticated while the `GET` is
 public, because it turns a request into an outbound one against a rate-limited
-API.
+API. `POST /api/system/update` without a `version` refuses with `400` while the
+lookup fails; naming the tag still works.
 
 `POST /api/system/update` refuses with `409 UNHEALTHY` while any `/api/health`
 check fails, naming the failing checks in the message and carrying the full
