@@ -5,9 +5,9 @@
 	"license": "AGPL-3.0-or-later",
 	"type": "module",
 	"scripts": {
-		"build": "vite build",
-		"dev": "vite dev --port 5173",
-		"preview": "vite preview",
+		"build": "vp build",
+		"dev": "vp dev --port 5173",
+		"preview": "vp preview",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit"
 	},
@@ -39,7 +39,8 @@
 		"shadcn": "^4.21.0",
 		"tailwindcss": "^4.3.3",
 		"typescript": "^7.0.2",
-		"vite": "^8.3.0",
-		"vite-plugin-svgr": "^5.2.0"
+		"vite": "catalog:",
+		"vite-plugin-svgr": "^5.2.0",
+		"vite-plus": "catalog:"
 	}
 }

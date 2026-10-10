@@ -37,7 +37,8 @@ flags. A merged pull request's branch is deleted by
 `.github/workflows/delete-merged-branch.yml`; follow-up work starts a new branch
 from `main`.
 
-TypeScript formatting is oxfmt through ultracite: `bun run fix`. Tabs, single
+TypeScript formatting and lint are Vite+ (`vp`, oxfmt and oxlint on ultracite
+presets), configured in the root `vite.config.ts`: `bun run fix`. Tabs, single
 quotes, no semicolons, 120 columns. The config decides, so let it.
 
 ## Parallel lists
