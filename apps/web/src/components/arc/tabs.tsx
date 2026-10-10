@@ -159,7 +159,7 @@ export function TabsTrigger({
 	const active = useContext(TabsContext)
 	const reduced = useReducedMotion()
 	const classes = cn(
-		'relative inline-grid min-h-6 flex-none cursor-pointer place-items-center rounded-[calc(var(--radius-control)-3px)] border-0 bg-transparent px-3 text-sm font-medium whitespace-nowrap text-(--text-muted) no-underline transition-colors duration-(--duration-fast) ease-(--ease-standard) [-webkit-tap-highlight-color:transparent] hover:text-foreground active:text-foreground data-active:text-(--accent-strong) data-disabled:cursor-not-allowed data-disabled:opacity-50 motion-reduce:transition-none',
+		'relative inline-grid min-h-7.5 flex-none cursor-pointer place-items-center rounded-[calc(var(--radius-control)-3px)] border-0 bg-transparent px-3.5 text-sm font-medium whitespace-nowrap text-(--text-muted) no-underline transition-colors duration-(--duration-fast) ease-(--ease-standard) [-webkit-tap-highlight-color:transparent] hover:text-foreground active:text-foreground data-active:text-(--accent-strong) data-disabled:cursor-not-allowed data-disabled:opacity-50 motion-reduce:transition-none',
 		className,
 	)
 	// The LayoutGroup in Tabs scopes the highlight to this instance, so it glides between triggers but never flies in from another tab set.

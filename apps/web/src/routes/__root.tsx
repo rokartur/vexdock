@@ -70,7 +70,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 			{/* The inline colors paint before the stylesheet arrives, so booting
           the SPA never flashes white. They are Arc's dark --background and
           --foreground, resolved to sRGB. */}
-			<body style={{ background: '#141414', color: '#f1f1f1' }}>
+			<body style={{ background: '#070707', color: '#f1f1f1' }}>
 				<div id='root'>{children}</div>
 				<Scripts />
 			</body>
