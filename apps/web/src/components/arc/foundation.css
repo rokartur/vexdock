@@ -1,16 +1,16 @@
 :root {
-	/* Dark only: the dashboard has no light theme and no accent switch, so these are Arc's dark neutral values. */
+	/* Dark only: the dashboard has no light theme and no accent switch. Darker than Arc's dark neutrals. */
 	color-scheme: dark;
-	--background: oklch(19% 0 0);
-	--surface: oklch(21.5% 0 0);
-	--surface-raised: oklch(24% 0 0);
+	--background: oklch(13% 0 0);
+	--surface: oklch(16% 0 0);
+	--surface-raised: oklch(19.5% 0 0);
 	/* Muted surfaces and hover states stay distinct from the base surface. */
-	--surface-muted: oklch(26% 0 0);
+	--surface-muted: oklch(21% 0 0);
 	--foreground: oklch(96% 0 0);
 	--text-secondary: oklch(77% 0 0);
 	--text-muted: oklch(64% 0 0);
-	--border: oklch(29% 0 0);
-	--border-subtle: oklch(25% 0 0);
+	--border: oklch(25% 0 0);
+	--border-subtle: oklch(20% 0 0);
 	--border-strong: oklch(40% 0 0);
 	--accent: oklch(80% 0 0);
 	--accent-strong: oklch(91% 0 0);
