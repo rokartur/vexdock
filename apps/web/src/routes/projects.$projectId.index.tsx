@@ -274,13 +274,13 @@ function ProjectServices() {
 				<Cell
 					label='CPU'
 					icon={IconCpu}
-					value={<AnimatedNumber value={cpu} format={percent} />}
+					value={<AnimatedNumber key={projectId} value={cpu} format={percent} />}
 					hint='across its services'
 				/>
 				<Cell
 					label='Memory'
 					icon={IconServer}
-					value={<AnimatedNumber value={memory} format={bytes} />}
+					value={<AnimatedNumber key={projectId} value={memory} format={bytes} />}
 					hint='across its services'
 				/>
 			</Cells>

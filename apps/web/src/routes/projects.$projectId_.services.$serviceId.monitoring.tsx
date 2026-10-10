@@ -123,7 +123,13 @@ function ServiceMonitoring() {
 					<MetricCard
 						label='CPU'
 						icon={IconCpu}
-						value={current ? <AnimatedNumber value={current.cpu_percent} format={percent} /> : '-'}
+						value={
+							current ? (
+								<AnimatedNumber key={serviceId} value={current.cpu_percent} format={percent} />
+							) : (
+								'-'
+							)
+						}
 						series={[cpu]}
 						format={([value]) => percent(value)}
 						hint={`avg ${percent(meanOf(cpu))} · peak ${percent(peakOf(cpu))} · 100% is one core`}
@@ -134,7 +140,13 @@ function ServiceMonitoring() {
 					<MetricCard
 						label='Memory'
 						icon={IconServer}
-						value={current ? <AnimatedNumber value={current.memory_usage} format={bytes} /> : '-'}
+						value={
+							current ? (
+								<AnimatedNumber key={serviceId} value={current.memory_usage} format={bytes} />
+							) : (
+								'-'
+							)
+						}
 						series={[memory]}
 						format={([value]) => bytes(value)}
 						hint={`of ${bytes(current?.memory_limit)} · peak ${bytes(peakOf(memory))}`}
@@ -145,7 +157,13 @@ function ServiceMonitoring() {
 					<MetricCard
 						label='Network'
 						icon={IconAffiliate}
-						value={`${perSecond(latest(received))} / ${perSecond(latest(sent))}`}
+						value={
+							<>
+								<AnimatedNumber key={serviceId} value={latest(received)} format={perSecond} />
+								{' / '}
+								<AnimatedNumber key={`${serviceId}-sent`} value={latest(sent)} format={perSecond} />
+							</>
+						}
 						series={[received, sent]}
 						format={([rx, tx]) => `in ${perSecond(rx)} · out ${perSecond(tx)}`}
 						hint={
@@ -161,7 +179,17 @@ function ServiceMonitoring() {
 					<MetricCard
 						label='Block i/o'
 						icon={IconDatabase}
-						value={`${perSecond(latest(read))} / ${perSecond(latest(written))}`}
+						value={
+							<>
+								<AnimatedNumber key={serviceId} value={latest(read)} format={perSecond} />
+								{' / '}
+								<AnimatedNumber
+									key={`${serviceId}-written`}
+									value={latest(written)}
+									format={perSecond}
+								/>
+							</>
+						}
 						series={[read, written]}
 						format={([r, w]) => `read ${perSecond(r)} · write ${perSecond(w)}`}
 						hint={

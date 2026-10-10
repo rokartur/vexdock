@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
 	IconClock,
 	IconDeviceFloppy,
@@ -20,6 +20,7 @@ import { tasksQuery } from '../lib/queries'
 import { type Columns, DataTable, columnsFor } from './data-table'
 import { LogViewer } from './log-viewer'
 import {
+	ActivePill,
 	Button,
 	Confirm,
 	ErrorText,
@@ -473,6 +474,7 @@ function TaskFormFields({
 /** Recent executions of one task, newest first, with the output it produced. */
 function TaskRuns({ task }: { task: ScheduledTask }) {
 	const [openRun, setOpenRun] = useState<string | null>(null)
+	const pillId = useId()
 	const runs = useQuery({ queryKey: ['task', task.id, 'runs'], queryFn: () => api.taskRuns(task.id) })
 
 	const shown = runs.data?.find(candidate => candidate.id === openRun) ?? runs.data?.[0]
@@ -494,8 +496,9 @@ function TaskRuns({ task }: { task: ScheduledTask }) {
 						<ToggleGroupItem
 							key={item.id}
 							value={item.id}
-							className='text-label text-muted-foreground aria-pressed:text-foreground'
+							className='relative isolate text-label text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-foreground'
 						>
+							{item.id === shown?.id ? <ActivePill layoutId={pillId} className='bg-muted' /> : null}
 							<span className={item.exit_code === 0 ? undefined : 'text-destructive'}>
 								{since(item.started_at)}
 							</span>

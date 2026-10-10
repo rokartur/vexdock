@@ -120,7 +120,10 @@ Motion is a token too. `--ease-out` is the strong curve, not Tailwind's, and
 menu, select, dialog and tooltip enters on the same curve without a page
 naming it. Anything a keyboard opens does not animate at all: the command
 palette is `animate-none`, because at dozens of opens a day an entrance reads
-as lag. Reduced motion drops travel and scaling and keeps the fades.
+as lag. Reduced motion drops travel and scaling and keeps the fades. Page
+blocks enter staggered (`enter-children` on `Page`), a selection slides
+(`ActivePill`) and a live reading counts (`AnimatedNumber`); the `motion`
+library loads its features lazily, so it is `m.*`, never `motion.*`.
 
 ## Tests
 

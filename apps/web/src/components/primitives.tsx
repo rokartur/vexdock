@@ -4,6 +4,7 @@ import {
 	Fragment,
 	type ReactElement,
 	type ReactNode,
+	memo,
 	useContext,
 	useEffect,
 	useId,
@@ -21,7 +22,7 @@ import {
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { Link, type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
-import { motion } from 'motion/react'
+import { m } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -70,7 +71,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { labelOf, trailOf } from '@/lib/breadcrumb'
 import { since, until } from '@/lib/format'
-import { spring } from '@/lib/motion'
 import { cn } from '@/utils/cn'
 
 // The rules every primitive below follows: one black canvas, a hairline border
@@ -349,7 +349,7 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	const active = tabs.find(tab =>
 		tab.suffix === '' ? pathname === base || pathname === `${base}/` : pathname.startsWith(base + tab.suffix),
 	)
-	const pill = useId()
+	const layoutId = useId()
 
 	return (
 		<ShadcnTabs value={active?.label ?? ''}>
@@ -360,11 +360,9 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 						value={tab.label}
 						render={<Link to={base + tab.suffix} />}
 						nativeButton={false}
-						className='isolate h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 dark:data-active:border-transparent dark:data-active:bg-transparent'
+						className='relative isolate h-full rounded-md px-3 text-body font-normal hover:bg-accent/50 data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent'
 					>
-						{tab === active ? (
-							<ActivePill id={pill} className='-inset-px border border-input bg-accent' />
-						) : null}
+						{tab === active ? <ActivePill layoutId={layoutId} className={selectedPill} /> : null}
 						{tab.label}
 						{tab.count ? (
 							<span className='font-mono text-meta text-muted-foreground'>{tab.count}</span>
@@ -387,7 +385,7 @@ export function Segmented<TValue extends string>({
 	options: readonly { value: NoInfer<TValue>; label: string; icon?: TablerIcon }[]
 	onChange: (value: TValue) => void
 }) {
-	const pill = useId()
+	const layoutId = useId()
 	return (
 		<ToggleGroup
 			variant='outline'
@@ -404,11 +402,9 @@ export function Segmented<TValue extends string>({
 				<ToggleGroupItem
 					key={option.value}
 					value={option.value}
-					className='relative isolate text-body text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-background'
+					className='relative isolate text-body text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-foreground'
 				>
-					{option.value === value ? (
-						<ActivePill id={pill} className='rounded-[inherit] bg-foreground' />
-					) : null}
+					{option.value === value ? <ActivePill layoutId={layoutId} className={selectedPill} /> : null}
 					{option.icon ? <option.icon /> : null}
 					{option.label}
 				</ToggleGroupItem>
@@ -417,15 +413,22 @@ export function Segmented<TValue extends string>({
 	)
 }
 
-/** The selected item's background. It slides from the item selected before; `id` names the set it moves within, and
- * the item is `relative isolate`. */
-export function ActivePill({ id, className }: { id: string; className?: string }) {
+// An inset shadow, not a border: layout projection scales the pill mid-slide and would stretch a border.
+const selectedPill = '-inset-px bg-accent shadow-[inset_0_0_0_1px_var(--color-input)]'
+
+const spring = { type: 'spring', duration: 0.3, bounce: 0 } as const
+
+/** The selected item's background; it slides from the one selected before within the same `layoutId`. Its parent
+ * must be `relative isolate`. */
+export const ActivePill = memo(Pill)
+
+function Pill({ layoutId, className }: { layoutId: string; className?: string }) {
 	return (
-		<motion.span
+		<m.span
 			aria-hidden
-			layoutId={id}
+			layoutId={layoutId}
 			transition={spring}
-			className={cn('absolute inset-0 -z-10', className)}
+			className={cn('absolute inset-0 -z-10 rounded-[inherit]', className)}
 		/>
 	)
 }
@@ -756,7 +759,7 @@ export function Meter({
 				<Progress
 					value={value}
 					max={max}
-					className='mt-1.5 gap-0 [&_[data-slot=progress-indicator]]:rise [&_[data-slot=progress-indicator]]:duration-300 [&_[data-slot=progress-indicator]]:ease-out'
+					className='mt-1.5 gap-0 [&_[data-slot=progress-indicator]]:rise'
 					aria-label={String(label)}
 				/>
 			) : null}
