@@ -29,6 +29,7 @@ import { api, updateActive, type Project, type Service } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
 import { useEnvironmentId } from '../lib/environment'
 import { useSystemEvents } from '../lib/sse'
+import { Logo } from './logo'
 import { NewProjectDialog } from './new-project'
 import { ActivePill, PageChrome, stateTone } from './primitives'
 
@@ -315,9 +316,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						draggable={false}
 						className='mr-auto flex min-w-0 items-center gap-2 rounded-control p-1 text-sm hover:bg-surface-muted'
 					>
-						<span className='grid size-5 shrink-0 place-items-center rounded-[calc(var(--radius-control)-4px)] bg-foreground text-xs font-medium text-background'>
-							VX
-						</span>
+						<Logo className='size-5 shrink-0' />
 						<span className='truncate font-medium'>vexdock</span>
 					</Link>
 				</div>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { IconUserPlus } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Logo } from '../components/logo'
 import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signUp } from '../lib/auth-client'
 
@@ -40,9 +41,7 @@ function SetupPage() {
 	return (
 		<div className='mx-auto flex min-h-dvh max-w-sm enter-children flex-col justify-center px-6'>
 			<div className='mb-1 flex items-center gap-2.5'>
-				<span className='flex size-7 items-center justify-center rounded-control bg-foreground text-xs font-medium text-background'>
-					VX
-				</span>
+				<Logo className='size-7' />
 				<h1 className='text-base font-medium'>Create administrator</h1>
 			</div>
 			<p className='mb-6 text-xs text-muted'>This is the only account creation step. It closes afterwards.</p>
