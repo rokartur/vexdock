@@ -354,7 +354,7 @@ function LineBody({
 				</span>
 				<span className='min-w-0 flex-1 break-all whitespace-pre-wrap'>
 					<span className='text-info'>{buildLine.stage}</span>{' '}
-					<span className='font-semibold text-foreground'>{buildLine.command}</span>
+					<span className='font-medium text-foreground'>{buildLine.command}</span>
 				</span>
 				<span className='shrink-0 text-console-muted tabular-nums'>{result?.label}</span>
 			</>

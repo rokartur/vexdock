@@ -1,15 +1,6 @@
-import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Icon as TablerIcon } from '@tabler/icons-react'
-import {
-	Area,
-	AreaChart,
-	CartesianGrid,
-	ResponsiveContainer,
-	Tooltip,
-	type TooltipContentProps,
-	XAxis,
-	YAxis,
-} from 'recharts'
+import { cn } from '@/utils/cn'
 import { Cell } from './primitives'
 
 /** How much history a chart shows unless told otherwise. Matches the default metrics window. */
@@ -163,27 +154,36 @@ export function Sparkline({
 	}
 	return (
 		<svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role='img' aria-label={label}>
-			<path d={path} fill='none' stroke='var(--chart-1)' strokeWidth={1} vectorEffect='non-scaling-stroke' />
+			<path d={path} fill='none' stroke='var(--accent)' strokeWidth={1} vectorEffect='non-scaling-stroke' />
 		</svg>
 	)
 }
 
-/** One row of the recharts dataset: a timestamp plus one column per series. */
-type Row = { at: number; [series: string]: number }
+/** The reading closest in time to `at`, for the point under the pointer. */
+export function nearestTo(points: Point[], at: number): Point | undefined {
+	let nearest: Point | undefined
+	for (const point of points) {
+		if (nearest === undefined || Math.abs(point.at - at) < Math.abs(nearest.at - at)) nearest = point
+	}
+	return nearest
+}
 
-const columnOf = (index: number) => `s${index}`
+/** Plot width in SVG units. The SVG stretches to its box, so only proportions matter. */
+const PLOT_WIDTH = 1000
 
-/** Recharts plots one row set, so series are joined on the timestamp. A skipped stamp is a hole for `connectNulls`. */
-export function joinSeries(series: Point[][]): Row[] {
-	const rows = new Map<number, Row>()
-	for (const [index, points] of series.entries()) {
+/** The first series is the reading, a second one (tx, write) draws quieter beside it. */
+const seriesColors = ['var(--accent)', 'var(--text-muted)']
+
+function spanOf(series: Point[][]) {
+	let start = Number.POSITIVE_INFINITY
+	let end = Number.NEGATIVE_INFINITY
+	for (const points of series) {
 		for (const point of points) {
-			const row = rows.get(point.at) ?? { at: point.at }
-			row[columnOf(index)] = point.value
-			rows.set(point.at, row)
+			start = Math.min(start, point.at)
+			end = Math.max(end, point.at)
 		}
 	}
-	return [...rows.values()].toSorted((left, right) => left.at - right.at)
+	return { start, end }
 }
 
 type MetricCardProps = {
@@ -212,7 +212,7 @@ type MetricCardProps = {
 	axis?: { tick: (value: number) => string; floor?: number; base?: 10 | 1024 }
 }
 
-/** Compact metric: label, current value, and the recorded window as a sparkline. */
+/** Compact metric: label, current value, and the recorded window drawn the way Arc's line chart draws it. */
 export function MetricCard({
 	label,
 	icon,
@@ -226,127 +226,174 @@ export function MetricCard({
 	inline = false,
 	axis,
 }: MetricCardProps) {
-	const fade = useId()
-	const rows = useMemo(() => joinSeries(series), [series])
-	const filled = series.length === 1
-	const span = (rows.at(-1)?.at ?? 0) - (rows.at(0)?.at ?? 0)
-	const stamp = span > DAY_MS ? dayStamp : hourStamp
-	// The scale is worked out here rather than left to recharts, so the three ticks split it evenly.
-	const top = max ?? (axis ? niceCeil(Math.max(peakOf(series), axis.floor ?? 0), axis.base) : undefined)
-	const tick = { fontSize: 11, fill: 'var(--muted-foreground)' }
+	const [hoverAt, setHoverAt] = useState<number | null>(null)
+	const { start, end } = spanOf(series)
+	const span = end - start
+	// Worked out here so the three ticks split the scale evenly.
+	const top = max ?? (axis ? niceCeil(Math.max(peakOf(series), axis.floor ?? 0), axis.base) : peakOf(series))
+	const ticks = [0, top / 2, top]
+	const x = (at: number) => (span > 0 ? ((at - start) / span) * PLOT_WIDTH : 0)
+	const y = (reading: number) =>
+		top > 0
+			? height - SPARK_INSET - Math.min(Math.max(reading / top, 0), 1) * (height - 2 * SPARK_INSET)
+			: height - SPARK_INSET
+	const percentOf = (at: number) => `${(x(at) / PLOT_WIDTH) * 100}%`
+	const hovered = hoverAt === null ? [] : series.map(points => nearestTo(points, hoverAt))
+	const anchor = hovered[0] ?? hovered[1]
+
+	const plot = (
+		<div
+			className='relative min-w-0 touch-pan-y select-none'
+			style={{ height }}
+			onPointerMove={
+				format &&
+				(event => {
+					const box = event.currentTarget.getBoundingClientRect()
+					const fraction = Math.min(Math.max((event.clientX - box.left) / box.width, 0), 1)
+					setHoverAt(start + fraction * span)
+				})
+			}
+			onPointerLeave={() => setHoverAt(null)}
+		>
+			<svg
+				className='absolute inset-0 size-full overflow-visible'
+				viewBox={`0 0 ${PLOT_WIDTH} ${height}`}
+				preserveAspectRatio='none'
+				aria-hidden
+			>
+				{axis
+					? ticks.map(tick => (
+							<line
+								key={tick}
+								x1={0}
+								x2={PLOT_WIDTH}
+								y1={y(tick)}
+								y2={y(tick)}
+								stroke={tick === 0 ? 'var(--border-strong)' : 'var(--border)'}
+								vectorEffect='non-scaling-stroke'
+								shapeRendering='crispEdges'
+							/>
+						))
+					: null}
+				{series.map((points, index) => {
+					const line = linePath(points, x, y)
+					if (!line) return null
+					const color = seriesColors[index] ?? seriesColors[1]
+					const first = points[0]?.at ?? start
+					const last = points.at(-1)?.at ?? end
+					return (
+						// Series order is the identity here: the array is rebuilt whole.
+						<g key={index}>
+							{series.length === 1 ? (
+								<path
+									d={`${line} L${points.length > 1 ? x(last) : PLOT_WIDTH},${height} L${x(first)},${height} Z`}
+									fill={`color-mix(in oklab, ${color} 9%, transparent)`}
+								/>
+							) : null}
+							<path
+								d={line}
+								fill='none'
+								stroke={color}
+								strokeWidth={2}
+								strokeLinecap='round'
+								strokeLinejoin='round'
+								vectorEffect='non-scaling-stroke'
+							/>
+						</g>
+					)
+				})}
+			</svg>
+			{anchor && format ? (
+				<>
+					<span
+						className='pointer-events-none absolute inset-y-0 w-px bg-(--border-strong)'
+						style={{ left: percentOf(anchor.at) }}
+					/>
+					{hovered.map((point, index) =>
+						point ? (
+							<span
+								key={index}
+								className='pointer-events-none absolute size-2.5 -translate-1/2 rounded-full border-2 border-(--surface)'
+								style={{
+									left: percentOf(point.at),
+									top: y(point.value),
+									background: seriesColors[index],
+								}}
+							/>
+						) : null,
+					)}
+					<div
+						className='pointer-events-none absolute top-0 z-10 grid gap-1 rounded-[14px] border bg-(--surface-raised) px-3 py-2.5 whitespace-nowrap shadow-(--shadow-floating)'
+						style={{
+							left: percentOf(anchor.at),
+							translate: x(anchor.at) > PLOT_WIDTH / 2 ? 'calc(-100% - 12px) 0' : '12px 0',
+						}}
+					>
+						<span className='text-xs text-(--text-secondary)'>
+							{(span > DAY_MS ? dayStamp : clockStamp)(anchor.at)}
+						</span>
+						<span className='text-sm font-medium'>{format(hovered.map(point => point?.value ?? 0))}</span>
+					</div>
+				</>
+			) : null}
+		</div>
+	)
 
 	return (
 		<Cell label={label} icon={icon} hint={hint} value={value} inline={inline}>
-			{/* The tooltip only dates values that are already shown live, so the chart's own
-			    focusable accessibility layer buys nothing and only draws a focus ring. */}
 			<div
-				className={inline ? undefined : 'mt-1.5'}
-				style={{ height }}
+				className={cn(
+					!inline && 'mt-3',
+					axis && 'grid grid-cols-[minmax(0,1fr)_48px] grid-rows-[auto_26px] text-xs text-muted-foreground',
+				)}
 				role='img'
 				aria-label={`${label}, ${windowLabel}`}
 			>
-				<ResponsiveContainer width='100%' height='100%'>
-					<AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 1, left: 0 }} accessibilityLayer={false}>
-						<defs>
-							<linearGradient id={fade} x1='0' y1='0' x2='0' y2='1'>
-								<stop offset='0%' stopColor='var(--chart-1)' stopOpacity={0.3} />
-								<stop offset='100%' stopColor='var(--chart-1)' stopOpacity={0} />
-							</linearGradient>
-						</defs>
-						{axis ? <CartesianGrid vertical={false} stroke='var(--border)' strokeDasharray='2 4' /> : null}
-						<XAxis
-							dataKey='at'
-							type='number'
-							domain={['dataMin', 'dataMax']}
-							hide={!axis}
-							tickFormatter={stamp}
-							tick={tick}
-							tickLine={false}
-							axisLine={false}
-							minTickGap={48}
-						/>
-						<YAxis
-							type='number'
-							domain={[0, top ?? 'dataMax']}
-							ticks={axis && top !== undefined ? [0, top / 2, top] : undefined}
-							hide={!axis}
-							tickFormatter={axis?.tick}
-							tick={tick}
-							tickLine={false}
-							axisLine={false}
-							width={64}
-						/>
-						<Tooltip
-							content={
-								<MetricTooltip
-									count={series.length}
-									format={format}
-									stamp={span > DAY_MS ? dayStamp : clockStamp}
-								/>
-							}
-							cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
-							// Kept inside the chart box on purpose: the cells grid clips its
-							// overflow, so a tooltip that escaped would be cut at the edge.
-							allowEscapeViewBox={{ x: false, y: false }}
-							isAnimationActive={false}
-						/>
-						{series.map((_, index) => {
-							const color = index > 0 ? 'var(--muted-foreground)' : 'var(--chart-1)'
-							return (
-								<Area
-									// Series order is the identity here: the array is rebuilt whole.
-									key={index}
-									dataKey={columnOf(index)}
-									type='monotone'
-									stroke={color}
-									strokeWidth={1.5}
-									fill={filled ? `url(#${fade})` : 'none'}
-									dot={false}
-									activeDot={{ r: 1.5, fill: color, stroke: 'none' }}
-									connectNulls
-									isAnimationActive={false}
-								/>
-							)
-						})}
-					</AreaChart>
-				</ResponsiveContainer>
+				{plot}
+				{axis ? (
+					<>
+						<div className='relative'>
+							{ticks.map(tick => (
+								<span
+									key={tick}
+									className='absolute left-2.5 -translate-y-1/2 leading-none whitespace-nowrap'
+									style={{ top: y(tick) }}
+								>
+									{axis.tick(tick)}
+								</span>
+							))}
+						</div>
+						<div className='relative'>
+							{span > 0
+								? [0, 0.5, 1].map(fraction => (
+										<span
+											key={fraction}
+											className='absolute top-2 leading-none whitespace-nowrap'
+											style={{ left: `${fraction * 100}%`, translate: `${-fraction * 100}% 0` }}
+										>
+											{(span > DAY_MS ? dayStamp : hourStamp)(start + fraction * span)}
+										</span>
+									))
+								: null}
+						</div>
+					</>
+				) : null}
 			</div>
 		</Cell>
 	)
+}
+
+/** A polyline through one series, oldest first. A single reading draws as the flat line it is. */
+function linePath(points: Point[], x: (at: number) => number, y: (reading: number) => number): string {
+	const [first] = points
+	if (first === undefined) return ''
+	if (points.length === 1) return `M0,${y(first.value)} L${PLOT_WIDTH},${y(first.value)}`
+	return points
+		.map((point, index) => `${index === 0 ? 'M' : 'L'}${x(point.at).toFixed(1)},${y(point.value)}`)
+		.join(' ')
 }
 
 const hourStamp = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const clockStamp = (at: number) => new Date(at).toLocaleTimeString()
 const dayStamp = (at: number) =>
 	new Date(at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
-
-/**
- * The reading under the cursor: when it was taken, and what it was. Recharts
- * clones this element with the hover state, so `format` rides along as a prop.
- */
-function MetricTooltip({
-	active,
-	label,
-	payload,
-	count,
-	format,
-	stamp,
-}: Partial<TooltipContentProps<number, string>> & {
-	count: number
-	format?: MetricCardProps['format']
-	stamp: (at: number) => string
-}) {
-	if (!(active && payload?.length && format)) {
-		return null
-	}
-	// Read by key, not by position: recharts drops null entries from the payload,
-	// which would slide a two-series card's values apart wherever one has a gap.
-	const values = Array.from({ length: count }, (_, index) =>
-		Number(payload.find(entry => entry.dataKey === columnOf(index))?.value ?? 0),
-	)
-	return (
-		<div className='rounded-md border border-border bg-popover px-2 py-1 text-meta'>
-			<span className='text-muted-foreground'>{stamp(Number(label))}</span> {format(values)}
-		</div>
-	)
-}

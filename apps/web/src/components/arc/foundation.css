@@ -46,19 +46,19 @@
 	--space-16: 4rem;
 	--space-20: 5rem;
 	--space-24: 6rem;
-	/* Sizes, radii and durations are the dashboard's pre-Arc (shadcn bY64) values, not Arc's: 10px controls and
-	 * menus, 16px cards and dialogs, h-7 and h-8 controls, 125-300ms motion. */
-	--radius-control: 0.625rem;
+	/* Sizes and radii are Arc's one step down, so a daily panel stays dense: 30/36/44px controls, 12px controls and
+	 * menus, 16px panels, 20px cards. Durations are the dashboard's pre-Arc 125-300ms. */
+	--radius-control: 0.75rem;
 	--radius-panel: 1rem;
-	--radius-surface: 1rem;
+	--radius-surface: 1.25rem;
 	--radius-pill: 9999px;
-	--control-height-sm: 1.75rem;
-	--control-height-md: 2rem;
-	--control-height-lg: 2.25rem;
+	--control-height-sm: 1.875rem;
+	--control-height-md: 2.25rem;
+	--control-height-lg: 2.75rem;
 	--font-display: var(--font-geist, 'Geist Variable'), sans-serif;
 	--font-body: var(--font-inter, 'Inter Variable'), sans-serif;
 	--text-xs: 0.75rem;
-	--text-sm: 13px;
+	--text-sm: 0.875rem;
 	--text-base: 1rem;
 	--text-lg: 1.125rem;
 	--text-xl: 1.375rem;

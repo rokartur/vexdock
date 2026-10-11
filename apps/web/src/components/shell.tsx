@@ -325,13 +325,13 @@ export function Shell({ children }: { children: ReactNode }) {
 					!navOpen && 'max-md:invisible max-md:-translate-x-full',
 				)}
 			>
-				<div className='flex h-12 shrink-0 items-center gap-2 border-b px-3'>
+				<div className='flex h-13 shrink-0 items-center gap-2 border-b px-3'>
 					<Link
 						to='/'
 						draggable={false}
 						className='mr-auto flex min-w-0 items-center gap-2 rounded-md p-1 text-body hover:bg-muted'
 					>
-						<span className='grid size-5 shrink-0 place-items-center rounded-sm bg-primary text-meta font-semibold text-primary-foreground'>
+						<span className='grid size-5 shrink-0 place-items-center rounded-sm bg-primary text-meta font-medium text-primary-foreground'>
 							VX
 						</span>
 						<span className='truncate font-medium'>vexdock</span>
@@ -419,7 +419,7 @@ export function Shell({ children }: { children: ReactNode }) {
 			</aside>
 
 			<div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
-				<header className='flex h-12 shrink-0 items-center gap-2 border-b px-3'>
+				<header className='flex h-13 shrink-0 items-center gap-2 border-b pr-4 pl-6'>
 					<button
 						type='button'
 						aria-label='Navigation'

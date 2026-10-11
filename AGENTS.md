@@ -108,9 +108,9 @@ value with a Table/Text `Segmented`; the .env text stays the source of truth on
 both sides, so the two views cannot disagree.
 
 **Density.** A number that moves gets the word for how it moves: `Meter` for a
-value against a ceiling, `AnimatedNumber` for a live reading that counts to its
+value against a ceiling, `AnimatedNumber` for a live reading that rolls to its
 new value, `Sparkline` (`metric-chart.tsx`) for a series in a
-table cell, `StatStrip` for the line of facts above a page, `Timeline` for
+table cell, `StatStrip` for the metric cards above a page, `Timeline` for
 ordered steps, `RelativeTime` for a stamp that ticks on its own, past (`3m
 ago`) or future (`in 2h`); raw `since()` and `until()` stay for a stamp inside
 a sentence. A page whose last list should take the rest of the window is a
@@ -119,6 +119,8 @@ a sentence. A page whose last list should take the rest of the window is a
 sink into `MoreBelow`'s blur and count, which every `DataTable` draws on its
 own. A page carries one `StatStrip` and a tab inside a page that already has
 one does not add a second, and a strip with nothing to say does not render.
+A state is `Status`, an Arc `Badge` whose tone is the color; the bare dot is
+for a row too tight for the word.
 A page shows what the API answers and nothing more; a field the backend does
 not send is a backend change, not a placeholder.
 

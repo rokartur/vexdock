@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import './components/arc/foundation.css';
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/geist';
 @import '@xterm/xterm/css/xterm.css';
 
 @theme {
@@ -12,10 +13,10 @@
 	 * why these exist instead of Tailwind's text-xs/text-sm. */
 	--text-meta: 11px;
 	--text-label: 12px;
-	--text-body: 13px;
-	--text-title: 15px;
-	/* The one size that is allowed to be big: a live reading in a Cells grid. */
-	--text-reading: 22px;
+	--text-body: 14px;
+	--text-title: 16px;
+	/* The one size that is allowed to be big: a live reading in a metric card. */
+	--text-reading: 28px;
 	/* Tailwind's own curves are too soft to read at the 100-200ms a dashboard
 	 * animates in. ease-in delays the frame the user is watching, so it is unset. */
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -25,28 +26,9 @@
 	--default-transition-timing-function: var(--ease-out);
 }
 
-/* Arc's foundation.css owns the palette (dark only) and already defines --background, --foreground,
- * --border, --accent, --success and --warning. Below are only the names Tailwind and the dashboard use
- * that Arc spells differently. */
+/* Arc's foundation.css owns the palette (dark only). Below are only the dashboard's own roles Arc has no word for. */
 :root {
-	/* Arc's control radius; the @theme inline ladder below derives the rest from it. */
-	--radius: var(--radius-control);
-	--card: var(--surface);
-	--card-foreground: var(--foreground);
-	--popover: var(--surface-raised);
-	--popover-foreground: var(--foreground);
-	--primary: var(--control-on);
-	--primary-foreground: var(--control-glyph);
-	--secondary: var(--surface-muted);
-	--muted: var(--surface-muted);
-	--muted-foreground: var(--text-muted);
-	--destructive: var(--danger);
-	/* --border is a container's edge; --rule is a separator inside one, quieter so a list does not read as boxes. */
-	--rule: var(--border-subtle);
-	--input: var(--border-strong);
-	--ring: var(--border-strong);
 	--info: oklch(78% 0.13 240);
-	--chart-1: var(--foreground);
 
 	/* Console surfaces (log tail, container shell): darker than the cards
 	 * around them, framed by the same hairline. */
@@ -57,35 +39,38 @@
 	--console-border: var(--border);
 
 	/* Syntax on a console surface: the .env editor. Everything else in a line
-	 * (the `=`, a comment) is --muted-foreground. */
+	 * (the `=`, a comment) is --text-muted. */
 	--code-key: #52a8ff;
 	--code-value: #7ce38b;
 }
 
+/* Tailwind's color names, each pointing straight at an Arc role. */
 @theme inline {
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
+	--color-card: var(--surface);
+	--color-card-foreground: var(--foreground);
+	--color-popover: var(--surface-raised);
+	--color-popover-foreground: var(--foreground);
+	--color-primary: var(--control-on);
+	--color-primary-foreground: var(--control-glyph);
+	--color-secondary: var(--surface-muted);
+	--color-muted: var(--surface-muted);
+	--color-muted-foreground: var(--text-muted);
 	/* Arc's --accent is a full-strength brand color; the dashboard's `accent` is a hover and selection tint. */
 	--color-accent: var(--accent-subtle);
 	--color-accent-foreground: var(--foreground);
-	--color-destructive: var(--destructive);
+	--color-destructive: var(--danger);
 	--color-success: var(--success);
 	--color-warning: var(--warning);
 	--color-info: var(--info);
+	/* `border` is a container's edge; `rule` is a separator inside one, quieter so a list does not read as boxes. */
 	--color-border: var(--border);
-	--color-rule: var(--rule);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-	--color-chart-1: var(--chart-1);
+	--color-rule: var(--border-subtle);
+	--color-input: var(--border-strong);
+	--color-ring: var(--border-strong);
+	/* Arc's line chart draws its first series in --accent. */
+	--color-chart-1: var(--accent);
 	--color-console: var(--console);
 	--color-console-foreground: var(--console-foreground);
 	--color-console-muted: var(--console-muted);
@@ -95,16 +80,16 @@
 	--color-code-value: var(--code-value);
 	--font-heading: var(--font-sans);
 	--font-sans: 'Inter Variable', sans-serif;
-	/* One ladder off --radius, 2px a rung. md and lg are the control radius, so
+	/* One ladder off Arc's control radius, 2px a rung. md and lg are the control radius, so
 	 * every button, input and pill matches; xl and up are boxes, each rung the
 	 * one below it plus its padding, which is what keeps nested corners concentric. */
-	--radius-sm: calc(var(--radius) - 2px);
-	--radius-md: var(--radius);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 6px);
-	--radius-2xl: calc(var(--radius) + 8px);
-	--radius-3xl: calc(var(--radius) + 10px);
-	--radius-4xl: calc(var(--radius) + 12px);
+	--radius-sm: calc(var(--radius-control) - 2px);
+	--radius-md: var(--radius-control);
+	--radius-lg: var(--radius-control);
+	--radius-xl: calc(var(--radius-control) + 6px);
+	--radius-2xl: calc(var(--radius-control) + 8px);
+	--radius-3xl: calc(var(--radius-control) + 10px);
+	--radius-4xl: calc(var(--radius-control) + 12px);
 }
 
 @layer base {
@@ -141,7 +126,7 @@
 
 	body {
 		@apply bg-background text-foreground antialiased;
-		font-size: 13px;
+		font-size: 14px;
 		line-height: 1.5;
 		/* A panel of readings, durations and sizes: digits line up by default,
 		 * everywhere, instead of each surface opting in. */
