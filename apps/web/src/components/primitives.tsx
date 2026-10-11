@@ -338,7 +338,8 @@ export function Segmented<TValue extends string>({
 	)
 }
 
-const spring = { type: 'spring', duration: 0.3, bounce: 0 } as const
+// The sidebar's Collapsible.Panel height curve (ease-enter, 240ms): a pill whose row rides that panel lands without overshoot.
+const slide = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
 
 /** The selected item's background; it slides from the one selected before within the same `layoutId`. Its parent
  * must be `relative isolate`. */
@@ -349,7 +350,7 @@ function Pill({ layoutId, className }: { layoutId: string; className?: string })
 		<motion.span
 			aria-hidden
 			layoutId={layoutId}
-			transition={spring}
+			transition={slide}
 			className={cn('absolute inset-0 -z-10 rounded-[inherit] bg-surface-muted', className)}
 		/>
 	)

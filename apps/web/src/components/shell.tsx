@@ -166,7 +166,7 @@ function ProjectBranch({
 				</Link>
 			</div>
 			{/* The cached rows stay rendered while it closes, so the height has something to collapse from. */}
-			<Collapsible.Panel className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-240 ease-enter data-ending-style:h-0 data-ending-style:duration-180 data-ending-style:ease-exit data-starting-style:h-0'>
+			<Collapsible.Panel className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-240 ease-enter data-ending-style:h-0 data-starting-style:h-0'>
 				{services.data ? (
 					<BranchServices projectId={project.id} environmentId={environmentId} services={services.data} />
 				) : null}
