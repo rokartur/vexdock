@@ -179,7 +179,7 @@
 
 :root[data-theme='dark'] {
 	color-scheme: dark;
-	--background: #000;
+	--background: #0d0d0d;
 	--surface: oklch(21.5% 0 0);
 	--surface-raised: oklch(24% 0 0);
 	--surface-muted: oklch(26% 0 0);
@@ -479,6 +479,18 @@
 	--console-foreground: oklch(87% 0 0);
 	--code-key: oklch(71.7% 0.152 251);
 	--code-value: oklch(83.2% 0.156 147);
+}
+
+/* On #000 the skill's 21.5% cards read as slabs. Cards and menus stay opaque (dialogs and sticky headers cover content);
+ * hover, selection, tracks and lines are translucent white, so they land one step above whatever they sit on. */
+:root[data-theme='dark'] {
+	--background: #000;
+	--surface: oklch(15% 0 0);
+	--surface-raised: oklch(19% 0 0);
+	--surface-muted: oklch(100% 0 0 / 0.08);
+	--border: oklch(100% 0 0 / 0.1);
+	--border-subtle: oklch(100% 0 0 / 0.06);
+	--border-strong: oklch(100% 0 0 / 0.16);
 }
 
 @theme inline {

@@ -76,7 +76,8 @@ destination and the project tree, and a header over the page; tables are `DataTa
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).
 The visual language is the ui skill's Arc system (`src/styles.css`, the only palette there is): a
-`#0d0d0d` canvas, cards a shade lighter resting on a hairline border with no shadow, the
+black canvas, cards a shade lighter resting on a hairline border with no shadow, hover,
+selection and lines in translucent white so they read one step above whatever they sit on, the
 foreground color for the one primary action, sentence case everywhere, a neutral gray ramp.
 The panel is monochrome throughout, charts included. Dense tables, and no continuously repainting animation: the panel
 is often left open.

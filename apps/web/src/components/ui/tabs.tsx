@@ -51,7 +51,7 @@ export function TabsList({ className, children, ...props }: WithClassName<Compon
 	}
 
 	return (
-		<div className='relative isolate inline-flex max-w-full min-w-0 rounded-control border bg-surface-muted'>
+		<div className='relative isolate inline-flex max-w-full min-w-0 rounded-control bg-surface-muted/50'>
 			{edges.left ? (
 				<ScrollButton
 					label='Scroll tabs left'
@@ -68,7 +68,8 @@ export function TabsList({ className, children, ...props }: WithClassName<Compon
 						reveal(viewport.current, event.target)
 				}}
 				className={cn(
-					'min-w-0 [scrollbar-width:none] overflow-x-auto overscroll-x-contain rounded-[inherit] mask-[linear-gradient(to_right,transparent,black_var(--fade-left),black_calc(100%-var(--fade-right)),transparent)] [--fade-left:0px] [--fade-right:0px] [&::-webkit-scrollbar]:hidden',
+					// Tabs are fully hidden under the 32px scroll button, which has no fill: the track behind it is translucent.
+					'min-w-0 [scrollbar-width:none] overflow-x-auto overscroll-x-contain rounded-[inherit] mask-[linear-gradient(to_right,transparent_var(--fade-left),black_calc(var(--fade-left)*1.75),black_calc(100%-var(--fade-right)*1.75),transparent_calc(100%-var(--fade-right)))] [--fade-left:0px] [--fade-right:0px] [&::-webkit-scrollbar]:hidden',
 					edges.left && '[--fade-left:32px]',
 					edges.right && '[--fade-right:32px]',
 				)}
@@ -77,7 +78,7 @@ export function TabsList({ className, children, ...props }: WithClassName<Compon
 					{...props}
 					className={cn('relative isolate flex w-max items-center gap-0.5 p-[3px]', className)}
 				>
-					<TabsPrimitive.Indicator className='absolute top-[3px] bottom-[3px] left-0 -z-10 w-(--active-tab-width) translate-x-(--active-tab-left) rounded-[calc(var(--radius-control)-3px)] border bg-surface shadow-resting transition-[translate,width] duration-580 ease-spring' />
+					<TabsPrimitive.Indicator className='absolute top-[3px] bottom-[3px] left-0 -z-10 w-(--active-tab-width) translate-x-(--active-tab-left) rounded-[calc(var(--radius-control)-3px)] bg-surface-muted transition-[translate,width] duration-580 ease-spring' />
 					{children}
 				</TabsPrimitive.List>
 			</div>
@@ -135,7 +136,7 @@ function ScrollButton({
 			aria-label={label}
 			onClick={onClick}
 			className={cn(
-				'absolute inset-y-0 z-10 grid w-8 cursor-pointer place-items-center bg-surface-muted text-secondary [--focus-outline-offset:-3px] hover:text-foreground [&_svg]:size-4',
+				'absolute inset-y-0 z-10 grid w-8 cursor-pointer place-items-center text-secondary [--focus-outline-offset:-3px] hover:text-foreground [&_svg]:size-4',
 				className,
 			)}
 		>

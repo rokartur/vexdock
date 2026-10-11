@@ -19,7 +19,7 @@ export function ButtonGroup({ items, label }: { items: ButtonGroupItem[]; label:
 	return (
 		<Toolbar.Root
 			aria-label={label}
-			className='inline-flex max-w-full [scrollbar-width:none] items-stretch overflow-x-auto rounded-control border bg-surface p-0.5 align-middle text-foreground'
+			className='inline-flex max-w-full [scrollbar-width:none] items-stretch overflow-x-auto rounded-control border bg-surface-muted/50 p-0.5 align-middle text-foreground'
 		>
 			{items.map(item => (
 				<Tooltip key={item.id} content={item.label}>

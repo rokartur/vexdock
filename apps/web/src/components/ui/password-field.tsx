@@ -11,7 +11,7 @@ export function PasswordField({ className, ...props }: Omit<ComponentProps<'inpu
 	return (
 		<div
 			className={cn(
-				'flex h-control-md w-full items-center gap-1 rounded-control border border-border-strong bg-surface pr-0.5 pl-2.5 transition-colors focus-within:border-foreground has-aria-invalid:border-danger has-[input:disabled]:bg-surface-muted has-[input:disabled]:opacity-50 has-[input:enabled:not([aria-invalid=true])]:hover:border-muted',
+				'flex h-control-md w-full items-center gap-1 rounded-control border border-border-strong bg-surface-muted/50 pr-0.5 pl-2.5 transition-colors focus-within:border-foreground has-aria-invalid:border-danger has-[input:disabled]:bg-surface-muted has-[input:disabled]:opacity-50 has-[input:enabled:not([aria-invalid=true])]:hover:border-muted',
 				className,
 			)}
 		>
