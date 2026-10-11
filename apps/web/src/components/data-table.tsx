@@ -25,8 +25,8 @@ import { DetailDialog, EmptyState, ErrorText, MoreBelow, useFill } from './primi
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
-/** An h-8 cell plus the row's hairline. Only a guess for rows not yet on screen; each rendered row is measured. */
-const ROW_HEIGHT = 33
+/** An h-11 cell plus the row's hairline. Only a guess for rows not yet on screen; each rendered row is measured. */
+const ROW_HEIGHT = 45
 
 /** Client-side sorting and filtering only. DataTable renders the rows in view itself. */
 const tableFeatureSet = tableFeatures({
@@ -192,7 +192,7 @@ export function DataTable<TData extends RowData>({
 		   overflow-hidden clips the edge-to-edge sticky header background at the rounded corners. */
 		<div
 			className={cn(
-				'overflow-hidden rounded-(--radius-panel) border bg-card raised',
+				'overflow-hidden rounded-(--radius-control) border bg-card raised',
 				fill && 'flex min-h-0 flex-1 flex-col',
 			)}
 		>
@@ -210,7 +210,6 @@ export function DataTable<TData extends RowData>({
 					/>
 				</div>
 			) : null}
-			{/* Rows and hairlines run edge to edge; the gutter lives in each row's first and last cell. */}
 			<div className={cn('relative', fill && 'flex min-h-0 flex-1 flex-col')}>
 				{/* This scrolls both ways, so the table's own overflow-x wrapper is switched off: it would otherwise be the
 				    box the sticky header sticks to, and the header would scroll away with the rows. */}
@@ -220,7 +219,7 @@ export function DataTable<TData extends RowData>({
 					tabIndex={-1}
 					className={cn(
 						// Scroll padding keeps a row reached by Tab clear of the sticky header and MoreBelow's band.
-						'scroll-pt-8 scroll-pb-20 overflow-auto outline-none [&>div]:overflow-visible',
+						'scroll-pt-10 scroll-pb-20 overflow-auto outline-none [&>div]:overflow-visible',
 						fill ? 'min-h-0 flex-1' : 'max-h-[70vh]',
 					)}
 				>
@@ -229,7 +228,7 @@ export function DataTable<TData extends RowData>({
 					<Table
 						// Only the rows in view are in the DOM, so a screen reader is told the full count and each row's place.
 						aria-rowcount={rows.length > 0 ? headerRows + rows.length : undefined}
-						className='text-body [&_td:first-child]:pl-4 [&_td>*]:align-middle [&_th:first-child]:pl-4'
+						className='text-body [&_td>*]:align-middle'
 					>
 						<TableHeader>
 							{table.getHeaderGroups().map((headerGroup, index) => (
@@ -242,8 +241,11 @@ export function DataTable<TData extends RowData>({
 												className={cn(
 													// The hairline lives on the th (inset shadow), not the tr border: collapsed
 													// tr borders do not travel with sticky cells, which reads as a gap when rows
-													// scroll underneath.
-													'sticky top-0 z-10 h-8 border-b-0 bg-card pr-3 pl-0 text-label shadow-[inset_0_-1px_0_0_var(--border)]',
+													// scroll underneath. The sorted column is Arc's tinted strip, opaque here
+													// because the header is sticky.
+													'sticky top-0 z-10 h-9.5 border-b-0 bg-card px-3.5 shadow-[inset_0_-1px_0_0_var(--border)]',
+													sorted &&
+														'bg-[color-mix(in_oklab,var(--surface-muted)_60%,var(--surface))] text-foreground',
 													header.column.columnDef.meta?.align === 'right' && 'text-right',
 												)}
 											>
@@ -251,13 +253,13 @@ export function DataTable<TData extends RowData>({
 													<button
 														type='button'
 														onClick={() => header.column.toggleSorting()}
-														className='inline-flex h-8 items-center gap-1 transition-colors hover:text-foreground'
+														className='inline-flex h-9.5 items-center gap-1.5 transition-colors hover:text-foreground'
 													>
 														<table.FlexRender header={header} />
 														{sorted === 'asc' ? (
-															<IconArrowNarrowUp className='size-3' />
+															<IconArrowNarrowUp className='size-3.5' />
 														) : sorted === 'desc' ? (
-															<IconArrowNarrowDown className='size-3' />
+															<IconArrowNarrowDown className='size-3.5' />
 														) : null}
 													</button>
 												) : (
@@ -321,7 +323,7 @@ export function DataTable<TData extends RowData>({
 													<TableCell
 														key={cell.id}
 														className={cn(
-															'h-8 py-0.5 pr-3 pl-0',
+															cell.column.getIsSorted() && 'bg-(--surface-muted)/60',
 															cell.column.columnDef.meta?.align === 'right' &&
 																'text-right',
 															cell.column.columnDef.meta?.mono && 'font-mono text-label',
@@ -370,9 +372,9 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
 			{Array.from({ length: rows }, (_row, index) => (
 				<TableRow key={index} static>
 					{Array.from({ length: columns }, (_cell, cell) => (
-						<TableCell key={cell} className='h-8 py-0.5 pr-3 pl-0'>
-							{/* Arc's Skeleton is a block of lines with its own status region; a cell needs one quiet bar. */}
-							<span className='block h-3 w-24 rounded-sm bg-muted' />
+						<TableCell key={cell}>
+							{/* Arc's Skeleton line, held still: a pulsing list would repaint for as long as it loads. */}
+							<span className='block h-3 w-24 rounded-full bg-[color-mix(in_oklab,var(--border-strong)_38%,var(--surface))]' />
 						</TableCell>
 					))}
 				</TableRow>

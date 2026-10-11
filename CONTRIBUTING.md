@@ -103,32 +103,36 @@ unfolded under the one clicked: `DataTable`'s `detail` does that for you.
 
 The look is carried by tokens, not by classes on pages: Arc's
 `src/components/arc/foundation.css` owns the palette, radii, control heights
-and motion, and `src/styles.css` maps the names Tailwind and the pages use onto
-them, with the type scale and `--font-sans` (Inter; `--font-mono` is the system
-stack, for machine output: console, code, ids). Reskinning is a token edit and
-never a sweep over pages. Arc components are Tailwind classes only, no CSS
-modules; `foundation.css` is the one stylesheet they share, and it holds the
-dashboard's pre-Arc sizes, radii and durations rather than Arc's own.
+and motion, and `src/styles.css` points Tailwind's color names straight at
+those roles, with the type scale, `--font-sans` (Inter) and Arc's
+`--font-display` (Geist, for the reading in a metric card; `--font-mono` is the
+system stack, for machine output: console, code, ids). Reskinning is a token
+edit and never a sweep over pages. Arc components are Tailwind classes only, no
+CSS modules; `foundation.css` is the one stylesheet they share, and its sizes
+are Arc's one step down (30/36/44px controls, 12px control radius, 16px panels,
+20px cards, 14px text) so a panel used every day stays dense.
 `@/utils/cn` is the `createCn` with the custom `--text-*` scale registered. Every corner
-in the app comes off `--radius`: the whole `--radius-*` ladder is derived from
+in the app comes off `--radius-control`: the whole `--radius-*` ladder is derived from
 it, `md`/`lg` for anything clickable and `xl` upwards for boxes, so no
 component ever writes a radius of its own; a box that is a panel uses Arc's
-`--radius-panel`. A card draws its edge as a one-pixel border plus the `raised`
-utility, Arc's `--shadow-resting`.
+`--radius-panel`, a metric card `--radius-surface`. A card draws its edge as a
+one-pixel border plus the `raised` utility, Arc's `--shadow-resting`.
 Hairlines come in two weights, and using the wrong one flattens the page:
-`--border` is a container's own edge, `--rule` is a separator inside one and is
-quieter. Tables separate rows with `--rule`, readings sit in a
-`Cells` grid that owns the hairlines its children must not redraw, and
-attributes are read as a `Facts` list: label left, value right, a rule between
-rows. The type scale is custom `text-*` tokens; `utils/cn.ts` registers them
-with tailwind-merge so they never clobber a text color.
+`--border` is a container's own edge, `rule` (`--border-subtle`) is a separator
+inside one and is quieter. Tables separate rows with `rule`, each reading is
+its own Arc metric card in a `Cells` grid, a state is an Arc `Badge` whose tone
+carries the color (`Status`), and attributes are read as a `Facts` list: label
+left, value right, a rule between rows. The type scale is custom `text-*`
+tokens; `utils/cn.ts` registers them with tailwind-merge so they never clobber
+a text color.
 
 Motion is a token too. Arc's `motionTokens` (`arc/motion-tokens.ts`) and its
 `--ease-*`/`--duration-*` tokens time every popover, menu, select, dialog and
 tooltip, at the dashboard's pre-Arc speeds (125 to 300ms), without a page
 naming it. Reduced motion drops travel and scaling and keeps the fades. Page
 blocks enter staggered (`enter-children` on `Page`), a selection slides
-(`ActivePill`) and a live reading counts (`AnimatedNumber`). Everything uses
+(`ActivePill`) and a live reading rolls its digits (`AnimatedNumber`, over
+Arc's `AnimatedCounter`). Everything uses
 `motion.*` from `motion/react`; there is no `LazyMotion` split, since Arc's
 components need the full feature set on first paint anyway.
 

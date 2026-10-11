@@ -37,7 +37,7 @@ export function TableHead({ className, ...props }: ComponentProps<'th'>) {
 	return (
 		<th
 			className={cn(
-				'h-10 border-b border-border px-2 font-medium whitespace-nowrap text-(--text-muted)',
+				'h-9.5 border-b border-border px-3.5 font-medium whitespace-nowrap text-(--text-muted)',
 				className,
 			)}
 			{...props}
@@ -48,7 +48,7 @@ export function TableCell({ className, ...props }: ComponentProps<'td'>) {
 	return (
 		<td
 			className={cn(
-				'border-b border-(--border-subtle) p-2 align-middle in-[tr:last-child]:border-b-0',
+				'h-11 border-b border-(--border-subtle) px-3.5 py-0.5 align-middle in-[tr:last-child]:border-b-0',
 				className,
 			)}
 			{...props}

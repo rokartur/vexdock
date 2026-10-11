@@ -122,7 +122,7 @@ export function DropdownMenu({ items, trigger, side = 'bottom', align = 'end', m
 								</>
 							)
 							const className = cn(
-								'relative flex min-h-7 cursor-pointer items-center gap-1.5 rounded-(--radius-control) px-1.5 text-sm no-underline outline-none [transition:color_var(--duration-fast)_var(--ease-standard),opacity_var(--duration-standard)_var(--ease-enter)_calc(min(var(--i),4)*35ms),translate_var(--duration-standard)_var(--ease-enter)_calc(min(var(--i),4)*35ms)] focus-visible:outline-none data-disabled:cursor-default data-disabled:opacity-45 motion-reduce:transition-none',
+								'relative flex min-h-8 cursor-pointer items-center gap-2 rounded-(--radius-control) px-2 text-sm no-underline outline-none [transition:color_var(--duration-fast)_var(--ease-standard),opacity_var(--duration-standard)_var(--ease-enter)_calc(min(var(--i),4)*35ms),translate_var(--duration-standard)_var(--ease-enter)_calc(min(var(--i),4)*35ms)] focus-visible:outline-none data-disabled:cursor-default data-disabled:opacity-45 motion-reduce:transition-none',
 								'group-data-starting-style/menu:translate-x-[calc(var(--menu-x)*0.4)] group-data-starting-style/menu:translate-y-[calc(var(--menu-y)*0.4)] group-data-starting-style/menu:opacity-0',
 								item.destructive ? 'text-(--danger)' : 'text-foreground',
 							)

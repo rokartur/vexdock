@@ -11,10 +11,14 @@ import {
 	useState,
 } from 'react'
 import {
+	IconAlertTriangle,
 	IconArrowDown,
 	IconCheck,
+	IconCircleCheck,
 	IconDeviceFloppy,
 	IconInbox,
+	IconInfoCircle,
+	IconPlayerStop,
 	IconRefresh,
 	IconTrash,
 	type Icon as TablerIcon,
@@ -23,6 +27,7 @@ import { type useBlocker, useRouter, useRouterState } from '@tanstack/react-rout
 import { motion } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { Alert } from '@/components/arc/alert'
+import { Badge, type BadgeTone } from '@/components/arc/badge'
 import { Breadcrumb } from '@/components/arc/breadcrumb'
 import { Button as ArcButton, type ButtonVariant as ArcButtonVariant } from '@/components/arc/button'
 import { Checkbox } from '@/components/arc/checkbox'
@@ -30,6 +35,7 @@ import { Combobox } from '@/components/arc/combobox'
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from '@/components/arc/dialog'
 import ArcEmptyState from '@/components/arc/empty-state'
 import { Input as ArcInput } from '@/components/arc/input'
+import { PasswordField } from '@/components/arc/password-field'
 import { Progress } from '@/components/arc/progress'
 import SegmentedControl from '@/components/arc/segmented-control'
 import { Select as ArcSelect } from '@/components/arc/select'
@@ -113,32 +119,43 @@ export function Keys({ keys }: { keys: string[] }) {
 	)
 }
 
-const stateColor: Record<string, string> = {
-	running: 'text-success',
-	healthy: 'text-success',
+const stateTones: Record<string, BadgeTone> = {
+	running: 'success',
+	healthy: 'success',
+	success: 'success',
+	issued: 'success',
+	connected: 'success',
+	starting: 'warning',
+	queued: 'warning',
+	restarting: 'warning',
+	pending: 'warning',
+	unhealthy: 'danger',
+	failed: 'danger',
+	dead: 'danger',
+}
+
+const toneText: Record<BadgeTone, string> = {
+	neutral: 'text-muted-foreground',
 	success: 'text-success',
-	issued: 'text-success',
-	connected: 'text-success',
-	starting: 'text-warning',
-	queued: 'text-warning',
-	restarting: 'text-warning',
-	pending: 'text-warning',
-	unhealthy: 'text-destructive',
-	failed: 'text-destructive',
-	dead: 'text-destructive',
-	exited: 'text-muted-foreground',
-	stopped: 'text-muted-foreground',
-	cancelled: 'text-muted-foreground',
-	created: 'text-muted-foreground',
-	paused: 'text-muted-foreground',
+	info: 'text-info',
+	warning: 'text-warning',
+	danger: 'text-destructive',
+}
+
+const toneIcons: Record<BadgeTone, TablerIcon> = {
+	neutral: IconPlayerStop,
+	success: IconCircleCheck,
+	info: IconInfoCircle,
+	warning: IconAlertTriangle,
+	danger: IconAlertTriangle,
 }
 
 /** The color a state reads in, for the places that show the dot without the word. */
 export function stateTone(value: string) {
-	return stateColor[value] ?? 'text-muted-foreground'
+	return toneText[stateTones[value] ?? 'neutral']
 }
 
-/** A status word rendered in the color that matches its meaning. `dot` drops the word for rows that are tight. */
+/** A state as an Arc badge: tone, icon and word together. `dot` drops the word for rows that are tight. */
 export function Status({ value, dot }: { value: string; dot?: boolean }) {
 	if (!value) return <span className='text-muted-foreground'>-</span>
 	if (dot) {
@@ -150,11 +167,12 @@ export function Status({ value, dot }: { value: string; dot?: boolean }) {
 			/>
 		)
 	}
+	const tone = stateTones[value] ?? 'neutral'
+	const Icon = toneIcons[tone]
 	return (
-		<span className={cn('inline-flex items-center gap-1.5', stateTone(value))}>
-			<span aria-hidden className='inline-block size-1.5 rounded-full bg-current' />
+		<Badge tone={tone} icon={<Icon />}>
 			{value}
-		</span>
+		</Badge>
 	)
 }
 
@@ -251,12 +269,12 @@ export function Page({
 		<>
 			{header ? createPortal(head, header) : null}
 			{toolbar || filters ? (
-				<div className='flex h-10 shrink-0 items-center gap-4 border-b px-3'>
+				<div className='flex h-12 shrink-0 items-center gap-4 border-b px-6'>
 					{toolbar}
 					{filters ? <div className='ml-auto flex items-center gap-2'>{filters}</div> : null}
 				</div>
 			) : null}
-			<div className={cn('min-h-0 flex-1 enter-children overflow-y-auto px-5 py-5', fill && 'flex flex-col')}>
+			<div className={cn('min-h-0 flex-1 enter-children overflow-y-auto p-6', fill && 'flex flex-col')}>
 				<FillContext.Provider value={fill}>{children}</FillContext.Provider>
 			</div>
 		</>
@@ -455,12 +473,12 @@ export function Section({
 	const fills = useFill() && fill
 	return (
 		<section className={fills ? 'flex min-h-72 flex-1 flex-col' : 'mb-8'}>
-			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
-				<div className='flex items-baseline gap-2.5'>
-					<h2 className='text-title font-medium'>{title}</h2>
-					{description ? <span className='text-label text-muted-foreground'>{description}</span> : null}
+			<header className='mb-3 flex h-9 items-center justify-between gap-4'>
+				<div className='flex min-w-0 items-baseline gap-2.5'>
+					<h2 className='shrink-0 text-title font-medium'>{title}</h2>
+					{description ? <span className='truncate text-label text-muted-foreground'>{description}</span> : null}
 				</div>
-				{actions ? <div className='flex items-center gap-2'>{actions}</div> : null}
+				{actions ? <div className='flex shrink-0 items-center gap-2'>{actions}</div> : null}
 			</header>
 			<FillContext.Provider value={fills}>{children}</FillContext.Provider>
 		</section>
@@ -512,14 +530,14 @@ export function FormSection({
 	const card = (
 		// Arc's Card is a content tile (media, quick look); a form group draws the same surface by hand.
 		<section className='mb-4 rounded-(--radius-panel) border border-border bg-card raised'>
-			<header className='flex flex-col gap-0.5 px-5 pt-4'>
+			<header className='flex flex-col gap-1.5 px-5 pt-5'>
 				<h3 className='flex items-center gap-2 text-title font-medium'>
 					{Icon ? <Icon className='size-4 text-muted-foreground' /> : null}
 					{title}
 				</h3>
-				{description ? <p className='text-label text-muted-foreground'>{description}</p> : null}
+				{description ? <p className='text-(--text-secondary)'>{description}</p> : null}
 			</header>
-			<div className='px-5 py-4'>{body}</div>
+			<div className='p-5'>{body}</div>
 			{actions || hint ? (
 				<footer className='flex min-h-12 flex-wrap items-center justify-between gap-3 border-t border-rule px-5 py-2.5 text-label text-muted-foreground'>
 					<span>{hint}</span>
@@ -545,24 +563,12 @@ export function FormSection({
 	)
 }
 
-/**
- * A bordered card split into equal readings. Children supply their own padding and must not draw their own border:
- * each cell outlines itself into the 1px gap, so a short last row leaves plain card behind it, not a slab of border.
- */
+/** Readings as Arc metric cards, one card each, in a grid that wraps on its own. */
 export function Cells({ children, className }: { children: ReactNode; className?: string }) {
-	return (
-		<div
-			className={cn(
-				'grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-(--radius-panel) border bg-card raised [&>*]:bg-card [&>*]:outline [&>*]:outline-1 [&>*]:outline-border',
-				className,
-			)}
-		>
-			{children}
-		</div>
-	)
+	return <div className={cn('grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3', className)}>{children}</div>
 }
 
-/** One reading in a `Cells` grid. `children` is a sparkline or a fill bar under it. The grid owns the hairlines. */
+/** One reading as an Arc metric card: label, the number, then what it is out of. `children` is a sparkline or a bar. */
 export function Cell({
 	label,
 	icon: Icon,
@@ -583,28 +589,34 @@ export function Cell({
 }) {
 	const reading = (
 		<>
-			<div className='flex items-center gap-1.5 text-label text-muted-foreground'>
-				{Icon ? <Icon className='size-3.5' /> : null}
+			<div className='flex min-h-5.5 items-center gap-2 text-(--text-secondary)'>
+				{Icon ? <Icon className='size-4 text-muted-foreground' /> : null}
 				{label}
 			</div>
 			{value === undefined ? null : (
-				<div className='mt-0.5 truncate text-reading font-semibold tracking-tight'>{value}</div>
+				<div
+					title={typeof value === 'string' ? value : undefined}
+					className='mt-4 truncate font-(family-name:--font-display) text-reading leading-tight font-medium tracking-(--tracking-display)'
+				>
+					{value}
+				</div>
 			)}
-			{hint ? <div className='mt-0.5 truncate text-meta text-muted-foreground'>{hint}</div> : null}
+			{hint ? <div className='mt-2 truncate text-muted-foreground'>{hint}</div> : null}
 		</>
 	)
+	const card = 'min-w-0 rounded-(--radius-surface) border bg-card p-4 raised'
 	if (inline) {
 		return (
-			<div className='@container px-4 py-3'>
+			<div className={cn('@container', card)}>
 				<div className='@sm:flex @sm:items-stretch @sm:gap-4'>
 					<div className='min-w-0 @sm:max-w-[45%] @sm:shrink-0'>{reading}</div>
-					<div className='mt-1.5 min-w-0 @sm:mt-0 @sm:flex-1'>{children}</div>
+					<div className='mt-3 min-w-0 @sm:mt-0 @sm:flex-1'>{children}</div>
 				</div>
 			</div>
 		)
 	}
 	return (
-		<div className='px-4 py-3'>
+		<div className={card}>
 			{reading}
 			{children}
 		</div>
@@ -628,7 +640,7 @@ export function Facts({ children, className }: { children: ReactNode; className?
 /** One row of a `Facts` list. */
 export function Fact({ label, value }: { label: string; value: ReactNode }) {
 	return (
-		<div className='flex min-h-8 items-center gap-4 py-1 text-body'>
+		<div className='flex min-h-10 items-center gap-4 py-1 text-body'>
 			<dt className='shrink-0 text-muted-foreground'>{label}</dt>
 			<dd className='min-w-0 flex-1 truncate text-right font-mono text-label'>{value}</dd>
 		</div>
@@ -653,36 +665,30 @@ export function Meter({
 	className?: string
 }) {
 	return (
-		<div className={cn('min-w-16', className)}>
-			<div className='truncate font-mono text-label leading-none tabular-nums'>{label}</div>
+		<div className={cn('flex min-w-24 items-center gap-2', className)}>
+			{label === '' ? null : (
+				<div className='shrink-0 font-mono text-label leading-none tabular-nums'>{label}</div>
+			)}
 			{max > 0 ? (
 				<Progress
 					value={value}
 					max={max}
-					aria-label={typeof label === 'string' ? label : undefined}
-					className='mt-1.5'
+					aria-label={typeof label === 'string' && label !== '' ? label : undefined}
+					className='min-w-10 flex-1'
 				/>
 			) : null}
 		</div>
 	)
 }
 
-/** The page's headline numbers on one hairline row, above everything else it shows. */
+/** The page's headline readings as metric cards, above everything else it shows. */
 export function StatStrip({ items, className }: { items: { label: string; value: ReactNode }[]; className?: string }) {
 	return (
-		<dl
-			className={cn(
-				'flex flex-wrap items-start gap-x-8 gap-y-3 rounded-(--radius-panel) border bg-card px-4 py-2.5 raised',
-				className,
-			)}
-		>
+		<Cells className={className}>
 			{items.map(item => (
-				<div key={item.label} className='min-w-0'>
-					<dt className='text-meta text-muted-foreground'>{item.label}</dt>
-					<dd className='truncate text-body tabular-nums'>{item.value}</dd>
-				</div>
+				<Cell key={item.label} label={item.label} value={item.value} />
 			))}
-		</dl>
+		</Cells>
 	)
 }
 
@@ -724,7 +730,7 @@ export function RelativeTime({ at }: { at: string | number | null | undefined })
 	if (Number.isNaN(parsed)) return <span className='text-muted-foreground'>-</span>
 	const stamp = new Date(parsed)
 	return (
-		<time dateTime={stamp.toISOString()} title={stamp.toLocaleString()} className='text-muted-foreground'>
+		<time dateTime={stamp.toISOString()} title={stamp.toLocaleString()} className='whitespace-nowrap text-muted-foreground'>
 			{parsed > Date.now() ? until(at) : since(at)}
 		</time>
 	)
@@ -1077,9 +1083,11 @@ export function Combo<TValue extends string>({
 	)
 }
 
-/** `mono` is for machine text typed by hand: a variable name, a value, an id. */
+/** `mono` is for machine text typed by hand: a variable name, a value, an id. A password gets Arc's show/hide toggle. */
 export function Input({ mono, ...props }: Omit<ComponentProps<typeof ArcInput>, 'className'> & { mono?: boolean }) {
-	return <ArcInput className={cn(mono && 'font-mono')} {...useFieldNaming(props['aria-label'])} {...props} />
+	const naming = useFieldNaming(props['aria-label'])
+	if (props.type === 'password') return <PasswordField className={cn(mono && 'font-mono')} {...naming} {...props} />
+	return <ArcInput className={cn(mono && 'font-mono')} {...naming} {...props} />
 }
 
 export function Textarea({

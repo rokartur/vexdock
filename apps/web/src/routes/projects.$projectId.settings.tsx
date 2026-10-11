@@ -1,17 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-	IconCheck,
-	IconCopy,
-	IconFolder,
-	IconGitBranch,
-	IconLayersLinked,
-	IconPlus,
-	IconTrash,
-	IconUpload,
-} from '@tabler/icons-react'
+import { IconFolder, IconGitBranch, IconLayersLinked, IconPlus, IconTrash, IconUpload } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/arc/badge'
+import { CopyButton } from '@/components/arc/copy-button'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
@@ -237,7 +229,6 @@ function Environments({ projectId }: { projectId: string }) {
 /** Secrets stay behind unless asked for, because base64 is not encryption and this lands on a clipboard. */
 function ExportServices({ projectId }: { projectId: string }) {
 	const [secrets, setSecrets] = useState(false)
-	const [copied, setCopied] = useState(false)
 	const [copyError, setCopyError] = useState<string | null>(null)
 	const environmentId = useEnvironmentId()
 
@@ -250,37 +241,19 @@ function ExportServices({ projectId }: { projectId: string }) {
 			icon={IconUpload}
 			hint='With secrets off, they export as keys with empty values and the import leaves the generated ones alone.'
 			actions={
-				<Button
+				<CopyButton
 					variant='primary'
+					value={exported.data?.payload ?? ''}
 					disabled={!exported.data?.payload}
-					onClick={async () => {
-						try {
-							// navigator.clipboard is undefined outside a secure context, and a
-							// panel reached by IP over plain HTTP is not one.
-							await navigator.clipboard.writeText(exported.data?.payload ?? '')
-							setCopied(true)
-						} catch {
-							setCopyError('Copying needs HTTPS. Select the text below and copy it by hand.')
-						}
-					}}
-				>
-					{copied ? <IconCheck /> : <IconCopy />}
-					{copied ? 'Copied' : 'Copy'}
-				</Button>
+					onError={() => setCopyError('Copying needs HTTPS. Select the text below and copy it by hand.')}
+				/>
 			}
 		>
 			<ErrorText error={exported.error ?? copyError} />
 			<code className='mb-4 block max-h-24 overflow-y-auto rounded-md border bg-background px-3 py-2 font-mono text-label break-all text-muted-foreground'>
 				{exported.data?.payload || 'No managed services to export.'}
 			</code>
-			<Switch
-				label='Include secret values'
-				checked={secrets}
-				onChange={next => {
-					setSecrets(next)
-					setCopied(false)
-				}}
-			/>
+			<Switch label='Include secret values' checked={secrets} onChange={setSecrets} />
 		</FormSection>
 	)
 }

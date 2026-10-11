@@ -413,7 +413,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
 													}}
 													id={`${controlId}-option-${index}`}
 													// Arrow keys move the highlight often, so it changes almost instantly.
-													className='flex min-h-7 cursor-pointer items-center justify-between gap-(--space-3) rounded-(--radius-control) px-1.5 text-sm text-foreground transition-colors duration-80 ease-(--ease-standard) outline-none select-none data-active:bg-(--surface-muted) data-disabled:cursor-not-allowed data-disabled:opacity-42 motion-reduce:transition-none'
+													className='flex min-h-8 cursor-pointer items-center justify-between gap-(--space-3) rounded-(--radius-control) px-2 text-sm text-foreground transition-colors duration-80 ease-(--ease-standard) outline-none select-none data-active:bg-(--surface-muted) data-disabled:cursor-not-allowed data-disabled:opacity-42 motion-reduce:transition-none'
 													data-active={index === activeIndex ? 'true' : undefined}
 													data-disabled={option.disabled ? 'true' : undefined}
 													role='option'

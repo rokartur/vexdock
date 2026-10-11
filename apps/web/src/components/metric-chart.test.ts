@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { joinSeries, niceCeil, ratesOf, sparkPath, totalOf } from './metric-chart'
+import { nearestTo, niceCeil, ratesOf, sparkPath, totalOf } from './metric-chart'
 
 const total = (sample: { at: number; total: number }) => sample.total
 
@@ -16,17 +16,16 @@ test('turns a cumulative counter into per-second rates', () => {
 	])
 })
 
-test('joins series on the timestamp, in time order', () => {
-	const received = [
-		{ at: 2000, value: 1 },
-		{ at: 1000, value: 3 },
+test('picks the reading closest in time to the pointer', () => {
+	const points = [
+		{ at: 1000, value: 1 },
+		{ at: 2000, value: 2 },
+		{ at: 4000, value: 3 },
 	]
-	const sent = [{ at: 1000, value: 7 }]
 
-	expect(joinSeries([received, sent])).toEqual([
-		{ at: 1000, s0: 3, s1: 7 },
-		{ at: 2000, s0: 1 },
-	])
+	expect(nearestTo(points, 2900)).toEqual({ at: 2000, value: 2 })
+	expect(nearestTo(points, 3100)).toEqual({ at: 4000, value: 3 })
+	expect(nearestTo([], 1000)).toBeUndefined()
 })
 
 test('draws a sparkline without a peak, a run or a reading to scale by', () => {

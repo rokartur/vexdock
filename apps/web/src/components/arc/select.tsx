@@ -150,7 +150,7 @@ export function Select({
 									key={option.value}
 									value={option.value}
 									disabled={option.disabled}
-									className='relative flex min-h-7 cursor-default items-center rounded-(--radius-control) pr-8 pl-1.5 text-sm text-foreground transition-colors duration-(--duration-instant) ease-(--ease-standard) outline-none select-none data-disabled:opacity-45 data-highlighted:bg-(--surface-muted) motion-reduce:transition-none'
+									className='relative flex min-h-8 cursor-default items-center rounded-(--radius-control) pr-8 pl-2 text-sm text-foreground transition-colors duration-(--duration-instant) ease-(--ease-standard) outline-none select-none data-disabled:opacity-45 data-highlighted:bg-(--surface-muted) motion-reduce:transition-none'
 								>
 									<SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
 									<SelectPrimitive.ItemIndicator className='absolute right-2 inline-flex items-center text-foreground transition-[opacity,scale,filter] delay-40 duration-(--duration-standard) ease-(--ease-enter) motion-reduce:transition-none starting:scale-60 starting:opacity-0 starting:blur-[2px]'>

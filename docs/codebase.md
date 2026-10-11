@@ -373,11 +373,11 @@ serves. React Query holds server state; component state stays local.
 | `src/components/data-table.tsx` | `DataTable` and `columnsFor`; every table on every page. `detail` opens a clicked row in a `DetailDialog`; inside a `fill` Section it takes the height left to it instead of capping at 70vh. No pager: only the rows in view are rendered (`@tanstack/react-virtual`), and rows past the bottom edge get `MoreBelow` |
 | `src/components/studio-grid.tsx` | `StudioGrid`: the Studio's editable cell grid, shared by the table editor and the console's results |
 | `src/routes/projects.$projectId_.services.$serviceId.studio*.tsx` | A database's Studio tab: the layout (table sidebar, `useStudio`), the table editor at its index (edits held until Save, one transaction) and `console` |
-| `src/components/metric-chart.tsx` | `MetricCard` for a page's own chart, `useHistory` for the rolling samples behind it, `Sparkline` for the 30-minute trend that fits in a table cell |
-| `src/components/animated-number.tsx` | `AnimatedNumber`, a live reading that counts to its new value |
+| `src/components/metric-chart.tsx` | `MetricCard` for a page's own chart (SVG drawn the way Arc's line chart draws: accent line, tint, crosshair and tooltip), `useHistory` for the rolling samples behind it, `Sparkline` for the 30-minute trend that fits in a table cell |
+| `src/components/animated-number.tsx` | `AnimatedNumber`, a live reading whose digits roll to its new value through Arc's `AnimatedCounter` |
 | `src/components/new-project.tsx` | `NewProjectDialog`, reached from the projects page and the sidebar's Projects label |
 | `src/components/service-routing.tsx` | A service's Redirects, Security (basic auth) and Ports cards on its Advanced tab |
-| `src/components/arc/*.tsx` | Arc UI (uiarc.dev) components, one flat file each, added with `bunx shadcn add @uiarc/<name>` and converted to Tailwind and from Radix to Base UI. Beside them: `foundation.css` (the palette and tokens), `motion-tokens.ts`, `swap.tsx` (the shared swap and height-morph helpers), `arc-provider.tsx` (the router link Arc renders) and `table.tsx`, the plain table Arc does not ship. Patched where the app needed more (`render` on `Button`, a `trigger` on `DropdownMenu`, link tabs, optional labels); pages reach for it only for what `primitives.tsx` has no word for |
+| `src/components/arc/*.tsx` | Arc UI (uiarc.dev) components, one flat file each, added with `bunx shadcn add @uiarc/<name>` and converted to Tailwind and from Radix to Base UI. Beside them: `foundation.css` (the palette and tokens), `motion-tokens.ts`, `swap.tsx` (the shared swap and height-morph helpers), `arc-provider.tsx` (the router link Arc renders) and `table.tsx`, the plain table Arc does not ship. `animated-counter.tsx`, `password-field.tsx` and `copy-button.tsx` are trimmed ports: no locale, label or on-view props, no field label of their own (`Field` names them). Patched where the app needed more (`render` on `Button`, a `trigger` on `DropdownMenu`, link tabs, optional labels); pages reach for it only for what `primitives.tsx` has no word for |
 | `src/components/*-panel.tsx`, `*-form.tsx` | Pieces a route composes. Domains and deployments are service-scoped, so their panels take the service they belong to |
 | `src/components/deployment-detail.tsx` | One deployment's steps and live log, the body of the `DetailDialog` a deployments list opens |
 | `src/components/log-viewer.tsx` | `LogViewer`: tails an SSE log stream (`url`, capped buffer) or renders lines already held (`lines`), colored by `severityOf` |
@@ -392,7 +392,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/queries.ts` | `queryOptions` for data more than one file reads, and `preload`, the loader's non-throwing prefetch |
 | `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
-| `src/styles.css` | Maps Tailwind's and the pages' token names onto `arc/foundation.css`, plus the type scale and console colors |
+| `src/styles.css` | Points Tailwind's color names at `arc/foundation.css` roles, plus the type scale, the fonts and the console colors |
 
 A page is: a `queryOptions` (from `lib/queries.ts`, or a local `const` when
 only that route reads it), a `loader` that `preload`s it so the page paints

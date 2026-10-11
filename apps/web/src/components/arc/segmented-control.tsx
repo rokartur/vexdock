@@ -111,7 +111,7 @@ export default function SegmentedControl({ options, value, onValueChange, label,
 							key={option.value}
 							id={`${id}-${option.value}`}
 							// Items never scale or change weight; only the highlight travels and the label color follows it.
-							className='relative min-h-6 flex-none cursor-pointer rounded-[calc(var(--radius-control)-4px)] border-0 bg-transparent px-3 text-sm font-medium whitespace-nowrap text-(--text-muted) transition-colors duration-(--duration-fast) ease-(--ease-standard) [-webkit-tap-highlight-color:transparent] hover:text-foreground active:text-foreground aria-pressed:text-foreground motion-reduce:transition-none max-[380px]:px-2.5'
+							className='relative min-h-7.5 flex-none cursor-pointer rounded-[calc(var(--radius-control)-4px)] border-0 bg-transparent px-3 text-sm font-medium whitespace-nowrap text-(--text-muted) transition-colors duration-(--duration-fast) ease-(--ease-standard) [-webkit-tap-highlight-color:transparent] hover:text-foreground active:text-foreground aria-pressed:text-foreground motion-reduce:transition-none max-[380px]:px-2.5'
 							type='button'
 							data-value={option.value}
 							aria-pressed={value === option.value}
