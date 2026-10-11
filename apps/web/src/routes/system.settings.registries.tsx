@@ -33,7 +33,7 @@ function registryTableColumns(remove: (id: string) => void): Columns<Registry> {
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconBrandDocker className='size-4 text-muted-foreground' />
+					<IconBrandDocker className='size-4 text-muted' />
 					{row.original.name}
 				</span>
 			),
@@ -92,7 +92,6 @@ function Registries() {
 		<div className='max-w-3xl'>
 			<Section
 				title='Private registries'
-				description='credentials are encrypted at rest'
 				actions={
 					<>
 						<Refresh onClick={() => registries.refetch()} busy={registries.isFetching} />

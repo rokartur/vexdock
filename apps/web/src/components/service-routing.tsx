@@ -87,7 +87,6 @@ function Redirects({ serviceId }: { serviceId: string }) {
 	return (
 		<FormSection
 			title='Redirects'
-			description='Rewrites the full request URL on every domain of this service.'
 			icon={IconArrowForwardUp}
 			actions={
 				<Button variant='primary' onClick={() => setAdding(true)}>
@@ -207,7 +206,6 @@ function BasicAuth({ serviceId }: { serviceId: string }) {
 	return (
 		<FormSection
 			title='Security'
-			description='Asks for a username and password before the proxy lets a request through.'
 			icon={IconLock}
 			hint='With no users the service is open.'
 			actions={
@@ -323,9 +321,8 @@ function Ports({ serviceId, live }: { serviceId: string; live: HostPort[] }) {
 	return (
 		<FormSection
 			title='Ports'
-			description='Publishes a container port on the server, bypassing the proxy.'
 			icon={IconPlugConnected}
-			hint='Takes effect on the next deploy.'
+			hint='Bypasses the proxy. Takes effect on the next deploy.'
 			aside={
 				open.length > 0
 					? [{ label: 'Open now', value: <span className='font-mono'>{open.join(', ')}</span> }]

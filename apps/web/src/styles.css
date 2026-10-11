@@ -1,109 +1,502 @@
 @import 'tailwindcss';
-@import './components/arc/foundation.css';
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/geist';
 @import '@xterm/xterm/css/xterm.css';
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
-	/* Mono is the system stack, kept for the surfaces that are literally machine
-	 * output: console, code, ids. */
-	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+	--color-*: initial;
+	--font-*: initial;
+	--font-weight-*: initial;
+	--text-*: initial;
+	--radius-*: initial;
+	--shadow-*: initial;
+	--ease-*: initial;
 
-	/* The app's type scale. Font size only: line-height stays inherited, which is
-	 * why these exist instead of Tailwind's text-xs/text-sm. */
-	--text-meta: 11px;
-	--text-label: 12px;
-	--text-body: 14px;
-	--text-title: 16px;
-	/* The one size that is allowed to be big: a live reading in a metric card. */
-	--text-reading: 28px;
-	/* Tailwind's own curves are too soft to read at the 100-200ms a dashboard
-	 * animates in. ease-in delays the frame the user is watching, so it is unset. */
-	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-	--ease-in: initial;
-	--default-transition-timing-function: var(--ease-out);
+	--font-sans: 'Inter Variable', sans-serif;
+	--font-display: 'Geist Variable', sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
+
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1.4;
+	--text-xs--letter-spacing: -0.01em;
+	--text-sm: 0.875rem;
+	--text-sm--line-height: 1.4;
+	--text-sm--letter-spacing: -0.01em;
+	--text-base: 1rem;
+	--text-base--line-height: 1.4;
+	--text-base--letter-spacing: -0.01em;
+	--text-lg: 1.125rem;
+	--text-lg--line-height: 1.4;
+	--text-lg--letter-spacing: -0.01em;
+	--text-xl: 1.25rem;
+	--text-xl--line-height: 1.4;
+	--text-xl--letter-spacing: -0.01em;
+	--text-2xl: 1.5rem;
+	--text-2xl--line-height: 1.3;
+	--text-2xl--letter-spacing: -0.02em;
+	/* 3xl and up are display sizes: Geist, tight leading and tracking. Arc ships 36/52/72; this system is one step smaller */
+	--text-3xl: 1.875rem;
+	--text-3xl--line-height: 1.15;
+	--text-3xl--letter-spacing: -0.03em;
+	--text-4xl: 2.5rem;
+	--text-4xl--line-height: 1.1;
+	--text-4xl--letter-spacing: -0.03em;
+	--text-5xl: 3.5rem;
+	--text-5xl--line-height: 1.05;
+	--text-5xl--letter-spacing: -0.03em;
+
+	/* Arc ships 18/26/34 and 36/44/50; both scales here are one step tighter */
+	--radius-control: 0.625rem;
+	--radius-panel: 0.875rem;
+	--radius-surface: 1.125rem;
+
+	--spacing-control-sm: 1.75rem;
+	--spacing-control-md: 2.25rem;
+	--spacing-control-lg: 2.75rem;
+
+	--ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+	--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+	--ease-spring: linear(
+		0,
+		0.0258,
+		0.09,
+		0.1763,
+		0.2732,
+		0.3724,
+		0.4683,
+		0.5573,
+		0.6376,
+		0.7082,
+		0.7689,
+		0.8202,
+		0.8628,
+		0.8976,
+		0.9256,
+		0.9476,
+		0.9648,
+		0.9778,
+		0.9875,
+		0.9945,
+		0.9994,
+		1.0026,
+		1.0047,
+		1.0058,
+		1.0062,
+		1.0062,
+		1.0059,
+		1.0055,
+		1.0049,
+		1.0043,
+		1.0036,
+		1.0031,
+		1.0025,
+		1.002,
+		1.0016,
+		1.0013,
+		1
+	);
+	--default-transition-timing-function: var(--ease-standard);
+	--default-transition-duration: 160ms;
 }
 
-/* Arc's foundation.css owns the palette (dark only). Below are only the dashboard's own roles Arc has no word for. */
-:root {
-	--info: oklch(78% 0.13 240);
-
-	/* Console surfaces (log tail, container shell): darker than the cards
-	 * around them, framed by the same hairline. */
-	--console: #000000;
-	--console-foreground: #d4d4d4;
-	--console-muted: #8a8a8a;
-	--console-stderr: #ff8a80;
-	--console-border: var(--border);
-
-	/* Syntax on a console surface: the .env editor. Everything else in a line
-	 * (the `=`, a comment) is --text-muted. */
-	--code-key: #52a8ff;
-	--code-value: #7ce38b;
-}
-
-/* Tailwind's color names, each pointing straight at an Arc role. */
 @theme inline {
 	--color-background: var(--background);
+	--color-surface: var(--surface);
+	--color-surface-raised: var(--surface-raised);
+	--color-surface-muted: var(--surface-muted);
 	--color-foreground: var(--foreground);
-	--color-card: var(--surface);
-	--color-card-foreground: var(--foreground);
-	--color-popover: var(--surface-raised);
-	--color-popover-foreground: var(--foreground);
-	--color-primary: var(--control-on);
-	--color-primary-foreground: var(--control-glyph);
-	--color-secondary: var(--surface-muted);
-	--color-muted: var(--surface-muted);
-	--color-muted-foreground: var(--text-muted);
-	/* Arc's --accent is a full-strength brand color; the dashboard's `accent` is a hover and selection tint. */
-	--color-accent: var(--accent-subtle);
-	--color-accent-foreground: var(--foreground);
-	--color-destructive: var(--danger);
+	--color-secondary: var(--text-secondary);
+	--color-muted: var(--text-muted);
+	--color-border: var(--border);
+	--color-border-subtle: var(--border-subtle);
+	--color-border-strong: var(--border-strong);
+	--color-accent: var(--accent);
+	--color-accent-strong: var(--accent-strong);
+	--color-accent-subtle: var(--accent-subtle);
+	--color-accent-foreground: var(--accent-foreground);
 	--color-success: var(--success);
 	--color-warning: var(--warning);
-	--color-info: var(--info);
-	/* `border` is a container's edge; `rule` is a separator inside one, quieter so a list does not read as boxes. */
-	--color-border: var(--border);
-	--color-rule: var(--border-subtle);
-	--color-input: var(--border-strong);
-	--color-ring: var(--border-strong);
-	/* Arc's line chart draws its first series in --accent. */
-	--color-chart-1: var(--accent);
-	--color-console: var(--console);
-	--color-console-foreground: var(--console-foreground);
-	--color-console-muted: var(--console-muted);
-	--color-console-stderr: var(--console-stderr);
-	--color-console-border: var(--console-border);
-	--color-code-key: var(--code-key);
-	--color-code-value: var(--code-value);
-	--font-heading: var(--font-sans);
-	--font-sans: 'Inter Variable', sans-serif;
-	/* One ladder off Arc's control radius, 2px a rung. md and lg are the control radius, so
-	 * every button, input and pill matches; xl and up are boxes, each rung the
-	 * one below it plus its padding, which is what keeps nested corners concentric. */
-	--radius-sm: calc(var(--radius-control) - 2px);
-	--radius-md: var(--radius-control);
-	--radius-lg: var(--radius-control);
-	--radius-xl: calc(var(--radius-control) + 6px);
-	--radius-2xl: calc(var(--radius-control) + 8px);
-	--radius-3xl: calc(var(--radius-control) + 10px);
-	--radius-4xl: calc(var(--radius-control) + 12px);
+	--color-danger: var(--danger);
+	--color-control-on: var(--control-on);
+	--color-control-glyph: var(--control-glyph);
+	--color-control-track: var(--control-track);
+	--color-control-track-hover: var(--control-track-hover);
+	--color-control-thumb: var(--control-thumb);
+	--color-control-thumb-on: var(--control-thumb-on);
+	--color-control-fill: var(--control-fill);
+	--color-series-1: var(--series-1);
+	--color-series-2: var(--series-2);
+	--color-series-3: var(--series-3);
+	--color-series-4: var(--series-4);
+	--shadow-resting: var(--shadow-resting);
+	--shadow-raised: var(--shadow-raised);
+	--shadow-floating: var(--shadow-floating);
+	--shadow-thumb: var(--control-thumb-shadow);
+}
+
+:root {
+	color-scheme: light;
+	--background: oklch(100% 0 0);
+	--surface: oklch(100% 0 0);
+	--surface-raised: oklch(100% 0 0);
+	--surface-muted: oklch(97.8% 0 0);
+	--foreground: oklch(15% 0 0);
+	--text-secondary: oklch(46% 0 0);
+	--text-muted: oklch(59% 0 0);
+	--border: oklch(93.5% 0 0);
+	--border-subtle: oklch(96.5% 0 0);
+	--border-strong: oklch(82% 0 0);
+	--accent: oklch(33% 0 0);
+	--accent-strong: oklch(24% 0 0);
+	--accent-subtle: oklch(33% 0 0 / 0.1);
+	--accent-foreground: var(--background);
+	--control-on: oklch(23% 0 0);
+	--control-glyph: oklch(100% 0 0);
+	--control-track: oklch(89.5% 0 0);
+	--control-track-hover: oklch(86% 0 0);
+	--control-thumb: oklch(100% 0 0);
+	--control-thumb-on: oklch(100% 0 0);
+	--control-fill: var(--control-on);
+	--control-thumb-shadow:
+		0 0 0 0.5px oklch(0% 0 0 / 0.07), 0 1px 2px oklch(0% 0 0 / 0.14), 0 2px 6px oklch(0% 0 0 / 0.06);
+	--success: oklch(49% 0.19 150);
+	--warning: oklch(58% 0.18 75);
+	--danger: oklch(54% 0.21 25);
+	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.035);
+	--shadow-raised: 0 6px 18px oklch(0% 0 0 / 0.065), 0 1px 3px oklch(0% 0 0 / 0.035);
+	--shadow-floating: 0 20px 48px oklch(0% 0 0 / 0.105), 0 3px 10px oklch(0% 0 0 / 0.045);
+	--series-1: #1f7dcf;
+	--series-2: #7128a5;
+	--series-3: #e58f00;
+	--series-4: #009e84;
+}
+
+:root[data-theme='dark'] {
+	color-scheme: dark;
+	--background: #000;
+	--surface: oklch(21.5% 0 0);
+	--surface-raised: oklch(24% 0 0);
+	--surface-muted: oklch(26% 0 0);
+	--foreground: oklch(96% 0 0);
+	--text-secondary: oklch(77% 0 0);
+	--text-muted: oklch(64% 0 0);
+	--border: oklch(29% 0 0);
+	--border-subtle: oklch(25% 0 0);
+	--border-strong: oklch(40% 0 0);
+	--accent: oklch(80% 0 0);
+	--accent-strong: oklch(91% 0 0);
+	--accent-subtle: oklch(80% 0 0 / 0.13);
+	/* Neutral dark inverts: near-white track, dark thumb, so on and off never read alike */
+	--control-on: oklch(93% 0 0);
+	--control-glyph: oklch(19% 0 0);
+	--control-track: oklch(33% 0 0);
+	--control-track-hover: oklch(37% 0 0);
+	--control-thumb: oklch(97% 0 0);
+	--control-thumb-on: oklch(19% 0 0);
+	--control-fill: oklch(62% 0 0);
+	--control-thumb-shadow:
+		0 0 0 0.5px oklch(0% 0 0 / 0.3), 0 1px 2px oklch(0% 0 0 / 0.35), 0 2px 6px oklch(0% 0 0 / 0.2);
+	--success: oklch(78% 0.18 150);
+	--warning: oklch(83% 0.17 80);
+	--danger: oklch(76% 0.2 25);
+	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.18);
+	--shadow-raised: 0 8px 22px oklch(0% 0 0 / 0.22);
+	--shadow-floating: 0 22px 55px oklch(0% 0 0 / 0.34);
+	--series-1: #55adff;
+	--series-2: #9c37be;
+	--series-3: #e66e00;
+	--series-4: #00a861;
+}
+
+/* Optional hue, set with data-accent on <html>. Light and dark rows per hue; the control-* row keeps a white thumb legible on the fill. */
+:root[data-accent='violet'] {
+	--accent: #7747ff;
+	--accent-strong: #5528ce;
+	--accent-subtle: rgb(119 71 255 / 0.13);
+	--control-on: #7747ff;
+	--control-thumb-on: #fff;
+	--control-glyph: #fff;
+}
+:root[data-accent='blue'] {
+	--accent: #0562ef;
+	--accent-strong: #074db7;
+	--accent-subtle: rgb(5 98 239 / 0.12);
+	--control-on: #0562ef;
+	--control-thumb-on: #fff;
+	--control-glyph: #fff;
+}
+:root[data-accent='green'] {
+	--accent: #0db879;
+	--accent-strong: #087c54;
+	--accent-subtle: rgb(13 184 121 / 0.13);
+	--accent-foreground: #102016;
+	--control-on: #10a870;
+	--control-thumb-on: #fff;
+	--control-glyph: #fff;
+}
+:root[data-accent='amber'] {
+	--accent: #f3ad20;
+	--accent-strong: #9c6300;
+	--accent-subtle: rgb(243 173 32 / 0.16);
+	--accent-foreground: #20190d;
+	--control-on: #eda11a;
+	--control-thumb-on: #fff;
+	--control-glyph: #2a1c03;
+}
+:root[data-accent='orange'] {
+	--accent: #f48120;
+	--accent-strong: #aa4700;
+	--accent-subtle: rgb(244 129 32 / 0.13);
+	--accent-foreground: #17130f;
+	--control-on: #f07818;
+	--control-thumb-on: #fff;
+	--control-glyph: #fff;
+}
+:root[data-accent='coral'] {
+	--accent: #f15f55;
+	--accent-strong: #b92c27;
+	--accent-subtle: rgb(241 95 85 / 0.14);
+	--accent-foreground: #21110f;
+	--control-on: #ec564b;
+	--control-thumb-on: #fff;
+	--control-glyph: #fff;
+}
+:root[data-accent='rose'] {
+	--accent: #ed4e9d;
+	--accent-strong: #ae2570;
+	--accent-subtle: rgb(237 78 157 / 0.14);
+	--accent-foreground: #250f1b;
+	--control-on: #e64494;
+	--control-thumb-on: #fff;
+	--control-glyph: #fff;
+}
+:root[data-theme='dark'][data-accent='violet'] {
+	--accent: #a78bff;
+	--accent-strong: #c7b7ff;
+	--accent-subtle: rgb(119 71 255 / 0.22);
+	--control-on: #8a66ff;
+	--control-fill: #8a66ff;
+}
+:root[data-theme='dark'][data-accent='blue'] {
+	--accent: #6ba3ff;
+	--accent-strong: #a4c7ff;
+	--accent-subtle: rgb(5 98 239 / 0.22);
+	--control-on: #3b82f6;
+	--control-fill: #3b82f6;
+}
+:root[data-theme='dark'][data-accent='green'] {
+	--accent: #53dca6;
+	--accent-strong: #93efd0;
+	--accent-subtle: rgb(13 184 121 / 0.2);
+	--control-on: #1fae78;
+	--control-fill: #1fae78;
+}
+:root[data-theme='dark'][data-accent='amber'] {
+	--accent: #ffcb62;
+	--accent-strong: #ffe0a1;
+	--accent-subtle: rgb(243 173 32 / 0.2);
+	--control-on: #e8a52a;
+	--control-fill: #e8a52a;
+	--control-glyph: #241803;
+}
+:root[data-theme='dark'][data-accent='orange'] {
+	--accent: #ffad5e;
+	--accent-strong: #ffd0a0;
+	--accent-subtle: rgb(244 129 32 / 0.2);
+	--accent-foreground: #17130f;
+	--control-on: #ef873a;
+	--control-fill: #ef873a;
+}
+:root[data-theme='dark'][data-accent='coral'] {
+	--accent: #ff9386;
+	--accent-strong: #ffc1ba;
+	--accent-subtle: rgb(241 95 85 / 0.2);
+	--control-on: #ec6a60;
+	--control-fill: #ec6a60;
+}
+:root[data-theme='dark'][data-accent='rose'] {
+	--accent: #ff8bc5;
+	--accent-strong: #ffc0df;
+	--accent-subtle: rgb(237 78 157 / 0.2);
+	--control-on: #e457a0;
+	--control-fill: #e457a0;
 }
 
 @layer base {
-	*,
-	::after,
-	::before,
-	::backdrop,
-	::file-selector-button {
-		@apply box-border;
-		@apply border-border outline-ring;
+	* {
+		@apply border-border;
+	}
+	html {
+		@apply font-sans antialiased;
+		-webkit-tap-highlight-color: transparent;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	button:not(:disabled),
+	[role='button']:not(:disabled) {
+		cursor: pointer;
+	}
+	button,
+	[role='button'],
+	a {
+		touch-action: manipulation;
+	}
+	h1,
+	h2,
+	h3,
+	h4 {
+		text-wrap: balance;
+	}
+	p {
+		text-wrap: pretty;
 	}
 
-	/* Scrollbar thumbs are the text color at low opacity and wake up while the
-	 * element is hovered. */
+	/* Pointer focus draws no ring. Keyboard focus draws one accent outline, except on text fields (border and caret show it),
+     menu items and options (the highlight shows it) and tabindex="-1" targets (focused by script). Tune with --focus-outline* on any element. */
+	:focus:not(:focus-visible),
+	:is(
+		input:not(
+			[type='button'],
+			[type='checkbox'],
+			[type='color'],
+			[type='file'],
+			[type='image'],
+			[type='radio'],
+			[type='range'],
+			[type='reset'],
+			[type='submit']
+		),
+		textarea,
+		[contenteditable]:not([contenteditable='false']),
+		[role='menuitem'],
+		[role='menuitemcheckbox'],
+		[role='menuitemradio'],
+		[role='option'],
+		[tabindex='-1']
+	):focus {
+		outline: none !important;
+	}
+	:focus-visible:not(
+		input:not(
+			[type='button'],
+			[type='checkbox'],
+			[type='color'],
+			[type='file'],
+			[type='image'],
+			[type='radio'],
+			[type='range'],
+			[type='reset'],
+			[type='submit']
+		),
+		textarea,
+		[contenteditable]:not([contenteditable='false']),
+		[role='menuitem'],
+		[role='menuitemcheckbox'],
+		[role='menuitemradio'],
+		[role='option'],
+		[tabindex='-1']
+	) {
+		outline: var(--focus-outline-width, 2px) solid
+			var(--focus-outline, color-mix(in oklab, var(--accent-strong) 72%, transparent)) !important;
+		outline-offset: var(--focus-outline-offset, 2px) !important;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		/* 0.01ms, not none: transitionend still fires and Base UI unmounts popups */
+		*,
+		::before,
+		::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+			scroll-behavior: auto !important;
+		}
+	}
+}
+
+@utility page {
+	max-width: 1200px;
+	margin-inline: auto;
+	padding: 24px clamp(16px, 3vw, 24px);
+	& > * {
+		min-width: 0;
+	}
+}
+
+@utility press {
+	transition-property: scale;
+	transition-duration: 580ms;
+	transition-timing-function: var(--ease-spring);
+	&:active:not(:disabled, [aria-disabled='true'], [data-disabled]) {
+		scale: 0.97;
+	}
+}
+
+@utility popup {
+	transform-origin: var(--transform-origin, center);
+	transition-property: opacity, scale, translate;
+	transition-duration: var(--tw-duration, 240ms);
+	transition-timing-function: var(--tw-ease, var(--ease-enter));
+	&[data-starting-style],
+	&[data-ending-style] {
+		opacity: 0;
+		scale: 0.96;
+	}
+	&[data-ending-style] {
+		transition-duration: 180ms;
+		transition-timing-function: var(--ease-exit);
+	}
+	&[data-instant] {
+		transition-duration: 0ms;
+	}
+}
+
+@utility scrim {
+	transition-property: opacity;
+	transition-duration: var(--tw-duration, 240ms);
+	transition-timing-function: var(--ease-standard);
+	&[data-starting-style],
+	&[data-ending-style] {
+		opacity: 0;
+	}
+	&[data-ending-style] {
+		transition-duration: 180ms;
+	}
+}
+
+/* Everything above is the ui skill's styles.css unchanged but for the xterm import; below are vexdock's own additions. */
+
+/* The console (log tail, container shell, .env editor) stays a black terminal in either theme. */
+:root {
+	--console: oklch(0% 0 0);
+	--console-foreground: oklch(87% 0 0);
+	--code-key: oklch(71.7% 0.152 251);
+	--code-value: oklch(83.2% 0.156 147);
+}
+
+@theme inline {
+	--color-console: var(--console);
+	--color-console-foreground: var(--console-foreground);
+	--color-code-key: var(--code-key);
+	--color-code-value: var(--code-value);
+}
+
+@layer base {
+	body {
+		@apply text-sm;
+		/* A panel of readings, durations and sizes: digits line up everywhere instead of each surface opting in. */
+		font-variant-numeric: tabular-nums;
+		scrollbar-width: thin;
+	}
+
+	/* Scrollbar thumbs are the text color at low opacity and wake up while the element is hovered. */
 	* {
 		scrollbar-color: color-mix(in oklch, currentColor 35%, transparent) transparent;
 	}
@@ -112,95 +505,6 @@
 		scrollbar-color: color-mix(in oklch, currentColor 60%, transparent) transparent;
 	}
 
-	html {
-		-webkit-tap-highlight-color: transparent;
-		@apply font-sans;
-	}
-
-	code,
-	pre,
-	samp,
-	kbd {
-		font-family: var(--font-mono);
-	}
-
-	body {
-		@apply bg-background text-foreground antialiased;
-		font-size: 14px;
-		line-height: 1.5;
-		/* A panel of readings, durations and sizes: digits line up by default,
-		 * everywhere, instead of each surface opting in. */
-		font-variant-numeric: tabular-nums;
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
-		scrollbar-width: thin;
-	}
-
-	:root.use-pointer-cursors
-		:is(
-			button,
-			a[href],
-			summary,
-			select,
-			[role='button'],
-			[role='link'],
-			[role='menuitem'],
-			[role='option'],
-			[role='radio'],
-			[role='switch'],
-			[role='tab'],
-			[role='checkbox']
-		):not(:disabled):not([aria-disabled='true']):not([data-disabled]):not([data-disabled='true']) {
-		cursor: pointer;
-	}
-
-	:root.use-pointer-cursors
-		:is(
-			input[type='checkbox'],
-			input[type='radio'],
-			input[type='button'],
-			input[type='submit'],
-			input[type='reset']
-		)
-		:not(:disabled) {
-		cursor: pointer;
-	}
-}
-
-/* Raised surfaces sit on Arc's resting shadow. Cards, tables, cells. */
-@utility raised {
-	box-shadow: var(--shadow-resting);
-}
-
-@utility press {
-	transition-property: scale;
-	transition-duration: 150ms;
-	transition-timing-function: var(--ease-out);
-	&:active:not(:disabled, [data-disabled], [aria-disabled='true']) {
-		scale: 0.97;
-	}
-}
-
-@layer utilities {
-	.interactive-cursor {
-		cursor: default;
-	}
-
-	:root.use-pointer-cursors
-		.interactive-cursor:not(:disabled):not([aria-disabled='true']):not([data-disabled]):not(
-			[data-disabled='true']
-		) {
-		cursor: pointer;
-	}
-
-	.unset-all {
-		all: unset;
-	}
-}
-
-/* Below here: vexdock-only, everything above matches rarv's assets/index.css. */
-
-@layer base {
 	::selection {
 		background: var(--foreground);
 		color: var(--background);
@@ -221,11 +525,8 @@ body,
 @utility enter-children {
 	& > :not(:only-child),
 	& > :only-child > * {
-		animation: enter 240ms var(--ease-out) backwards;
+		animation: enter 240ms var(--ease-enter) backwards;
 		animation-delay: calc(var(--enter-step, 0) * 70ms);
-		@media (prefers-reduced-motion: reduce) {
-			animation-name: fade;
-		}
 	}
 	& > :nth-child(2),
 	& > :only-child > :nth-child(2) {
@@ -249,40 +550,5 @@ body,
 	from {
 		opacity: 0;
 		translate: 0 12px;
-	}
-}
-
-@keyframes fade {
-	from {
-		opacity: 0;
-	}
-}
-
-/* A bar grows from its start on mount, then follows its value. */
-@utility rise {
-	transform-origin: left;
-	animation: rise 400ms var(--ease-out) 150ms backwards;
-	transition-duration: 300ms;
-	transition-timing-function: var(--ease-out);
-	@media (prefers-reduced-motion: reduce) {
-		animation: none;
-	}
-}
-
-@keyframes rise {
-	from {
-		scale: 0 1;
-	}
-}
-
-/* Reduced motion drops movement, not feedback: the fades that say a thing
- * opened or closed stay, the travel, scaling and height that cause motion
- * sickness snap. */
-@media (prefers-reduced-motion: reduce) {
-	*,
-	::before,
-	::after {
-		transition-property: opacity, visibility, color, background-color, border-color, fill, stroke !important;
-		scroll-behavior: auto !important;
 	}
 }

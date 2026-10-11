@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal as XTerm } from '@xterm/xterm'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
 
 /**
  * Interactive container shell. The manager attaches a Docker exec over
@@ -10,7 +10,7 @@ import { cn } from '@/utils/cn'
 export function Terminal({ url }: { url: string }) {
 	const hostRef = useRef<HTMLDivElement>(null)
 	const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting')
-	const statusDot = { connecting: 'bg-warning', open: 'bg-success', closed: 'bg-muted-foreground' }[status]
+	const statusDot = { connecting: 'bg-warning', open: 'bg-success', closed: 'bg-muted' }[status]
 
 	useEffect(() => {
 		const host = hostRef.current
@@ -77,14 +77,11 @@ export function Terminal({ url }: { url: string }) {
 
 	return (
 		<div>
-			<div className='mb-2 flex items-center gap-1.5 text-label text-muted-foreground'>
+			<div className='mb-2 flex items-center gap-1.5 text-xs text-muted'>
 				<span className={cn('inline-block size-1.5 rounded-full', statusDot)} />
 				{status}
 			</div>
-			<div
-				ref={hostRef}
-				className='terminal-host h-[60vh] overflow-hidden rounded-xl border border-console-border bg-console p-2'
-			/>
+			<div ref={hostRef} className='terminal-host h-[60vh] overflow-hidden rounded-panel border bg-console p-2' />
 		</div>
 	)
 }

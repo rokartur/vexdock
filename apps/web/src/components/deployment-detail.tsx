@@ -91,7 +91,7 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 			<div className='flex flex-col gap-4 sm:flex-row'>
 				<div className='flex shrink-0 flex-col gap-3 sm:w-52'>
 					{steps.length === 0 ? (
-						<span className='text-body text-muted-foreground'>Waiting for the runner…</span>
+						<span className='text-sm text-muted'>Waiting for the runner…</span>
 					) : (
 						<Timeline
 							steps={steps.map(step => ({

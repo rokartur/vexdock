@@ -32,7 +32,6 @@ function ServiceAdvanced() {
 			{service.data ? <ServiceRouting key={service.data.id} service={service.data} /> : null}
 			<FormSection
 				title='Delete service'
-				description='Removes it from the compose overlay and drops its environment.'
 				icon={IconTrash}
 				hint='The data volume stays, so recreating the service under the same name picks it back up.'
 				actions={
@@ -50,7 +49,7 @@ function ServiceAdvanced() {
 				}
 			>
 				<ErrorText error={remove.error} />
-				<p className='text-body text-muted-foreground'>Deleting {name} cannot be undone from the panel.</p>
+				<p className='text-sm text-muted'>Deleting {name} cannot be undone from the panel.</p>
 			</FormSection>
 		</div>
 	)

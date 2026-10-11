@@ -2,9 +2,9 @@ import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
 import { IconBox, IconDatabase, IconFolder, IconGitBranch, IconLayersLinked, IconSelector } from '@tabler/icons-react'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/arc/popover'
-import { SearchField } from '@/components/arc/search-field'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { SearchField } from '@/components/ui/search-field'
 import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
 import { projectQuery, projectsQuery, serviceQuery, servicesQuery } from '../lib/queries'
 import { Status } from './primitives'
@@ -67,9 +67,9 @@ function CrumbPicker({
 				setActiveIndex(0)
 			}}
 		>
-			<PopoverTrigger className='flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-transparent bg-accent/50 px-2 text-body transition-colors hover:border-border hover:bg-accent data-popup-open:border-border data-popup-open:bg-accent'>
+			<PopoverTrigger className='flex h-7 min-w-0 items-center gap-1.5 rounded-control border border-transparent bg-surface-muted/50 px-2 text-sm transition-colors hover:border-border hover:bg-surface-muted data-popup-open:border-border data-popup-open:bg-surface-muted'>
 				<span className='flex min-w-0 items-center gap-2 truncate'>{label}</span>
-				<IconSelector className='size-3.5 shrink-0 text-muted-foreground' />
+				<IconSelector className='size-3.5 shrink-0 text-muted' />
 			</PopoverTrigger>
 			<PopoverContent className='w-72 p-1.5'>
 				<SearchField
@@ -92,12 +92,12 @@ function CrumbPicker({
 						<button
 							type='button'
 							onClick={() => query.refetch()}
-							className='w-full px-3 py-4 text-left text-body text-muted-foreground hover:text-foreground'
+							className='w-full px-3 py-4 text-left text-sm text-muted hover:text-foreground'
 						>
 							Could not load. Retry
 						</button>
 					) : shown.length === 0 ? (
-						<p className='px-3 py-4 text-body text-muted-foreground'>No matches</p>
+						<p className='px-3 py-4 text-sm text-muted'>No matches</p>
 					) : (
 						shown.map(choice => (
 							<div
@@ -114,8 +114,8 @@ function CrumbPicker({
 									if (event.key === 'Enter') pick(choice)
 								}}
 								className={cn(
-									'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-body [&>svg]:size-4 [&>svg]:shrink-0',
-									choice === active && 'bg-accent',
+									'flex cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 text-sm [&>svg]:size-4 [&>svg]:shrink-0',
+									choice === active && 'bg-surface-muted',
 									choice.current && 'font-medium',
 								)}
 							>
@@ -143,7 +143,7 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 			query={projects}
 			label={
 				<>
-					<IconFolder className='size-4 shrink-0 text-muted-foreground' />
+					<IconFolder className='size-4 shrink-0 text-muted' />
 					{current.data?.name ?? projectId}
 					{current.data?.latest_deployment ? (
 						<Status dot value={current.data.latest_deployment.status} />
@@ -164,11 +164,11 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 				},
 				children: (
 					<>
-						<IconFolder className='text-muted-foreground' />
+						<IconFolder className='text-muted' />
 						<span className='truncate'>{project.name}</span>
 						<span className='ml-auto flex items-center gap-1.5'>
 							{project.latest_deployment ? <Status dot value={project.latest_deployment.status} /> : null}
-							<span className='font-mono text-meta text-muted-foreground tabular-nums'>
+							<span className='font-mono text-xs text-muted tabular-nums'>
 								{project.running_count}/{project.service_count}
 							</span>
 						</span>
@@ -195,7 +195,7 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 			query={environments}
 			label={
 				<>
-					<IconLayersLinked className='size-4 shrink-0 text-muted-foreground' />
+					<IconLayersLinked className='size-4 shrink-0 text-muted' />
 					{current?.name ?? 'Production'}
 				</>
 			}
@@ -208,10 +208,10 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 				},
 				children: (
 					<>
-						<IconLayersLinked className='text-muted-foreground' />
+						<IconLayersLinked className='text-muted' />
 						<span className='truncate'>{env.name}</span>
 						{env.branch ? (
-							<span className='ml-auto inline-flex items-center gap-1 truncate font-mono text-meta text-muted-foreground'>
+							<span className='ml-auto inline-flex items-center gap-1 truncate font-mono text-xs text-muted'>
 								<IconGitBranch className='size-3' />
 								{env.branch}
 							</span>
@@ -240,9 +240,9 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 			label={
 				<>
 					{current.data?.type === 'database' ? (
-						<IconDatabase className='size-4 shrink-0 text-muted-foreground' />
+						<IconDatabase className='size-4 shrink-0 text-muted' />
 					) : (
-						<IconBox className='size-4 shrink-0 text-muted-foreground' />
+						<IconBox className='size-4 shrink-0 text-muted' />
 					)}
 					{current.data?.compose_service_name ?? serviceId}
 					{current.data ? <Status dot value={current.data.state || 'stopped'} /> : null}
@@ -261,12 +261,12 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 				children: (
 					<>
 						{service.type === 'database' ? (
-							<IconDatabase className='text-muted-foreground' />
+							<IconDatabase className='text-muted' />
 						) : (
-							<IconBox className='text-muted-foreground' />
+							<IconBox className='text-muted' />
 						)}
 						<span className='truncate'>{service.compose_service_name}</span>
-						<span className='ml-auto text-meta'>
+						<span className='ml-auto text-xs'>
 							<Status value={service.state || 'stopped'} />
 						</span>
 					</>

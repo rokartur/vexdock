@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Icon as TablerIcon } from '@tabler/icons-react'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
 import { Cell } from './primitives'
 
 /** How much history a chart shows unless told otherwise. Matches the default metrics window. */
@@ -150,7 +150,7 @@ export function Sparkline({
 }) {
 	const path = sparkPath(values, width, height, max)
 	if (!path) {
-		return <span className='text-muted-foreground'>-</span>
+		return <span className='text-muted'>-</span>
 	}
 	return (
 		<svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role='img' aria-label={label}>
@@ -344,7 +344,7 @@ export function MetricCard({
 			<div
 				className={cn(
 					!inline && 'mt-3',
-					axis && 'grid grid-cols-[minmax(0,1fr)_48px] grid-rows-[auto_26px] text-xs text-muted-foreground',
+					axis && 'grid grid-cols-[minmax(0,1fr)_48px] grid-rows-[auto_26px] text-xs text-muted',
 				)}
 				role='img'
 				aria-label={`${label}, ${windowLabel}`}

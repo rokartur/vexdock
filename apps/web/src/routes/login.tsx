@@ -31,10 +31,10 @@ function LoginPage() {
 	return (
 		<div className='mx-auto flex min-h-dvh max-w-sm enter-children flex-col justify-center px-6'>
 			<div className='mb-6 flex items-center gap-2.5'>
-				<span className='flex size-7 items-center justify-center rounded-md bg-primary text-meta font-medium text-primary-foreground'>
+				<span className='flex size-7 items-center justify-center rounded-control bg-foreground text-xs font-medium text-background'>
 					VX
 				</span>
-				<h1 className='text-title font-medium'>Sign in to vexdock</h1>
+				<h1 className='text-base font-medium'>Sign in to vexdock</h1>
 			</div>
 			<form
 				onSubmit={event => {

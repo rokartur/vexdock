@@ -68,7 +68,7 @@ function providerColumns(edit: (provider: GitProvider) => void, remove: (id: str
 				const Icon = iconFor(row.original.provider_type)
 				return (
 					<span className='inline-flex items-center gap-2 font-medium'>
-						<Icon className='size-4 text-muted-foreground' />
+						<Icon className='size-4 text-muted' />
 						{row.original.name}
 					</span>
 				)
@@ -310,7 +310,6 @@ function GitProviders() {
 			) : null}
 			<Section
 				title='Git connections'
-				description='connect once, then pick a repository instead of pasting a URL'
 				actions={
 					<>
 						<Refresh onClick={() => providers.refetch()} busy={providers.isFetching} />

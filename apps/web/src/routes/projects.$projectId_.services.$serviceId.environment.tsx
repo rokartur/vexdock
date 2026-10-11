@@ -41,11 +41,10 @@ function ServiceEnvironment() {
 		<div className='max-w-3xl'>
 			<FormSection
 				title='Environment variables'
-				description='Written to this service’s own .env with 0600 permissions.'
 				icon={IconVariable}
 				hint='Redeploy to apply.'
 				onSave={() => save.mutate()}
-				actions={<SaveButton mutation={save} />}
+				actions={<SaveButton mutation={save} dirty={text !== toDotenv(environment.data ?? [])} />}
 			>
 				<ErrorText error={save.error} />
 				<VariablesEditor rows={18} value={text} onChange={setText} stored={environment.data ?? []} />

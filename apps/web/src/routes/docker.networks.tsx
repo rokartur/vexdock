@@ -54,7 +54,7 @@ function publishedPorts(containers: ContainerSummary[]): PublishedPort[] {
 			})
 		}
 	}
-	return [...byKey.values()].sort((a, b) => a.published - b.published)
+	return [...byKey.values()].toSorted((a, b) => a.published - b.published)
 }
 
 function reach(addresses: string[]): string {
@@ -86,7 +86,7 @@ function networkRows(
 			groups: serviceGroups(network, byId, projects),
 		}
 	})
-	return rows.sort((a, b) => Number(a.builtin) - Number(b.builtin) || a.label.localeCompare(b.label))
+	return rows.toSorted((a, b) => Number(a.builtin) - Number(b.builtin) || a.label.localeCompare(b.label))
 }
 
 function serviceGroups(
@@ -109,7 +109,7 @@ function serviceGroups(
 	for (const group of groups.values()) {
 		group.services.sort((a, b) => a.name.localeCompare(b.name))
 	}
-	return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label))
+	return [...groups.values()].toSorted((a, b) => a.label.localeCompare(b.label))
 }
 
 function portTableColumns(projects: ComposeProjects): Columns<PublishedPort> {
@@ -156,11 +156,7 @@ function networkTableColumns(): Columns<NetworkRow> {
 			cell: ({ row }) => {
 				if (row.original.project) return <ProjectLink project={row.original.project} />
 				return (
-					<span
-						className={
-							row.original.builtin ? 'font-mono text-label text-muted-foreground' : 'font-mono text-label'
-						}
-					>
+					<span className={row.original.builtin ? 'font-mono text-xs text-muted' : 'font-mono text-xs'}>
 						{row.original.label}
 					</span>
 				)
@@ -193,15 +189,13 @@ function networkTableColumns(): Columns<NetworkRow> {
 
 function Services({ row }: { row: NetworkRow }) {
 	if (row.groups.length === 0) {
-		return <span className='text-muted-foreground'>{row.builtin ? 'Docker default' : '-'}</span>
+		return <span className='text-muted'>{row.builtin ? 'Docker default' : '-'}</span>
 	}
 	return (
 		<span className='flex flex-col gap-0.5'>
 			{row.groups.map(group => (
 				<span key={group.compose}>
-					{row.groups.length > 1 && group.label ? (
-						<span className='text-muted-foreground'>{group.label} </span>
-					) : null}
+					{row.groups.length > 1 && group.label ? <span className='text-muted'>{group.label} </span> : null}
 					{group.services.map((service, index) => (
 						<Fragment key={service.container}>
 							{index > 0 ? ', ' : null}
@@ -265,7 +259,7 @@ function NetworksPage() {
 		<Page>
 			<Section
 				title='Published ports'
-				description={`${ports.length} total`}
+				total={ports.length}
 				actions={<Refresh onClick={() => containers.refetch()} busy={containers.isFetching} />}
 			>
 				<DataTable
@@ -280,7 +274,7 @@ function NetworksPage() {
 			</Section>
 			<Section
 				title='Networks'
-				description={`${rows.length} total`}
+				total={rows.length}
 				actions={<Refresh onClick={() => networks.refetch()} busy={networks.isFetching} />}
 			>
 				<DataTable

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { IconFolder, IconPlus } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Badge } from '@/components/arc/badge'
+import { Badge } from '@/components/ui/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { NewProjectDialog } from '../components/new-project'
 import { Button, Meter, Page, Refresh, RelativeTime, Section, StatStrip, Status } from '../components/primitives'
@@ -17,7 +17,7 @@ const projectTableColumns: Columns<Project> = (() => {
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconFolder className='size-4 text-muted-foreground' />
+					<IconFolder className='size-4 text-muted' />
 					{row.original.name}
 				</span>
 			),
@@ -27,7 +27,7 @@ const projectTableColumns: Columns<Project> = (() => {
 			header: 'Tags',
 			cell: ({ row }) => {
 				const tags = tagsOf(row.original)
-				if (tags.length === 0) return <span className='text-muted-foreground'>-</span>
+				if (tags.length === 0) return <span className='text-muted'>-</span>
 				return (
 					<span className='flex flex-wrap gap-1'>
 						{tags.map(tag => (
@@ -64,7 +64,7 @@ const projectTableColumns: Columns<Project> = (() => {
 						<RelativeTime at={original.latest_deployment.created_at} />
 					</span>
 				) : (
-					<span className='text-muted-foreground'>never</span>
+					<span className='text-muted'>never</span>
 				),
 		}),
 	]
@@ -117,7 +117,7 @@ function ProjectsPage() {
 
 			<Section
 				title='All projects'
-				description={`${data.length} total`}
+				total={data.length}
 				actions={<Refresh onClick={() => projects.refetch()} busy={projects.isFetching} />}
 			>
 				<DataTable

@@ -11,8 +11,8 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge } from '@/components/arc/badge'
-import { Dialog, DialogContent } from '@/components/arc/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since } from '../lib/format'
 import { tasksQuery } from '../lib/queries'
@@ -92,7 +92,7 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 				>
 					{row.original.service_name}
 				</Link>
-				<span className='block text-label text-muted-foreground'>{row.original.project_name}</span>
+				<span className='block text-xs text-muted'>{row.original.project_name}</span>
 			</>
 		),
 	})
@@ -102,14 +102,14 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='flex items-center gap-2'>
-					<IconClock className='size-4 shrink-0 text-muted-foreground' />
+					<IconClock className='size-4 shrink-0 text-muted' />
 					<span className='min-w-0'>
 						<span className='flex items-center gap-2 font-medium'>
 							{row.original.name}
 							{row.original.enabled ? null : <Badge>paused</Badge>}
 						</span>
 						{row.original.description ? (
-							<span className='block max-w-64 truncate text-label text-muted-foreground'>
+							<span className='block max-w-64 truncate text-xs text-muted'>
 								{row.original.description}
 							</span>
 						) : null}
@@ -124,7 +124,7 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 			cell: ({ row }) => (
 				<>
 					<span className='font-mono'>{row.original.schedule}</span>
-					<span className='block text-label text-muted-foreground'>{row.original.timezone}</span>
+					<span className='block text-xs text-muted'>{row.original.timezone}</span>
 				</>
 			),
 		}),
@@ -135,7 +135,7 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 				row.original.next_run ? (
 					<RelativeTime at={row.original.next_run} />
 				) : (
-					<span className='text-muted-foreground'>{row.original.enabled ? 'never' : 'paused'}</span>
+					<span className='text-muted'>{row.original.enabled ? 'never' : 'paused'}</span>
 				),
 		}),
 		cell.accessor(task => task.command, {
@@ -151,15 +151,15 @@ function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: Ta
 			// shows everything it has done.
 			cell: ({ row }) => {
 				const last = row.original.last_run
-				if (!last) return <span className='text-muted-foreground'>never</span>
+				if (!last) return <span className='text-muted'>never</span>
 				return (
 					<button
 						type='button'
-						className={`hover:underline ${last.exit_code === 0 ? '' : 'text-destructive'}`}
+						className={`hover:underline ${last.exit_code === 0 ? '' : 'text-danger'}`}
 						onClick={() => select(row.original.id)}
 					>
 						<RelativeTime at={last.started_at} />
-						<span className='ml-2 font-mono text-label text-muted-foreground'>
+						<span className='ml-2 font-mono text-xs text-muted'>
 							{last.finished_at ? duration(last.started_at, last.finished_at) : 'running'}
 						</span>
 						{last.exit_code === 0 ? '' : ` · exit ${last.exit_code}`}
@@ -303,7 +303,6 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 			) : null}
 			<Section
 				title='Scheduled tasks'
-				description={serviceId ? 'run inside this service’s container' : 'across every project'}
 				actions={
 					serviceId ? (
 						<Button variant='primary' onClick={() => setForm(emptyTask)}>
@@ -485,20 +484,14 @@ function TaskRuns({ task }: { task: ScheduledTask }) {
 						value: item.id,
 						label: since(item.started_at),
 						accessory: (
-							<span
-								className={
-									item.exit_code === 0
-										? 'font-mono text-muted-foreground'
-										: 'font-mono text-destructive'
-								}
-							>
+							<span className={item.exit_code === 0 ? 'font-mono text-muted' : 'font-mono text-danger'}>
 								{item.finished_at ? duration(item.started_at, item.finished_at) : 'running'}
 							</span>
 						),
 					}))}
 				/>
 			) : (
-				<p className='text-body text-muted-foreground'>This task has not run yet.</p>
+				<p className='text-sm text-muted'>This task has not run yet.</p>
 			)}
 			{shown ? (
 				<div className='mt-3'>

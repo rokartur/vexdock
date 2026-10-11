@@ -29,8 +29,8 @@ function volumeTableColumns(
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2' title={row.original.name}>
-					<IconDatabase className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{shortName(row.original)}</span>
+					<IconDatabase className='size-4 text-muted' />
+					<span className='font-mono text-xs'>{shortName(row.original)}</span>
 				</span>
 			),
 		}),
@@ -90,7 +90,7 @@ function volumeTableColumns(
 }
 
 // Docker names a volume nobody named (an image's VOLUME) with 64 hex characters, like a container id.
-const isAnonymous = (volume: VolumeSummary) => /^[0-9a-f]{64}$/.test(volume.name)
+const isAnonymous = (volume: VolumeSummary) => /^[0-9a-f]{64}$/u.test(volume.name)
 
 // Compose names a volume <compose project>_<key>; the project has its own column.
 function shortName(volume: VolumeSummary) {
@@ -151,7 +151,6 @@ function VolumesPage() {
 			{stats.length > 1 ? <StatStrip className='mb-4' items={stats} /> : null}
 			<Section
 				title='All volumes'
-				description='deleting a volume destroys its data'
 				actions={<Refresh onClick={() => volumes.refetch()} busy={volumes.isFetching} />}
 			>
 				<ErrorText error={remove.error} />

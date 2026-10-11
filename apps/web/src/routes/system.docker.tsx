@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { IconBox, IconDatabase, IconStack2, IconTrash, type Icon as TablerIcon } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Alert } from '@/components/arc/alert'
+import { Alert } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Confirm, ErrorText, IconButton, Meter, Page, Refresh, Section } from '../components/primitives'
 import { api } from '../lib/api'
@@ -34,7 +34,7 @@ function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void, total
 			header: 'Target',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<row.original.icon className='size-4 text-muted-foreground' />
+					<row.original.icon className='size-4 text-muted' />
 					{row.original.label}
 				</span>
 			),
@@ -92,11 +92,7 @@ function CleanupPage() {
 		<Page labels={{ docker: 'Docker cleanup' }}>
 			<Section
 				title='Reclaimable space'
-				description={
-					preview.data
-						? `${bytes(total)} reclaimable, review before removing anything`
-						: 'review before removing anything'
-				}
+				total={preview.data ? bytes(total) : undefined}
 				actions={<Refresh onClick={() => preview.refetch()} busy={preview.isFetching} />}
 			>
 				<ErrorText error={cleanup.error} />

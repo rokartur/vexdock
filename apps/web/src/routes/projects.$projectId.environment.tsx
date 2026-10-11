@@ -48,7 +48,6 @@ function ProjectEnvironment() {
 		<div className='max-w-3xl'>
 			<VariablesCard
 				title='Shared variables'
-				description='Every environment of this project gets these.'
 				icon={IconVariable}
 				query={sharedQuery}
 				save={variables => api.saveProjectVariables(projectId, variables)}
@@ -57,7 +56,6 @@ function ProjectEnvironment() {
 				<VariablesCard
 					key={current.id}
 					title={`${current.name} variables`}
-					description='Override a shared value, or add one only this environment needs.'
 					icon={IconLayersLinked}
 					query={environmentVariablesQuery(current.id)}
 					save={variables => api.saveEnvironmentVariables(current.id, variables)}
@@ -70,14 +68,12 @@ function ProjectEnvironment() {
 
 function VariablesCard({
 	title,
-	description,
 	icon,
 	query,
 	save,
 	shared,
 }: {
 	title: string
-	description: string
 	icon: TablerIcon
 	query: ReturnType<typeof sharedVariablesQuery>
 	save: (variables: EnvVar[]) => Promise<EnvVar[]>
@@ -105,11 +101,10 @@ function VariablesCard({
 	return (
 		<FormSection
 			title={title}
-			description={description}
 			icon={icon}
 			hint='Redeploy to apply.'
 			onSave={() => write.mutate()}
-			actions={<SaveButton mutation={write} />}
+			actions={<SaveButton mutation={write} dirty={text !== toDotenv(variables.data ?? [])} />}
 		>
 			<ErrorText error={write.error} />
 			<VariablesEditor value={text} onChange={setText} stored={variables.data ?? []} shared={shared} />

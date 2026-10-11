@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { IconDownload, IconExternalLink, IconRefresh, IconTag } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Alert } from '@/components/arc/alert'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
+import { Alert } from '@/components/ui/alert'
 import { Button, Cell, Cells, ErrorText, FormSection, Switch } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
 import { since } from '../lib/format'
@@ -117,14 +117,13 @@ function Version() {
 					className='mb-4'
 				>
 					{state.data.log ? (
-						<pre className='max-w-full overflow-x-auto font-mono text-label'>{state.data.log}</pre>
+						<pre className='max-w-full overflow-x-auto font-mono text-xs'>{state.data.log}</pre>
 					) : null}
 				</Alert>
 			) : null}
 
 			<FormSection
 				title='Version'
-				description='A backup is taken before the swap and rolled back if health fails.'
 				icon={IconTag}
 				hint={
 					<span className='flex items-center gap-3'>
@@ -175,31 +174,27 @@ function Version() {
 						<UpdateTimeline phase={phase} target={state.data?.target || version.data?.latest || ''} />
 					) : (
 						<div className='flex flex-col gap-1.5'>
-							<span className='text-label text-muted-foreground'>Preflight</span>
+							<span className='text-xs text-muted'>Preflight</span>
 							{checks.length === 0 ? (
-								<span className='text-body text-muted-foreground'>
+								<span className='text-sm text-muted'>
 									{health.isError ? 'health check unreachable' : 'checking…'}
 								</span>
 							) : (
 								checks.map(([name, result]) => (
-									<div key={name} className='flex items-baseline gap-2 text-body'>
+									<div key={name} className='flex items-baseline gap-2 text-sm'>
 										<span
 											className={cn(
 												'size-1.5 shrink-0 self-center rounded-full',
-												result === 'ok' ? 'bg-success' : 'bg-destructive',
+												result === 'ok' ? 'bg-success' : 'bg-danger',
 											)}
 										/>
-										<span className='w-20 font-mono text-label text-muted-foreground'>{name}</span>
-										<span
-											className={result === 'ok' ? 'text-muted-foreground' : 'text-destructive'}
-										>
-											{result}
-										</span>
+										<span className='w-20 font-mono text-xs text-muted'>{name}</span>
+										<span className={result === 'ok' ? 'text-muted' : 'text-danger'}>{result}</span>
 									</div>
 								))
 							)}
 							{healthy || health.isLoading ? null : (
-								<p className='text-body text-destructive'>
+								<p className='text-sm text-danger'>
 									Updates are blocked until the failing checks recover; the server refuses them too.
 								</p>
 							)}
@@ -208,11 +203,7 @@ function Version() {
 				</div>
 			</FormSection>
 
-			<FormSection
-				title='Update preferences'
-				description='Applied to the next check and update.'
-				icon={IconDownload}
-			>
+			<FormSection title='Update preferences' icon={IconDownload}>
 				<div className='flex flex-col gap-4'>
 					<Switch
 						label='Include beta releases'
@@ -239,7 +230,7 @@ function UpdateTimeline({ phase, target }: { phase: UpdatePhase; target: string 
 
 	return (
 		<div className='flex flex-col'>
-			<span className='pb-2 font-mono text-body'>
+			<span className='pb-2 font-mono text-sm'>
 				{phase === 'done' ? `updated to ${target}` : `updating to ${target}`}
 			</span>
 			{steps.map((step, index) => {
@@ -258,13 +249,11 @@ function UpdateTimeline({ phase, target }: { phase: UpdatePhase; target: string 
 								'absolute top-1 -left-1 size-2 rounded-full border-2 border-background',
 								done && 'bg-success',
 								now && 'bg-foreground',
-								!(done || now) && 'bg-muted',
+								!(done || now) && 'bg-surface-muted',
 							)}
 						/>
-						<div className={cn('text-body font-medium', !(done || now) && 'text-muted-foreground')}>
-							{step.label}
-						</div>
-						{now ? <div className='text-label text-muted-foreground'>{step.hint}</div> : null}
+						<div className={cn('text-sm font-medium', !(done || now) && 'text-muted')}>{step.label}</div>
+						{now ? <div className='text-xs text-muted'>{step.hint}</div> : null}
 					</div>
 				)
 			})}

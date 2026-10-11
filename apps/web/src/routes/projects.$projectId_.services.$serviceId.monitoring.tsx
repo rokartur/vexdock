@@ -65,7 +65,7 @@ const perSecond = (value: number | undefined) => `${bytes(value)}/s`
 function Key({ muted = false, children }: { muted?: boolean; children: string }) {
 	return (
 		<span className='inline-flex items-center gap-1'>
-			<span className={`inline-block size-2 rounded-full ${muted ? 'bg-muted-foreground' : 'bg-chart-1'}`} />
+			<span className={`inline-block size-2 rounded-full ${muted ? 'bg-muted' : 'bg-series-1'}`} />
 			{children}
 		</span>
 	)
@@ -105,13 +105,9 @@ function ServiceMonitoring() {
 	const label = windows.find(option => option.value === range)?.label ?? range
 
 	return (
-		<Section
-			title='Monitoring'
-			description={running ? 'live, a reading a minute' : 'not running, recorded history only'}
-			actions={<Segmented value={range} onChange={setRange} options={windows} />}
-		>
+		<Section title='Monitoring' actions={<Segmented value={range} onChange={setRange} options={windows} />}>
 			{history.length === 0 ? (
-				<div className='rounded-xl border bg-card raised'>
+				<div className='rounded-surface border bg-surface'>
 					<EmptyState
 						icon={IconActivity}
 						title={recorded.isPending ? 'Loading readings…' : `No readings in the last ${label}`}
