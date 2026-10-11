@@ -59,7 +59,7 @@ export function Combobox({
 			autoHighlight
 			disabled={disabled}
 		>
-			<ComboboxPrimitive.InputGroup className='flex h-control-md items-center gap-2 rounded-control border border-border-strong bg-surface pr-0.5 pl-2.5 transition-colors focus-within:border-foreground has-disabled:cursor-not-allowed has-disabled:opacity-50'>
+			<ComboboxPrimitive.InputGroup className='flex h-control-md items-center gap-2 rounded-control border border-border-strong bg-surface-muted/50 pr-0.5 pl-2.5 transition-colors focus-within:border-foreground has-disabled:cursor-not-allowed has-disabled:opacity-50'>
 				<IconSearch aria-hidden className='size-4 shrink-0 text-muted' />
 				<ComboboxPrimitive.Input
 					placeholder={placeholder}

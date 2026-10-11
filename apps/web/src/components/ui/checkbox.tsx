@@ -24,7 +24,7 @@ export function Checkbox({
 		>
 			<span
 				aria-hidden
-				className='grid size-4 place-items-center rounded-[calc(var(--radius-control)-6px)] border border-border-strong bg-surface text-control-glyph transition-colors group-data-checked:border-control-on group-data-checked:bg-control-on group-data-indeterminate:border-control-on group-data-indeterminate:bg-control-on group-not-data-disabled:group-hover:group-data-unchecked:border-muted'
+				className='grid size-4 place-items-center rounded-[calc(var(--radius-control)-6px)] border border-border-strong bg-surface-muted/50 text-control-glyph transition-colors group-data-checked:border-control-on group-data-checked:bg-control-on group-data-indeterminate:border-control-on group-data-indeterminate:bg-control-on group-not-data-disabled:group-hover:group-data-unchecked:border-muted'
 			>
 				<CheckboxPrimitive.Indicator
 					render={(indicatorProps, state) => (

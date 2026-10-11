@@ -82,7 +82,7 @@ function VariableRows({
 		onChange(vars.map((variable, i) => (i === index ? { ...variable, ...next } : variable)))
 
 	return (
-		<div className='rounded-panel border bg-background'>
+		<div className='rounded-panel border'>
 			<div
 				style={{ gridTemplateColumns: columns }}
 				className={cn(ROW, 'border-b border-border-subtle text-xs text-muted')}

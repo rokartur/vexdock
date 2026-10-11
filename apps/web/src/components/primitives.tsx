@@ -110,7 +110,7 @@ export function Keys({ keys }: { keys: string[] }) {
 			{keys.map(key => (
 				<kbd
 					key={key}
-					className='inline-flex h-5 min-w-5 items-center justify-center rounded-[calc(var(--radius-control)-4px)] border border-border bg-surface-muted px-1 font-sans text-xs text-muted'
+					className='inline-flex h-5 min-w-5 items-center justify-center rounded-[calc(var(--radius-control)-4px)] border border-current/15 bg-current/8 px-1 font-sans text-xs text-current/65'
 				>
 					{key}
 				</kbd>
@@ -448,7 +448,7 @@ export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; n
 				onClick={onReveal}
 				aria-label={`${label} ${noun} below, scroll to the end`}
 				className={cn(
-					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-control border bg-surface-raised pr-3 pl-2 text-xs text-foreground shadow-raised transition-[opacity,visibility,scale,background-color] duration-160 ease-standard hover:bg-surface-muted',
+					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-control border bg-surface-raised pr-3 pl-2 text-xs text-foreground shadow-raised transition-[opacity,visibility,scale,border-color] duration-160 ease-standard hover:border-border-strong',
 					shown ? 'visible scale-100 opacity-100' : 'invisible scale-95 opacity-0',
 				)}
 			>

@@ -9,9 +9,9 @@ const variants = {
 	primary:
 		'border-foreground bg-foreground text-background not-disabled:hover:opacity-91 not-disabled:hover:shadow-resting disabled:opacity-52',
 	secondary:
-		'border-border bg-surface text-foreground not-disabled:hover:bg-surface-muted disabled:bg-surface-muted disabled:text-muted',
+		'border-border bg-surface-muted/50 text-foreground not-disabled:hover:bg-surface-muted disabled:bg-surface-muted disabled:text-muted',
 	ghost: 'text-secondary not-disabled:hover:bg-surface-muted not-disabled:hover:text-foreground aria-pressed:bg-surface-muted aria-pressed:text-foreground disabled:text-muted',
-	danger: 'border-border bg-surface text-danger not-disabled:hover:border-danger not-disabled:hover:bg-surface-muted disabled:bg-surface-muted disabled:text-danger/55',
+	danger: 'border-border bg-surface-muted/50 text-danger not-disabled:hover:border-danger not-disabled:hover:bg-surface-muted disabled:bg-surface-muted disabled:text-danger/55',
 } satisfies Record<string, string>
 
 const sizes = {

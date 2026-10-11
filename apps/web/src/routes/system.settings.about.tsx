@@ -249,7 +249,7 @@ function UpdateTimeline({ phase, target }: { phase: UpdatePhase; target: string 
 								'absolute top-1 -left-1 size-2 rounded-full border-2 border-background',
 								done && 'bg-success',
 								now && 'bg-foreground',
-								!(done || now) && 'bg-surface-muted',
+								!(done || now) && 'bg-muted',
 							)}
 						/>
 						<div className={cn('text-sm font-medium', !(done || now) && 'text-muted')}>{step.label}</div>

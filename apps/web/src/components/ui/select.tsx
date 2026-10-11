@@ -47,7 +47,7 @@ export function Select({
 				aria-labelledby={ariaLabelledBy}
 				aria-describedby={ariaDescribedBy}
 				className={cn(
-					'group flex h-control-md w-full cursor-pointer items-center justify-between gap-1.5 rounded-control border border-border-strong bg-surface px-2.5 text-left text-sm text-foreground transition-colors not-data-disabled:hover:bg-surface-muted data-disabled:cursor-not-allowed data-disabled:opacity-50 data-popup-open:bg-surface-muted',
+					'group flex h-control-md w-full cursor-pointer items-center justify-between gap-1.5 rounded-control border border-border-strong bg-surface-muted/50 px-2.5 text-left text-sm text-foreground transition-colors not-data-disabled:hover:bg-surface-muted data-disabled:cursor-not-allowed data-disabled:opacity-50 data-popup-open:bg-surface-muted',
 					className,
 				)}
 			>

@@ -238,11 +238,11 @@ export function DataTable<TData extends RowData>({
 												className={cn(
 													// The hairline lives on the th (inset shadow), not the tr border: collapsed
 													// tr borders do not travel with sticky cells, which reads as a gap when rows
-													// scroll underneath. The sorted column is Arc's tinted strip, opaque here
-													// because the header is sticky.
+													// scroll underneath. The sorted column is Arc's tinted strip, mixed toward the
+													// foreground because --surface-muted is translucent and the header is sticky.
 													'sticky top-0 z-10 h-9.5 border-b-0 bg-surface px-3.5 shadow-[inset_0_-1px_0_0_var(--border)]',
 													sorted &&
-														'bg-[color-mix(in_oklab,var(--surface-muted)_60%,var(--surface))] text-foreground',
+														'bg-[color-mix(in_oklab,var(--foreground)_3%,var(--surface))] text-foreground',
 													header.column.columnDef.meta?.align === 'right' && 'text-right',
 												)}
 											>

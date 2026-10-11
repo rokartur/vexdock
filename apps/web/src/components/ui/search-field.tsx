@@ -27,7 +27,7 @@ export function SearchField({
 			<label htmlFor={controlId} className={hideLabel ? 'sr-only' : 'text-sm font-medium'}>
 				{label}
 			</label>
-			<div className='group flex h-control-md items-center gap-2 rounded-control border border-border-strong bg-surface pr-0.5 pl-2.5 transition-colors focus-within:border-foreground not-focus-within:hover:border-muted'>
+			<div className='group flex h-control-md items-center gap-2 rounded-control border border-border-strong bg-surface-muted/50 pr-0.5 pl-2.5 transition-colors focus-within:border-foreground not-focus-within:hover:border-muted'>
 				<IconSearch
 					aria-hidden
 					className={cn(
