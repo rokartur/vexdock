@@ -20,6 +20,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 			// Pages replace this from their breadcrumb; it stands for login and setup.
 			{ title: 'Vexdock' },
 		],
+		links: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
 	}),
 	component: RootComponent,
 })

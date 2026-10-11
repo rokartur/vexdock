@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { IconLogin2 } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Logo } from '../components/logo'
 import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signIn } from '../lib/auth-client'
 
@@ -31,9 +32,7 @@ function LoginPage() {
 	return (
 		<div className='mx-auto flex min-h-dvh max-w-sm enter-children flex-col justify-center px-6'>
 			<div className='mb-6 flex items-center gap-2.5'>
-				<span className='flex size-7 items-center justify-center rounded-control bg-foreground text-xs font-medium text-background'>
-					VX
-				</span>
+				<Logo className='size-7' />
 				<h1 className='text-base font-medium'>Sign in to vexdock</h1>
 			</div>
 			<form

@@ -392,6 +392,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/queries.ts` | `queryOptions` for data more than one file reads, and `preload`, the loader's non-throwing prefetch |
 | `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
+| `src/components/logo.tsx`, `public/favicon.svg` | Vexdock's own mark, six squares in a 3×3 grid: `Logo` in the sidebar, login and setup, the same geometry as the tab icon |
 | `src/styles.css` | The ui skill's `styles.css` unchanged (tokens, base layer, `page`/`press`/`popup`/`scrim`), then vexdock's additions: the console colors, `enter-children` |
 
 A page is: a `queryOptions` (from `lib/queries.ts`, or a local `const` when
