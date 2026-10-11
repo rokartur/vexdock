@@ -2,6 +2,7 @@
 // Moves one Dokploy project, named volumes included, onto a vexdock server.
 // Usage: bun scripts/migrate-dokploy.ts "<dokploy project name>"
 // Env: DOKPLOY_URL DOKPLOY_API_KEY VEXDOCK_URL VEXDOCK_TOKEN, VEXDOCK_GIT_PROVIDER for github sources
+/* oxlint-disable no-await-in-loop -- one step at a time: Dokploy's apps stop before their volumes are copied */
 import { randomBytes } from 'node:crypto'
 
 type DokployDomain = {
@@ -66,7 +67,7 @@ type VexdockProject = {
 type VexdockService = { id: string; compose_service_name: string }
 type VolumeCopy = { from: string; to: string }
 
-const projectName = process.argv[2]
+const projectName = process.argv.at(2)
 if (!projectName) throw new Error('usage: bun scripts/migrate-dokploy.ts "<dokploy project name>"')
 const env = (key: string) => {
 	const value = process.env[key]
@@ -75,9 +76,9 @@ const env = (key: string) => {
 }
 type DatabaseDump = { serviceId: string; name: string; port: number }
 
-const dokployUrl = env('DOKPLOY_URL').replace(/\/$/, '')
+const dokployUrl = env('DOKPLOY_URL').replace(/\/$/u, '')
 const dokployKey = env('DOKPLOY_API_KEY')
-const vexdockUrl = env('VEXDOCK_URL').replace(/\/$/, '')
+const vexdockUrl = env('VEXDOCK_URL').replace(/\/$/u, '')
 const vexdockToken = env('VEXDOCK_TOKEN')
 
 const source = await readDokployProject(projectName)
@@ -202,7 +203,8 @@ async function createCompose(compose: DokployCompose) {
 
 // Traefik labels, dokploy-network and a fixed container_name belong to Dokploy's proxy and naming.
 function rawFragment(body: Record<string, unknown>) {
-	const { labels, networks, container_name: _, ...rest } = body
+	const { labels, networks, ...rest } = body
+	delete rest.container_name
 	if (Array.isArray(labels)) {
 		const kept = labels.filter(l => typeof l === 'string' && !l.startsWith('traefik.'))
 		if (kept.length > 0) rest.labels = kept
@@ -285,7 +287,7 @@ async function putVariables(path: string, dotenv: string | null) {
 
 // Dokploy's env is dotenv text: KEY="a@b.c" reaches the app as a@b.c, and \n inside double quotes as a newline.
 function dotenvValue(raw: string) {
-	const unquoted = raw.replace(/^(['"`])([\s\S]*)\1$/, '$2')
+	const unquoted = raw.replace(/^(?<quote>['"`])(?<value>[\s\S]*)\k<quote>$/u, '$<value>')
 	if (!raw.startsWith('"')) return unquoted
 	return unquoted.replaceAll('\\n', '\n').replaceAll('\\r', '\r')
 }
@@ -310,11 +312,11 @@ async function createDomains(service: string, domains: DokployDomain[]) {
 
 async function deployAndWait(serviceId: string, name: string) {
 	const deploy = await vexdock<{ id: string; status: string }>('POST', `/api/services/${serviceId}/deploy`)
-	let status = deploy.status
+	let { status } = deploy
 	while (status === 'queued' || status === 'running') {
 		await Bun.sleep(2000)
-		status = (await vexdock<{ deployment: { status: string } }>('GET', `/api/deployments/${deploy.id}`)).deployment
-			.status
+		const { deployment } = await vexdock<{ deployment: { status: string } }>('GET', `/api/deployments/${deploy.id}`)
+		;({ status } = deployment)
 	}
 	if (status !== 'success') throw new Error(`${name}: deploy ${deploy.id} ended ${status}`)
 }
@@ -323,7 +325,7 @@ async function deployAndWait(serviceId: string, name: string) {
 // vexdock service that declares the target volume pulls it, so the later deploy adopts the volume.
 async function copyVolume({ from, to }: VolumeCopy) {
 	console.log(`copying volume ${from} -> ${to}`)
-	const exportPort = 18080
+	const exportPort = 18_080
 	const key = randomBytes(32).toString('hex')
 	const secretPath = randomBytes(16).toString('hex')
 	const importer = await vexdock<VexdockService>('POST', `/api/projects/${project.id}/services`, {
@@ -390,12 +392,9 @@ volumes:
 
 async function dokploy<T>(method: 'GET' | 'POST', procedure: string, input: Record<string, string | boolean> = {}) {
 	const url = new URL(`${dokployUrl}/api/${procedure}`)
+	const headers = { 'x-api-key': dokployKey, 'content-type': 'application/json' }
 	if (method === 'GET') for (const [k, v] of Object.entries(input)) url.searchParams.set(k, String(v))
-	const res = await fetch(url, {
-		method,
-		headers: { 'x-api-key': dokployKey, 'content-type': 'application/json' },
-		body: method === 'POST' ? JSON.stringify(input) : undefined,
-	})
+	const res = await fetch(url, method === 'GET' ? { headers } : { method, headers, body: JSON.stringify(input) })
 	if (!res.ok) throw new Error(`Dokploy ${procedure}: ${res.status} ${await res.text()}`)
 	return (await res.json()) as T
 }
