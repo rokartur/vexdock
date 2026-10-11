@@ -13,9 +13,9 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Badge } from '@/components/arc/badge'
-import { Dialog, DialogContent } from '@/components/arc/dialog'
-import { DropdownMenu } from '@/components/arc/dropdown-menu'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { DropdownMenu } from '@/components/ui/dropdown-menu'
 import { AnimatedNumber } from '../components/animated-number'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { ImportServicesForm } from '../components/import-services-form'
@@ -97,7 +97,7 @@ function serviceTableColumns(selection: {
 				const Icon = original.service.type === 'database' ? IconDatabase : IconBox
 				return (
 					<span className='inline-flex items-center gap-2 font-medium'>
-						<Icon className='size-4 text-muted-foreground' />
+						<Icon className='size-4 text-muted' />
 						{original.service.compose_service_name}
 						<Badge>{original.service.type === 'database' ? 'db' : 'app'}</Badge>
 					</span>
@@ -109,7 +109,7 @@ function serviceTableColumns(selection: {
 			header: 'State',
 			cell: ({ row: { original } }) =>
 				original.service.provider === 'unconfigured' ? (
-					<span className='text-muted-foreground'>needs a provider</span>
+					<span className='text-muted'>needs a provider</span>
 				) : (
 					<Status value={original.service.state || 'stopped'} />
 				),
@@ -129,11 +129,7 @@ function serviceTableColumns(selection: {
 			cell: ({ row: { original } }) => {
 				const [hostname, ...more] = original.hostnames
 				if (!hostname) {
-					return (
-						<span className='text-muted-foreground'>
-							{original.service.type === 'database' ? 'internal' : '-'}
-						</span>
-					)
+					return <span className='text-muted'>{original.service.type === 'database' ? 'internal' : '-'}</span>
 				}
 				return (
 					<span className='inline-flex items-center gap-1.5'>
@@ -145,9 +141,9 @@ function serviceTableColumns(selection: {
 							className='group inline-flex items-center gap-1 underline-offset-4 hover:underline'
 						>
 							{hostname}
-							<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
+							<IconExternalLink className='size-3 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
 						</a>
-						{more.length > 0 ? <span className='text-muted-foreground'>+{more.length}</span> : null}
+						{more.length > 0 ? <span className='text-muted'>+{more.length}</span> : null}
 					</span>
 				)
 			},
@@ -178,7 +174,7 @@ function serviceTableColumns(selection: {
 				original.service.created_unix ? (
 					<RelativeTime at={original.service.created_unix} />
 				) : (
-					<span className='text-muted-foreground'>never</span>
+					<span className='text-muted'>never</span>
 				),
 		}),
 	]
@@ -258,7 +254,7 @@ function ProjectServices() {
 								#{latest.number}
 							</Link>
 						) : (
-							<span className='text-muted-foreground'>none yet</span>
+							<span className='text-muted'>none yet</span>
 						)
 					}
 					hint={
@@ -287,7 +283,7 @@ function ProjectServices() {
 
 			<Section
 				title='Services'
-				description={`${data.length} in this environment`}
+				total={data.length}
 				actions={
 					<>
 						{data.length > 0 && (

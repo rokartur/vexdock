@@ -40,14 +40,12 @@ function SetupPage() {
 	return (
 		<div className='mx-auto flex min-h-dvh max-w-sm enter-children flex-col justify-center px-6'>
 			<div className='mb-1 flex items-center gap-2.5'>
-				<span className='flex size-7 items-center justify-center rounded-md bg-primary text-meta font-medium text-primary-foreground'>
+				<span className='flex size-7 items-center justify-center rounded-control bg-foreground text-xs font-medium text-background'>
 					VX
 				</span>
-				<h1 className='text-title font-medium'>Create administrator</h1>
+				<h1 className='text-base font-medium'>Create administrator</h1>
 			</div>
-			<p className='mb-6 text-label text-muted-foreground'>
-				This is the only account creation step. It closes afterwards.
-			</p>
+			<p className='mb-6 text-xs text-muted'>This is the only account creation step. It closes afterwards.</p>
 			<form
 				onSubmit={event => {
 					event.preventDefault()

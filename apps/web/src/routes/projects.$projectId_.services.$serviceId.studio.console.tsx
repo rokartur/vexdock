@@ -55,7 +55,7 @@ function StudioConsole() {
 						<Keys keys={[mod, 'Enter']} />
 					</Button>
 					{result ? (
-						<span className='text-label text-muted-foreground tabular-nums'>
+						<span className='text-xs text-muted tabular-nums'>
 							{result.columns.length > 0
 								? `${count(result.rows.length)} rows`
 								: `${count(result.affected)} affected`}

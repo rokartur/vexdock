@@ -18,9 +18,9 @@ import {
 	useTable,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { SearchField } from '@/components/arc/search-field'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/arc/table'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
+import { SearchField } from '@/components/ui/search-field'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DetailDialog, EmptyState, ErrorText, MoreBelow, useFill } from './primitives'
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
@@ -148,13 +148,13 @@ export function DataTable<TData extends RowData>({
 	const viewport = useRef<HTMLDivElement>(null)
 	const [globalFilter, setGlobalFilter] = useState(initialFilter)
 	// table-core caches accessor values per row and rebuilds rows only on new `data`; an accessor reading outside
-	// state (a project name that loads after the list) needs new columns to rebuild them too.
-	const tableData = useMemo(() => [...data], [data, columns])
+	// state (a project name that loads after the list) needs new columns to rebuild them too, so the two change together.
+	const model = useMemo(() => ({ columns, data: [...data] }), [data, columns])
 
 	const table = useTable({
 		features: tableFeatureSet,
-		columns,
-		data: tableData,
+		columns: model.columns,
+		data: model.data,
 		getRowId,
 		globalFilterFn: 'includesString',
 		state: { sorting, globalFilter },
@@ -191,13 +191,10 @@ export function DataTable<TData extends RowData>({
 		/* The table is a card: hairline border for the outer edge, rows separated by their own hairlines.
 		   overflow-hidden clips the edge-to-edge sticky header background at the rounded corners. */
 		<div
-			className={cn(
-				'overflow-hidden rounded-(--radius-control) border bg-card raised',
-				fill && 'flex min-h-0 flex-1 flex-col',
-			)}
+			className={cn('overflow-hidden rounded-surface border bg-surface', fill && 'flex min-h-0 flex-1 flex-col')}
 		>
 			{filter ? (
-				<div className='border-b border-rule p-2'>
+				<div className='border-b border-border-subtle p-2'>
 					<SearchField
 						label={filter}
 						hideLabel
@@ -228,7 +225,7 @@ export function DataTable<TData extends RowData>({
 					<Table
 						// Only the rows in view are in the DOM, so a screen reader is told the full count and each row's place.
 						aria-rowcount={rows.length > 0 ? headerRows + rows.length : undefined}
-						className='text-body [&_td>*]:align-middle'
+						className='text-sm [&_td>*]:align-middle'
 					>
 						<TableHeader>
 							{table.getHeaderGroups().map((headerGroup, index) => (
@@ -243,7 +240,7 @@ export function DataTable<TData extends RowData>({
 													// tr borders do not travel with sticky cells, which reads as a gap when rows
 													// scroll underneath. The sorted column is Arc's tinted strip, opaque here
 													// because the header is sticky.
-													'sticky top-0 z-10 h-9.5 border-b-0 bg-card px-3.5 shadow-[inset_0_-1px_0_0_var(--border)]',
+													'sticky top-0 z-10 h-9.5 border-b-0 bg-surface px-3.5 shadow-[inset_0_-1px_0_0_var(--border)]',
 													sorted &&
 														'bg-[color-mix(in_oklab,var(--surface-muted)_60%,var(--surface))] text-foreground',
 													header.column.columnDef.meta?.align === 'right' && 'text-right',
@@ -326,7 +323,7 @@ export function DataTable<TData extends RowData>({
 															cell.column.getIsSorted() && 'bg-(--surface-muted)/60',
 															cell.column.columnDef.meta?.align === 'right' &&
 																'text-right',
-															cell.column.columnDef.meta?.mono && 'font-mono text-label',
+															cell.column.columnDef.meta?.mono && 'font-mono text-xs',
 														)}
 													>
 														<table.FlexRender cell={cell} />

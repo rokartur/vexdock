@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { IconDatabaseOff, IconEye, IconPlayerPlay, IconRocket, IconTable, IconTerminal } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
 import { ActivePill, Button, EmptyState, ErrorText, Input, Select } from '../components/primitives'
 import { api } from '../lib/api'
 import { useService } from './projects.$projectId_.services.$serviceId'
@@ -51,7 +51,7 @@ function NotRunning({ serviceId }: { serviceId: string }) {
 	const deploy = useMutation({ mutationFn: () => api.deployService(serviceId), onSuccess })
 	const busy = start.isPending || deploy.isPending
 	return (
-		<div className='rounded-xl border bg-card raised'>
+		<div className='rounded-surface border bg-surface'>
 			<EmptyState
 				icon={IconDatabaseOff}
 				title='The database is not running.'
@@ -89,7 +89,7 @@ function StudioPane() {
 	const needle = filter.trim().toLowerCase()
 
 	return (
-		<div className='flex min-h-96 flex-1 overflow-hidden rounded-xl border bg-card'>
+		<div className='flex min-h-96 flex-1 overflow-hidden rounded-surface border bg-surface'>
 			<aside className='flex w-60 shrink-0 flex-col gap-2 border-r p-2'>
 				{schemas.data.schemas.length > 1 ? (
 					<Select
@@ -119,7 +119,7 @@ function StudioPane() {
 						search={{ schema: schema.name }}
 						className={cn(entryClass, onConsole && activeClass)}
 					>
-						{onConsole ? <ActivePill layoutId='studio' className='bg-muted' /> : null}
+						{onConsole ? <ActivePill layoutId='studio' /> : null}
 						<IconTerminal className='size-4 shrink-0' />
 						Console
 					</Link>
@@ -135,7 +135,7 @@ function StudioPane() {
 									search={{ schema: schema.name, table: t.name }}
 									className={cn(entryClass, active && activeClass)}
 								>
-									{active ? <ActivePill layoutId='studio' className='bg-muted' /> : null}
+									{active ? <ActivePill layoutId='studio' /> : null}
 									{t.view ? (
 										<IconEye aria-label='View' className='size-4 shrink-0' />
 									) : (
@@ -155,5 +155,5 @@ function StudioPane() {
 }
 
 const entryClass =
-	'relative isolate flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+	'relative isolate flex h-7 shrink-0 items-center gap-2 rounded-control px-2 text-sm text-muted transition-colors hover:bg-surface-muted hover:text-foreground'
 const activeClass = 'text-foreground'

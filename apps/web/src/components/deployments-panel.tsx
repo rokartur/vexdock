@@ -40,7 +40,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			cell: ({ row }) =>
 				row.original.branch ? (
 					<span className='inline-flex items-center gap-1'>
-						<IconGitBranch className='size-3 text-muted-foreground' />
+						<IconGitBranch className='size-3 text-muted' />
 						{row.original.branch}
 					</span>
 				) : null,
@@ -52,7 +52,7 @@ function deploymentTableColumns(redeploy: (id: string) => void): Columns<Deploym
 			cell: ({ row }) =>
 				row.original.commit_sha ? (
 					<span className='inline-flex items-center gap-1'>
-						<IconGitCommit className='size-3 text-muted-foreground' />
+						<IconGitCommit className='size-3 text-muted' />
 						{shortSha(row.original.commit_sha)}
 					</span>
 				) : null,
@@ -118,12 +118,11 @@ export function DeploymentsPanel({ projectId, service }: { projectId: string; se
 	const data = (deployments.data ?? []).filter(deployment => deployment.service_name === service.compose_service_name)
 	const { mutate: redeploy } = rollback
 	const columns = useMemo(() => deploymentTableColumns(redeploy), [redeploy])
-	const failed = data.filter(deployment => deployment.status === 'failed').length
 
 	return (
 		<Section
 			title='Deployment history'
-			description={`${data.length} total, ${failed} failed`}
+			total={data.length}
 			actions={<Refresh onClick={() => deployments.refetch()} busy={deployments.isFetching} />}
 		>
 			<ErrorText error={rollback.error} />

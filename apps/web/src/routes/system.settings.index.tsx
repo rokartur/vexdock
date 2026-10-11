@@ -71,7 +71,9 @@ function GeneralSettings() {
 		save.mutate({ token: '', domain: loaded.dashboard_domain, https: loaded.dashboard_https })
 	}
 	const tokenStored = settings.data?.cloudflare_token_set ?? false
-	const saveButton = <SaveButton mutation={save} />
+	const loaded = settings.data
+	const domainDirty =
+		loaded !== undefined && (draft.domain !== loaded.dashboard_domain || draft.https !== loaded.dashboard_https)
 	const certificate = certificates.data?.find(cert => cert.hostname === settings.data?.dashboard_domain)
 	const wildcards = certificates.data?.filter(cert => cert.hostname.startsWith('*.')).length ?? 0
 
@@ -80,14 +82,13 @@ function GeneralSettings() {
 			<ErrorText error={save.error} />
 			<FormSection
 				title='Dashboard domain'
-				description='Serve the panel on your own hostname with HTTPS.'
 				icon={IconWorld}
 				hint='Leave empty to keep using the server IP on port 3000.'
-				actions={saveButton}
+				actions={<SaveButton mutation={save} dirty={domainDirty} />}
 				aside={[
 					{
 						label: 'Reached at',
-						value: <span className='font-mono text-label'>{window.location.host}</span>,
+						value: <span className='font-mono text-xs'>{window.location.host}</span>,
 					},
 					{ label: 'Certificate', value: <CertificateFact certificate={certificate} /> },
 				]}
@@ -113,7 +114,6 @@ function GeneralSettings() {
 
 			<FormSection
 				title='DNS challenge'
-				description='Required for wildcard certificates.'
 				icon={IconCloud}
 				hint='Scoped to Zone:Read and DNS:Edit. Without it only HTTP-01 is used and *.example.com cannot be issued.'
 				aside={[
@@ -128,7 +128,7 @@ function GeneralSettings() {
 								Remove token
 							</Button>
 						) : null}
-						{saveButton}
+						<SaveButton mutation={save} dirty={draft.token !== ''} />
 					</>
 				}
 				onSave={apply}
@@ -150,7 +150,7 @@ function GeneralSettings() {
 }
 
 function CertificateFact({ certificate }: { certificate: Certificate | undefined }) {
-	if (!certificate) return <span className='text-muted-foreground'>none issued</span>
+	if (!certificate) return <span className='text-muted'>none issued</span>
 	if (certificate.status !== 'issued') return <span>{certificate.status}</span>
 	return (
 		<span>

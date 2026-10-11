@@ -9,9 +9,9 @@ import {
 	IconTextWrap,
 	IconX,
 } from '@tabler/icons-react'
-import { ButtonGroup } from '@/components/arc/button-group'
-import { SearchField } from '@/components/arc/search-field'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
+import { ButtonGroup } from '@/components/ui/button-group'
+import { SearchField } from '@/components/ui/search-field'
 import {
 	type BuildResult,
 	ansiSegments,
@@ -39,9 +39,9 @@ type LineLimit = (typeof lineLimits)[number]['value']
 /** HTTP status classes read faster as color than as three digits. */
 const statusColor: Record<string, string> = {
 	'2': 'text-success',
-	'3': 'text-info',
+	'3': 'text-accent',
 	'4': 'text-warning',
-	'5': 'text-destructive',
+	'5': 'text-danger',
 }
 
 type Severity = 'error' | 'warn' | 'info' | 'debug'
@@ -64,15 +64,15 @@ const levelSeverity: Record<string, Severity> = {
 }
 
 const severityColor: Record<Severity, string> = {
-	error: 'text-destructive',
+	error: 'text-danger',
 	warn: 'text-warning',
-	info: 'text-info',
-	debug: 'text-console-muted',
+	info: 'text-accent',
+	debug: 'text-muted',
 }
 
 /** Only the two that want attention get a gutter; the rest would be a stripe down the whole console. */
 const gutterColor: Partial<Record<Severity, string>> = {
-	error: 'bg-destructive',
+	error: 'bg-danger',
 	warn: 'bg-warning',
 }
 
@@ -238,12 +238,12 @@ export function LogViewer({
 						},
 					]}
 				/>
-				<span className='text-label text-muted-foreground'>
+				<span className='text-xs text-muted'>
 					{url ? (
 						<span
 							className={cn(
 								'mr-1.5 inline-block size-1.5 rounded-full',
-								connected ? 'bg-success' : 'bg-muted-foreground',
+								connected ? 'bg-success' : 'bg-muted',
 							)}
 						/>
 					) : null}
@@ -253,12 +253,12 @@ export function LogViewer({
 			</div>
 			<div
 				className={cn(
-					'h-[60vh] overflow-auto rounded-xl border border-console-border bg-console p-3 font-mono text-label leading-[1.5] text-console-foreground',
+					'h-[60vh] overflow-auto rounded-panel border bg-console p-3 font-mono text-xs leading-[1.5] text-console-foreground',
 					className,
 				)}
 			>
 				{visible.length === 0 ? (
-					<p className='text-console-muted'>{url ? 'Waiting for output…' : 'No output.'}</p>
+					<p className='text-muted'>{url ? 'Waiting for output…' : 'No output.'}</p>
 				) : (
 					visible.map((line, index) =>
 						plain ? (
@@ -302,28 +302,27 @@ const LogLine = memo(({ line, build, result }: { line: Line; build: boolean; res
 	const { time, timestamp, body, coloredBody, level } = parseLogLine(line.text)
 	const request = parseAccessLine(body)
 	const severity = severityFrom(line.stream, level, request?.status)
-	const tone =
-		line.stream === 'stderr' ? 'text-console-stderr' : level && severity ? severityColor[severity] : undefined
+	const tone = line.stream === 'stderr' ? 'text-danger' : level && severity ? severityColor[severity] : undefined
 	const buildLine = build ? parseBuildLine(coloredBody) : null
 
 	return (
-		<div className={cn('flex gap-3', buildLine?.kind === 'step' && 'mt-2 border-t border-console-border pt-1')}>
+		<div className={cn('flex gap-3', buildLine?.kind === 'step' && 'mt-2 border-t border-border pt-1')}>
 			<span
 				aria-hidden
 				className={cn('-ml-1 w-[3px] shrink-0 rounded-full', severity && gutterColor[severity])}
 			/>
 			{time ? (
-				<span className='shrink-0 text-console-muted' title={timestamp ?? undefined}>
+				<span className='shrink-0 text-muted' title={timestamp ?? undefined}>
 					{time}
 				</span>
 			) : null}
 			{request ? (
 				<>
 					<span className={cn('w-8 shrink-0', statusColor[request.status[0] ?? ''])}>{request.status}</span>
-					<span className='w-14 shrink-0 text-console-muted'>{request.method}</span>
+					<span className='w-14 shrink-0 text-muted'>{request.method}</span>
 					<span className='min-w-0 flex-1 break-all'>{request.path}</span>
-					<span className='shrink-0 text-console-muted'>{bytes(request.bytes)}</span>
-					<span className='shrink-0 text-console-muted'>{request.client}</span>
+					<span className='shrink-0 text-muted'>{bytes(request.bytes)}</span>
+					<span className='shrink-0 text-muted'>{request.client}</span>
 				</>
 			) : (
 				<LineBody text={coloredBody} buildLine={buildLine} result={result} tone={tone} />
@@ -331,6 +330,7 @@ const LogLine = memo(({ line, build, result }: { line: Line; build: boolean; res
 		</div>
 	)
 })
+LogLine.displayName = 'LogLine'
 
 function LineBody({
 	text,
@@ -349,21 +349,21 @@ function LineBody({
 			<>
 				<span className='flex h-lh w-12 shrink-0 items-center'>
 					{result ? (
-						<StepIcon className={cn('size-3.5', result.failed ? 'text-destructive' : 'text-success')} />
+						<StepIcon className={cn('size-3.5', result.failed ? 'text-danger' : 'text-success')} />
 					) : null}
 				</span>
 				<span className='min-w-0 flex-1 break-all whitespace-pre-wrap'>
-					<span className='text-info'>{buildLine.stage}</span>{' '}
+					<span className='text-accent'>{buildLine.stage}</span>{' '}
 					<span className='font-medium text-foreground'>{buildLine.command}</span>
 				</span>
-				<span className='shrink-0 text-console-muted tabular-nums'>{result?.label}</span>
+				<span className='shrink-0 text-muted tabular-nums'>{result?.label}</span>
 			</>
 		)
 	}
 	if (buildLine) {
 		return (
 			<>
-				<span className='w-12 shrink-0 text-console-muted tabular-nums'>{buildLine.elapsed}</span>
+				<span className='w-12 shrink-0 text-muted tabular-nums'>{buildLine.elapsed}</span>
 				<Ansi text={buildLine.text} className={tone} />
 			</>
 		)
@@ -376,7 +376,7 @@ function Ansi({ text, className }: { text: string; className?: string }) {
 		<span className={cn('min-w-0 break-all whitespace-pre-wrap', className)}>
 			{ansiSegments(text).map((segment, index) =>
 				segment.color || segment.bold ? (
-					<span key={index} className={cn(segment.bold && 'font-semibold')} style={{ color: segment.color }}>
+					<span key={index} className={cn(segment.bold && 'font-medium')} style={{ color: segment.color }}>
 						{segment.text}
 					</span>
 				) : (

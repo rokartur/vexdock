@@ -317,7 +317,7 @@ export function NewServiceForm({
 			) : null}
 
 			{kind === 'application' ? (
-				<p className='mb-3 text-label text-muted-foreground'>
+				<p className='mb-3 text-xs text-muted'>
 					Where it comes from is set next, in the service&rsquo;s settings. It deploys once that is answered.
 				</p>
 			) : null}
@@ -350,7 +350,7 @@ function EnginePicker({
 }) {
 	const pillId = useId()
 	return (
-		<div className='overflow-hidden rounded-lg border border-input'>
+		<div className='overflow-hidden rounded-panel border'>
 			{engines.map(engine => {
 				const mark = engineMarks[engine.slug]
 				return (
@@ -359,9 +359,9 @@ function EnginePicker({
 						type='button'
 						aria-pressed={engine.slug === value}
 						onClick={() => onChange(engine.slug)}
-						className='relative isolate flex w-full items-center gap-2.5 border-b border-input px-2.5 py-2 text-body last:border-b-0 hover:bg-muted'
+						className='relative isolate flex w-full items-center gap-2.5 border-b border-border-subtle px-2.5 py-2 text-sm last:border-b-0 hover:bg-surface-muted'
 					>
-						{engine.slug === value ? <ActivePill layoutId={pillId} className='bg-accent' /> : null}
+						{engine.slug === value ? <ActivePill layoutId={pillId} /> : null}
 						<svg className='size-4 shrink-0' viewBox={mark?.viewBox ?? '0 0 24 24'} aria-hidden='true'>
 							{mark ? (
 								<path d={mark.d} fill={mark.fill} fillRule={mark.fillRule} />
@@ -375,7 +375,7 @@ function EnginePicker({
 							)}
 						</svg>
 						{engine.name}
-						<span className='ml-auto font-mono text-label text-muted-foreground'>
+						<span className='ml-auto font-mono text-xs text-muted'>
 							{engine.repository
 								? `${engine.repository.replace('library/', '')}:${engine.default_tag}`
 								: 'any image'}

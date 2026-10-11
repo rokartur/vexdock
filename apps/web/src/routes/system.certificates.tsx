@@ -38,8 +38,8 @@ function certificateTableColumns(replace: (hostname: string) => void): Columns<C
 			header: 'Domain',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconCertificate className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{row.original.hostname}</span>
+					<IconCertificate className='size-4 text-muted' />
+					<span className='font-mono text-xs'>{row.original.hostname}</span>
 				</span>
 			),
 		}),
@@ -138,7 +138,7 @@ function Certificates() {
 			) : null}
 			<Section
 				title='Certificates'
-				description={`${rows.length} uploaded`}
+				total={rows.length}
 				actions={
 					<>
 						<Refresh onClick={() => certificates.refetch()} busy={certificates.isFetching} />

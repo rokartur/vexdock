@@ -81,8 +81,8 @@ breadcrumb derives itself from the URL. A section of a page is a child route, ne
 `_` is what keeps it out of the project's own tab strip.
 
 **UI.** Pages import `components/primitives.tsx`, which maps Arc UI to the
-dashboard's vocabulary. `components/arc/*` is Arc's registry output, so a design
-change lands in `primitives.tsx` or Arc's tokens; a bare `<input>` or a hand-styled button is a
+dashboard's vocabulary. `components/ui/*` is Arc rebuilt on Base UI with CSS
+transitions, so a design change lands in `primitives.tsx`, `ui/*` or the tokens; a bare `<input>` or a hand-styled button is a
 bug. Sub-navigation and page filters belong in `Page`'s `toolbar` and
 `filters`, actions in its `actions`; the breadcrumb and actions ride up into the
 shell's header and the rest becomes the page's own first row, so a page never
@@ -96,7 +96,10 @@ footer, the way a service's General tab does it.
 
 **Forms.** `SaveButton` takes the mutation, not a boolean, and turns into a
 "Saved" receipt for two seconds when it lands, so a card that writes tells you
-it wrote. `FormSection`'s `aside` is the read-only column beside the controls:
+it wrote. Its `dirty` compares the fields to what the server last answered and
+is the only thing that makes it primary. A `Section` title carries one figure in
+`total` (a count or a size), never a sentence; a `FormSection` is a title, its
+controls and a `hint` in the footer. `FormSection`'s `aside` is the read-only column beside the controls:
 facts the page already loaded that answer "did this take", never a field in
 disguise, and a card with nothing true to say omits it. Adding to or editing a
 row of a list is never a form under the list: an Add button in the card's
@@ -110,14 +113,15 @@ both sides, so the two views cannot disagree.
 **Density.** A number that moves gets the word for how it moves: `Meter` for a
 value against a ceiling, `AnimatedNumber` for a live reading that rolls to its
 new value, `Sparkline` (`metric-chart.tsx`) for a series in a
-table cell, `StatStrip` for the metric cards above a page, `Timeline` for
+table cell, `StatStrip` for the readings above a page, `FactBar` for facts that
+are words (a service's image, its health) on one line above it, `Timeline` for
 ordered steps, `RelativeTime` for a stamp that ticks on its own, past (`3m
 ago`) or future (`in 2h`); raw `since()` and `until()` stay for a stamp inside
 a sentence. A page whose last list should take the rest of the window is a
 `fill` `Page` whose last `Section` is `fill` too: the page stops scrolling, the
 `DataTable` inside picks that up and scrolls instead, and rows below its edge
 sink into `MoreBelow`'s blur and count, which every `DataTable` draws on its
-own. A page carries one `StatStrip` and a tab inside a page that already has
+own. A page carries one `StatStrip` or `FactBar`, and a tab inside a page that already has
 one does not add a second, and a strip with nothing to say does not render.
 A state is `Status`, an Arc `Badge` whose tone is the color; the bare dot is
 for a row too tight for the word.

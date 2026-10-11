@@ -2,7 +2,7 @@ import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router'
 import { AnimatedNumber } from '../components/animated-number'
 import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
-import { ErrorText, Page, RelativeTime, StatStrip, Status, Tabs } from '../components/primitives'
+import { ErrorText, FactBar, Page, RelativeTime, Status, Tabs } from '../components/primitives'
 import { environmentSearch } from '../lib/environment'
 import { bytes, percent } from '../lib/format'
 import { environmentsQuery, preload, projectQuery, serviceQuery, tasksQuery } from '../lib/queries'
@@ -59,6 +59,7 @@ function ServiceLayout() {
 		enabled: service.data !== undefined && !isDatabase,
 	})
 	const running = service.data?.state === 'running'
+	const image = service.data?.running_image || service.data?.image || '-'
 	// Studio's grid takes the rest of the window and scrolls inside itself.
 	const studio = useMatch({ from: '/projects/$projectId_/services/$serviceId/studio', shouldThrow: false })
 
@@ -71,7 +72,7 @@ function ServiceLayout() {
 				[projectId]: (
 					<>
 						<ProjectCrumb projectId={projectId} />
-						<span className='text-muted-foreground/30'>/</span>
+						<span className='text-muted/30'>/</span>
 						<EnvironmentCrumb projectId={projectId} />
 					</>
 				),
@@ -88,19 +89,33 @@ function ServiceLayout() {
 			{/* The same line under every tab, so what the service is doing never depends on which one is open. */}
 			{service.error ? <ErrorText error={service.error} /> : null}
 			{service.data ? (
-				<StatStrip
+				<FactBar
 					className='mb-4'
+					state={<Status value={service.data.state} />}
 					items={[
-						{ label: 'State', value: <Status value={service.data.state} /> },
-						{ label: 'Health', value: service.data.health || '-' },
-						{ label: 'Image', value: service.data.running_image || service.data.image || '-' },
+						{
+							label: 'Health',
+							// Docker reports no health for a container without a healthcheck; no state means no container.
+							value: service.data.health || (
+								<span className='text-muted'>{service.data.state ? 'no check' : '-'}</span>
+							),
+						},
+						{
+							label: 'Image',
+							grow: true,
+							value: (
+								<span className='font-mono text-xs' title={image}>
+									{image}
+								</span>
+							),
+						},
 						{ label: 'Started', value: <RelativeTime at={service.data.created_unix} /> },
 						{
 							label: 'CPU',
 							value: running ? (
 								<AnimatedNumber key={serviceId} value={service.data.cpu_percent} format={percent} />
 							) : (
-								'-'
+								<span className='text-muted'>-</span>
 							),
 						},
 						{
@@ -108,7 +123,7 @@ function ServiceLayout() {
 							value: running ? (
 								<AnimatedNumber key={serviceId} value={service.data.memory_usage} format={bytes} />
 							) : (
-								'-'
+								<span className='text-muted'>-</span>
 							),
 						},
 					]}

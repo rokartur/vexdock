@@ -26,8 +26,8 @@ function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconArchive className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{row.original.name}</span>
+					<IconArchive className='size-4 text-muted' />
+					<span className='font-mono text-xs'>{row.original.name}</span>
 				</span>
 			),
 		}),
@@ -110,7 +110,6 @@ function BackupsPage() {
 			) : null}
 			<Section
 				title='Snapshots'
-				description='database, proxy config and certificates, optionally with application volumes'
 				actions={
 					<div className='flex items-center gap-2'>
 						<Button onClick={() => create.mutate(false)} disabled={create.isPending}>

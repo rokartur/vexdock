@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { IconArrowRight, IconCopy, IconPlayerPlay, IconPlayerStop, IconRocket, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Dialog, DialogContent } from '@/components/arc/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { api, type Service } from '../lib/api'
 import { Button, Confirm, DialogFooter, ErrorText, Field, IconButton, Select } from './primitives'
 
@@ -78,7 +78,7 @@ export function ServiceBulkActions({
 	return (
 		<div className='mb-3'>
 			<div className='flex flex-wrap items-center gap-2'>
-				<span className='font-mono text-label text-muted-foreground'>{chosen.length} selected</span>
+				<span className='font-mono text-xs text-muted'>{chosen.length} selected</span>
 				<Button onClick={() => run.mutate({ kind: 'start' })} disabled={run.isPending}>
 					<IconPlayerPlay />
 					Start
@@ -171,7 +171,7 @@ function MoveDialog({
 						disabled={!project}
 					/>
 				</Field>
-				<p className='mb-3 text-label text-muted-foreground'>
+				<p className='mb-3 text-xs text-muted'>
 					Domains and scheduled tasks follow the service. Volume data is copied, and the containers are
 					removed until the next deploy.
 				</p>

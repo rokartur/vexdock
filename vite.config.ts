@@ -109,8 +109,6 @@ export default defineConfig({
 			'*.svg',
 			'*.conf',
 			'*.lock',
-			// Arc UI registry output (uiarc.dev), patched only where the app needs it.
-			'apps/web/src/components/arc/**',
 			'apps/web/src/components/icons/**',
 			'apps/web/src/utils/**',
 		],

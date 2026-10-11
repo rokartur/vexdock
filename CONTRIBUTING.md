@@ -59,15 +59,13 @@ state belongs to TanStack Query; component state is local.
 already on the wire: the deployment status `cancelled` and the `deployment.cancelled`
 event keep their spelling because renaming them breaks stored rows and clients.
 
-**UI.** Arc UI components (uiarc.dev) in `src/components/arc`, added with
-`bunx shadcn add @uiarc/<name>` and converted on arrival: the component moves
-from `arc/<name>/<name>.tsx` to a flat `arc/<name>.tsx`, the registry's
-`.module.css` becomes Tailwind classes on the elements and is deleted, its
-Radix primitives become `@base-ui/react` ones (`render` instead of `asChild`,
-`data-open`/`data-starting-style` instead of `data-state`), unused
-props are trimmed, and sizes, radii and timings come from the tokens below, not
-Arc's defaults. Every Arc item pulls `arc-motion-tokens`, so decline the CLI's
-offer to overwrite `arc/motion-tokens.ts`; it holds this dashboard's speeds.
+**UI.** Arc UI's components (uiarc.dev) rebuilt by hand in `src/components/ui`,
+one flat file each, nothing installed from the Arc registry: an
+`@base-ui/react` primitive where Base UI has one (`render` instead of `asChild`,
+`data-open`/`data-starting-style` instead of `data-state`), a native element
+otherwise, Tailwind token classes instead of `var(--…)`, CSS transitions
+instead of a motion library, and only the props a caller uses. Sizes, radii and
+timings come from the tokens below, not Arc's defaults.
 Pages go through the vocabulary first:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
@@ -75,10 +73,10 @@ IconButton, Status, Confirm, EmptyState), so a design change happens in one
 file. The shell is a sidebar that is the same on every page, carrying every
 destination and the project tree, and a header over the page; tables are `DataTable` in
 `components/data-table.tsx`, its own primitive that pages import directly. A
-page reaches for an `arc/*` component only for what the vocabulary has no word
+page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).
-The visual language is Arc's dark theme (`foundation.css`, the only palette there is): a graphite
-canvas, cards a shade lighter with a hairline border and a resting shadow, the
+The visual language is the ui skill's Arc system (`src/styles.css`, the only palette there is): a
+`#0d0d0d` canvas, cards a shade lighter resting on a hairline border with no shadow, the
 foreground color for the one primary action, sentence case everywhere, a neutral gray ramp.
 The panel is monochrome throughout, charts included. Dense tables, and no continuously repainting animation: the panel
 is often left open.
@@ -92,49 +90,48 @@ and moves a value. Every action
 carries a Tabler icon: a row action is an `IconButton` with its name in the
 tooltip, a destructive one is wrapped in `Confirm`. One reading is a `Cell`,
 never a hand-built box. A settings page is a stack of `FormSection` cards:
-title and description, controls, then a footer strip with a hint on the left
+a title, controls, then a footer strip with a hint on the left
 and that card's own Save on the right. `SaveButton` is handed the card's
-mutation so it can answer for two seconds after the write lands, `aside` is the
+mutation so it can answer for two seconds after the write lands, and its `dirty`
+so only a card with unsaved edits shows a primary Save. `aside` is the
 read-only facts column next to the controls, and a card that also adds to a
 list puts the table in its body and the add form in a `FormDialog` opened from
 its actions, never under the table. Likewise a record opened from a list (a
 deployment's pipeline, a container's log) is a `DetailDialog`, never a row
 unfolded under the one clicked: `DataTable`'s `detail` does that for you.
 
-The look is carried by tokens, not by classes on pages: Arc's
-`src/components/arc/foundation.css` owns the palette, radii, control heights
-and motion, and `src/styles.css` points Tailwind's color names straight at
-those roles, with the type scale, `--font-sans` (Inter) and Arc's
-`--font-display` (Geist, for the reading in a metric card; `--font-mono` is the
-system stack, for machine output: console, code, ids). Reskinning is a token
-edit and never a sweep over pages. Arc components are Tailwind classes only, no
-CSS modules; `foundation.css` is the one stylesheet they share, and its sizes
-are Arc's one step down (30/36/44px controls, 12px control radius, 16px panels,
-20px cards, 14px text) so a panel used every day stays dense.
-`@/utils/cn` is the `createCn` with the custom `--text-*` scale registered. Every corner
-in the app comes off `--radius-control`: the whole `--radius-*` ladder is derived from
-it, `md`/`lg` for anything clickable and `xl` upwards for boxes, so no
-component ever writes a radius of its own; a box that is a panel uses Arc's
-`--radius-panel`, a metric card `--radius-surface`. A card draws its edge as a
-one-pixel border plus the `raised` utility, Arc's `--shadow-resting`.
+The look is carried by tokens, not by classes on pages: `src/styles.css` is
+the ui skill's `styles.css` unchanged, then vexdock's own additions under it
+(the console colors, the base
+layer, `enter-children`). It resets every Tailwind default it does not define,
+so an off-system class (`rounded-lg`, `font-semibold`, `bg-zinc-800`,
+`text-6xl`) produces no CSS at all. Text is
+`text-xs` to `text-5xl` in Inter, Geist (`font-display`) from `text-3xl` up,
+`font-mono` for machine output (console, code, ids); weights are
+`font-normal` and `font-medium`. Controls are `h-control-sm|md|lg` (28/36/44px)
+and corners `rounded-control|panel|surface` (10/14/18px), so no component writes
+a size of its own. Classes merge with `import { cn } from 'cn'`.
+A card is `rounded-surface border bg-surface` and floats nothing: only menus,
+popovers and dialogs get `shadow-floating`.
 Hairlines come in two weights, and using the wrong one flattens the page:
-`--border` is a container's own edge, `rule` (`--border-subtle`) is a separator
-inside one and is quieter. Tables separate rows with `rule`, each reading is
-its own Arc metric card in a `Cells` grid, a state is an Arc `Badge` whose tone
+`border-border` is a container's own edge, `border-border-subtle` is a separator
+inside one and is quieter. Tables separate rows with it, readings share one
+frame in a `Cells` grid with a hairline between them, a state is an Arc `Badge` whose tone
 carries the color (`Status`), and attributes are read as a `Facts` list: label
-left, value right, a rule between rows. The type scale is custom `text-*`
-tokens; `utils/cn.ts` registers them with tailwind-merge so they never clobber
-a text color.
+left, value right, a rule between rows.
 
-Motion is a token too. Arc's `motionTokens` (`arc/motion-tokens.ts`) and its
-`--ease-*`/`--duration-*` tokens time every popover, menu, select, dialog and
-tooltip, at the dashboard's pre-Arc speeds (125 to 300ms), without a page
-naming it. Reduced motion drops travel and scaling and keeps the fades. Page
+Motion is a token too. The `popup` and `scrim` utilities and the
+`ease-enter|standard|exit|spring` tokens time every popover, menu, select,
+dialog and tooltip without a page naming it, as CSS transitions. Reduced motion
+cuts every CSS transition and animation to 0.01ms (the base layer in
+`styles.css`); `MotionConfig reducedMotion='user'` drops the travel of the
+`motion/react` slides. Page
 blocks enter staggered (`enter-children` on `Page`), a selection slides
-(`ActivePill`) and a live reading rolls its digits (`AnimatedNumber`, over
-Arc's `AnimatedCounter`). Everything uses
-`motion.*` from `motion/react`; there is no `LazyMotion` split, since Arc's
-components need the full feature set on first paint anyway.
+(`ActivePill`), a panel's height follows `--collapsible-panel-height` on a
+Base UI `Collapsible`, and a live reading rolls its digits (`AnimatedNumber`).
+`ActivePill` is the one `motion/react` user: a highlight sliding between rows in
+different containers (`layoutId`) is the one thing CSS cannot do. Nothing
+loops: a busy button shows a static glyph, not a spinner.
 
 ## Tests
 

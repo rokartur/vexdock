@@ -260,7 +260,7 @@ function TableView({
 				{where.map((filter, index) => (
 					<span
 						key={`${filter.column}-${filter.op}-${filter.value}`}
-						className='flex h-7 items-center gap-1 rounded-md border pl-2 font-mono text-label'
+						className='flex h-7 items-center gap-1 rounded-control border pl-2 font-mono text-xs'
 					>
 						{filter.column} {operators.find(operator => operator.value === filter.op)?.label} {filter.value}
 						<IconButton
@@ -271,7 +271,7 @@ function TableView({
 					</span>
 				))}
 				<div className='ml-auto flex items-center gap-2'>
-					{readOnly ? <span className='text-label text-muted-foreground'>{readOnly}</span> : null}
+					{readOnly ? <span className='text-xs text-muted'>{readOnly}</span> : null}
 					{selected.size > 0 ? (
 						<Button variant='danger' onClick={deleteSelected}>
 							<IconTrash />
@@ -283,9 +283,7 @@ function TableView({
 						Add row
 					</Button>
 					<Refresh onClick={() => rows.refetch()} busy={rows.isFetching} />
-					<span className='text-label text-muted-foreground tabular-nums'>
-						{data ? pagerText(offset, data) : null}
-					</span>
+					<span className='text-xs text-muted tabular-nums'>{data ? pagerText(offset, data) : null}</span>
 					<IconButton
 						icon={IconChevronLeft}
 						label='Previous page'
@@ -331,7 +329,7 @@ function TableView({
 				<div className='shrink-0 border-t px-3 py-2'>
 					<ErrorText error={save.error} />
 					<div className='flex items-center gap-2'>
-						<span className='text-body text-muted-foreground tabular-nums'>{pendingText(counts)}</span>
+						<span className='text-sm text-muted tabular-nums'>{pendingText(counts)}</span>
 						<div className='ml-auto flex gap-2'>
 							<Button variant='ghost' onClick={discard} disabled={save.isPending}>
 								Discard

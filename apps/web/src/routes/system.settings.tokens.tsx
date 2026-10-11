@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { IconKey, IconPlus, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Alert } from '@/components/arc/alert'
+import { Alert } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
@@ -34,7 +34,7 @@ function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconKey className='size-4 text-muted-foreground' />
+					<IconKey className='size-4 text-muted' />
 					{row.original.name}
 				</span>
 			),
@@ -52,7 +52,7 @@ function tokenTableColumns(revoke: (id: string) => void): Columns<ApiToken> {
 				row.original.last_used_at ? (
 					<RelativeTime at={row.original.last_used_at} />
 				) : (
-					<span className='text-muted-foreground'>never</span>
+					<span className='text-muted'>never</span>
 				),
 		}),
 		cell.accessor(token => token.created_at, {
@@ -107,7 +107,6 @@ function ApiTokens() {
 		<div className='max-w-3xl'>
 			<Section
 				title='API tokens'
-				description='for CI and scripted deploys'
 				actions={
 					<>
 						<Refresh onClick={() => tokens.refetch()} busy={tokens.isFetching} />
@@ -131,7 +130,7 @@ function ApiTokens() {
 
 			{issued ? (
 				<Alert tone='warning' title='Copy it now. It is not shown again.' className='mb-4'>
-					<span className='font-mono text-label break-all'>{issued}</span>
+					<span className='font-mono text-xs break-all'>{issued}</span>
 				</Alert>
 			) : null}
 

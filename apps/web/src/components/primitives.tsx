@@ -24,30 +24,30 @@ import {
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
+import { cn } from 'cn'
 import { motion } from 'motion/react'
 import { createPortal } from 'react-dom'
-import { Alert } from '@/components/arc/alert'
-import { Badge, type BadgeTone } from '@/components/arc/badge'
-import { Breadcrumb } from '@/components/arc/breadcrumb'
-import { Button as ArcButton, type ButtonVariant as ArcButtonVariant } from '@/components/arc/button'
-import { Checkbox } from '@/components/arc/checkbox'
-import { Combobox } from '@/components/arc/combobox'
-import { Dialog, DialogClose, DialogContent, DialogTrigger } from '@/components/arc/dialog'
-import ArcEmptyState from '@/components/arc/empty-state'
-import { Input as ArcInput } from '@/components/arc/input'
-import { PasswordField } from '@/components/arc/password-field'
-import { Progress } from '@/components/arc/progress'
-import SegmentedControl from '@/components/arc/segmented-control'
-import { Select as ArcSelect } from '@/components/arc/select'
-import { Switch as ArcSwitch } from '@/components/arc/switch'
-import { Tabs as ArcTabs, TabsList, TabsTrigger } from '@/components/arc/tabs'
-import { Textarea as ArcTextarea } from '@/components/arc/textarea'
-import { Tooltip } from '@/components/arc/tooltip'
+import { Alert } from '@/components/ui/alert'
+import { Badge, type BadgeTone } from '@/components/ui/badge'
+import { Breadcrumb } from '@/components/ui/breadcrumb'
+import { Button as ArcButton, type ButtonVariant as ArcButtonVariant } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Combobox } from '@/components/ui/combobox'
+import { Dialog, DialogClose, DialogContent, DialogTrigger } from '@/components/ui/dialog'
+import { EmptyState as ArcEmptyState } from '@/components/ui/empty-state'
+import { Input as ArcInput } from '@/components/ui/input'
+import { PasswordField } from '@/components/ui/password-field'
+import { Progress } from '@/components/ui/progress'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { Select as ArcSelect } from '@/components/ui/select'
+import { Switch as ArcSwitch } from '@/components/ui/switch'
+import { Tabs as ArcTabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea as ArcTextarea } from '@/components/ui/textarea'
+import { Tooltip } from '@/components/ui/tooltip'
 import { labelOf, trailOf } from '@/lib/breadcrumb'
 import { since, until } from '@/lib/format'
-import { cn } from '@/utils/cn'
 
-// The rules every primitive below follows: Arc UI's look (components/arc, tokens in its foundation.css), one primary
+// The rules every primitive below follows: Arc UI's look (components/ui, tokens in styles.css), one primary
 // action per view, sentence case everywhere, an icon on every action.
 
 type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost'
@@ -110,7 +110,7 @@ export function Keys({ keys }: { keys: string[] }) {
 			{keys.map(key => (
 				<kbd
 					key={key}
-					className='inline-flex h-5 min-w-5 items-center justify-center rounded-sm border border-border bg-muted px-1 font-sans text-meta text-muted-foreground'
+					className='inline-flex h-5 min-w-5 items-center justify-center rounded-[calc(var(--radius-control)-4px)] border border-border bg-surface-muted px-1 font-sans text-xs text-muted'
 				>
 					{key}
 				</kbd>
@@ -135,11 +135,11 @@ const stateTones: Record<string, BadgeTone> = {
 }
 
 const toneText: Record<BadgeTone, string> = {
-	neutral: 'text-muted-foreground',
+	neutral: 'text-muted',
 	success: 'text-success',
-	info: 'text-info',
+	info: 'text-accent',
 	warning: 'text-warning',
-	danger: 'text-destructive',
+	danger: 'text-danger',
 }
 
 const toneIcons: Record<BadgeTone, TablerIcon> = {
@@ -157,7 +157,7 @@ export function stateTone(value: string) {
 
 /** A state as an Arc badge: tone, icon and word together. `dot` drops the word for rows that are tight. */
 export function Status({ value, dot }: { value: string; dot?: boolean }) {
-	if (!value) return <span className='text-muted-foreground'>-</span>
+	if (!value) return <span className='text-muted'>-</span>
 	if (dot) {
 		return (
 			<span
@@ -297,9 +297,7 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 				{tabs.map(tab => (
 					<TabsTrigger key={tab.label} value={tab.label} href={base + tab.suffix}>
 						{tab.label}
-						{tab.count ? (
-							<span className='ml-1.5 font-mono text-meta text-muted-foreground'>{tab.count}</span>
-						) : null}
+						{tab.count ? <span className='ml-1.5 font-mono text-xs text-muted'>{tab.count}</span> : null}
 					</TabsTrigger>
 				))}
 			</TabsList>
@@ -352,7 +350,7 @@ function Pill({ layoutId, className }: { layoutId: string; className?: string })
 			aria-hidden
 			layoutId={layoutId}
 			transition={spring}
-			className={cn('absolute inset-0 -z-10 rounded-[inherit] bg-accent', className)}
+			className={cn('absolute inset-0 -z-10 rounded-[inherit] bg-surface-muted', className)}
 		/>
 	)
 }
@@ -375,12 +373,19 @@ function useReceipt(savedAt: number) {
 	return showing
 }
 
-/** The Save a FormSection ends with: submits it, shows the Cmd/Ctrl+S that does the same, then reports the result. */
+/**
+ * The Save a FormSection ends with: submits it, shows the Cmd/Ctrl+S that does the same, then reports the result.
+ * It turns primary only while the section has unsaved changes, so a page of sections shows one primary at most where
+ * the edit is.
+ */
 export function SaveButton({
 	mutation,
+	dirty,
 	label = 'Save',
 }: {
 	mutation: { isPending: boolean; isSuccess: boolean; submittedAt: number }
+	/** The section's fields differ from what the server last answered. */
+	dirty: boolean
 	label?: string
 }) {
 	const saved = useReceipt(mutation.isSuccess ? mutation.submittedAt : 0)
@@ -393,7 +398,7 @@ export function SaveButton({
 		)
 	}
 	return (
-		<Button type='submit' variant='primary' disabled={mutation.isPending}>
+		<Button type='submit' variant={dirty ? 'primary' : 'default'} disabled={mutation.isPending}>
 			<IconDeviceFloppy />
 			{mutation.isPending ? 'Saving…' : label}
 			<Keys keys={[mod, 'S']} />
@@ -418,7 +423,7 @@ export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; n
 	// Each layer fades itself: an ancestor below full opacity would cut its backdrop-filter off from the rows behind,
 	// and the blur would vanish for the whole fade and pop back at the end.
 	const fade = cn(
-		'transition-[opacity,visibility] duration-200 ease-out',
+		'transition-[opacity,visibility] duration-160 ease-standard',
 		shown ? 'visible opacity-100' : 'invisible opacity-0',
 	)
 	return (
@@ -435,20 +440,20 @@ export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; n
 						/>
 					)
 				})}
-				<div className={cn('absolute inset-0 bg-linear-to-b from-transparent to-card/70', fade)} />
+				<div className={cn('absolute inset-0 bg-linear-to-b from-transparent to-surface/70', fade)} />
 			</div>
 			<button
 				type='button'
 				onClick={onReveal}
 				aria-label={`${label} ${noun} below, scroll to the end`}
 				className={cn(
-					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-md border bg-popover pr-3 pl-2 text-label text-foreground raised transition-[opacity,visibility,scale,background-color] duration-200 ease-out hover:bg-accent',
+					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-control border bg-surface-raised pr-3 pl-2 text-xs text-foreground shadow-raised transition-[opacity,visibility,scale,background-color] duration-160 ease-standard hover:bg-surface-muted',
 					shown ? 'visible scale-100 opacity-100' : 'invisible scale-95 opacity-0',
 				)}
 			>
 				<IconArrowDown stroke={1.75} className='size-4' />
 				<span className='font-mono'>{label}</span>
-				<span className='text-muted-foreground'>{noun}</span>
+				<span className='text-muted'>{noun}</span>
 			</button>
 		</>
 	)
@@ -459,13 +464,14 @@ export function Section({
 	title,
 	actions,
 	children,
-	description,
+	total,
 	fill = false,
 }: {
 	title: string
 	actions?: ReactNode
 	children: ReactNode
-	description?: string
+	/** The section's one figure beside its title: how many rows it lists, or what they add up to (`1.2 GB`). */
+	total?: number | string
 	/** Takes the rest of a `fill` Page's height, and a `DataTable` in it scrolls on its own. It is the last section.
 	 * Outside a `fill` Page it is an ordinary section. */
 	fill?: boolean
@@ -475,8 +481,8 @@ export function Section({
 		<section className={fills ? 'flex min-h-72 flex-1 flex-col' : 'mb-8'}>
 			<header className='mb-3 flex h-9 items-center justify-between gap-4'>
 				<div className='flex min-w-0 items-baseline gap-2.5'>
-					<h2 className='shrink-0 text-title font-medium'>{title}</h2>
-					{description ? <span className='truncate text-label text-muted-foreground'>{description}</span> : null}
+					<h2 className='shrink-0 text-base font-medium'>{title}</h2>
+					{total === undefined ? null : <span className='truncate text-sm text-muted'>{total}</span>}
 				</div>
 				{actions ? <div className='flex shrink-0 items-center gap-2'>{actions}</div> : null}
 			</header>
@@ -492,7 +498,6 @@ export function Section({
  */
 export function FormSection({
 	title,
-	description,
 	icon: Icon,
 	hint,
 	actions,
@@ -501,7 +506,6 @@ export function FormSection({
 	children,
 }: {
 	title: string
-	description?: string
 	icon?: TablerIcon
 	/** Footer text: what saving does, or what the group needs before it can. */
 	hint?: ReactNode
@@ -515,11 +519,11 @@ export function FormSection({
 		aside && aside.length > 0 ? (
 			<div className='grid gap-x-6 md:grid-cols-[minmax(0,1fr)_13rem]'>
 				<div className='min-w-0'>{children}</div>
-				<dl className='mt-4 grid content-start gap-2.5 border-t border-rule pt-3 md:mt-0 md:border-t-0 md:border-l md:pt-0 md:pl-5'>
+				<dl className='mt-4 grid content-start gap-2.5 border-t border-border-subtle pt-3 md:mt-0 md:border-t-0 md:border-l md:pt-0 md:pl-5'>
 					{aside.map(fact => (
 						<div key={fact.label}>
-							<dt className='text-label text-muted-foreground'>{fact.label}</dt>
-							<dd className='text-body'>{fact.value}</dd>
+							<dt className='text-xs text-muted'>{fact.label}</dt>
+							<dd className='text-sm'>{fact.value}</dd>
 						</div>
 					))}
 				</dl>
@@ -529,17 +533,16 @@ export function FormSection({
 		)
 	const card = (
 		// Arc's Card is a content tile (media, quick look); a form group draws the same surface by hand.
-		<section className='mb-4 rounded-(--radius-panel) border border-border bg-card raised'>
-			<header className='flex flex-col gap-1.5 px-5 pt-5'>
-				<h3 className='flex items-center gap-2 text-title font-medium'>
-					{Icon ? <Icon className='size-4 text-muted-foreground' /> : null}
+		<section className='mb-4 rounded-surface border bg-surface'>
+			<header className='px-5 pt-5'>
+				<h3 className='flex items-center gap-2 text-base font-medium'>
+					{Icon ? <Icon className='size-4 text-muted' /> : null}
 					{title}
 				</h3>
-				{description ? <p className='text-(--text-secondary)'>{description}</p> : null}
 			</header>
 			<div className='p-5'>{body}</div>
 			{actions || hint ? (
-				<footer className='flex min-h-12 flex-wrap items-center justify-between gap-3 border-t border-rule px-5 py-2.5 text-label text-muted-foreground'>
+				<footer className='flex min-h-12 flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-5 py-2.5 text-xs text-muted'>
 					<span>{hint}</span>
 					<div className='ml-auto flex flex-wrap items-center gap-2'>{actions}</div>
 				</footer>
@@ -563,12 +566,22 @@ export function FormSection({
 	)
 }
 
-/** Readings as Arc metric cards, one card each, in a grid that wraps on its own. */
+/** Readings in one bordered frame, a hairline between them, in a grid that wraps on its own. Each `Cell` draws its own
+ * hairline into the 1px gap, so a short last row ends in plain surface instead of a filled block. */
 export function Cells({ children, className }: { children: ReactNode; className?: string }) {
-	return <div className={cn('grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3', className)}>{children}</div>
+	return (
+		<div
+			className={cn(
+				'grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-px overflow-hidden rounded-surface border bg-surface',
+				className,
+			)}
+		>
+			{children}
+		</div>
+	)
 }
 
-/** One reading as an Arc metric card: label, the number, then what it is out of. `children` is a sparkline or a bar. */
+/** One reading in a `Cells` frame: label, the number, then what it is out of. `children` is a sparkline or a bar. */
 export function Cell({
 	label,
 	icon: Icon,
@@ -590,21 +603,21 @@ export function Cell({
 	const reading = (
 		<>
 			<div className='flex min-h-5.5 items-center gap-2 text-(--text-secondary)'>
-				{Icon ? <Icon className='size-4 text-muted-foreground' /> : null}
+				{Icon ? <Icon className='size-4 text-muted' /> : null}
 				{label}
 			</div>
 			{value === undefined ? null : (
 				<div
 					title={typeof value === 'string' ? value : undefined}
-					className='mt-4 truncate font-(family-name:--font-display) text-reading leading-tight font-medium tracking-(--tracking-display)'
+					className='mt-4 truncate font-display text-3xl font-medium'
 				>
 					{value}
 				</div>
 			)}
-			{hint ? <div className='mt-2 truncate text-muted-foreground'>{hint}</div> : null}
+			{hint ? <div className='mt-2 truncate text-muted'>{hint}</div> : null}
 		</>
 	)
-	const card = 'min-w-0 rounded-(--radius-surface) border bg-card p-4 raised'
+	const card = 'min-w-0 bg-surface p-4 outline outline-border'
 	if (inline) {
 		return (
 			<div className={cn('@container', card)}>
@@ -626,12 +639,7 @@ export function Cell({
 /** Label left, value right, one hairline per row. The shape for attributes that are read, not edited. */
 export function Facts({ children, className }: { children: ReactNode; className?: string }) {
 	return (
-		<dl
-			className={cn(
-				'rounded-(--radius-panel) border bg-card px-4 raised [&>*+*]:border-t [&>*+*]:border-rule',
-				className,
-			)}
-		>
+		<dl className={cn('divide-y divide-border-subtle rounded-surface border bg-surface px-4', className)}>
 			{children}
 		</dl>
 	)
@@ -640,9 +648,47 @@ export function Facts({ children, className }: { children: ReactNode; className?
 /** One row of a `Facts` list. */
 export function Fact({ label, value }: { label: string; value: ReactNode }) {
 	return (
-		<div className='flex min-h-10 items-center gap-4 py-1 text-body'>
-			<dt className='shrink-0 text-muted-foreground'>{label}</dt>
-			<dd className='min-w-0 flex-1 truncate text-right font-mono text-label'>{value}</dd>
+		<div className='flex min-h-10 items-center gap-4 py-1 text-sm'>
+			<dt className='shrink-0 text-muted'>{label}</dt>
+			<dd className='min-w-0 flex-1 truncate text-right font-mono text-xs'>{value}</dd>
+		</div>
+	)
+}
+
+/**
+ * Facts that are words rather than readings (an image, a health), on one line above a page. `state` opens it as a
+ * badge, then label and value pairs; the `grow` item takes the width left over and truncates. Narrower than 42rem it
+ * wraps, and the `grow` item gets a line of its own.
+ */
+export function FactBar({
+	state,
+	items,
+	className,
+}: {
+	state: ReactNode
+	items: { label: string; value: ReactNode; grow?: boolean }[]
+	className?: string
+}) {
+	return (
+		<div className={cn('@container', className)}>
+			<dl className='flex flex-wrap items-center overflow-hidden rounded-panel border bg-surface text-sm @2xl:h-control-lg @2xl:flex-nowrap'>
+				<div className='flex h-10 shrink-0 items-center px-3.5 @2xl:h-full'>
+					<dt className='sr-only'>State</dt>
+					<dd>{state}</dd>
+				</div>
+				{items.map(item => (
+					<div
+						key={item.label}
+						className={cn(
+							'flex h-10 items-center gap-2 px-3.5 whitespace-nowrap @2xl:h-full @2xl:border-l @2xl:border-border-subtle',
+							item.grow ? 'min-w-0 grow basis-full @2xl:basis-0' : 'shrink-0',
+						)}
+					>
+						<dt className='shrink-0 text-secondary'>{item.label}</dt>
+						<dd className='min-w-0 truncate'>{item.value}</dd>
+					</div>
+				))}
+			</dl>
 		</div>
 	)
 }
@@ -666,9 +712,7 @@ export function Meter({
 }) {
 	return (
 		<div className={cn('flex min-w-24 items-center gap-2', className)}>
-			{label === '' ? null : (
-				<div className='shrink-0 font-mono text-label leading-none tabular-nums'>{label}</div>
-			)}
+			{label === '' ? null : <div className='shrink-0 font-mono text-xs leading-none tabular-nums'>{label}</div>}
 			{max > 0 ? (
 				<Progress
 					value={value}
@@ -681,7 +725,7 @@ export function Meter({
 	)
 }
 
-/** The page's headline readings as metric cards, above everything else it shows. */
+/** The page's headline readings in one `Cells` frame, above everything else it shows. */
 export function StatStrip({ items, className }: { items: { label: string; value: ReactNode }[]; className?: string }) {
 	return (
 		<Cells className={className}>
@@ -695,17 +739,15 @@ export function StatStrip({ items, className }: { items: { label: string; value:
 /** An ordered run of steps, each with the state it ended in. The shape for a pipeline that is watched while it runs. */
 export function Timeline({ steps }: { steps: { id: string; name: string; status: string; detail?: ReactNode }[] }) {
 	return (
-		<ol className='relative ml-[3px] border-l border-rule'>
+		<ol className='relative ml-[3px] border-l border-border-subtle'>
 			{steps.map(step => (
-				<li key={step.id} className='flex items-center gap-3 py-1 pl-4 text-body'>
+				<li key={step.id} className='flex items-center gap-3 py-1 pl-4 text-sm'>
 					<span className='absolute -left-[3.5px]'>
 						<Status dot value={step.status} />
 					</span>
 					<span className='min-w-0 flex-1 truncate font-mono'>{step.name}</span>
 					{step.detail ? (
-						<span className='shrink-0 font-mono text-label text-muted-foreground tabular-nums'>
-							{step.detail}
-						</span>
+						<span className='shrink-0 font-mono text-xs text-muted tabular-nums'>{step.detail}</span>
 					) : null}
 				</li>
 			))}
@@ -725,12 +767,12 @@ export function RelativeTime({ at }: { at: string | number | null | undefined })
 		return () => clearInterval(timer)
 	}, [])
 
-	if (!at) return <span className='text-muted-foreground'>-</span>
+	if (!at) return <span className='text-muted'>-</span>
 	const parsed = typeof at === 'number' ? at * 1000 : Date.parse(at)
-	if (Number.isNaN(parsed)) return <span className='text-muted-foreground'>-</span>
+	if (Number.isNaN(parsed)) return <span className='text-muted'>-</span>
 	const stamp = new Date(parsed)
 	return (
-		<time dateTime={stamp.toISOString()} title={stamp.toLocaleString()} className='whitespace-nowrap text-muted-foreground'>
+		<time dateTime={stamp.toISOString()} title={stamp.toLocaleString()} className='whitespace-nowrap text-muted'>
 			{parsed > Date.now() ? until(at) : since(at)}
 		</time>
 	)
@@ -967,7 +1009,7 @@ export function Check({
 	className?: string
 }) {
 	return (
-		<label className={cn('flex items-center gap-2 text-body', muted && 'text-muted-foreground', className)}>
+		<label className={cn('flex items-center gap-2 text-sm', muted && 'text-muted', className)}>
 			<Checkbox
 				aria-label={name ?? label}
 				checked={checked}
@@ -994,12 +1036,12 @@ export function Switch({
 	disabled?: boolean
 }) {
 	return (
-		<label className='flex items-start gap-3 text-body'>
+		<label className='flex items-start gap-3 text-sm'>
 			<ArcSwitch checked={checked} disabled={disabled} onCheckedChange={onChange} />
-			{/* The switch is a 44px hit area; the label's first line centers on it. */}
-			<span className='flex flex-col gap-0.5 pt-[calc((var(--control-height-md)-1lh)/2)]'>
+			{/* The switch is a control-md tall hit area; the label's first line centers on it. */}
+			<span className='flex flex-col gap-0.5 pt-[calc((var(--spacing-control-md)-1lh)/2)]'>
 				{label}
-				{hint ? <span className='text-label text-muted-foreground'>{hint}</span> : null}
+				{hint ? <span className='text-xs text-muted'>{hint}</span> : null}
 			</span>
 		</label>
 	)
@@ -1121,7 +1163,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 			</span>
 			<FieldContext value={naming}>{children}</FieldContext>
 			{hint ? (
-				<span id={hintId} className='text-xs text-muted-foreground'>
+				<span id={hintId} className='text-xs text-muted'>
 					{hint}
 				</span>
 			) : null}

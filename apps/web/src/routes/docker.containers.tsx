@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { IconBox, IconFileText, IconPlayerPlay, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Badge } from '@/components/arc/badge'
+import { Badge } from '@/components/ui/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
 import { Sparkline } from '../components/metric-chart'
@@ -49,8 +49,8 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconBox className='size-4 shrink-0 text-muted-foreground' />
-					<span title={containerName(row.original)} className='max-w-32 truncate font-mono text-label'>
+					<IconBox className='size-4 shrink-0 text-muted' />
+					<span title={containerName(row.original)} className='max-w-32 truncate font-mono text-xs'>
 						{containerName(row.original)}
 					</span>
 					{row.original.managed ? null : <Badge>external</Badge>}
@@ -189,14 +189,13 @@ function ContainersPage() {
 			projectLabel: composeProject => byName.get(composeProject)?.label ?? composeProject,
 		})
 	}, [runAction, projects.data])
-	const running = data.filter(container => container.state === 'running').length
 
 	return (
 		<Page fill>
 			<Section
 				title='All containers'
 				fill
-				description={`${data.length} total · ${running} running`}
+				total={data.length}
 				actions={<Refresh onClick={() => containers.refetch()} busy={containers.isFetching} />}
 			>
 				<ErrorText error={act.error} />

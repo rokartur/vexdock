@@ -14,7 +14,7 @@ function ServiceTerminal() {
 
 	if (service.data?.state !== 'running') {
 		return (
-			<div className='rounded-xl border bg-card raised'>
+			<div className='rounded-surface border bg-surface'>
 				<EmptyState icon={IconTerminal2} title='Start the service to open a terminal' />
 			</div>
 		)

@@ -171,17 +171,17 @@ export function ImportServicesForm({
 
 			{parsed ? (
 				<div className='mb-3'>
-					<p className='mb-2 text-label text-muted-foreground'>
+					<p className='mb-2 text-xs text-muted'>
 						{parsed.services.length} service{parsed.services.length === 1 ? '' : 's'} from {parsed.project}
 					</p>
-					<div className='rounded-md border bg-background px-3'>
+					<div className='rounded-panel border bg-background px-3'>
 						{parsed.services.map(service => {
 							const collides = taken.has(service.name)
 							const on = !collides && !skipped.includes(service.name)
 							return (
 								<div
 									key={service.name}
-									className={`flex items-center gap-3 border-b border-rule py-1.5 text-body last:border-0 ${collides ? 'opacity-40' : ''}`}
+									className={`flex items-center gap-3 border-b border-border-subtle py-1.5 text-sm last:border-0 ${collides ? 'opacity-40' : ''}`}
 								>
 									<Check
 										label={service.name}
@@ -195,13 +195,13 @@ export function ImportServicesForm({
 											)
 										}
 									/>
-									<span className='truncate font-mono text-label text-muted-foreground'>
+									<span className='truncate font-mono text-xs text-muted'>
 										{service.image ||
 											(service.repository ? `${service.owner}/${service.repository}` : '') ||
 											service.repository_url ||
 											service.provider}
 									</span>
-									<span className='ml-auto shrink-0 text-label text-muted-foreground'>
+									<span className='ml-auto shrink-0 text-xs text-muted'>
 										{collides ? 'name taken' : `${(service.env ?? []).length} vars`}
 									</span>
 								</div>
@@ -209,7 +209,7 @@ export function ImportServicesForm({
 						})}
 					</div>
 					{withheldSecrets ? (
-						<p className='mt-2 text-label text-muted-foreground'>
+						<p className='mt-2 text-xs text-muted'>
 							Some secrets were exported without their values. Fill them in after importing.
 						</p>
 					) : null}

@@ -127,7 +127,6 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 	return (
 		<FormSection
 			title='Deploy'
-			description='Run it, or stop it. The log opens under Deployments.'
 			icon={IconRocket}
 			hint='Auto deploy watches this service’s own repository and branch. Prune build cache sweeps the host’s dangling builder cache once this service finishes building.'
 			aside={[
@@ -175,14 +174,14 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 					<IconTerminal2 />
 					Open terminal
 				</Button>
-				<span className='ml-1 rounded-md border border-rule px-3 py-1.5'>
+				<span className='ml-1 rounded-control border border-border-subtle px-3 py-1.5'>
 					<Switch
 						label='Auto deploy'
 						checked={service.auto_deploy}
 						onChange={on => switches.mutate({ auto_deploy: on })}
 					/>
 				</span>
-				<span className='rounded-md border border-rule px-3 py-1.5'>
+				<span className='rounded-control border border-border-subtle px-3 py-1.5'>
 					<Switch
 						label='Prune build cache'
 						checked={service.prune_build_cache}
@@ -215,7 +214,6 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 		<>
 			<FormSection
 				title='Connection'
-				description='Reachable under this hostname from every other service in this project.'
 				icon={IconPlug}
 				hint='The password is what the container was created with.'
 				actions={
@@ -238,11 +236,7 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 					{data.replication_url ? <Fact label='Replication URL' value={data.replication_url} /> : null}
 				</Facts>
 			</FormSection>
-			<FormSection
-				title='Engine'
-				description='Change the image under Source, then Deploy to move versions.'
-				icon={IconDatabase}
-			>
+			<FormSection title='Engine' icon={IconDatabase}>
 				<Facts>
 					<Fact label='Engine' value={data.engine} />
 					<Fact label='Image' value={data.image} />
@@ -263,11 +257,13 @@ function SourceSection({ service }: { service: Service }) {
 	const [registryUsername, setRegistryUsername] = useState(service.registry_username)
 	const [registryPassword, setRegistryPassword] = useState('')
 	const [fragment, setFragment] = useState(service.compose_fragment)
-	const [credentialKind, setCredentialKind] = useState<CredentialKind>(service.credential_kind || 'none')
+	const savedCredentialKind: CredentialKind = service.credential_kind || 'none'
+	const [credentialKind, setCredentialKind] = useState(savedCredentialKind)
 	const [credentialSecret, setCredentialSecret] = useState('')
 	const [providerId, setProviderId] = useState(service.git_provider_id)
 	// A connection names a repository as an owner and a name, not as a URL.
-	const [repository, setRepository] = useState(service.repository ? `${service.owner}/${service.repository}` : '')
+	const savedRepository = service.repository ? `${service.owner}/${service.repository}` : ''
+	const [repository, setRepository] = useState(savedRepository)
 
 	// An application arrives here as a bare name, so this page is where it gets
 	// answered, and it can be answered again later. A database's provider is
@@ -355,14 +351,28 @@ function SourceSection({ service }: { service: Service }) {
 		},
 	})
 
+	// Compared the way the save sends them: an empty git branch is saved as main, and an application that was never
+	// configured is unsaved until its provider is.
+	const dirty =
+		(editable && provider !== service.provider) ||
+		(git ? branch || 'main' : branch) !== service.branch ||
+		providerId !== service.git_provider_id ||
+		repository !== savedRepository ||
+		repositoryUrl !== service.repository_url ||
+		credentialKind !== savedCredentialKind ||
+		credentialSecret !== '' ||
+		image !== service.image ||
+		registryUrl !== service.registry_url ||
+		registryUsername !== service.registry_username ||
+		registryPassword !== '' ||
+		fragment !== service.compose_fragment
 	return (
 		<FormSection
 			title='Source'
-			description='Where the code comes from.'
 			icon={IconGitBranch}
 			hint='Applied on the next deploy.'
 			onSave={() => save.mutate()}
-			actions={<SaveButton mutation={save} />}
+			actions={<SaveButton mutation={save} dirty={dirty} />}
 		>
 			<ErrorText error={save.error} />
 			{/* The fields take the width of the provider tabs above them. Containment keeps their own intrinsic
@@ -523,13 +533,14 @@ function BuildSection({ service }: { service: Service }) {
 				build_target: buildTarget,
 				output_dir: outputDir,
 			}),
-		onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['service', service.id] })
+		},
 	})
 
 	return (
 		<FormSection
 			title='Build'
-			description='How the repository becomes an image.'
 			icon={IconHammer}
 			hint={
 				buildType === 'static'
@@ -537,7 +548,18 @@ function BuildSection({ service }: { service: Service }) {
 					: 'Applied on the next deploy.'
 			}
 			onSave={() => save.mutate()}
-			actions={<SaveButton mutation={save} />}
+			actions={
+				<SaveButton
+					mutation={save}
+					dirty={
+						buildType !== service.build_type ||
+						buildPath !== service.build_path ||
+						dockerfile !== service.dockerfile ||
+						buildTarget !== service.build_target ||
+						outputDir !== service.output_dir
+					}
+				/>
+			}
 		>
 			<ErrorText error={save.error} />
 			<div className='mb-4'>

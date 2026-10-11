@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { IconFolder, IconGitBranch, IconLayersLinked, IconPlus, IconTrash, IconUpload } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Badge } from '@/components/arc/badge'
-import { CopyButton } from '@/components/arc/copy-button'
+import { Badge } from '@/components/ui/badge'
+import { CopyButton } from '@/components/ui/copy-button'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
@@ -61,13 +61,15 @@ function ProjectSettings() {
 				title='Project'
 				icon={IconFolder}
 				hint='The name is what the breadcrumb and the project list show. The slug it was created with never moves.'
-				actions={<SaveButton mutation={save} />}
+				actions={
+					<SaveButton mutation={save} dirty={project.data !== undefined && name !== project.data.name} />
+				}
 				aside={
 					project.data
 						? [
 								{
 									label: 'Slug',
-									value: <span className='font-mono text-label'>{project.data.slug}</span>,
+									value: <span className='font-mono text-xs'>{project.data.slug}</span>,
 								},
 								{
 									label: 'Services',
@@ -100,7 +102,7 @@ function environmentColumns(remove: (id: string) => void, removing: boolean): Co
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconLayersLinked className='size-4 text-muted-foreground' />
+					<IconLayersLinked className='size-4 text-muted' />
 					{row.original.name}
 					{row.original.is_default ? <Badge>default</Badge> : null}
 				</span>
@@ -116,12 +118,12 @@ function environmentColumns(remove: (id: string) => void, removing: boolean): Co
 			header: 'Branch',
 			cell: ({ row }) =>
 				row.original.branch ? (
-					<span className='inline-flex items-center gap-1 font-mono text-label'>
-						<IconGitBranch className='size-3 text-muted-foreground' />
+					<span className='inline-flex items-center gap-1 font-mono text-xs'>
+						<IconGitBranch className='size-3 text-muted' />
 						{row.original.branch}
 					</span>
 				) : (
-					<span className='text-label text-muted-foreground'>service branch</span>
+					<span className='text-xs text-muted'>service branch</span>
 				),
 		}),
 		cell.accessor(environment => environment.created_at, {
@@ -180,7 +182,6 @@ function Environments({ projectId }: { projectId: string }) {
 	return (
 		<FormSection
 			title='Environments'
-			description='Each one deploys on its own, into its own containers.'
 			icon={IconLayersLinked}
 			actions={
 				<Button variant='primary' onClick={() => setAdding(true)}>
@@ -237,7 +238,6 @@ function ExportServices({ projectId }: { projectId: string }) {
 	return (
 		<FormSection
 			title='Export services'
-			description='Paste into another project’s import.'
 			icon={IconUpload}
 			hint='With secrets off, they export as keys with empty values and the import leaves the generated ones alone.'
 			actions={
@@ -250,7 +250,7 @@ function ExportServices({ projectId }: { projectId: string }) {
 			}
 		>
 			<ErrorText error={exported.error ?? copyError} />
-			<code className='mb-4 block max-h-24 overflow-y-auto rounded-md border bg-background px-3 py-2 font-mono text-label break-all text-muted-foreground'>
+			<code className='mb-4 block max-h-24 overflow-y-auto rounded-control border bg-background px-3 py-2 font-mono text-xs break-all text-muted'>
 				{exported.data?.payload || 'No managed services to export.'}
 			</code>
 			<Switch label='Include secret values' checked={secrets} onChange={setSecrets} />

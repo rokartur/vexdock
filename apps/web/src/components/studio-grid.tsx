@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconCircleOff, IconKey } from '@tabler/icons-react'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/arc/table'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { StudioCell } from '../lib/api'
 import { Check, IconButton, Input } from './primitives'
 
@@ -38,7 +38,7 @@ export function StudioGrid({
 
 	return (
 		<div className='min-h-0 flex-1 overflow-auto [&>div]:overflow-visible'>
-			<Table className='w-max min-w-full font-mono text-label'>
+			<Table className='w-max min-w-full font-mono text-xs'>
 				<TableHeader>
 					<TableRow static>
 						{selectable ? <TableHead className={cn(headClass, 'w-8 px-2')} /> : null}
@@ -46,7 +46,7 @@ export function StudioGrid({
 							const order = sort?.column === column.name ? sort.order : undefined
 							const label = (
 								<span className='flex flex-col items-start py-1 text-left'>
-									<span className='flex items-center gap-1 font-sans text-body font-medium text-foreground'>
+									<span className='flex items-center gap-1 font-sans text-sm font-medium text-foreground'>
 										{column.primary_key ? (
 											<IconKey aria-label='Primary key' className='size-3 text-warning' />
 										) : null}
@@ -92,8 +92,7 @@ export function StudioGrid({
 							key={row.id}
 							className={cn(
 								row.change === 'insert' && 'bg-success/10 hover:bg-success/15',
-								row.change === 'delete' &&
-									'bg-destructive/10 text-muted-foreground line-through hover:bg-destructive/15',
+								row.change === 'delete' && 'bg-danger/10 text-muted line-through hover:bg-danger/15',
 							)}
 						>
 							{selectable ? (
@@ -153,11 +152,11 @@ export function StudioGrid({
 
 // The hairline is an inset shadow on the th: a collapsed tr border does not travel with a sticky cell.
 const headClass =
-	'sticky top-0 z-10 h-auto border-b-0 bg-card text-label text-muted-foreground shadow-[inset_0_-1px_0_0_var(--border)]'
+	'sticky top-0 z-10 h-auto border-b-0 bg-surface text-xs text-muted shadow-[inset_0_-1px_0_0_var(--border)]'
 
 function CellText({ value }: { value: StudioCell | undefined }) {
-	if (value === undefined) return <span className='text-muted-foreground/60 italic'>default</span>
-	if (value === null) return <span className='text-muted-foreground/60'>NULL</span>
+	if (value === undefined) return <span className='text-muted/60 italic'>default</span>
+	if (value === null) return <span className='text-muted/60'>NULL</span>
 	return <span title={value.length > 40 ? value : undefined}>{value}</span>
 }
 

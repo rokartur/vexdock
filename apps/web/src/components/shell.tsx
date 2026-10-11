@@ -1,4 +1,5 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Collapsible } from '@base-ui/react/collapsible'
 import {
 	IconActivity,
 	IconAffiliate,
@@ -21,10 +22,9 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
-import { AnimatePresence, motion } from 'motion/react'
-import { Avatar } from '@/components/arc/avatar'
-import { DropdownMenu } from '@/components/arc/dropdown-menu'
-import { cn } from '@/utils/cn'
+import { cn } from 'cn'
+import { Avatar } from '@/components/ui/avatar'
+import { DropdownMenu } from '@/components/ui/dropdown-menu'
 import { api, updateActive, type Project, type Service } from '../lib/api'
 import { signOut, useSession } from '../lib/auth-client'
 import { useEnvironmentId } from '../lib/environment'
@@ -59,7 +59,7 @@ const system: NavItem[] = [
 const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
 
 const navRow =
-	'relative isolate flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors pointer-coarse:min-h-11 data-[on=false]:text-muted-foreground data-[on=false]:hover:bg-muted data-[on=false]:hover:text-foreground data-[on=true]:font-medium data-[on=true]:text-foreground'
+	'relative isolate flex items-center gap-2 rounded-control px-2 py-1.5 text-sm transition-colors pointer-coarse:min-h-11 data-[on=false]:text-muted data-[on=false]:hover:bg-surface-muted data-[on=false]:hover:text-foreground data-[on=true]:font-medium data-[on=true]:text-foreground'
 
 function SideLink({ item, active }: { item: NavItem; active: boolean }) {
 	return (
@@ -70,7 +70,7 @@ function SideLink({ item, active }: { item: NavItem; active: boolean }) {
 			data-on={active}
 			className={navRow}
 		>
-			{active ? <ActivePill layoutId='nav' className='bg-muted' /> : null}
+			{active ? <ActivePill layoutId='nav' /> : null}
 			<item.icon stroke={1.5} className='size-4 shrink-0' />
 			<span className='truncate'>{item.label}</span>
 		</Link>
@@ -78,7 +78,7 @@ function SideLink({ item, active }: { item: NavItem; active: boolean }) {
 }
 
 function GroupLabel({ children }: { children: ReactNode }) {
-	return <div className='px-2 pt-4 pb-1 font-mono text-meta tracking-wide text-muted-foreground'>{children}</div>
+	return <div className='px-2 pt-4 pb-1 font-mono text-xs text-muted'>{children}</div>
 }
 
 /** The project you are in is always open; every other one opens on its chevron, and only an open one fetches services. */
@@ -137,25 +137,20 @@ function ProjectBranch({
 		enabled: open,
 	})
 
-	const panelId = useId()
 	// The panel waits for the rows: opened empty, it would grow to 0 and then pop.
-	const rows = open ? services.data : undefined
+	const expanded = open && services.data !== undefined
 	return (
-		<div>
+		<Collapsible.Root open={expanded} onOpenChange={onToggle}>
 			<div className='flex items-center gap-0.5'>
-				<button
-					type='button'
-					aria-expanded={rows !== undefined}
-					aria-controls={rows ? panelId : undefined}
+				<Collapsible.Trigger
 					aria-label={`${open ? 'Collapse' : 'Expand'} ${project.name}`}
-					onClick={onToggle}
-					className='grid press place-items-center rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:size-11'
+					className='grid press place-items-center rounded-control p-1 text-muted hover:bg-surface-muted hover:text-foreground pointer-coarse:size-11'
 				>
 					<IconChevronRight
 						stroke={1.5}
-						className={cn('size-3.5 transition-[rotate] duration-200', open && 'rotate-90')}
+						className={cn('size-3.5 transition-[rotate] duration-160 ease-standard', open && 'rotate-90')}
 					/>
-				</button>
+				</Collapsible.Trigger>
 				<Link
 					to='/projects/$projectId'
 					params={{ projectId: project.id }}
@@ -165,29 +160,18 @@ function ProjectBranch({
 					data-on={active}
 					className={cn(navRow, 'min-w-0 flex-1')}
 				>
-					{active ? <ActivePill layoutId='nav' className='bg-muted' /> : null}
+					{active ? <ActivePill layoutId='nav' /> : null}
 					<span className='truncate'>{project.name}</span>
-					<span className='ml-auto shrink-0 font-mono text-meta text-muted-foreground'>
-						{project.service_count}
-					</span>
+					<span className='ml-auto shrink-0 font-mono text-xs text-muted'>{project.service_count}</span>
 				</Link>
 			</div>
-			<AnimatePresence initial={false}>
-				{rows ? (
-					<motion.div
-						key='panel'
-						id={panelId}
-						className='overflow-hidden'
-						initial={{ height: 0 }}
-						animate={{ height: 'auto' }}
-						exit={{ height: 0 }}
-						transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-					>
-						<BranchServices projectId={project.id} environmentId={environmentId} services={rows} />
-					</motion.div>
+			{/* The cached rows stay rendered while it closes, so the height has something to collapse from. */}
+			<Collapsible.Panel className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-240 ease-enter data-ending-style:h-0 data-ending-style:duration-180 data-ending-style:ease-exit data-starting-style:h-0'>
+				{services.data ? (
+					<BranchServices projectId={project.id} environmentId={environmentId} services={services.data} />
 				) : null}
-			</AnimatePresence>
-		</div>
+			</Collapsible.Panel>
+		</Collapsible.Root>
 	)
 }
 
@@ -204,7 +188,7 @@ function BranchServices({
 	return (
 		<div className='mt-0.5 ml-3.5 border-l pl-2'>
 			{services.length === 0 ? (
-				<div className='px-2 py-1 text-label text-muted-foreground'>No services</div>
+				<div className='px-2 py-1 text-xs text-muted'>No services</div>
 			) : (
 				services.map(service => {
 					const active = service.id === serviceId
@@ -220,7 +204,7 @@ function BranchServices({
 							className={cn(navRow, 'py-1')}
 						>
 							{/* Own layoutId: the project row above stays selected too. */}
-							{active ? <ActivePill layoutId='nav-service' className='bg-muted' /> : null}
+							{active ? <ActivePill layoutId='nav-service' /> : null}
 							<span
 								aria-hidden
 								className={cn('size-1.5 shrink-0 rounded-full bg-current', stateTone(service.state))}
@@ -265,7 +249,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
 	let updateDot: string | undefined
 	let versionText = version.data?.current ?? 'dev'
-	let versionClass = 'text-muted-foreground'
+	let versionClass = 'text-muted'
 	if (updating) {
 		updateDot = 'bg-warning'
 		versionText = restarting ? 'restarting…' : `updating → ${updateState.data?.target}`
@@ -313,7 +297,7 @@ export function Shell({ children }: { children: ReactNode }) {
 				aria-label='Close navigation'
 				onClick={() => setNavOpen(false)}
 				className={cn(
-					'fixed inset-0 z-40 bg-black/60 transition-[opacity,visibility] duration-400 md:hidden',
+					'fixed inset-0 z-40 bg-background/60 transition-[opacity,visibility] duration-240 md:hidden',
 					!navOpen && 'invisible opacity-0',
 				)}
 			/>
@@ -321,7 +305,7 @@ export function Shell({ children }: { children: ReactNode }) {
 			{/* invisible, not hidden: visibility flips after the slide, and still drops the closed panel from the tab order. */}
 			<aside
 				className={cn(
-					'flex w-64 shrink-0 flex-col border-r bg-background max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:transition-[translate,visibility] max-md:duration-400 max-md:ease-drawer',
+					'flex w-64 shrink-0 flex-col border-r bg-background max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:transition-[translate,visibility] max-md:duration-580 max-md:ease-spring',
 					!navOpen && 'max-md:invisible max-md:-translate-x-full',
 				)}
 			>
@@ -329,9 +313,9 @@ export function Shell({ children }: { children: ReactNode }) {
 					<Link
 						to='/'
 						draggable={false}
-						className='mr-auto flex min-w-0 items-center gap-2 rounded-md p-1 text-body hover:bg-muted'
+						className='mr-auto flex min-w-0 items-center gap-2 rounded-control p-1 text-sm hover:bg-surface-muted'
 					>
-						<span className='grid size-5 shrink-0 place-items-center rounded-sm bg-primary text-meta font-medium text-primary-foreground'>
+						<span className='grid size-5 shrink-0 place-items-center rounded-[calc(var(--radius-control)-4px)] bg-foreground text-xs font-medium text-background'>
 							VX
 						</span>
 						<span className='truncate font-medium'>vexdock</span>
@@ -358,7 +342,7 @@ export function Shell({ children }: { children: ReactNode }) {
 								type='button'
 								onClick={() => setCreating(true)}
 								aria-label='New project'
-								className='-my-1 rounded-md p-1 hover:bg-muted hover:text-foreground'
+								className='-my-1 rounded-control p-1 hover:bg-surface-muted hover:text-foreground'
 							>
 								<IconPlus stroke={1.5} className='size-3.5' />
 							</button>
@@ -385,16 +369,14 @@ export function Shell({ children }: { children: ReactNode }) {
 							<button
 								type='button'
 								aria-label={name}
-								className='flex w-full items-center gap-2 rounded-md p-1.5 text-left hover:bg-muted'
+								className='flex w-full items-center gap-2 rounded-control p-1.5 text-left hover:bg-surface-muted'
 							>
 								<Avatar name={name} aria-hidden />
 								<span className='min-w-0 flex-1'>
-									<span className='block truncate text-body font-medium'>{name}</span>
-									{email ? (
-										<span className='block truncate text-label text-muted-foreground'>{email}</span>
-									) : null}
+									<span className='block truncate text-sm font-medium'>{name}</span>
+									{email ? <span className='block truncate text-xs text-muted'>{email}</span> : null}
 								</span>
-								<IconChevronDown className='size-3.5! shrink-0 text-muted-foreground' />
+								<IconChevronDown className='size-3.5! shrink-0 text-muted' />
 							</button>
 						}
 						items={[
@@ -410,7 +392,7 @@ export function Shell({ children }: { children: ReactNode }) {
 					<Link
 						to='/system/settings/about'
 						draggable={false}
-						className={cn('flex items-center gap-1.5 px-2 pt-1 font-mono text-meta', versionClass)}
+						className={cn('flex items-center gap-1.5 px-2 pt-1 font-mono text-xs', versionClass)}
 					>
 						{updateDot ? <span aria-hidden className={cn('size-1.5 rounded-full', updateDot)} /> : null}
 						{versionText}
@@ -425,7 +407,7 @@ export function Shell({ children }: { children: ReactNode }) {
 						aria-label='Navigation'
 						aria-expanded={navOpen}
 						onClick={() => setNavOpen(true)}
-						className='-ml-1 press rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden'
+						className='-ml-1 press rounded-control p-1.5 text-muted hover:bg-surface-muted hover:text-foreground md:hidden'
 					>
 						<IconMenu2 stroke={1.5} className='size-4' />
 					</button>

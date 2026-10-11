@@ -2,7 +2,7 @@ import { Fragment, useMemo } from 'react'
 import { IconStack2, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Badge } from '@/components/arc/badge'
+import { Badge } from '@/components/ui/badge'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
 import {
 	Confirm,
@@ -53,8 +53,8 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 				header: 'Repository',
 				cell: ({ getValue }) => (
 					<span className='inline-flex items-center gap-2'>
-						<IconStack2 className='size-4 text-muted-foreground' />
-						<span className='font-mono text-label'>{getValue()}</span>
+						<IconStack2 className='size-4 text-muted' />
+						<span className='font-mono text-xs'>{getValue()}</span>
 					</span>
 				),
 			},
@@ -168,7 +168,7 @@ function ImagesPage() {
 			{data.length > 0 ? <StatStrip className='mb-4' items={stats} /> : null}
 			<Section
 				title='Local images'
-				description={`${data.length} total`}
+				total={data.length}
 				actions={<Refresh onClick={() => images.refetch()} busy={images.isFetching} />}
 			>
 				<ErrorText error={remove.error} />

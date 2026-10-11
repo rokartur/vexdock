@@ -17,8 +17,8 @@ const healthTableColumns: Columns<HealthRow> = (() => {
 			header: 'Check',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconActivity className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{row.original.name}</span>
+					<IconActivity className='size-4 text-muted' />
+					<span className='font-mono text-xs'>{row.original.name}</span>
 				</span>
 			),
 		}),
@@ -29,7 +29,7 @@ const healthTableColumns: Columns<HealthRow> = (() => {
 				row.original.result === 'ok' ? (
 					<Status value='healthy' />
 				) : (
-					<span className='text-destructive'>{row.original.result}</span>
+					<span className='text-danger'>{row.original.result}</span>
 				),
 		}),
 	]

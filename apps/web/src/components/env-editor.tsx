@@ -1,9 +1,9 @@
 import { Fragment, useState } from 'react'
 import { IconFileText, IconTable, IconTrash } from '@tabler/icons-react'
-import { Badge } from '@/components/arc/badge'
+import { cn } from 'cn'
+import { Badge } from '@/components/ui/badge'
 import type { EnvVar } from '../lib/api'
 import { fromDotenv, toDotenv } from '../lib/dotenv'
-import { cn } from '../utils/cn'
 import { IconButton, Input, RelativeTime, Segmented } from './primitives'
 
 const LINE = /^(?<indent>\s*)(?<key>[^\s=#]+)=(?<value>.*)$/u
@@ -39,7 +39,7 @@ export function VariablesEditor({
 	return (
 		<div className='grid gap-3'>
 			<div className='flex items-center justify-between gap-3'>
-				<span className='text-label text-muted-foreground'>
+				<span className='text-xs text-muted'>
 					{vars.length} {vars.length === 1 ? 'key' : 'keys'}
 					{overriding > 0 ? `, ${overriding} overriding the project` : null}
 				</span>
@@ -82,10 +82,10 @@ function VariableRows({
 		onChange(vars.map((variable, i) => (i === index ? { ...variable, ...next } : variable)))
 
 	return (
-		<div className='rounded-lg border bg-background'>
+		<div className='rounded-panel border bg-background'>
 			<div
 				style={{ gridTemplateColumns: columns }}
-				className={cn(ROW, 'border-b border-rule text-label text-muted-foreground')}
+				className={cn(ROW, 'border-b border-border-subtle text-xs text-muted')}
 			>
 				<span>Key</span>
 				<span>Value</span>
@@ -95,7 +95,11 @@ function VariableRows({
 			</div>
 			{vars.map((variable, index) => (
 				// Keyed by position: a key renamed one character at a time would remount the input and lose the caret.
-				<div key={index} style={{ gridTemplateColumns: columns }} className={cn(ROW, 'border-b border-rule')}>
+				<div
+					key={index}
+					style={{ gridTemplateColumns: columns }}
+					className={cn(ROW, 'border-b border-border-subtle')}
+				>
 					<Input
 						mono
 						aria-label='Key'
@@ -113,7 +117,7 @@ function VariableRows({
 							{shared.some(above => above.key === variable.key) ? <Badge>overrides</Badge> : null}
 						</span>
 					) : null}
-					<span className='text-label'>
+					<span className='text-xs'>
 						<RelativeTime at={stored.find(saved => saved.key === variable.key)?.updated_at} />
 					</span>
 					<IconButton
@@ -137,7 +141,7 @@ function VariableRows({
 						add()
 					}}
 				/>
-				<span className='text-label text-muted-foreground'>Enter adds the row</span>
+				<span className='text-xs text-muted'>Enter adds the row</span>
 			</div>
 		</div>
 	)
@@ -159,13 +163,13 @@ export function EnvEditor({
 	// Height is rows of leading-5 line boxes plus py-2 top and bottom.
 	return (
 		<div
-			className='overflow-auto rounded-lg border border-input bg-console font-mono text-base leading-5 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:text-label'
+			className='overflow-auto rounded-control border border-border-strong bg-console font-mono text-base leading-5 transition-colors focus-within:border-foreground md:text-xs'
 			style={{ height: rows * 20 + 16 }}
 		>
 			<div className='flex w-fit min-w-full'>
 				<div
 					aria-hidden
-					className='sticky left-0 z-10 shrink-0 border-r border-rule bg-console py-2 pr-2 pl-3 text-right text-muted-foreground/50 select-none'
+					className='sticky left-0 z-10 shrink-0 border-r border-border-subtle bg-console py-2 pr-2 pl-3 text-right text-muted/50 select-none'
 				>
 					{lines.map((_, index) => (
 						<div key={index}>{index + 1}</div>
@@ -187,7 +191,7 @@ export function EnvEditor({
 						aria-label='Environment variables'
 						spellCheck={false}
 						wrap='off'
-						className='col-start-1 row-start-1 w-full resize-none overflow-hidden bg-transparent px-3 py-2 font-mono whitespace-pre text-transparent caret-foreground outline-none placeholder:text-muted-foreground'
+						className='col-start-1 row-start-1 w-full resize-none overflow-hidden bg-transparent px-3 py-2 font-mono whitespace-pre text-transparent caret-foreground outline-none placeholder:text-muted'
 					/>
 				</div>
 			</div>
@@ -196,14 +200,14 @@ export function EnvEditor({
 }
 
 function Line({ text }: { text: string }) {
-	if (text.trimStart().startsWith('#')) return <span className='text-muted-foreground'>{text}</span>
+	if (text.trimStart().startsWith('#')) return <span className='text-muted'>{text}</span>
 	const groups = LINE.exec(text)?.groups
 	if (!groups) return <span>{text}</span>
 	return (
 		<>
 			{groups.indent}
 			<span className='text-code-key'>{groups.key}</span>
-			<span className='text-muted-foreground'>=</span>
+			<span className='text-muted'>=</span>
 			<span className='text-code-value'>{groups.value}</span>
 		</>
 	)

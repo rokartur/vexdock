@@ -10,7 +10,7 @@ import {
 	IconWorld,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert } from '@/components/arc/alert'
+import { Alert } from '@/components/ui/alert'
 import { api, type Certificate, type CertificateSource, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { certificatesQuery, projectDomainsQuery } from '../lib/queries'
@@ -58,9 +58,9 @@ function domainTableColumns({ certificateFor, renew, renewing, replace, remove }
 					rel='noreferrer'
 					className='group inline-flex items-center gap-2 underline-offset-4 hover:underline'
 				>
-					<IconWorld className='size-4 text-muted-foreground' />
-					<span className='font-mono text-label'>{original.hostname}</span>
-					<IconExternalLink className='size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
+					<IconWorld className='size-4 text-muted' />
+					<span className='font-mono text-xs'>{original.hostname}</span>
+					<IconExternalLink className='size-3 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
 				</a>
 			),
 		}),
@@ -75,12 +75,12 @@ function domainTableColumns({ certificateFor, renew, renewing, replace, remove }
 			header: 'Certificate',
 			cell: ({ row }) => {
 				const certificate = certificateFor(row.original.id)
-				if (!certificate) return <span className='text-muted-foreground'>none</span>
+				if (!certificate) return <span className='text-muted'>none</span>
 				return (
 					<span className='flex items-center gap-2'>
 						<Status value={certificate.status} />
 						{certificate.expires_at ? (
-							<span className='text-label text-muted-foreground'>
+							<span className='text-xs text-muted'>
 								expires <RelativeTime at={certificate.expires_at} />
 							</span>
 						) : null}
@@ -219,7 +219,6 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 		<>
 			<Section
 				title='Domains'
-				description='the platform generates and reloads Nginx for you'
 				actions={
 					<>
 						<Refresh onClick={() => domains.refetch()} busy={domains.isFetching} />

@@ -163,7 +163,7 @@ function applySgr(style: Omit<AnsiSegment, 'text'>, params: string) {
 }
 
 function xterm256(index: number | undefined) {
-	if (index === undefined) return undefined
+	if (index === undefined) return
 	if (index < 16) return ANSI_COLORS[index]
 	if (index >= 232) {
 		const gray = 8 + 10 * (index - 232)
