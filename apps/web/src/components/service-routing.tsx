@@ -382,7 +382,11 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 	})
 
 	const { mutate: removePort, isPending: removing } = remove
-	const columns = useMemo(() => portColumns(removePort, removing), [removePort, removing])
+	const { mutate: startDeploy, isPending: deploying } = deploy
+	const columns = useMemo(
+		() => portColumns({ remove: removePort, removing, deploy: startDeploy, deploying }),
+		[removePort, removing, startDeploy, deploying],
+	)
 	const rows = useMemo(() => portRows(list.data ?? [], live), [list.data, live])
 	const pending = rows.some(row => row.state !== 'open')
 
@@ -398,9 +402,9 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 			actions={
 				<>
 					{pending ? (
-						<Button onClick={() => deploy.mutate()} disabled={deploy.isPending}>
+						<Button onClick={() => startDeploy()} disabled={deploying}>
 							<IconRocket />
-							{deploy.isPending ? 'Starting…' : 'Deploy'}
+							{deploying ? 'Starting…' : 'Deploy'}
 						</Button>
 					) : null}
 					<Button variant='primary' onClick={() => setAdding(true)}>
@@ -460,7 +464,15 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 	)
 }
 
-function portColumns(remove: (id: string) => void, removing: boolean): Columns<PortRow> {
+/** The row actions of the Ports card: a stored port is removed, a port only the container holds is closed by a deploy. */
+type PortActions = {
+	remove: (id: string) => void
+	removing: boolean
+	deploy: () => void
+	deploying: boolean
+}
+
+function portColumns({ remove, removing, deploy, deploying }: PortActions): Columns<PortRow> {
 	const cell = columnsFor<PortRow>()
 	return [
 		cell.accessor(port => port.published, { id: 'published', header: 'Published', meta: { mono: true } }),
@@ -475,10 +487,22 @@ function portColumns(remove: (id: string) => void, removing: boolean): Columns<P
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
-			// A port only the container holds has no row to remove; the Deploy in the footer closes it.
 			cell: ({ row }) => {
 				const { storedId, published } = row.original
-				if (storedId === undefined) return null
+				// A port only the container holds has no row to drop; the only thing that closes it is the deploy that
+				// recreates the container without it, so that is what its Remove does.
+				if (storedId === undefined) {
+					return (
+						<Confirm
+							title={`Close port ${published}?`}
+							description='The port is no longer stored, but the container still holds it open. Deploying recreates the container without it.'
+							action='Deploy'
+							onConfirm={deploy}
+						>
+							<IconButton icon={IconTrash} label='Close' disabled={deploying} />
+						</Confirm>
+					)
+				}
 				return (
 					<Confirm
 						title={`Unpublish port ${published}?`}
