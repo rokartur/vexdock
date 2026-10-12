@@ -87,9 +87,9 @@ func New(cfg *config.Config, backups *backup.Service, repo string) *Service {
 	return s
 }
 
-// IncludePrerelease resolves the beta channel: an explicit setting wins,
-// otherwise a prerelease install stays on the prerelease track.
-func IncludePrerelease(setting, current string) bool {
+// PrereleaseTrack resolves the channel, stable or prerelease, never both: an
+// explicit setting wins, otherwise a prerelease install stays on prereleases.
+func PrereleaseTrack(setting, current string) bool {
 	switch setting {
 	case "true":
 		return true
@@ -121,8 +121,8 @@ type Status struct {
 }
 
 // Status reports the installed version and the newest release on the chosen track.
-func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
-	latest, checkedAt, err := s.latestVersion(ctx, includePrerelease)
+func (s *Service) Status(ctx context.Context, prerelease bool) Status {
+	latest, checkedAt, err := s.latestVersion(ctx, prerelease)
 	checkError := ""
 	if err != nil {
 		checkError = err.Error()
@@ -144,7 +144,7 @@ func (s *Service) Status(ctx context.Context, includePrerelease bool) Status {
 		// Strictly newer, never merely different: the release list is not ordered
 		// by version, so a plain inequality would happily offer a downgrade.
 		UpdateAvailable: latest != "" && semver.Compare(semverTag(latest), semverTag(s.cfg.Version)) > 0,
-		Beta:            includePrerelease,
+		Beta:            prerelease,
 		CheckedAt:       checked,
 		CheckError:      checkError,
 	}
@@ -161,19 +161,19 @@ func (s *Service) Invalidate() {
 
 // latestVersion asks GitHub at most once every 2 minutes per track, failures
 // included, and returns the last answer that succeeded with when it was fetched.
-func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (string, time.Time, error) {
+func (s *Service) latestVersion(ctx context.Context, prerelease bool) (string, time.Time, error) {
 	if s.releaseAPI == "" {
 		return "", time.Time{}, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cachedPrerelease != includePrerelease {
-		s.latest, s.latestAt, s.askedAt, s.cachedPrerelease = "", time.Time{}, time.Time{}, includePrerelease
+	if s.cachedPrerelease != prerelease {
+		s.latest, s.latestAt, s.askedAt, s.cachedPrerelease = "", time.Time{}, time.Time{}, prerelease
 	}
 	if time.Since(s.askedAt) < 2*time.Minute {
 		return s.latest, s.latestAt, s.checkErr
 	}
-	latest, err := s.fetchLatest(ctx, includePrerelease)
+	latest, err := s.fetchLatest(ctx, prerelease)
 	s.askedAt, s.checkErr = time.Now(), err
 	if err == nil {
 		s.latest, s.latestAt = latest, s.askedAt
@@ -183,7 +183,7 @@ func (s *Service) latestVersion(ctx context.Context, includePrerelease bool) (st
 
 // fetchLatest returns the highest release on the track, or "" when none
 // matches, which the UI shows as "unknown".
-func (s *Service) fetchLatest(ctx context.Context, includePrerelease bool) (string, error) {
+func (s *Service) fetchLatest(ctx context.Context, prerelease bool) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.releaseAPI, nil)
@@ -216,10 +216,7 @@ func (s *Service) fetchLatest(ctx context.Context, includePrerelease bool) (stri
 	// take the highest version on the track rather than the first entry.
 	latest := ""
 	for _, rel := range payload {
-		if rel.Draft || !versionPattern.MatchString(rel.TagName) {
-			continue
-		}
-		if rel.Prerelease && !includePrerelease {
+		if rel.Draft || rel.Prerelease != prerelease || !versionPattern.MatchString(rel.TagName) {
 			continue
 		}
 		if latest == "" || semver.Compare(semverTag(rel.TagName), semverTag(latest)) > 0 {
@@ -230,14 +227,14 @@ func (s *Service) fetchLatest(ctx context.Context, includePrerelease bool) (stri
 }
 
 // Start backs up the platform and launches the detached updater container.
-func (s *Service) Start(ctx context.Context, version string, includePrerelease, cleanupOldImages bool) error {
+func (s *Service) Start(ctx context.Context, version string, prerelease, cleanupOldImages bool) error {
 	// Detached from the request: a browser tab closed mid-launch would otherwise
 	// kill the CLI after the container started, reset the state file to idle and
 	// let the next start `docker rm -f` an updater that is mid-recreate.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
 	defer cancel()
 	if version == "" {
-		latest, _, err := s.latestVersion(ctx, includePrerelease)
+		latest, _, err := s.latestVersion(ctx, prerelease)
 		if err != nil {
 			return fmt.Errorf("finding the latest release: %w", err)
 		}

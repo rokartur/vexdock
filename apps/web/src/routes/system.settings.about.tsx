@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
-import { Button, Cell, Cells, ErrorText, FormSection, Switch } from '../components/primitives'
+import { Button, Cell, Cells, ErrorText, Field, FormSection, Segmented, Switch } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
 import { since } from '../lib/format'
 import { healthQuery, preload, updateStateQuery, versionQuery } from '../lib/queries'
@@ -32,6 +32,11 @@ const steps = [
 
 /** A finished update stays in the state file forever; only show the outcome banner this long. */
 const RESULT_TTL_SECONDS = 3600
+
+const channels = [
+	{ value: 'stable', label: 'Stable' },
+	{ value: 'prerelease', label: 'Pre-release' },
+] as const
 
 function Version() {
 	const queryClient = useQueryClient()
@@ -205,12 +210,14 @@ function Version() {
 
 			<FormSection title='Update preferences' icon={IconDownload}>
 				<div className='flex flex-col gap-4'>
-					<Switch
-						label='Include beta releases'
-						checked={version.data?.beta ?? false}
-						disabled={setSettings.isPending || version.isLoading || busy}
-						onChange={beta => save({ beta })}
-					/>
+					<Field label='Release channel' hint='Pre-release offers only betas, stable only final releases.'>
+						<Segmented
+							label='Release channel'
+							value={version.data?.beta ? 'prerelease' : 'stable'}
+							options={channels}
+							onChange={channel => save({ beta: channel === 'prerelease' })}
+						/>
+					</Field>
 					<Switch
 						label='Remove previous version images after a successful update'
 						checked={version.data?.cleanup_old_images ?? false}

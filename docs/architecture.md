@@ -269,5 +269,6 @@ rewrites the phase as it moves (`backup → pulling → restarting → done` or
 the failing poll as the restart step and waits for it to return.
 
 Update checks read the GitHub releases list (not `/latest`, which skips
-prereleases). Stable track is the default; a beta install stays on the beta
-track until the operator turns it off under System → About.
+prereleases). The two channels do not mix: stable offers only stable releases,
+pre-release only prereleases. Stable is the default; a beta install stays on
+pre-release until the operator switches it under System → About.
