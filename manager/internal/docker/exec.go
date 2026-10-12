@@ -19,26 +19,35 @@ var ShellCandidates = []string{"/bin/bash", "/bin/sh"}
 // until the daemon closes the stream.
 const maxExecOutput = 1 << 20
 
-// tailWriter keeps the last maxExecOutput bytes written to it. The tail is what
-// says why a command failed, so the head is what gets dropped.
-type tailWriter struct {
+// TailWriter keeps the last Limit bytes written to it. The tail is what says
+// why a command failed, so the head is what gets dropped. The zero value keeps
+// maxExecOutput.
+type TailWriter struct {
+	Limit     int
 	buf       []byte
 	truncated bool
 }
 
-func (w *tailWriter) Write(p []byte) (int, error) {
+func (w *TailWriter) limit() int {
+	if w.Limit <= 0 {
+		return maxExecOutput
+	}
+	return w.Limit
+}
+
+func (w *TailWriter) Write(p []byte) (int, error) {
 	w.buf = append(w.buf, p...)
 	// Trim at twice the cap so a chatty command reallocates rarely, not per write.
-	if len(w.buf) > 2*maxExecOutput {
+	if limit := w.limit(); len(w.buf) > 2*limit {
 		w.truncated = true
-		w.buf = append(w.buf[:0], w.buf[len(w.buf)-maxExecOutput:]...)
+		w.buf = append(w.buf[:0], w.buf[len(w.buf)-limit:]...)
 	}
 	return len(p), nil
 }
 
-func (w *tailWriter) String() string {
-	if len(w.buf) > maxExecOutput {
-		return "[output truncated]\n" + string(w.buf[len(w.buf)-maxExecOutput:])
+func (w *TailWriter) String() string {
+	if limit := w.limit(); len(w.buf) > limit {
+		return "[output truncated]\n" + string(w.buf[len(w.buf)-limit:])
 	}
 	if w.truncated {
 		return "[output truncated]\n" + string(w.buf)
@@ -76,7 +85,7 @@ func (c *Client) ExecOutput(ctx context.Context, containerID string, argv []stri
 		}
 	}()
 
-	var out tailWriter
+	var out TailWriter
 	if _, err := stdcopy.StdCopy(&out, &out, resp.Reader); err != nil {
 		return out.String(), -1, fmt.Errorf("exec read: %w", err)
 	}

@@ -23,6 +23,11 @@ const usageWindow = 30 * time.Minute
 // minutes, a stuck registry connection is forever.
 const pullTimeout = 30 * time.Minute
 
+// pullOutputLimit bounds what a pull keeps of the daemon's progress stream. It
+// reports every layer several times a second for the whole pull, which for a
+// large image is megabytes nobody reads; the tail carries the result.
+const pullOutputLimit = 64 * 1024
+
 // containerView is the shape the Docker Resources screens render. Foreign
 // containers are listed but flagged, so the platform never pretends to manage
 // stacks it did not create.
@@ -208,12 +213,12 @@ func (s *Server) handlePullImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer reader.Close()
-	body, err := io.ReadAll(reader)
-	if err != nil {
+	out := dockersdk.TailWriter{Limit: pullOutputLimit}
+	if _, err := io.Copy(&out, reader); err != nil {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"output": string(body)})
+	writeJSON(w, http.StatusOK, map[string]string{"output": out.String()})
 }
 
 func (s *Server) handleRemoveImage(w http.ResponseWriter, r *http.Request) {

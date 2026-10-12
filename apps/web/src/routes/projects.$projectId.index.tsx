@@ -33,7 +33,7 @@ import {
 	Section,
 	Status,
 } from '../components/primitives'
-import { ServiceBulkActions } from '../components/service-bulk-actions'
+import { ServiceBulkActions, useServiceBulk } from '../components/service-bulk-actions'
 import { api, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { bytes, duration, percent } from '../lib/format'
@@ -214,6 +214,7 @@ function ProjectServices() {
 	})
 
 	const data = useMemo(() => services.data ?? [], [services.data])
+	const bulk = useServiceBulk({ services: data, selected, onDone: () => setSelected([]) })
 	const running = data.filter(service => service.state === 'running').length
 	const latest = deployments.data?.[0]
 	const latestService = data.find(service => service.compose_service_name === latest?.service_name)
@@ -286,6 +287,7 @@ function ProjectServices() {
 				total={data.length}
 				actions={
 					<>
+						{selected.length > 0 ? <ServiceBulkActions bulk={bulk} /> : null}
 						{data.length > 0 && (
 							<Button onClick={() => deployAll.mutate()} disabled={deployAll.isPending}>
 								<IconRocket />
@@ -314,9 +316,7 @@ function ProjectServices() {
 				}
 			>
 				<ErrorText error={deployAll.error} />
-				{selected.length > 0 ? (
-					<ServiceBulkActions services={data} selected={selected} onDone={() => setSelected([])} />
-				) : null}
+				<ErrorText error={bulk.error} />
 				<Dialog open={creating !== null} onOpenChange={open => !open && setCreating(null)}>
 					<DialogContent title={dialogTitle(creating)} className='[--dialog-width:32rem]'>
 						{creating === 'import' ? (

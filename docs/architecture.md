@@ -26,6 +26,12 @@ SQLite file. Nginx routes `/api/auth` there and everything else to the manager,
 which opens that file read-only to authenticate requests. Authentication is
 therefore implemented once, by a library built for it, rather than twice.
 
+All three run under memory ceilings, and the manager's Go runtime under a soft
+limit below its container's, so the panel gives memory back before the kernel
+takes it and a runaway process restarts alone instead of starving the
+applications. The ceilings and their `.env` keys are in
+[install.md](install.md#memory).
+
 ## Why Nginx and not Traefik
 
 Traefik configures itself from container labels, which is elegant until a label
@@ -135,9 +141,14 @@ clone → checkout → validate → pull → build → start → healthcheck →
 Each step is persisted and streamed to the browser over SSE. One project deploys
 at a time, enforced by a per-environment lock; a second request for the same
 environment queues behind it, while production and staging of one project may
-deploy at once, since they share no directory and no container. A
-deployment interrupted by a manager restart is marked failed on the next boot,
-so the UI never shows a pipeline that nothing is running.
+deploy at once, since they share no directory and no container. Across all
+environments the manager runs two pipelines at most: each one spawns a `git`
+and a `docker compose` process of its own, and a build on top, and on the 1 GB
+host the installer accepts a third at once is an out-of-memory kill of the
+applications already running. A deployment waiting for a slot stays `queued`
+and can still be canceled. A deployment interrupted by a manager restart is
+marked failed on the next boot, so the UI never shows a pipeline that nothing
+is running.
 
 `clone` and `checkout` sync the repository of the service being deployed into
 `services/<name>/repository` with its own credential, and record the commit on

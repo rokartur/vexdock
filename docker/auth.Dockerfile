@@ -26,7 +26,13 @@ ENV PLATFORM_ROOT=/opt/vexdock \
 
 EXPOSE 8081
 
+# busybox wget, not `bun -e`: the probe runs four times a minute, and booting a
+# JavaScript runtime for each one costs tens of megabytes and real CPU on a box
+# the platform shares with the applications it hosts.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
-    CMD ["bun", "-e", "const r = await fetch('http://127.0.0.1:8081/health'); process.exit(r.ok ? 0 : 1)"]
+    CMD ["wget", "-qO-", "http://127.0.0.1:8081/health"]
 
-CMD ["bun", "server.js"]
+# --smol trades garbage collector frequency for a smaller heap. The service
+# answers a handful of requests a minute, so the extra collections are free and
+# the memory stays with the applications.
+CMD ["bun", "--smol", "server.js"]

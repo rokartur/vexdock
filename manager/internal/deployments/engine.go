@@ -52,6 +52,13 @@ const healthTimeout = 3 * time.Minute
 // this slow, so anything that reaches it is stuck rather than working.
 const deployTimeout = 45 * time.Minute
 
+// maxConcurrent bounds how many environments deploy at once. Each pipeline
+// spawns a git and a compose process of its own, and a build on top of that,
+// so on the 1 GB host the installer accepts, three at once is an OOM kill of
+// the applications already running. Two keeps a staging deploy from waiting on
+// production while still fitting.
+const maxConcurrent = 2
+
 type Engine struct {
 	db       *database.DB
 	cfg      *config.Config
@@ -64,6 +71,9 @@ type Engine struct {
 	mu      sync.Mutex
 	locks   map[string]*sync.Mutex
 	cancels map[string]context.CancelFunc
+	// slots is the global concurrency cap; a pipeline holds one from the
+	// moment it starts work until it finishes.
+	slots chan struct{}
 }
 
 func NewEngine(db *database.DB, cfg *config.Config, projectSvc *projects.Service, domainSvc *domains.Service,
@@ -73,6 +83,7 @@ func NewEngine(db *database.DB, cfg *config.Config, projectSvc *projects.Service
 		bus: bus, log: log,
 		locks:   map[string]*sync.Mutex{},
 		cancels: map[string]context.CancelFunc{},
+		slots:   make(chan struct{}, maxConcurrent),
 	}
 }
 
@@ -182,13 +193,25 @@ func (e *Engine) run(environmentID, deploymentID, ref string) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	// The clock starts once the pipeline owns the lock, not while it queues. A
-	// wedged git clone or registry pull would otherwise hold the environment
-	// lock forever and leave the deployment reading "running" with nothing running.
+	// The global slot comes after the environment lock, so a deployment queued
+	// behind its own environment holds no slot another environment could use.
+	// A cancel while waiting here withdraws it the same way as while queued.
+	p := newPipeline(e, deploymentID, ref)
+	select {
+	case e.slots <- struct{}{}:
+	case <-queued.Done():
+		p.finish(context.Canceled)
+		return
+	}
+	defer func() { <-e.slots }()
+
+	// The clock starts once the pipeline owns the lock and a slot, not while it
+	// queues. A wedged git clone or registry pull would otherwise hold the
+	// environment lock forever and leave the deployment reading "running" with
+	// nothing running.
 	ctx, expire := context.WithTimeout(queued, deployTimeout)
 	defer expire()
 
-	p := newPipeline(e, deploymentID, ref)
 	err := p.execute(ctx)
 	// A cancelled step dies as "signal: killed", never as context.Canceled, so
 	// the queued context is the only honest answer to "was this withdrawn".

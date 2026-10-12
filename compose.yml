@@ -16,12 +16,24 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 
+# Memory ceilings for the platform's own containers. None of them needs this
+# much; the ceiling is what keeps a runaway panel from taking the applications
+# it hosts down with it on a 1 GB box. The manager's covers the git and
+# compose processes it spawns during a deploy, which is why it is the largest.
+# Override in .env (MANAGER_MEMORY, AUTH_MEMORY, NGINX_MEMORY) for a bigger
+# repository or a tighter host.
+
 services:
   manager:
     image: ${REGISTRY:-ghcr.io/rokartur}/manager:${VERSION:-latest}
     container_name: vexdock-manager
     restart: unless-stopped
     logging: *logging
+
+    deploy:
+      resources:
+        limits:
+          memory: ${MANAGER_MEMORY:-1g}
 
     environment:
       PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/vexdock}
@@ -36,6 +48,10 @@ services:
       # `docker login` for a private registry writes here: on the host, so the
       # credential survives the recreate every update does.
       DOCKER_CONFIG: ${PLATFORM_ROOT:-/opt/vexdock}/system/docker
+      # Soft ceiling for the Go heap, well under the container's limit. The
+      # collector only works harder as the heap nears it, so an idle manager
+      # pays nothing and a busy one gives memory back instead of being killed.
+      GOMEMLIMIT: ${MANAGER_GOMEMLIMIT:-256MiB}
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -51,6 +67,11 @@ services:
     container_name: vexdock-auth
     restart: unless-stopped
     logging: *logging
+
+    deploy:
+      resources:
+        limits:
+          memory: ${AUTH_MEMORY:-256m}
 
     environment:
       PLATFORM_ROOT: ${PLATFORM_ROOT:-/opt/vexdock}
@@ -73,6 +94,11 @@ services:
     container_name: vexdock-nginx
     restart: unless-stopped
     logging: *logging
+
+    deploy:
+      resources:
+        limits:
+          memory: ${NGINX_MEMORY:-256m}
 
     depends_on:
       - manager
