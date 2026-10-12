@@ -163,10 +163,10 @@ bun scripts/migrate-dokploy.ts "my project"
 It recreates each application, compose service and Postgres database with its
 variables, domains and database credentials, then stops the project's
 applications on Dokploy. Published ports come along, and so does each database's
-external port, so delete that port on vexdock if it was opened only for the
-migration. Each Postgres database is started on vexdock and filled by a
-`pg_dump` of Dokploy's through its external port, which the Dokploy database
-must have. A named volume crosses as an encrypted tar: a
+external port, so delete that port on vexdock and deploy the database again if
+it was opened only for the migration. Each Postgres database is started on
+vexdock and filled by a `pg_dump` of Dokploy's through its external port, which
+the Dokploy database must have. A named volume crosses as an encrypted tar: a
 temporary `vexdock-export` compose on Dokploy serves it on port 18080 under a
 random path and a temporary `vexdock-import` service on vexdock pulls it, so the
 vexdock server must reach port 18080 on the Dokploy one. Then the Dokploy

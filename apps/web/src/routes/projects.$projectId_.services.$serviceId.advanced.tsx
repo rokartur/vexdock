@@ -29,7 +29,9 @@ function ServiceAdvanced() {
 
 	return (
 		<div className='max-w-3xl'>
-			{service.data ? <ServiceRouting key={service.data.id} service={service.data} /> : null}
+			{service.data ? (
+				<ServiceRouting key={service.data.id} projectId={projectId} service={service.data} />
+			) : null}
 			<FormSection
 				title='Delete service'
 				icon={IconTrash}
