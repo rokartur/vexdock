@@ -86,7 +86,7 @@ func writable(dir string) error {
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.versionStatus(r.Context(), s.updateIncludesPrerelease(r.Context())))
+	writeJSON(w, http.StatusOK, s.versionStatus(r.Context(), s.updateOnPrereleaseTrack(r.Context())))
 }
 
 // handleVersionCheck forces a release lookup, bypassing the two-minute cache
@@ -124,14 +124,14 @@ func (s *Server) handlePutVersionSettings(w http.ResponseWriter, r *http.Request
 
 // versionStatus is the updater's own status plus the preferences the updater
 // does not read itself.
-func (s *Server) versionStatus(ctx context.Context, includePrerelease bool) updater.Status {
-	status := s.Updater.Status(ctx, includePrerelease)
+func (s *Server) versionStatus(ctx context.Context, prerelease bool) updater.Status {
+	status := s.Updater.Status(ctx, prerelease)
 	status.CleanupOldImages = s.cleanupOldImages(ctx)
 	return status
 }
 
-func (s *Server) updateIncludesPrerelease(ctx context.Context) bool {
-	return updater.IncludePrerelease(s.setting(ctx, updater.SettingBeta), s.Config.Version)
+func (s *Server) updateOnPrereleaseTrack(ctx context.Context) bool {
+	return updater.PrereleaseTrack(s.setting(ctx, updater.SettingBeta), s.Config.Version)
 }
 
 func (s *Server) cleanupOldImages(ctx context.Context) bool {
@@ -403,7 +403,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 			map[string]any{"checks": checks})
 		return
 	}
-	if err := s.Updater.Start(ctx, req.Version, s.updateIncludesPrerelease(ctx), s.cleanupOldImages(ctx)); err != nil {
+	if err := s.Updater.Start(ctx, req.Version, s.updateOnPrereleaseTrack(ctx), s.cleanupOldImages(ctx)); err != nil {
 		badRequest(w, err)
 		return
 	}

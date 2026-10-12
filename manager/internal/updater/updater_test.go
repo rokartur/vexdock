@@ -57,7 +57,7 @@ func TestStateReadsIdleForMissingMalformedOrStale(t *testing.T) {
 	}
 }
 
-func TestIncludePrerelease(t *testing.T) {
+func TestPrereleaseTrack(t *testing.T) {
 	cases := []struct {
 		setting, current string
 		want             bool
@@ -68,19 +68,20 @@ func TestIncludePrerelease(t *testing.T) {
 		{"", "v1.0.0", false},
 	}
 	for _, tc := range cases {
-		if got := IncludePrerelease(tc.setting, tc.current); got != tc.want {
-			t.Fatalf("IncludePrerelease(%q, %q) = %v, want %v", tc.setting, tc.current, got, tc.want)
+		if got := PrereleaseTrack(tc.setting, tc.current); got != tc.want {
+			t.Fatalf("PrereleaseTrack(%q, %q) = %v, want %v", tc.setting, tc.current, got, tc.want)
 		}
 	}
 }
 
-func TestLatestVersionIncludesPrereleaseWhenAsked(t *testing.T) {
+func TestLatestVersionSkipsStableOnPrereleaseTrack(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/releases" {
 			t.Fatalf("path = %s, want /releases", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[
+			{"tag_name":"v0.1.0","draft":false,"prerelease":false},
 			{"tag_name":"v0.1.0-beta.2","draft":false,"prerelease":true},
 			{"tag_name":"v0.1.0-beta.1","draft":false,"prerelease":true}
 		]`))

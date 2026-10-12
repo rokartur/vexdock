@@ -524,8 +524,10 @@ connection does not cancel it.
 `cleanup_old_images` defaults to `false`. It only targets images referenced by
 the previous system compose file; application images are not included.
 
-`beta` defaults from the installed tag (a prerelease stays on prereleases) until
-the operator sets it explicitly. Draft GitHub releases are never offered.
+`beta` picks the channel: `true` offers only prereleases, `false` only stable
+releases. It defaults from the installed tag (a prerelease stays on
+prereleases) until the operator sets it explicitly. Draft GitHub releases are
+never offered.
 `release_url` points at the latest release's notes on GitHub, empty when no
 release is known.
 
