@@ -7,36 +7,66 @@
 	<meta name="description" content="Vexdock deploys your apps to a server you own. The open-source, self-hosted alternative to Vercel, Heroku and Netlify.">
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'%3E%3Crect width='6.5' height='6.5' rx='1.4'/%3E%3Crect x='17.5' width='6.5' height='6.5' rx='1.4'/%3E%3Crect x='8.75' y='8.75' width='6.5' height='6.5' rx='1.4'/%3E%3Crect y='17.5' width='6.5' height='6.5' rx='1.4'/%3E%3Crect x='8.75' y='17.5' width='6.5' height='6.5' rx='1.4'/%3E%3Crect x='17.5' y='17.5' width='6.5' height='6.5' rx='1.4'/%3E%3C/svg%3E">
 	<style>
+		:root {
+			--ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+			--ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+			--ease-spring: linear(0, 0.0258, 0.09, 0.1763, 0.2732, 0.3724, 0.4683, 0.5573, 0.6376, 0.7082, 0.7689, 0.8202, 0.8628, 0.8976, 0.9256, 0.9476, 0.9648, 0.9778, 0.9875, 0.9945, 0.9994, 1.0026, 1.0047, 1.0058, 1.0062, 1.0062, 1.0059, 1.0055, 1.0049, 1.0043, 1.0036, 1.0031, 1.0025, 1.002, 1.0016, 1.0013, 1);
+		}
 		* { box-sizing: border-box; margin: 0 }
 		html { color-scheme: dark }
-		body { background: #000; color: #fff; font: 15px/1.5 Geist, Inter, -apple-system, system-ui, sans-serif; min-height: 100dvh; display: flex }
-		main { margin: auto 0; display: flex; flex-direction: column; gap: 20px; padding: 48px 56px; max-width: 800px; width: 100% }
+		::selection { background: #fff; color: #000 }
+		body { background: #000; color: #fff; font: 15px/1.5 Geist, Inter, -apple-system, system-ui, sans-serif; min-height: 100dvh }
+		main { display: flex; flex-direction: column; gap: 20px; padding: 48px 56px; max-width: 800px }
+		main > * { animation: enter 340ms var(--ease-enter) calc(var(--i) * 55ms) backwards }
+		main > svg { animation: none; overflow: visible }
+		svg rect { transform-box: fill-box; transform-origin: center; animation: square 400ms var(--ease-spring) calc(var(--i) * 25ms) backwards }
+		@keyframes enter { from { opacity: 0; translate: 0 12px; filter: blur(4px) } }
+		@keyframes square { from { opacity: 0; transform: scale(0.6) } }
 		.mono { font-family: 'Geist Mono', ui-monospace, Menlo, monospace }
 		h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 600 }
 		.lead { color: #a3a3a3; font-size: 17px; margin-top: -8px }
-		.cmd { display: flex; align-items: center; gap: 12px; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 10px 10px 14px; font-size: 13px }
+		.cmd { display: flex; align-items: center; gap: 12px; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 10px 10px 14px; font-size: 13px; transition: border-color 110ms var(--ease-standard) }
 		.cmd code { overflow-x: auto; white-space: nowrap; font: inherit }
 		.cmd .prompt { color: #737373 }
-		.cmd button { margin-left: auto; flex: none; background: #fff; color: #000; border: 0; border-radius: 6px; padding: 6px 12px; font: 600 12px/1 system-ui, sans-serif; cursor: pointer }
-		.cmd button:active { transform: scale(0.97) }
+		.cmd button { display: grid; margin-left: auto; flex: none; background: #fff; color: #000; border: 0; border-radius: 6px; padding: 6px 12px; font: 600 12px/1 system-ui, sans-serif; cursor: pointer; transition: scale 400ms var(--ease-spring), background-color 110ms var(--ease-standard), opacity 110ms var(--ease-standard) }
+		.cmd button:active { opacity: 0.84 }
+		/* Both labels share one grid cell, so the button keeps the width of "Copied" and nothing beside it moves. */
+		.cmd button span { grid-area: 1 / 1; transition: opacity 110ms var(--ease-standard), translate 110ms var(--ease-standard), filter 110ms var(--ease-standard) }
+		.cmd button:not([data-copied]) .idle, .cmd button[data-copied] .done { transition-duration: 170ms; transition-timing-function: var(--ease-enter) }
+		.cmd button[data-copied] .idle { opacity: 0; translate: 0 -0.3em; filter: blur(2px) }
+		.cmd button:not([data-copied]) .done { opacity: 0; translate: 0 0.3em; filter: blur(4px) }
 		.cmd button:focus-visible, a:focus-visible { outline: 2px solid #fff; outline-offset: 2px }
 		dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 20px; font-size: 13px; margin-top: 8px }
 		dt { color: #8a8a8a }
-		a { color: #fff }
+		a { display: inline-block; color: #fff; text-decoration-color: #525252; text-underline-offset: 3px; transition: scale 400ms var(--ease-spring), text-decoration-color 110ms var(--ease-standard) }
+		a:active { text-decoration-color: #fff }
+		.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
+		@media (hover: hover) and (pointer: fine) {
+			.cmd:hover { border-color: #404040 }
+			.cmd button:hover { background: #e5e5e5 }
+			a:hover { text-decoration-color: #fff }
+		}
+		@media (prefers-reduced-motion: no-preference) {
+			.cmd button:active, a:active { scale: 0.97; transition-duration: 85ms, 110ms, 110ms }
+		}
+		@media (prefers-reduced-motion: reduce) {
+			*, ::before, ::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition-duration: 0.01ms !important }
+		}
 		@media (max-width: 640px) { main { padding: 32px 20px } }
 	</style>
 </head>
 <body>
 	<main>
-		<svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" role="img" aria-label="Vexdock"><rect width="6.5" height="6.5" rx="1.4"/><rect x="17.5" width="6.5" height="6.5" rx="1.4"/><rect x="8.75" y="8.75" width="6.5" height="6.5" rx="1.4"/><rect y="17.5" width="6.5" height="6.5" rx="1.4"/><rect x="8.75" y="17.5" width="6.5" height="6.5" rx="1.4"/><rect x="17.5" y="17.5" width="6.5" height="6.5" rx="1.4"/></svg>
-		<h1>Vexdock deploys your apps to a server you own.</h1>
-		<p class="lead">The open-source, self-hosted alternative to Vercel, Heroku and Netlify.</p>
-		<div class="cmd mono">
+		<svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" role="img" aria-label="Vexdock"><rect style="--i: 0" width="6.5" height="6.5" rx="1.4"/><rect style="--i: 1" x="17.5" width="6.5" height="6.5" rx="1.4"/><rect style="--i: 2" x="8.75" y="8.75" width="6.5" height="6.5" rx="1.4"/><rect style="--i: 3" y="17.5" width="6.5" height="6.5" rx="1.4"/><rect style="--i: 4" x="8.75" y="17.5" width="6.5" height="6.5" rx="1.4"/><rect style="--i: 5" x="17.5" y="17.5" width="6.5" height="6.5" rx="1.4"/></svg>
+		<h1 style="--i: 1">Vexdock deploys your apps to a server you own.</h1>
+		<p class="lead" style="--i: 2">The open-source, self-hosted alternative to Vercel, Heroku and Netlify.</p>
+		<div class="cmd mono" style="--i: 3">
 			<span class="prompt" aria-hidden="true">$</span>
 			<code id="install">curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh | sudo sh</code>
-			<button type="button" id="copy">Copy</button>
+			<button type="button" id="copy"><span class="idle">Copy</span><span class="done" aria-hidden="true">Copied</span></button>
+			<span class="sr-only" role="status" id="copy-status"></span>
 		</div>
-		<dl class="mono">
+		<dl class="mono" style="--i: 4">
 			<dt>version</dt><dd><a href="https://github.com/rokartur/vexdock/releases/tag/v0.1.0">v0.1.0</a></dd>
 			<dt>runs on</dt><dd>Ubuntu 22.04+, Debian 12+</dd>
 			<dt>license</dt><dd>AGPL-3.0</dd>
@@ -45,10 +75,17 @@
 	</main>
 	<script>
 		const copy = document.getElementById('copy')
+		const copyStatus = document.getElementById('copy-status')
+		let reset
 		copy.addEventListener('click', async () => {
 			await navigator.clipboard.writeText(document.getElementById('install').textContent)
-			copy.textContent = 'Copied'
-			setTimeout(() => (copy.textContent = 'Copy'), 2000)
+			copy.dataset.copied = ''
+			copyStatus.textContent = 'Copied'
+			clearTimeout(reset)
+			reset = setTimeout(() => {
+				delete copy.dataset.copied
+				copyStatus.textContent = ''
+			}, 2000)
 		})
 	</script>
 </body>
