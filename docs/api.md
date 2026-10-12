@@ -447,9 +447,11 @@ stop later reconciles.
 - `POST .../basic-auth` takes `{"username", "password"}` and answers the user
   without its password. A username taken on the service is `409 CONFLICT`.
 - `POST .../ports` takes `{"published", "target", "protocol"}`, `tcp` or `udp`.
-  It lands in the compose overlay on the next deploy. `80` and `443` belong to
-  the proxy, a host port already published by any service is `409 CONFLICT`,
-  and a `raw` service declares ports in its own fragment, so it gets `400`.
+  It lands in the compose overlay on the next deploy, and so does a `DELETE`:
+  the container keeps the host port open until the service is deployed again,
+  which its `published_ports` shows. `80` and `443` belong to the proxy, a host
+  port already published by any service is `409 CONFLICT`, and a `raw` service
+  declares ports in its own fragment, so it gets `400`.
 
 ## Scheduled tasks
 

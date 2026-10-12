@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { IconArrowForwardUp, IconLock, IconPlugConnected, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconArrowForwardUp, IconLock, IconPlugConnected, IconPlus, IconRocket, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import {
 	api,
 	type HostPort,
@@ -22,16 +23,19 @@ import {
 	Input,
 	RelativeTime,
 	Select,
+	Status,
 	Switch,
 } from './primitives'
 
 /** The service's redirects, basic auth and host ports. A compose fragment owns its own ports, so it gets no Ports card. */
-export function ServiceRouting({ service }: { service: Service }) {
+export function ServiceRouting({ projectId, service }: { projectId: string; service: Service }) {
 	return (
 		<>
 			<Redirects serviceId={service.id} />
 			<BasicAuth serviceId={service.id} />
-			{service.provider === 'raw' ? null : <Ports serviceId={service.id} live={service.published_ports} />}
+			{service.provider === 'raw' ? null : (
+				<Ports projectId={projectId} serviceId={service.id} live={service.published_ports} />
+			)}
 		</>
 	)
 }
@@ -290,11 +294,63 @@ const protocolOptions = [
 	{ value: 'udp', label: 'UDP' },
 ] as const satisfies readonly { value: PortProtocol; label: string }[]
 
-function Ports({ serviceId, live }: { serviceId: string; live: HostPort[] }) {
+/** What a port row says about the host: open, or waiting on a deploy to open or close. */
+export type PortState = 'open' | 'opens on deploy' | 'closes on deploy'
+
+export type PortRow = {
+	id: string
+	published: number
+	target: number
+	protocol: string
+	state: PortState
+	/** The stored port this row is, absent on one only the container still holds. */
+	storedId?: string
+}
+
+/**
+ * The stored ports and the ones the container holds open, as one list. A port lands in the container on the next
+ * deploy, so the two drift between an edit and that deploy: a stored port the container does not publish opens on
+ * deploy, and a port the container still publishes after its row was removed closes on deploy. Without the second
+ * kind the card would say "no ports" over a host port that is plainly open.
+ */
+export function portRows(stored: ServicePort[], live: HostPort[]): PortRow[] {
+	// Docker lists a public port once per address family.
+	const open = new Set(live.map(portKey))
+	const rows: PortRow[] = stored.map(port => ({
+		id: port.id,
+		published: port.published,
+		target: port.target,
+		protocol: port.protocol,
+		state: open.has(portKey(port)) ? 'open' : 'opens on deploy',
+		storedId: port.id,
+	}))
+	const known = new Set(stored.map(portKey))
+	const seen = new Set<string>()
+	for (const port of live) {
+		const key = portKey(port)
+		if (known.has(key) || seen.has(key)) continue
+		seen.add(key)
+		rows.push({
+			id: `live:${key}`,
+			published: port.published,
+			target: port.target,
+			protocol: port.protocol,
+			state: 'closes on deploy',
+		})
+	}
+	return rows.toSorted((a, b) => a.published - b.published || a.protocol.localeCompare(b.protocol))
+}
+
+const portKey = (port: { published: number; target: number; protocol: string }) =>
+	`${port.published}:${port.target}/${port.protocol}`
+
+function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: string; live: HostPort[] }) {
 	const [adding, setAdding] = useState(false)
 	const [published, setPublished] = useState('')
 	const [target, setTarget] = useState('')
 	const [protocol, setProtocol] = useState<PortProtocol>('tcp')
+	const navigate = useNavigate()
+	const queryClient = useQueryClient()
 	const { list, refresh } = useServiceList(serviceId, 'ports', api.servicePorts)
 
 	const create = useMutation({
@@ -312,32 +368,51 @@ function Ports({ serviceId, live }: { serviceId: string; live: HostPort[] }) {
 		mutationFn: (id: string) => api.deleteServicePort(serviceId, id),
 		onSuccess: refresh,
 	})
+	// The same deploy the General tab starts: the container is recreated with the stored ports and nothing else.
+	const deploy = useMutation({
+		mutationFn: () => api.deployService(serviceId),
+		onSuccess: async deployment => {
+			await queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
+			await navigate({
+				to: '/projects/$projectId/services/$serviceId/deployments',
+				params: { projectId, serviceId },
+				search: previous => ({ ...previous, deployment: deployment.id }),
+			})
+		},
+	})
 
 	const { mutate: removePort, isPending: removing } = remove
 	const columns = useMemo(() => portColumns(removePort, removing), [removePort, removing])
-	// Docker lists a public port once per address family.
-	const open = [...new Set(live.map(port => `${port.published} → ${port.target}/${port.protocol}`))]
+	const rows = useMemo(() => portRows(list.data ?? [], live), [list.data, live])
+	const pending = rows.some(row => row.state !== 'open')
 
 	return (
 		<FormSection
 			title='Ports'
 			icon={IconPlugConnected}
-			hint='Bypasses the proxy. Takes effect on the next deploy.'
-			aside={
-				open.length > 0
-					? [{ label: 'Open now', value: <span className='font-mono'>{open.join(', ')}</span> }]
-					: undefined
+			hint={
+				pending
+					? 'Bypasses the proxy. The container still holds the ports it started with. Deploy to apply the change.'
+					: 'Bypasses the proxy. Takes effect on the next deploy.'
 			}
 			actions={
-				<Button variant='primary' onClick={() => setAdding(true)}>
-					<IconPlus />
-					Add port
-				</Button>
+				<>
+					{pending ? (
+						<Button onClick={() => deploy.mutate()} disabled={deploy.isPending}>
+							<IconRocket />
+							{deploy.isPending ? 'Starting…' : 'Deploy'}
+						</Button>
+					) : null}
+					<Button variant='primary' onClick={() => setAdding(true)}>
+						<IconPlus />
+						Add port
+					</Button>
+				</>
 			}
 		>
-			<ErrorText error={remove.error} />
+			<ErrorText error={remove.error ?? deploy.error} />
 			<DataTable
-				data={list.data ?? []}
+				data={rows}
 				columns={columns}
 				loading={list.isLoading}
 				error={list.error}
@@ -385,26 +460,36 @@ function Ports({ serviceId, live }: { serviceId: string; live: HostPort[] }) {
 	)
 }
 
-function portColumns(remove: (id: string) => void, removing: boolean): Columns<ServicePort> {
-	const cell = columnsFor<ServicePort>()
+function portColumns(remove: (id: string) => void, removing: boolean): Columns<PortRow> {
+	const cell = columnsFor<PortRow>()
 	return [
 		cell.accessor(port => port.published, { id: 'published', header: 'Published', meta: { mono: true } }),
 		cell.accessor(port => port.target, { id: 'target', header: 'Target', meta: { mono: true } }),
 		cell.accessor(port => port.protocol.toUpperCase(), { id: 'protocol', header: 'Protocol' }),
+		cell.accessor(port => port.state, {
+			id: 'state',
+			header: 'State',
+			cell: ({ row }) => <Status value={row.original.state} />,
+		}),
 		cell.display({
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<Confirm
-					title={`Unpublish port ${row.original.published}?`}
-					description='The host port closes on the next deploy.'
-					action='Remove'
-					onConfirm={() => remove(row.original.id)}
-				>
-					<IconButton icon={IconTrash} label='Remove' disabled={removing} />
-				</Confirm>
-			),
+			// A port only the container holds has no row to remove; the Deploy in the footer closes it.
+			cell: ({ row }) => {
+				const { storedId, published } = row.original
+				if (storedId === undefined) return null
+				return (
+					<Confirm
+						title={`Unpublish port ${published}?`}
+						description='The host port closes on the next deploy.'
+						action='Remove'
+						onConfirm={() => remove(storedId)}
+					>
+						<IconButton icon={IconTrash} label='Remove' disabled={removing} />
+					</Confirm>
+				)
+			},
 		}),
 	]
 }
