@@ -27,7 +27,7 @@ Open the deployment and read the step that failed. The step name says where:
 
 | Step | Usual cause |
 |---|---|
-| `clone` | Wrong URL, wrong branch, or a private repository without credentials |
+| `clone` | Wrong URL, wrong branch, or a private repository without credentials. A very large repository can also exceed the manager's memory ceiling, which restarts the manager mid-clone; raise `MANAGER_MEMORY` ([install.md](install.md#memory)) |
 | `validate` | The compose file is invalid; the exact compose error is shown |
 | `pull` | The image name or tag does not exist, or a private registry has no credentials. Only fatal for a service without a `build:` |
 | `build` | The build failed, or the server ran out of memory |
@@ -37,6 +37,11 @@ Open the deployment and read the step that failed. The step name says where:
 
 For `healthcheck` failures, open the service's Logs tab: the application's own
 output is almost always the answer.
+
+A deployment that stays `queued` is waiting: for an earlier deployment of the
+same environment, or for one of the two deploy slots the manager runs at once
+([architecture.md](architecture.md#deployment-pipeline)). Cancel the one in
+front of it or let it finish.
 
 ## Studio cannot open a database
 

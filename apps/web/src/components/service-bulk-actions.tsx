@@ -3,7 +3,7 @@ import { IconArrowRight, IconCopy, IconPlayerPlay, IconPlayerStop, IconRocket, I
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { api, type Service } from '../lib/api'
-import { Button, Confirm, DialogFooter, ErrorText, Field, IconButton, Select } from './primitives'
+import { Button, Confirm, DialogFooter, Field, IconButton, Select } from './primitives'
 
 type Bulk = { kind: 'start' | 'stop' | 'deploy' | 'delete' | 'duplicate' } | { kind: 'move'; environmentId: string }
 
@@ -18,8 +18,11 @@ export function freeName(base: string, taken: Set<string>) {
 /**
  * Every action is the single-service endpoint run once per row, in order: each write rewrites the environment's
  * overlay, and parallel writes race for that one file.
+ *
+ * The state lives in a hook rather than the toolbar because the toolbar sits in the section's header beside its
+ * other actions, and an error has no room there: the page renders it under the header from `error`.
  */
-export function ServiceBulkActions({
+export function useServiceBulk({
 	services,
 	selected,
 	onDone,
@@ -65,7 +68,7 @@ export function ServiceBulkActions({
 		// The loop stops at the first failure with the services before it already
 		// acted on, so a partial run still has to refetch or the table keeps
 		// showing their old state. Clearing the selection is onSuccess only: the
-		// parent unmounts this component with it, and the error belongs on screen.
+		// toolbar leaves with it, and the error belongs on screen.
 		onSuccess: () => onDone(),
 		onSettled: async () => {
 			setMoving(false)
@@ -75,48 +78,59 @@ export function ServiceBulkActions({
 		},
 	})
 
+	// Clear is the one way out that is not a result, so it takes the last error with it.
+	const clear = () => {
+		run.reset()
+		onDone()
+	}
+
+	return { chosen, run, moving, setMoving, clear, error: run.error }
+}
+
+/** The selection's toolbar, rendered in the section header beside the section's own actions. */
+export function ServiceBulkActions({ bulk }: { bulk: ReturnType<typeof useServiceBulk> }) {
+	const { chosen, run, moving, setMoving, clear } = bulk
 	return (
-		<div className='mb-3'>
-			<div className='flex flex-wrap items-center gap-2'>
-				<span className='font-mono text-xs text-muted'>{chosen.length} selected</span>
-				<Button onClick={() => run.mutate({ kind: 'start' })} disabled={run.isPending}>
-					<IconPlayerPlay />
-					Start
-				</Button>
-				<Button onClick={() => run.mutate({ kind: 'stop' })} disabled={run.isPending}>
-					<IconPlayerStop />
-					Stop
-				</Button>
-				<Button onClick={() => run.mutate({ kind: 'deploy' })} disabled={run.isPending}>
-					<IconRocket />
-					Deploy
-				</Button>
-				<IconButton
-					icon={IconCopy}
-					label='Duplicate'
-					size='default'
-					disabled={run.isPending}
-					onClick={() => run.mutate({ kind: 'duplicate' })}
-				/>
-				<IconButton
-					icon={IconArrowRight}
-					label='Move'
-					size='default'
-					disabled={run.isPending}
-					onClick={() => setMoving(true)}
-				/>
-				<Confirm
-					title={`Delete ${chosen.length} service${chosen.length === 1 ? '' : 's'}?`}
-					description='Their containers are removed. Named volumes stay behind.'
-					onConfirm={() => run.mutate({ kind: 'delete' })}
-				>
-					<IconButton icon={IconTrash} label='Delete' size='default' disabled={run.isPending} />
-				</Confirm>
-				<Button variant='ghost' onClick={onDone} disabled={run.isPending}>
-					Clear
-				</Button>
-			</div>
-			<ErrorText error={run.error} />
+		<>
+			<span className='font-mono text-xs text-muted'>{chosen.length} selected</span>
+			<Button onClick={() => run.mutate({ kind: 'start' })} disabled={run.isPending}>
+				<IconPlayerPlay />
+				Start
+			</Button>
+			<Button onClick={() => run.mutate({ kind: 'stop' })} disabled={run.isPending}>
+				<IconPlayerStop />
+				Stop
+			</Button>
+			<Button onClick={() => run.mutate({ kind: 'deploy' })} disabled={run.isPending}>
+				<IconRocket />
+				Deploy
+			</Button>
+			<IconButton
+				icon={IconCopy}
+				label='Duplicate'
+				size='default'
+				disabled={run.isPending}
+				onClick={() => run.mutate({ kind: 'duplicate' })}
+			/>
+			<IconButton
+				icon={IconArrowRight}
+				label='Move'
+				size='default'
+				disabled={run.isPending}
+				onClick={() => setMoving(true)}
+			/>
+			<Confirm
+				title={`Delete ${chosen.length} service${chosen.length === 1 ? '' : 's'}?`}
+				description='Their containers are removed. Named volumes stay behind.'
+				onConfirm={() => run.mutate({ kind: 'delete' })}
+			>
+				<IconButton icon={IconTrash} label='Delete' size='default' disabled={run.isPending} />
+			</Confirm>
+			<Button variant='ghost' onClick={clear} disabled={run.isPending}>
+				Clear
+			</Button>
+			{/* Hairline between the selection's actions and the section's own. */}
+			<span aria-hidden className='mx-1 h-5 w-px bg-border-subtle' />
 			<MoveDialog
 				open={moving}
 				count={chosen.length}
@@ -124,7 +138,7 @@ export function ServiceBulkActions({
 				onCancel={() => setMoving(false)}
 				onMove={environmentId => run.mutate({ kind: 'move', environmentId })}
 			/>
-		</div>
+		</>
 	)
 }
 

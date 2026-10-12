@@ -49,6 +49,27 @@ Environment variables understood by the installer:
 | `PLATFORM_REPO` | `rokartur/vexdock` | Repository the compose file and images come from |
 | `PLATFORM_REGISTRY` | `ghcr.io/<repo owner>` | Image namespace, derived from `PLATFORM_REPO` |
 
+### Memory
+
+The platform's three containers run under memory ceilings set in `compose.yml`,
+so a runaway panel is killed and restarted instead of taking the applications
+down with it. None of them needs its ceiling in normal use; the manager's is the
+largest because it covers the `git` and `docker compose` processes a deploy
+spawns, and the manager runs at most two deploys at once for the same reason
+([architecture.md](architecture.md#deployment-pipeline)).
+
+| `.env` key | Default | Container |
+|---|---|---|
+| `MANAGER_MEMORY` | `1g` | `vexdock-manager`, including the git and compose processes of a deploy |
+| `MANAGER_GOMEMLIMIT` | `256MiB` | Soft ceiling for the manager's own Go heap; stays well under `MANAGER_MEMORY` |
+| `AUTH_MEMORY` | `256m` | `vexdock-auth` |
+| `NGINX_MEMORY` | `256m` | `vexdock-nginx` |
+
+Raise `MANAGER_MEMORY` when a deploy of a very large repository dies in the
+`clone` step with the container restarting; lower the three to fit a tighter
+box. Set the key in `/opt/vexdock/.env` and run
+`cd /opt/vexdock && sudo docker compose up -d`.
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/rokartur/vexdock/main/installer/install.sh \
   | sudo ACME_EMAIL=me@example.com sh
