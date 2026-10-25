@@ -9,12 +9,13 @@ package updater
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -68,7 +69,7 @@ type Service struct {
 	checkErr         error
 	cachedPrerelease bool
 	repo             string
-	releaseAPI       string
+	releasesURL      string
 	rawBase          string
 }
 
@@ -78,10 +79,7 @@ type Service struct {
 func New(cfg *config.Config, backups *backup.Service, repo string) *Service {
 	s := &Service{cfg: cfg, backups: backups, repo: repo}
 	if repo != "" {
-		// /releases/latest ignores prereleases, so read the list endpoint, which
-		// includes them. It is not ordered by version, hence per_page=100 and the
-		// explicit semver pick in latestVersion.
-		s.releaseAPI = "https://api.github.com/repos/" + repo + "/releases?per_page=100"
+		s.releasesURL = "https://github.com/" + repo + "/releases"
 		s.rawBase = "https://raw.githubusercontent.com/" + repo
 	}
 	return s
@@ -152,7 +150,7 @@ func (s *Service) Status(ctx context.Context, prerelease bool) Status {
 
 // Invalidate drops the cached lookup so the next Status queries GitHub again,
 // which is what the panel's manual check does. Callers must be authenticated:
-// this turns a request into an outbound one against a rate-limited API.
+// this turns a request into an outbound one to GitHub.
 func (s *Service) Invalidate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -162,7 +160,7 @@ func (s *Service) Invalidate() {
 // latestVersion asks GitHub at most once every 2 minutes per track, failures
 // included, and returns the last answer that succeeded with when it was fetched.
 func (s *Service) latestVersion(ctx context.Context, prerelease bool) (string, time.Time, error) {
-	if s.releaseAPI == "" {
+	if s.releasesURL == "" {
 		return "", time.Time{}, nil
 	}
 	s.mu.Lock()
@@ -182,48 +180,83 @@ func (s *Service) latestVersion(ctx context.Context, prerelease bool) (string, t
 }
 
 // fetchLatest returns the highest release on the track, or "" when none
-// matches, which the UI shows as "unknown".
+// matches, which the UI shows as "unknown". It reads github.com pages, not
+// api.github.com: anonymous API calls share 60 an hour per address, and builds
+// on the same server spend them.
 func (s *Service) fetchLatest(ctx context.Context, prerelease bool) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.releaseAPI, nil)
+	if prerelease {
+		return s.latestPrerelease(ctx)
+	}
+	return s.latestStable(ctx)
+}
+
+// latestStable reads where /releases/latest redirects: the newest stable
+// release's tag page, or /releases when there is none yet.
+func (s *Service) latestStable(ctx context.Context) (string, error) {
+	resp, err := get(ctx, noRedirects, s.releasesURL+"/latest")
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "vexdock-updater")
-	resp, err := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		return "", fmt.Errorf("GitHub answered %s", resp.Status)
+	}
+	tag := path.Base(resp.Header.Get("Location"))
+	if !versionPattern.MatchString(tag) {
+		return "", nil
+	}
+	return tag, nil
+}
+
+// latestPrerelease reads the release feed: the ten newest published releases,
+// never drafts. A tag with a hyphen is a prerelease, the test release.yml uses.
+func (s *Service) latestPrerelease(ctx context.Context) (string, error) {
+	resp, err := get(ctx, http.DefaultClient, s.releasesURL+".atom")
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		// Anonymous requests share 60 an hour per address; GitHub refuses the rest with 403 or 429.
-		if resp.Header.Get("X-RateLimit-Remaining") == "0" {
-			return "", errors.New("GitHub's hourly rate limit for this server's address is used up")
-		}
 		return "", fmt.Errorf("GitHub answered %s", resp.Status)
 	}
-	var payload []struct {
-		TagName    string `json:"tag_name"`
-		Draft      bool   `json:"draft"`
-		Prerelease bool   `json:"prerelease"`
+	var feed struct {
+		Entries []struct {
+			Link struct {
+				Href string `xml:"href,attr"`
+			} `xml:"link"`
+		} `xml:"entry"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return "", fmt.Errorf("reading GitHub's release list: %w", err)
+	if err := xml.NewDecoder(resp.Body).Decode(&feed); err != nil {
+		return "", fmt.Errorf("reading GitHub's release feed: %w", err)
 	}
-	// GitHub orders this list by tag name, which sorts beta.10 below beta.2, so
-	// take the highest version on the track rather than the first entry.
+	// The feed is ordered by date, so a hotfix beta for an older line would
+	// come first; take the highest version instead.
 	latest := ""
-	for _, rel := range payload {
-		if rel.Draft || rel.Prerelease != prerelease || !versionPattern.MatchString(rel.TagName) {
+	for _, entry := range feed.Entries {
+		tag := path.Base(entry.Link.Href)
+		if !strings.Contains(tag, "-") || !versionPattern.MatchString(tag) {
 			continue
 		}
-		if latest == "" || semver.Compare(semverTag(rel.TagName), semverTag(latest)) > 0 {
-			latest = rel.TagName
+		if latest == "" || semver.Compare(semverTag(tag), semverTag(latest)) > 0 {
+			latest = tag
 		}
 	}
 	return latest, nil
+}
+
+var noRedirects = &http.Client{
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
+func get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "vexdock-updater")
+	return client.Do(req)
 }
 
 // Start backs up the platform and launches the detached updater container.

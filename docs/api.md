@@ -531,15 +531,17 @@ never offered.
 `release_url` points at the latest release's notes on GitHub, empty when no
 release is known.
 
-The release lookup is cached for two minutes per track, failures included, so
+The release lookup reads github.com's pages, not its API: `/releases/latest`
+for the stable track, the `/releases.atom` feed (the ten newest releases) for
+prereleases. It is cached for two minutes per track, failures included, so
 `GET` can answer with a result up to that old; `checked_at` is when that answer
 was fetched, and is empty when no lookup has ever succeeded. When the last
-lookup failed, `check_error` says why (GitHub's hourly limit for anonymous
-requests, a network error) and `latest` and `checked_at` stay those of the last
+lookup failed, `check_error` says why (the status GitHub answered, a network
+error) and `latest` and `checked_at` stay those of the last
 lookup that worked; it is empty otherwise. `POST /api/system/version/check`
 drops the cache and asks GitHub again. It is authenticated while the `GET` is
-public, because it turns a request into an outbound one against a rate-limited
-API. `POST /api/system/update` without a `version` refuses with `400` while the
+public, because it turns a request into an outbound one to GitHub.
+`POST /api/system/update` without a `version` refuses with `400` while the
 lookup fails; naming the tag still works.
 
 `POST /api/system/update` refuses with `409 UNHEALTHY` while any `/api/health`

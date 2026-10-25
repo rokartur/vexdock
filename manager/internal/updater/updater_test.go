@@ -74,24 +74,46 @@ func TestPrereleaseTrack(t *testing.T) {
 	}
 }
 
-func TestLatestVersionSkipsStableOnPrereleaseTrack(t *testing.T) {
+// fakeGitHub answers the two pages the updater reads, the way github.com does.
+type fakeGitHub struct {
+	stable string   // where /releases/latest redirects; "" means no stable release
+	feed   []string // tags in /releases.atom, newest first
+	status int      // when set, every request gets this instead
+	hits   int
+}
+
+func (f *fakeGitHub) serve(t *testing.T) string {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/releases" {
-			t.Fatalf("path = %s, want /releases", r.URL.Path)
+		f.hits++
+		if f.status != 0 {
+			w.WriteHeader(f.status)
+			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[
-			{"tag_name":"v0.1.0","draft":false,"prerelease":false},
-			{"tag_name":"v0.1.0-beta.2","draft":false,"prerelease":true},
-			{"tag_name":"v0.1.0-beta.1","draft":false,"prerelease":true}
-		]`))
+		switch r.URL.Path {
+		case "/releases/latest":
+			target := "/releases"
+			if f.stable != "" {
+				target = "/releases/tag/" + f.stable
+			}
+			http.Redirect(w, r, target, http.StatusFound)
+		case "/releases.atom":
+			w.Header().Set("Content-Type", "application/atom+xml")
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">`))
+			for _, tag := range f.feed {
+				_, _ = w.Write([]byte(`<entry><link rel="alternate" type="text/html" href="https://github.com/o/r/releases/tag/` + tag + `"/></entry>`))
+			}
+			_, _ = w.Write([]byte(`</feed>`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(srv.Close)
+	return srv.URL + "/releases"
+}
 
-	s := &Service{
-		cfg:        &config.Config{Version: "v0.1.0-beta.1"},
-		releaseAPI: srv.URL + "/releases",
-	}
+func TestLatestVersionSkipsStableOnPrereleaseTrack(t *testing.T) {
+	gh := &fakeGitHub{feed: []string{"v0.1.0", "v0.1.0-beta.2", "v0.1.0-beta.1"}}
+	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.1"}, releasesURL: gh.serve(t)}
 	st := s.Status(context.Background(), true)
 	if st.Latest != "v0.1.0-beta.2" {
 		t.Fatalf("latest = %q, want v0.1.0-beta.2", st.Latest)
@@ -102,100 +124,66 @@ func TestLatestVersionSkipsStableOnPrereleaseTrack(t *testing.T) {
 }
 
 func TestLatestVersionRefreshesAfterTwoMinutes(t *testing.T) {
-	latest := "v0.1.0-beta.8"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`[{"tag_name":"` + latest + `","draft":false,"prerelease":true}]`))
-	}))
-	t.Cleanup(srv.Close)
-
-	s := &Service{
-		cfg:        &config.Config{Version: "v0.1.0-beta.8"},
-		releaseAPI: srv.URL,
-	}
+	gh := &fakeGitHub{feed: []string{"v0.1.0-beta.8"}}
+	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.8"}, releasesURL: gh.serve(t)}
 	if st := s.Status(context.Background(), true); st.UpdateAvailable {
 		t.Fatalf("initial status = %+v", st)
 	}
 
-	latest = "v0.1.0-beta.9"
+	gh.feed = []string{"v0.1.0-beta.9"}
 	s.askedAt = time.Now().Add(-2 * time.Minute)
 	st := s.Status(context.Background(), true)
-	if st.Latest != latest || !st.UpdateAvailable {
-		t.Fatalf("status after release = %+v, want latest %q", st, latest)
+	if st.Latest != "v0.1.0-beta.9" || !st.UpdateAvailable {
+		t.Fatalf("status after release = %+v, want latest v0.1.0-beta.9", st)
 	}
 }
 
 // The panel's "check for updates" button exists so a release published inside
 // the cache window shows up now instead of in two minutes.
 func TestInvalidateForcesFreshLookup(t *testing.T) {
-	latest := "v0.1.0-beta.8"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`[{"tag_name":"` + latest + `","draft":false,"prerelease":true}]`))
-	}))
-	t.Cleanup(srv.Close)
-
-	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.8"}, releaseAPI: srv.URL}
+	gh := &fakeGitHub{feed: []string{"v0.1.0-beta.8"}}
+	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.8"}, releasesURL: gh.serve(t)}
 	if st := s.Status(context.Background(), true); st.CheckedAt == "" {
 		t.Fatalf("initial status = %+v, want a checked_at", st)
 	}
 
-	latest = "v0.1.0-beta.9"
-	if st := s.Status(context.Background(), true); st.Latest == latest {
+	gh.feed = []string{"v0.1.0-beta.9"}
+	if st := s.Status(context.Background(), true); st.Latest == "v0.1.0-beta.9" {
 		t.Fatalf("cached status = %+v, want the stale tag", st)
 	}
 
 	s.Invalidate()
-	if st := s.Status(context.Background(), true); st.Latest != latest || !st.UpdateAvailable {
-		t.Fatalf("status after invalidate = %+v, want latest %q", st, latest)
+	if st := s.Status(context.Background(), true); st.Latest != "v0.1.0-beta.9" || !st.UpdateAvailable {
+		t.Fatalf("status after invalidate = %+v, want latest v0.1.0-beta.9", st)
 	}
 }
 
 // A failed lookup must not pass the last answer off as current, and the public
 // GET must not turn every poll into another request GitHub refuses.
 func TestFailedLookupKeepsLastAnswerAndSaysWhy(t *testing.T) {
-	limited, hits := false, 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits++
-		if limited {
-			w.Header().Set("X-RateLimit-Remaining", "0")
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		_, _ = w.Write([]byte(`[{"tag_name":"v0.1.0-beta.99","draft":false,"prerelease":true}]`))
-	}))
-	t.Cleanup(srv.Close)
-
-	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.99"}, releaseAPI: srv.URL}
+	gh := &fakeGitHub{feed: []string{"v0.1.0-beta.99"}}
+	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.99"}, releasesURL: gh.serve(t)}
 	good := s.Status(context.Background(), true)
 
-	limited = true
+	gh.status = http.StatusTooManyRequests
 	s.Invalidate()
 	st := s.Status(context.Background(), true)
 	if st.Latest != "v0.1.0-beta.99" || st.CheckedAt != good.CheckedAt {
 		t.Fatalf("status after a failed check = %+v, want the last answer and its checked_at %q", st, good.CheckedAt)
 	}
-	if !strings.Contains(st.CheckError, "rate limit") {
-		t.Fatalf("check_error = %q, want the rate limit named", st.CheckError)
+	if !strings.Contains(st.CheckError, "429") {
+		t.Fatalf("check_error = %q, want GitHub's status named", st.CheckError)
 	}
 
 	s.Status(context.Background(), true)
-	if hits != 2 {
-		t.Fatalf("GitHub asked %d times, want 2: a failure is cached like an answer", hits)
+	if gh.hits != 2 {
+		t.Fatalf("GitHub asked %d times, want 2: a failure is cached like an answer", gh.hits)
 	}
 }
 
 func TestLatestVersionSkipsPrereleaseOnStableTrack(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`[
-			{"tag_name":"v0.1.0-beta.2","draft":false,"prerelease":true},
-			{"tag_name":"v0.0.9","draft":false,"prerelease":false}
-		]`))
-	}))
-	t.Cleanup(srv.Close)
-
-	s := &Service{
-		cfg:        &config.Config{Version: "v0.0.9"},
-		releaseAPI: srv.URL + "/releases",
-	}
+	gh := &fakeGitHub{stable: "v0.0.9", feed: []string{"v0.1.0-beta.2", "v0.0.9"}}
+	s := &Service{cfg: &config.Config{Version: "v0.0.9"}, releasesURL: gh.serve(t)}
 	st := s.Status(context.Background(), false)
 	if st.Latest != "v0.0.9" {
 		t.Fatalf("latest = %q, want v0.0.9", st.Latest)
@@ -205,51 +193,27 @@ func TestLatestVersionSkipsPrereleaseOnStableTrack(t *testing.T) {
 	}
 }
 
-// GitHub returns the release list ordered by tag name, so beta.10 arrives
-// after beta.2 and an installed beta.10 must not be offered beta.9.
-func TestLatestVersionPicksHighestSemverNotFirstEntry(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`[
-			{"tag_name":"v0.1.0-beta.9","draft":false,"prerelease":true},
-			{"tag_name":"v0.1.0-beta.2","draft":false,"prerelease":true},
-			{"tag_name":"v0.1.0-beta.10","draft":false,"prerelease":true},
-			{"tag_name":"v0.1.0-beta.1","draft":false,"prerelease":true}
-		]`))
-	}))
-	t.Cleanup(srv.Close)
-
-	s := &Service{
-		cfg:        &config.Config{Version: "v0.1.0-beta.10"},
-		releaseAPI: srv.URL + "/releases",
+// With no stable release GitHub redirects /releases/latest to /releases.
+func TestStableTrackWithoutStableReleaseIsUnknown(t *testing.T) {
+	gh := &fakeGitHub{feed: []string{"v0.1.0-beta.2"}}
+	s := &Service{cfg: &config.Config{Version: "v0.0.9"}, releasesURL: gh.serve(t)}
+	st := s.Status(context.Background(), false)
+	if st.Latest != "" || st.UpdateAvailable || st.CheckError != "" {
+		t.Fatalf("status = %+v, want an unknown latest and no error", st)
 	}
+}
+
+// The feed is ordered by date, so a beta of an older line can come first and
+// an installed beta.10 must not be offered beta.9.
+func TestLatestVersionPicksHighestSemverNotFirstEntry(t *testing.T) {
+	gh := &fakeGitHub{feed: []string{"v0.1.0-beta.9", "v0.1.0-beta.2", "v0.1.0-beta.10", "v0.1.0-beta.1"}}
+	s := &Service{cfg: &config.Config{Version: "v0.1.0-beta.10"}, releasesURL: gh.serve(t)}
 	st := s.Status(context.Background(), true)
 	if st.Latest != "v0.1.0-beta.10" {
 		t.Fatalf("latest = %q, want v0.1.0-beta.10", st.Latest)
 	}
 	if st.UpdateAvailable {
 		t.Fatalf("offered a downgrade: %+v", st)
-	}
-}
-
-func TestLatestVersionSkipsDrafts(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`[
-			{"tag_name":"v9.9.9","draft":true,"prerelease":false},
-			{"tag_name":"v0.1.0-beta.2","draft":false,"prerelease":true}
-		]`))
-	}))
-	t.Cleanup(srv.Close)
-
-	s := &Service{
-		cfg:        &config.Config{Version: "v0.1.0-beta.2"},
-		releaseAPI: srv.URL + "/releases",
-	}
-	st := s.Status(context.Background(), true)
-	if st.Latest != "v0.1.0-beta.2" {
-		t.Fatalf("latest = %q, want v0.1.0-beta.2", st.Latest)
-	}
-	if st.UpdateAvailable {
-		t.Fatal("did not expect update_available when current equals latest")
 	}
 }
 
