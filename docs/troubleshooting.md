@@ -127,10 +127,10 @@ images after a successful update** is on. Volumes and networks are never pruned 
 
 `Could not check for updates` above the Version card means the last GitHub
 lookup failed; Latest and "checked" are from the last one that worked. The
-lookup is anonymous, so `GitHub's hourly rate limit for this server's address is
-used up` clears within the hour; `curl -s https://api.github.com/rate_limit` on
-the server shows how many requests are left and when they reset. Anything else
-is the server's own network or DNS reaching `api.github.com`.
+lookup reads `https://github.com/<repo>/releases/latest` and
+`/releases.atom`, not the rate-limited API; `curl -sI` either one on the server
+to see what it gets. A failure is the server's own network or DNS reaching
+`github.com`.
 
 The update itself does not need the lookup. Name the tag and it goes ahead:
 `POST /api/system/update` with `{"version":"vX.Y.Z"}`, as in

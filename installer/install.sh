@@ -179,8 +179,11 @@ resolve_version() {
     if [ "$VERSION" != latest ]; then
         return 0
     fi
-    tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null |
-        sed -n 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/p') || tag=""
+    # github.com's redirect, not api.github.com, whose anonymous 60 an hour per
+    # address can be spent before the installer runs.
+    tag=$(curl -fsS -o /dev/null -w '%{redirect_url}' "https://github.com/$REPO/releases/latest" 2>/dev/null) || tag=""
+    tag=${tag##*/}
+    case "$tag" in *[!A-Za-z0-9.-]*) tag="" ;; v[0-9]*) ;; *) tag="" ;; esac
     if [ -n "$tag" ]; then
         VERSION="$tag"
     fi
