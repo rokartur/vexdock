@@ -47,7 +47,7 @@ lost token is replaced rather than recovered.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/tokens` | The tokens that exist, by name and prefix, each with `admin` and `projects` |
+| `GET /api/tokens` | The tokens that exist, by name and prefix, each with `admin`, `projects` and `client_id` (set for an [OAuth](#oauth) grant) |
 | `POST /api/tokens` | `{"name", "projects"?}`; answers `201` with `{"token", "value"}` |
 | `DELETE /api/tokens/{id}` | Revokes one |
 
@@ -63,6 +63,13 @@ those projects:
   database credentials, the services export, and editing or deleting services,
   environments, domains and tasks. Moving or duplicating a service into another
   project needs write on both.
+- Where a service comes from stays with admin tokens: adding a service other
+  than a catalog database (one without a custom `image`), and changing
+  `provider`, `repository_url`, `git_provider_id`, `owner`, `repository`, the
+  Git credential, `image`, `compose_fragment` or the registry login. A Git
+  connection or a registry login reaches other projects' code and images, and a
+  compose fragment can mount the host. Branch, build settings and mounts stay at
+  `write`.
 - Creating or deleting a project, Docker, the system, Git providers, registries
   and tokens stay with admin tokens.
 - `GET /api/projects`, `/api/tasks` and `/api/domains` answer only the granted
@@ -106,6 +113,37 @@ tool error carrying its code.
 Nothing that deletes a project, an environment, a service or a volume is a
 tool; those stay in the dashboard and this API.
 
+### OAuth
+
+Clients that cannot send a header (claude.ai, ChatGPT) connect through OAuth
+2.1 instead, with the manager as the authorization server. It is on only when
+`PUBLIC_URL` is an `https://` address (or `http://` on a loopback address, for
+development); otherwise every endpoint below answers `404 OAUTH_DISABLED`.
+
+| Endpoint | Does |
+|---|---|
+| `GET /.well-known/oauth-protected-resource[/mcp]` | RFC 9728 metadata for `/mcp`; the MCP server's `401` points here in `WWW-Authenticate` |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 metadata |
+| `POST /api/oauth/register` | Open dynamic client registration (RFC 7591). Every client is public and gets no secret |
+| `GET /oauth/authorize` | The dashboard's consent screen, where the administrator picks full access or projects and levels |
+| `GET \| POST /api/oauth/authorize` | The consent screen's own calls, admin only: check the request, then approve it and get `{"redirect"}` |
+| `POST /api/oauth/token` | `authorization_code` and `refresh_token` grants, form-encoded |
+
+PKCE with `S256` is required, a `redirect_uri` must match a registered one
+exactly, and `resource`, when sent, must be `<PUBLIC_URL>/mcp`. A redirect URI
+is `https`, `http` on a loopback address, or an app's own scheme (`cursor://`).
+An access token lasts an hour; the refresh token lasts 30 days from its last
+use and is replaced on every use. A refresh token presented again after it was
+replaced revokes the whole grant. Token endpoint errors use RFC 6749's
+`{"error", "error_description"}`, not the envelope below. The token endpoint
+takes `client_id` in the form or as the HTTP Basic username. The metadata,
+registration and token endpoints answer any origin (CORS), since none reads a
+cookie; `/api/oauth/authorize` does not.
+
+An approved grant is an API token named after the client, with the scopes the
+consent screen gave it: it is listed by `GET /api/tokens` with its `client_id`
+and revoked like any other. Unused registrations are pruned after a day.
+
 ## Health
 
 `GET /api/health` is public and takes no credential; the installer, the updater
@@ -131,6 +169,7 @@ Every error uses one envelope:
 | `UNAUTHORIZED` | 401 | No valid session or token |
 | `CROSS_ORIGIN` | 403 | Cookie session used from another origin |
 | `FORBIDDEN` | 403 | The token's [scope](#authentication) does not reach this route or project |
+| `OAUTH_DISABLED` | 404 | An [OAuth](#oauth) endpoint, while `PUBLIC_URL` is not an https address |
 | `NOT_FOUND` | 404 | No such resource |
 | `SETUP_TOKEN_INVALID` | 403 | First sign-up without the installer's setup token (from the auth service) |
 | `SETUP_CLOSED` | 409 | An administrator already exists (from the auth service) |

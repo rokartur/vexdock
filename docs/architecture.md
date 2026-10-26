@@ -30,7 +30,10 @@ A fourth, `vexdock-mcp`, serves the Model Context Protocol on `/mcp`. It has no
 volume, no secret and no socket: each tool call becomes calls to the manager's
 REST API over the internal network, made with the client's own bearer token, so
 the token scopes the manager enforces are the only permission model and an MCP
-client can do nothing a `curl` with the same token could not.
+client can do nothing a `curl` with the same token could not. A client that
+cannot send a token gets one through OAuth, with the manager as the
+authorization server and the dashboard as its consent screen; the grant is one
+more API token, so nothing downstream tells the two apart.
 
 All four run under memory ceilings, and the manager's Go runtime under a soft
 limit below its container's, so the panel gives memory back before the kernel

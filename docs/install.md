@@ -45,7 +45,7 @@ Environment variables understood by the installer:
 | `PLATFORM_VERSION` | `latest` | Version to install |
 | `ACME_EMAIL` | empty | Contact address for Let's Encrypt |
 | `ACME_STAGING` | `false` | Use the Let's Encrypt staging directory |
-| `PUBLIC_URL` | empty | Public dashboard origin. Also sets `Secure` on session cookies once it is an `https://` URL |
+| `PUBLIC_URL` | empty | Public dashboard origin. Also sets `Secure` on session cookies and turns on OAuth for MCP clients once it is an `https://` URL |
 | `PLATFORM_REPO` | `rokartur/vexdock` | Repository the compose file and images come from |
 | `PLATFORM_REGISTRY` | `ghcr.io/<repo owner>` | Image namespace, derived from `PLATFORM_REPO` |
 

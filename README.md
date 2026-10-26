@@ -75,7 +75,7 @@ Options, restoring a backup and uninstalling: [docs/install.md](docs/install.md)
 - **Scheduled tasks.** A cron expression, a timezone and a command, run inside the service's container. Every run keeps its exit code and output.
 - **The whole Docker host.** Containers, images, volumes and networks, including stacks Vexdock did not create, with a previewed cleanup.
 - **Backups and self-update.** A backup comes first, and an update that never turns healthy rolls back on its own.
-- **REST API and an MCP server.** The API the dashboard uses, with bearer tokens limited to chosen projects if you like, and an MCP server on `/mcp` that hands the same powers to an AI agent. [`skills/vexdock-mcp`](skills/vexdock-mcp/SKILL.md) tells the agent how to use it.
+- **REST API and an MCP server.** The API the dashboard uses, with bearer tokens limited to chosen projects if you like, and an MCP server on `/mcp` that hands the same powers to an AI agent, by token or, for claude.ai and ChatGPT, through OAuth with a consent screen. [`skills/vexdock-mcp`](skills/vexdock-mcp/SKILL.md) tells the agent how to use it.
 
 ## Why Vexdock
 
