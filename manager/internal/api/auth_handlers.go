@@ -49,25 +49,8 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, errors.New("token name is required"))
 		return
 	}
-	seen := map[string]bool{}
-	for _, grant := range req.Projects {
-		if grant.Level != database.AccessRead && grant.Level != database.AccessWrite {
-			badRequest(w, fmt.Errorf("level must be %q or %q", database.AccessRead, database.AccessWrite))
-			return
-		}
-		if seen[grant.ProjectID] {
-			badRequest(w, fmt.Errorf("project %s is listed twice", grant.ProjectID))
-			return
-		}
-		seen[grant.ProjectID] = true
-		if _, err := s.DB.ProjectByID(r.Context(), grant.ProjectID); err != nil {
-			if errors.Is(err, database.ErrNotFound) {
-				badRequest(w, fmt.Errorf("no project %s", grant.ProjectID))
-				return
-			}
-			serverError(w, err)
-			return
-		}
+	if !s.validGrants(w, r, req.Projects) {
+		return
 	}
 	user, _ := auth.UserFrom(r.Context())
 	raw := security.RandomToken(32)
@@ -77,6 +60,31 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"token": token, "value": raw})
+}
+
+// validGrants checks the project list a token or an OAuth grant is asked for.
+func (s *Server) validGrants(w http.ResponseWriter, r *http.Request, grants []database.ProjectGrant) bool {
+	seen := map[string]bool{}
+	for _, grant := range grants {
+		if grant.Level != database.AccessRead && grant.Level != database.AccessWrite {
+			badRequest(w, fmt.Errorf("level must be %q or %q", database.AccessRead, database.AccessWrite))
+			return false
+		}
+		if seen[grant.ProjectID] {
+			badRequest(w, fmt.Errorf("project %s is listed twice", grant.ProjectID))
+			return false
+		}
+		seen[grant.ProjectID] = true
+		if _, err := s.DB.ProjectByID(r.Context(), grant.ProjectID); err != nil {
+			if errors.Is(err, database.ErrNotFound) {
+				badRequest(w, fmt.Errorf("no project %s", grant.ProjectID))
+				return false
+			}
+			serverError(w, err)
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) handleDeleteToken(w http.ResponseWriter, r *http.Request) {

@@ -227,7 +227,18 @@ func dashboardBody(managerAddr, webRoot string) string {
 	b.WriteString("        proxy_buffering off;\n")
 	b.WriteString("        proxy_read_timeout 3600s;\n")
 	b.WriteString("    }\n\n")
-	b.WriteString("    location / {\n        try_files $uri $uri/ /index.html;\n    }\n")
+	// OAuth discovery for MCP clients; the other OAuth endpoints are under /api/.
+	b.WriteString("    location ^~ /.well-known/oauth- {\n")
+	b.WriteString("        limit_req zone=api_limit burst=60 nodelay;\n")
+	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", managerAddr)
+	b.WriteString("        proxy_http_version 1.1;\n")
+	b.WriteString(forwardedHeaders)
+	b.WriteString("    }\n\n")
+	// The OAuth consent screen is one click from a grant, so no page may frame it.
+	b.WriteString("    location / {\n")
+	b.WriteString("        add_header X-Frame-Options \"DENY\" always;\n")
+	b.WriteString("        add_header Content-Security-Policy \"frame-ancestors 'none'\" always;\n")
+	b.WriteString("        try_files $uri $uri/ /index.html;\n    }\n")
 	return b.String()
 }
 

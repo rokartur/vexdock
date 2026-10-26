@@ -16,7 +16,7 @@ const (
 // APIToken is a non-cookie credential for CI, the CLI and MCP clients. Only the
 // hash and a short display prefix are stored; the full value is shown once at
 // creation. An admin token reaches every route; any other reaches only the
-// projects in Projects.
+// projects in Projects. A token with a ClientID is an OAuth grant (oauth.go).
 type APIToken struct {
 	ID         string         `json:"id"`
 	UserID     string         `json:"user_id"`
@@ -24,6 +24,7 @@ type APIToken struct {
 	Prefix     string         `json:"prefix"`
 	Admin      bool           `json:"admin"`
 	Projects   []ProjectGrant `json:"projects"`
+	ClientID   string         `json:"client_id"`
 	LastUsedAt string         `json:"last_used_at"`
 	CreatedAt  string         `json:"created_at"`
 }
@@ -49,9 +50,22 @@ func (t *APIToken) Allows(projectID, level string) bool {
 // CreateAPIToken stores an admin token when grants is empty and a project
 // token otherwise.
 func (db *DB) CreateAPIToken(ctx context.Context, userID, name, tokenHash, prefix string, grants []ProjectGrant) (*APIToken, error) {
+	return db.insertToken(ctx, userID, name, tokenHash, prefix, grants, nil)
+}
+
+// insertToken stores a token, and with oauth set, the client and refresh
+// token of an OAuth grant along with both expiries.
+func (db *DB) insertToken(ctx context.Context, userID, name, tokenHash, prefix string, grants []ProjectGrant, oauth *oauthGrant) (*APIToken, error) {
 	t := &APIToken{ID: NewID(), UserID: userID, Name: name, Prefix: prefix, Admin: len(grants) == 0, Projects: grants, CreatedAt: Now()}
 	if t.Projects == nil {
 		t.Projects = []ProjectGrant{}
+	}
+	var clientID, refreshHash any
+	expiresAt, refreshExpiresAt := "", ""
+	if oauth != nil {
+		t.ClientID = oauth.clientID
+		clientID, refreshHash = oauth.clientID, oauth.refreshHash
+		expiresAt, refreshExpiresAt = expiry(OAuthAccessLifetime), expiry(OAuthRefreshLifetime)
 	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -60,9 +74,9 @@ func (db *DB) CreateAPIToken(ctx context.Context, userID, name, tokenHash, prefi
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO api_tokens (id, user_id, name, token_hash, prefix, admin, last_used_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, '', ?)`,
-		t.ID, t.UserID, t.Name, tokenHash, t.Prefix, t.Admin, t.CreatedAt); err != nil {
+		`INSERT INTO api_tokens (id, user_id, name, token_hash, prefix, admin, client_id, expires_at, refresh_hash, refresh_expires_at, last_used_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)`,
+		t.ID, t.UserID, t.Name, tokenHash, t.Prefix, t.Admin, clientID, expiresAt, refreshHash, refreshExpiresAt, t.CreatedAt); err != nil {
 		return nil, err
 	}
 	for _, grant := range grants {
@@ -77,7 +91,7 @@ func (db *DB) CreateAPIToken(ctx context.Context, userID, name, tokenHash, prefi
 
 func (db *DB) ListAPITokens(ctx context.Context) ([]APIToken, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, user_id, name, prefix, admin, last_used_at, created_at FROM api_tokens ORDER BY created_at DESC`)
+		`SELECT id, user_id, name, prefix, admin, COALESCE(client_id, ''), last_used_at, created_at FROM api_tokens ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +99,7 @@ func (db *DB) ListAPITokens(ctx context.Context) ([]APIToken, error) {
 	out := []APIToken{}
 	for rows.Next() {
 		var t APIToken
-		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &t.Admin, &t.LastUsedAt, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &t.Admin, &t.ClientID, &t.LastUsedAt, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -106,18 +120,23 @@ func (db *DB) DeleteAPIToken(ctx context.Context, id string) error {
 	return err
 }
 
-// APITokenByHash resolves a bearer token and records its use. The user it
-// points at lives in the better-auth database, which this package never opens.
+// APITokenByHash resolves a bearer token and records its use. An expired OAuth
+// access token is not found. The user it points at lives in the better-auth
+// database, which this package never opens.
 func (db *DB) APITokenByHash(ctx context.Context, tokenHash string) (*APIToken, error) {
 	var t APIToken
+	var expiresAt string
 	err := db.QueryRowContext(ctx,
-		`SELECT id, user_id, name, prefix, admin, last_used_at, created_at FROM api_tokens WHERE token_hash = ?`, tokenHash).
-		Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &t.Admin, &t.LastUsedAt, &t.CreatedAt)
+		`SELECT id, user_id, name, prefix, admin, COALESCE(client_id, ''), expires_at, last_used_at, created_at FROM api_tokens WHERE token_hash = ?`, tokenHash).
+		Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &t.Admin, &t.ClientID, &expiresAt, &t.LastUsedAt, &t.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
+	}
+	if expiresAt != "" && ParseTime(expiresAt).Before(time.Now()) {
+		return nil, ErrNotFound
 	}
 	if t.Projects, err = db.tokenGrants(ctx, t.ID); err != nil {
 		return nil, err
