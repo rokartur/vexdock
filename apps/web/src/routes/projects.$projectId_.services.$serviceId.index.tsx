@@ -102,6 +102,8 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 	const latest = deployments.data?.find(deployment => deployment.service_name === service.compose_service_name)
 	const params = { projectId, serviceId: service.id }
 	const running = service.state === 'running'
+	// docker stop also cancels the restart policy of a crash-looping container.
+	const stoppable = running || service.state === 'restarting'
 
 	const act = useMutation({
 		mutationFn: (action: 'stop' | 'restart') => api.serviceAction(service.id, action),
@@ -166,7 +168,7 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 					<IconRefresh />
 					Restart
 				</Button>
-				<Button variant='danger' onClick={() => act.mutate('stop')} disabled={!running || act.isPending}>
+				<Button variant='danger' onClick={() => act.mutate('stop')} disabled={!stoppable || act.isPending}>
 					<IconPlayerStop />
 					Stop
 				</Button>

@@ -125,7 +125,7 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			meta: { align: 'right' },
 			cell: ({ row }) => {
 				const container = row.original
-				const running = container.state === 'running'
+				const running = container.state === 'running' || container.state === 'restarting'
 				return (
 					<span className='flex justify-end gap-0.5'>
 						<IconButton icon={IconFileText} label='Logs' onClick={() => showLogs(container.id)} />
