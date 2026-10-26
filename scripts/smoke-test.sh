@@ -191,6 +191,29 @@ pass 'studio reads and writes an unpublished database'
 curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/environments/$ENVIRONMENT_ID?volumes=true" >/dev/null
 pass 'environment removed'
 
+step 'project token and mcp'
+token_json=$(auth_post -d "{\"name\":\"smoke\",\"projects\":[{\"project_id\":\"$PROJECT_ID\",\"level\":\"read\"}]}" "$API/tokens")
+TOKEN=$(printf '%s' "$token_json" | json "d['value']")
+TOKEN_ID=$(printf '%s' "$token_json" | json "d['token']['id']")
+code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$API/projects/$PROJECT_ID")
+[ "$code" = 200 ] || fail "a read token got $code on its own project"
+code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$API/tokens")
+[ "$code" = 403 ] || fail "a project token got $code on an admin route, expected 403"
+pass 'a project token reaches its project and nothing else'
+
+mcp_call() {
+    curl -s -H "Authorization: Bearer $1" -H 'Content-Type: application/json' \
+        -H 'Accept: application/json, text/event-stream' -d "$2" "$ORIGIN/mcp"
+}
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$ORIGIN/mcp")
+[ "$code" = 401 ] || fail "mcp without a token answered $code, expected 401"
+reply=$(mcp_call "$TOKEN" "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"get_project\",\"arguments\":{\"project_id\":\"$PROJECT_ID\"}}}")
+printf '%s' "$reply" | grep -q "$PROJECT_ID" || fail "mcp get_project did not answer the project: ${reply:0:500}"
+reply=$(mcp_call "$TOKEN" '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"docker_cleanup","arguments":{"kind":"images"}}}')
+printf '%s' "$reply" | grep -q 'FORBIDDEN' || fail "mcp let a project token prune images: ${reply:0:500}"
+pass 'mcp answers with the token'\''s own permissions'
+curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/tokens/$TOKEN_ID" >/dev/null
+
 step 'cleanup'
 curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/services/$default_service" >/dev/null
 curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -X DELETE "$API/projects/$PROJECT_ID" >/dev/null

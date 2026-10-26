@@ -54,6 +54,9 @@ const AuthUpstream = "auth:8081"
 // network only.
 const ManagerUpstream = "manager:8080"
 
+// MCPUpstream is the MCP server, which serves /mcp on the dashboard's hosts.
+const MCPUpstream = "mcp:8090"
+
 // FileName is the deterministic config filename for a hostname.
 func FileName(hostname string) string { return hostname + ".conf" }
 
@@ -213,6 +216,14 @@ func dashboardBody(managerAddr, webRoot string) string {
 	b.WriteString(forwardedHeaders)
 	b.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
 	b.WriteString("        proxy_set_header Connection $connection_upgrade;\n")
+	b.WriteString("        proxy_buffering off;\n")
+	b.WriteString("        proxy_read_timeout 3600s;\n")
+	b.WriteString("    }\n\n")
+	b.WriteString("    location = /mcp {\n")
+	b.WriteString("        limit_req zone=api_limit burst=60 nodelay;\n")
+	fmt.Fprintf(&b, "        proxy_pass http://%s;\n", MCPUpstream)
+	b.WriteString("        proxy_http_version 1.1;\n")
+	b.WriteString(forwardedHeaders)
 	b.WriteString("        proxy_buffering off;\n")
 	b.WriteString("        proxy_read_timeout 3600s;\n")
 	b.WriteString("    }\n\n")

@@ -51,9 +51,10 @@ web-check: ## Typecheck and test the dashboard and the auth service
 ## ---- images ----
 
 .PHONY: images
-images: ## Build the three container images locally
+images: ## Build the four container images locally
 	docker build -f docker/manager.Dockerfile -t vexdock-manager:$(VERSION) .
 	docker build -f docker/auth.Dockerfile -t vexdock-auth:$(VERSION) .
+	docker build -f docker/mcp.Dockerfile -t vexdock-mcp:$(VERSION) .
 	docker build -f docker/nginx.Dockerfile -t vexdock-nginx:$(VERSION) .
 
 ## ---- local stack ----

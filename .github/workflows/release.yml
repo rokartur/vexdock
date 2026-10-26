@@ -11,6 +11,7 @@ permissions:
 env:
   MANAGER: ghcr.io/${{ github.repository_owner }}/manager
   AUTH: ghcr.io/${{ github.repository_owner }}/auth
+  MCP: ghcr.io/${{ github.repository_owner }}/mcp
   PROXY: ghcr.io/${{ github.repository_owner }}/nginx
   # Links each GHCR package back to this repository.
   SOURCE: ${{ github.server_url }}/${{ github.repository }}
@@ -72,6 +73,18 @@ jobs:
           tags: |
             ${{ env.AUTH }}:${{ github.ref_name }}
 
+      - name: MCP image
+        uses: >-
+          docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: docker/mcp.Dockerfile
+          platforms: linux/amd64
+          push: true
+          labels: org.opencontainers.image.source=${{ env.SOURCE }}
+          tags: |
+            ${{ env.MCP }}:${{ github.ref_name }}
+
       - name: Nginx image
         uses: >-
           docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
@@ -87,7 +100,7 @@ jobs:
       - name: Publish latest image tags
         if: ${{ !contains(github.ref_name, '-') }}
         run: |
-          for image in "$MANAGER" "$AUTH" "$PROXY"; do
+          for image in "$MANAGER" "$AUTH" "$MCP" "$PROXY"; do
             docker buildx imagetools create \
               --tag "$image:latest" "$image:$GITHUB_REF_NAME"
           done

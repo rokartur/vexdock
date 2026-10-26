@@ -20,6 +20,12 @@ services:
       dockerfile: docker/auth.Dockerfile
     image: vexdock-auth:dev
 
+  mcp:
+    build:
+      context: .
+      dockerfile: docker/mcp.Dockerfile
+    image: vexdock-mcp:dev
+
   nginx:
     build:
       context: .
