@@ -309,7 +309,7 @@ func newServer(t *toolbox, version string) *mcp.Server {
 		serviceRef
 		Fields map[string]any `json:"fields" jsonschema:"the fields to change, named as get_service answers them: display_name, branch, image, build_type, dockerfile, build_path, compose_fragment, auto_deploy, mounts and so on"`
 	}
-	add(server, t, changing("update_service", "Change a service's configuration. Takes effect on the next deploy.", false),
+	add(server, t, changing("update_service", "Change a service's configuration. Takes effect on the next deploy. Where it comes from (provider, repository, git_provider_id, owner, credentials, image, compose_fragment, registry login) needs an admin token.", false),
 		func(ctx context.Context, _ *mcp.CallToolRequest, m *manager, in updateServiceInput) (any, error) {
 			return m.call(ctx, http.MethodPatch, "/api/services/"+url.PathEscape(in.ServiceID), nil, in.Fields)
 		})
