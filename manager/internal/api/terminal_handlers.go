@@ -73,7 +73,7 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A GET, so protected() did not run the CSRF check; a shell is worth more
+	// A GET, so authenticated() did not run the CSRF check; a shell is worth more
 	// than any mutation, so it runs here. Accept then also insists the Origin
 	// host equal the request host, port included, which is what Nginx forwards.
 	if !auth.SameOrigin(r) {

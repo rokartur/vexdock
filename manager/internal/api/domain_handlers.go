@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/vexdock/platform/manager/internal/database"
 	"github.com/vexdock/platform/manager/internal/domains"
 )
 
@@ -12,7 +13,13 @@ func (s *Server) handleListDomains(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, list)
+	visible := list[:0]
+	for _, domain := range list {
+		if allows(r, domain.ProjectID, database.AccessRead) {
+			visible = append(visible, domain)
+		}
+	}
+	writeJSON(w, http.StatusOK, visible)
 }
 
 func (s *Server) handleCreateDomain(w http.ResponseWriter, r *http.Request) {

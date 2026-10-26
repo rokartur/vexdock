@@ -501,11 +501,19 @@ export type Registry = {
 	created_at: string
 }
 
+export type ProjectGrant = {
+	project_id: string
+	level: 'read' | 'write'
+}
+
 export type ApiToken = {
 	id: string
 	user_id: string
 	name: string
 	prefix: string
+	/** An admin token reaches every route; any other only the projects in `projects`. */
+	admin: boolean
+	projects: ProjectGrant[]
 	last_used_at: string
 	created_at: string
 }
@@ -1044,8 +1052,9 @@ export const api = {
 	deleteRegistry: (id: string) => request<{ ok: boolean }>(`/api/registries/${id}`, { method: 'DELETE' }),
 
 	tokens: () => request<ApiToken[]>('/api/tokens'),
-	createToken: (name: string) =>
-		request<{ token: ApiToken; value: string }>('/api/tokens', { method: 'POST', body: { name } }),
+	/** Without `projects` the token is an admin token. */
+	createToken: (name: string, projects?: ProjectGrant[]) =>
+		request<{ token: ApiToken; value: string }>('/api/tokens', { method: 'POST', body: { name, projects } }),
 	deleteToken: (id: string) => request<{ ok: boolean }>(`/api/tokens/${id}`, { method: 'DELETE' }),
 
 	templates: () => request<Template[]>('/api/templates'),

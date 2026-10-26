@@ -363,6 +363,11 @@ func (s *Server) handleDuplicateService(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
+	// The route checked the source project; the copy lands in the target's.
+	if !allows(r, target.ProjectID, database.AccessWrite) {
+		forbidden(w)
+		return
+	}
 	copied, err := s.Projects.DuplicateService(r.Context(), service, target, req.Name)
 	if err != nil {
 		badRequest(w, err)
@@ -392,6 +397,11 @@ func (s *Server) handleMoveService(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := s.DB.EnvironmentByID(r.Context(), req.EnvironmentID)
 	if lookupFailed(w, err) {
+		return
+	}
+	// The route checked the source project; moving in needs write on the target too.
+	if !allows(r, target.ProjectID, database.AccessWrite) {
+		forbidden(w)
 		return
 	}
 	container, err := s.Projects.CheckMoveService(r.Context(), service, env, target)
