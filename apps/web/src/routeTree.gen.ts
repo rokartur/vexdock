@@ -17,6 +17,7 @@ import { Route as DockerContainersRouteImport } from './routes/docker.containers
 import { Route as DockerImagesRouteImport } from './routes/docker.images'
 import { Route as DockerNetworksRouteImport } from './routes/docker.networks'
 import { Route as DockerVolumesRouteImport } from './routes/docker.volumes'
+import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as SystemIndexRouteImport } from './routes/system.index'
@@ -84,6 +85,11 @@ const DockerNetworksRoute = DockerNetworksRouteImport.update({
 const DockerVolumesRoute = DockerVolumesRouteImport.update({
   id: '/docker/volumes',
   path: '/docker/volumes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
+  id: '/oauth/authorize',
+  path: '/oauth/authorize',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsIndexRoute = ProjectsIndexRouteImport.update({
@@ -252,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
@@ -290,6 +297,7 @@ export interface FileRoutesByTo {
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
@@ -325,6 +333,7 @@ export interface FileRoutesById {
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
@@ -365,6 +374,7 @@ export interface FileRouteTypes {
     | '/docker/images'
     | '/docker/networks'
     | '/docker/volumes'
+    | '/oauth/authorize'
     | '/projects/$projectId'
     | '/system/backups'
     | '/system/certificates'
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/docker/images'
     | '/docker/networks'
     | '/docker/volumes'
+    | '/oauth/authorize'
     | '/system/backups'
     | '/system/certificates'
     | '/system/docker'
@@ -437,6 +448,7 @@ export interface FileRouteTypes {
     | '/docker/images'
     | '/docker/networks'
     | '/docker/volumes'
+    | '/oauth/authorize'
     | '/projects/$projectId'
     | '/system/backups'
     | '/system/certificates'
@@ -476,6 +488,7 @@ export interface RootRouteChildren {
   DockerImagesRoute: typeof DockerImagesRoute
   DockerNetworksRoute: typeof DockerNetworksRoute
   DockerVolumesRoute: typeof DockerVolumesRoute
+  OauthAuthorizeRoute: typeof OauthAuthorizeRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
   SystemBackupsRoute: typeof SystemBackupsRoute
   SystemCertificatesRoute: typeof SystemCertificatesRoute
@@ -542,6 +555,13 @@ declare module '@tanstack/react-router' {
       path: '/docker/volumes'
       fullPath: '/docker/volumes'
       preLoaderRoute: typeof DockerVolumesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/authorize': {
+      id: '/oauth/authorize'
+      path: '/oauth/authorize'
+      fullPath: '/oauth/authorize'
+      preLoaderRoute: typeof OauthAuthorizeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/': {
@@ -847,6 +867,7 @@ const rootRouteChildren: RootRouteChildren = {
   DockerImagesRoute: DockerImagesRoute,
   DockerNetworksRoute: DockerNetworksRoute,
   DockerVolumesRoute: DockerVolumesRoute,
+  OauthAuthorizeRoute: OauthAuthorizeRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
   SystemBackupsRoute: SystemBackupsRoute,
   SystemCertificatesRoute: SystemCertificatesRoute,
