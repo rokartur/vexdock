@@ -104,7 +104,7 @@ release_container_names() {
     docker ps -a --format '{{.Names}} {{.Label "com.docker.compose.project"}}' |
         while read -r name owner; do
             case "$name" in
-                vexdock-manager|vexdock-auth|vexdock-nginx) ;;
+                vexdock-manager|vexdock-auth|vexdock-mcp|vexdock-nginx) ;;
                 *) continue ;;
             esac
             [ "$owner" = "$project" ] && continue

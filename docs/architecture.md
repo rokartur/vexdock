@@ -26,7 +26,13 @@ SQLite file. Nginx routes `/api/auth` there and everything else to the manager,
 which opens that file read-only to authenticate requests. Authentication is
 therefore implemented once, by a library built for it, rather than twice.
 
-All three run under memory ceilings, and the manager's Go runtime under a soft
+A fourth, `vexdock-mcp`, serves the Model Context Protocol on `/mcp`. It has no
+volume, no secret and no socket: each tool call becomes calls to the manager's
+REST API over the internal network, made with the client's own bearer token, so
+the token scopes the manager enforces are the only permission model and an MCP
+client can do nothing a `curl` with the same token could not.
+
+All four run under memory ceilings, and the manager's Go runtime under a soft
 limit below its container's, so the panel gives memory back before the kernel
 takes it and a runaway process restarts alone instead of starving the
 applications. The ceilings and their `.env` keys are in

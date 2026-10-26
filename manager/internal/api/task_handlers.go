@@ -155,7 +155,13 @@ func (s *Server) handleListAllTasks(w http.ResponseWriter, r *http.Request) {
 	for _, project := range projects {
 		projectByID[project.ID] = project
 	}
-	writeJSON(w, http.StatusOK, withOwners(tasks, serviceByID, projectByID))
+	visible := tasks[:0]
+	for _, task := range tasks {
+		if allows(r, serviceByID[task.ServiceID].ProjectID, database.AccessRead) {
+			visible = append(visible, task)
+		}
+	}
+	writeJSON(w, http.StatusOK, withOwners(visible, serviceByID, projectByID))
 }
 
 func (s *Server) handleListServiceTasks(w http.ResponseWriter, r *http.Request) {

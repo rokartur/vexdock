@@ -33,6 +33,9 @@ type User struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name"`
+	// Token is the API token the request came with. A dashboard session has
+	// none and is the administrator.
+	Token *database.APIToken `json:"-"`
 }
 
 type Service struct {
@@ -128,8 +131,9 @@ func (s *Service) userByAPIToken(ctx context.Context, raw string) (*User, error)
 	// details so a renamed account is reflected everywhere.
 	user, err := s.userByID(ctx, token.UserID)
 	if err != nil {
-		return &User{ID: token.UserID, Email: "api-token:" + token.Name}, nil
+		user = &User{ID: token.UserID, Email: "api-token:" + token.Name}
 	}
+	user.Token = token
 	return user, nil
 }
 

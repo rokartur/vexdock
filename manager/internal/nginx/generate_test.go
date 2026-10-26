@@ -85,6 +85,8 @@ func TestRenderDashboard(t *testing.T) {
 	// Authentication lives in its own service and must not reach the manager.
 	mustContain(t, conf, "location /api/auth/ {")
 	mustContain(t, conf, "proxy_pass http://"+AuthUpstream+";")
+	mustContain(t, conf, "location = /mcp {")
+	mustContain(t, conf, "proxy_pass http://"+MCPUpstream+";")
 	mustContain(t, conf, "try_files $uri $uri/ /index.html;")
 	mustContain(t, conf, "root /usr/share/nginx/html;")
 

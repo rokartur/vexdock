@@ -45,6 +45,18 @@ Everything in front of it is therefore treated as untrusted input.
   installer generated and printed. Without it a panel that is publicly reachable
   before its owner reaches it would be claimed by whoever found it first.
 - Sign-up closes permanently once the first administrator exists.
+- An API token is either an admin token or limited to listed projects at
+  `read` or `write` ([api.md](api.md#authentication) has what each level
+  covers). The manager enforces it in the router: every authenticated route is
+  registered as open to any credential, admin only, or bound to the project it
+  resolves from its path, so a route nobody classified cannot exist. `read`
+  never returns a variable value, database credentials or Studio rows. It does
+  return container logs, deployment output and a raw service's compose
+  fragment, so a secret an application prints or a fragment inlines is readable
+  at `read`; keep secrets in variables.
+- The MCP server holds no credential of its own. It forwards the caller's token
+  to the manager, which decides every call; the server itself only learns
+  whether `GET /api/me` accepted the token.
 - Credential endpoints are rate limited twice: better-auth allows five attempts
   a minute per client, and Nginx throttles the same paths independently.
 - Every state-changing API call is recorded in an audit log with the actor, the

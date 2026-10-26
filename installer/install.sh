@@ -253,7 +253,7 @@ start_stack() {
     # registry's own message is the only useful diagnostic.
     compose_cmd pull || die "Could not pull the platform images from $REGISTRY."
     compose_cmd up -d --remove-orphans >/dev/null || die "The platform stack failed to start."
-    ok "Manager, auth and Nginx started"
+    ok "Manager, auth, MCP and Nginx started"
 }
 
 # The manager implements its own health check, so the container status is the

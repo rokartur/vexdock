@@ -20,7 +20,7 @@ x-logging: &logging
 # much; the ceiling is what keeps a runaway panel from taking the applications
 # it hosts down with it on a 1 GB box. The manager's covers the git and
 # compose processes it spawns during a deploy, which is why it is the largest.
-# Override in .env (MANAGER_MEMORY, AUTH_MEMORY, NGINX_MEMORY) for a bigger
+# Override in .env (MANAGER_MEMORY, AUTH_MEMORY, MCP_MEMORY, NGINX_MEMORY) for a bigger
 # repository or a tighter host.
 
 services:
@@ -89,6 +89,25 @@ services:
     networks:
       - internal
 
+  # The MCP server turns tool calls into calls to the manager's API, made with
+  # the client's own token. It has no volume and no secret.
+  mcp:
+    image: ${REGISTRY:-ghcr.io/rokartur}/mcp:${VERSION:-latest}
+    container_name: vexdock-mcp
+    restart: unless-stopped
+    logging: *logging
+
+    deploy:
+      resources:
+        limits:
+          memory: ${MCP_MEMORY:-64m}
+
+    environment:
+      PLATFORM_VERSION: ${VERSION:-latest}
+
+    networks:
+      - internal
+
   nginx:
     image: ${REGISTRY:-ghcr.io/rokartur}/nginx:${VERSION:-latest}
     container_name: vexdock-nginx
@@ -103,6 +122,7 @@ services:
     depends_on:
       - manager
       - auth
+      - mcp
 
     ports:
       - "80:80"

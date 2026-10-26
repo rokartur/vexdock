@@ -47,18 +47,26 @@ The API is described in three places and none derives from the others. Change
 one, change the rest:
 
 1. `manager/internal/api/api.go`, the mux. The only one that actually routes.
-2. `docs/api.md`, errors, streams, examples.
-3. `skills/vexdock-api/SKILL.md`, for a route it calls or an error it lists. It
-   runs on users' servers without the repo, so it repeats instead of linking.
+2. `docs/api.md`, errors, streams, examples, token scopes and the MCP tool
+   table.
+3. `manager/cmd/mcp/tools.go`, for a route a tool calls or a shape it decodes.
 
 `apps/web/src/lib/api.ts` is the fourth whenever a request or response shape
 moved.
 
+The MCP tools are described twice: `manager/cmd/mcp/tools.go` and
+`skills/vexdock-mcp/SKILL.md`. The skill runs on users' machines without the
+repo, so it repeats instead of linking. Add, rename or change a tool, change
+both, and the tool table in `docs/api.md`.
+
 ## Recipes
 
 **New endpoint.** Handler in the matching `internal/api/*_handlers.go`, register
-it in `api.go` behind `s.protected(...)` unless it is genuinely public, then
-walk the [parallel lists](#parallel-lists).
+it in `api.go` through one of the wrappers in `internal/api/access.go`:
+`s.project(level, projectOf..., h)` for anything inside one project (`read`
+unless it changes state or returns a secret), `s.admin` for anything wider,
+`s.signedIn` only for what every token may see. A public route goes straight on
+the mux. Then walk the [parallel lists](#parallel-lists).
 
 **Schema change.** A new `manager/migrations/000N_name.sql`. They are embedded
 in the binary and applied in filename order on boot, so a shipped migration is

@@ -46,6 +46,9 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	out := make([]projectView, 0, len(list))
 	containers := s.hostContainers(r.Context())
 	for i := range list {
+		if !allows(r, list[i].ID, database.AccessRead) {
+			continue
+		}
 		view, err := s.projectView(r.Context(), &list[i], containers)
 		if err != nil {
 			serverError(w, err)
@@ -326,7 +329,7 @@ func (s *Server) handleExportServices(w http.ResponseWriter, r *http.Request) {
 	}
 	if secrets {
 		// The one read that hands over plaintext secrets, so it is recorded like
-		// a mutation. protected() audits writes only, and a stolen token draining
+		// a mutation. authenticated() audits writes only, and a stolen token draining
 		// a project this way would otherwise leave no trace in the panel.
 		user, _ := auth.UserFrom(r.Context())
 		s.audit(r, user, http.StatusOK, auth.ViaCookie(r))
