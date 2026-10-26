@@ -95,7 +95,7 @@ export function parseLogLine(text: string) {
 	const stamp = LOG_TIMESTAMP.exec(text)
 	const timestamp = stamp?.groups?.at ?? null
 	const coloredBody = stamp ? text.slice(stamp[0].length) : text
-	const body = coloredBody.replace(ANSI, '')
+	const body = coloredBody.replaceAll(ANSI, '')
 	return {
 		time: timestamp ? clock(timestamp) || null : null,
 		timestamp,
