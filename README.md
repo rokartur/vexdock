@@ -75,7 +75,7 @@ Options, restoring a backup and uninstalling: [docs/install.md](docs/install.md)
 - **Scheduled tasks.** A cron expression, a timezone and a command, run inside the service's container. Every run keeps its exit code and output.
 - **The whole Docker host.** Containers, images, volumes and networks, including stacks Vexdock did not create, with a previewed cleanup.
 - **Backups and self-update.** A backup comes first, and an update that never turns healthy rolls back on its own.
-- **REST API and an agent skill.** The API the dashboard uses, with bearer tokens. [`skills/vexdock-api`](skills/vexdock-api/SKILL.md) teaches an AI agent to operate a host through it.
+- **REST API and an MCP server.** The API the dashboard uses, with bearer tokens limited to chosen projects if you like, and an MCP server on `/mcp` that hands the same powers to an AI agent. [`skills/vexdock-mcp`](skills/vexdock-mcp/SKILL.md) tells the agent how to use it.
 
 ## Why Vexdock
 
@@ -95,12 +95,13 @@ Secrets are encrypted at rest under a master key only the host holds
 
 ## How it works
 
-Three containers. Nginx is the only public entry point.
+Four containers. Nginx is the only public entry point.
 
 | Component | Role |
 |---|---|
 | `vexdock-manager` | Go binary. Owns the Docker socket, SQLite state, the deploy pipeline, Nginx generation and ACME. |
 | `vexdock-auth` | better-auth on Bun. Owns accounts and sessions; the manager only validates them. |
+| `vexdock-mcp` | Go binary. The MCP server on `/mcp`; turns tool calls into API calls made with the caller's token. |
 | `vexdock-nginx` | Reverse proxy for every application plus the static dashboard. |
 
 Applications are ordinary compose projects on a shared `vexdock-proxy` network
@@ -157,7 +158,7 @@ change.
 
 ```sh
 make check      # go vet, go test, typecheck
-make dev-up     # build the three images and run the whole stack locally
+make dev-up     # build the four images and run the whole stack locally
 make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 ./scripts/smoke-test.sh
 ```

@@ -27,21 +27,18 @@ required.
 curl -H "Authorization: Bearer $VEXDOCK_TOKEN" https://panel.example.com/api/projects
 ```
 
-`GET /api/me` returns the account behind whichever credential was used.
+`GET /api/me` returns the account behind whichever credential was used, and
+`access`: `{"admin": true, "projects": []}` for a session or an admin token, or
+`{"admin": false, "projects": [{"project_id", "level"}]}` for a project token.
 
-**From a script or an agent.** There is no CLI; the token and this document
-are the whole interface (`skills/vexdock-api/` packages it as an agent skill). Export the two values once and every endpoint below
-is one `curl` away, including a command inside a running service:
+**From an agent.** Connect it to the [MCP server](#mcp-server) rather than
+teaching it this API; `skills/vexdock-mcp/` describes the server to an agent.
+From a script, the token and this document are the whole interface:
 
 ```sh
 export VEXDOCK_URL=https://panel.example.com
 export VEXDOCK_TOKEN=...   # the value POST /api/tokens showed once
-
-vx() { curl -sS -H "Authorization: Bearer $VEXDOCK_TOKEN" -H 'Content-Type: application/json' "$VEXDOCK_URL$@"; }
-
-vx /api/projects
-vx /api/services/$SERVICE/deploy -X POST
-vx /api/services/$SERVICE/exec -d '{"command":"ls -la /app"}'
+curl -sS -H "Authorization: Bearer $VEXDOCK_TOKEN" "$VEXDOCK_URL/api/projects"
 ```
 
 **API tokens.** They are managed through the API as well, and the raw value is
@@ -50,9 +47,64 @@ lost token is replaced rather than recovered.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/tokens` | The tokens that exist, by name and prefix |
-| `POST /api/tokens` | `{"name"}`; answers `201` with `{"token", "value"}` |
+| `GET /api/tokens` | The tokens that exist, by name and prefix, each with `admin` and `projects` |
+| `POST /api/tokens` | `{"name", "projects"?}`; answers `201` with `{"token", "value"}` |
 | `DELETE /api/tokens/{id}` | Revokes one |
+
+**Token scopes.** A token created without `projects` is an admin token: it
+reaches every route, as a dashboard session does. With `projects`, a list of
+`{"project_id", "level"}` where `level` is `read` or `write`, it reaches only
+those projects:
+
+- `read` covers a project's state, services, environments, logs, stats,
+  deployments, domains, redirects, ports and tasks.
+- `write` adds everything else inside the project: deploys, rollbacks, exec and
+  the terminal, variables (whose values a read token never sees), Studio and the
+  database credentials, the services export, and editing or deleting services,
+  environments, domains and tasks. Moving or duplicating a service into another
+  project needs write on both.
+- Creating or deleting a project, Docker, the system, Git providers, registries
+  and tokens stay with admin tokens.
+- `GET /api/projects`, `/api/tasks` and `/api/domains` answer only the granted
+  projects. The catalogs (`/api/templates`, `/api/engines`) and `/api/me` answer
+  any token.
+
+A route outside a token's reach answers `403 FORBIDDEN`, and so does an id that
+does not exist, so a project token cannot probe for ids in other projects.
+Deleting a project removes it from every token's grants.
+
+## MCP server
+
+`/mcp` on the dashboard's address is a Model Context Protocol server
+(streamable HTTP, stateless). It takes the same bearer token and calls this API
+with it, so it can do exactly what the token can. A missing or rejected token is
+`401` at the transport. Tool results are the API's JSON; an API error becomes a
+tool error carrying its code.
+
+| Tool | Calls |
+|---|---|
+| `whoami` | `GET /api/me` |
+| `list_projects` | `GET /api/projects` |
+| `get_project` | `GET /api/projects/{id}` and its `environments`, `services`, `domains`, the last ten `deployments` |
+| `get_service` | `GET /api/services/{id}` and its `tasks` |
+| `service_logs` | `GET /api/services/{id}/logs?follow=false` |
+| `service_stats` | the first event of `GET /api/services/{id}/stats` |
+| `list_deployments`, `get_deployment` | `GET /api/projects/{id}/deployments`, `GET /api/deployments/{id}` (step output cut to fifty lines) |
+| `list_templates` | `GET /api/templates` |
+| `deploy` | `POST /api/projects/{id}/deploy` or `/api/services/{id}/deploy`, then polls every 2 s for up to 15 minutes |
+| `cancel_deployment`, `rollback` | `POST /api/deployments/{id}/cancel`, `/rollback` (which waits like `deploy`) |
+| `service_action` | `POST /api/services/{id}/start\|stop\|restart` |
+| `service_exec` | `POST /api/services/{id}/exec` |
+| `get_variables`, `set_variables` | `GET`, then `PUT` of the merged set, on a project, environment or service |
+| `add_service_from_template` | `POST /api/projects/{id}/services/template` |
+| `update_service` | `PATCH /api/services/{id}` |
+| `add_domain`, `remove_domain` | `POST /api/domains`, `DELETE /api/domains/{id}` |
+| `run_task` | `POST /api/tasks/{id}/run` |
+| `query_database` | `POST /api/services/{id}/studio/query` |
+| `docker_cleanup` | `POST /api/docker/cleanup/{kind}`, never `volumes` |
+
+Nothing that deletes a project, an environment, a service or a volume is a
+tool; those stay in the dashboard and this API.
 
 ## Health
 
@@ -78,6 +130,7 @@ Every error uses one envelope:
 | `INVALID_REQUEST` | 400 | Validation failed; `message` is safe to show a user |
 | `UNAUTHORIZED` | 401 | No valid session or token |
 | `CROSS_ORIGIN` | 403 | Cookie session used from another origin |
+| `FORBIDDEN` | 403 | The token's [scope](#authentication) does not reach this route or project |
 | `NOT_FOUND` | 404 | No such resource |
 | `SETUP_TOKEN_INVALID` | 403 | First sign-up without the installer's setup token (from the auth service) |
 | `SETUP_CLOSED` | 409 | An administrator already exists (from the auth service) |

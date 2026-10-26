@@ -18,7 +18,7 @@ either.
 ## Running the whole thing locally
 
 ```sh
-make dev-up             # builds the three images, starts the stack
+make dev-up             # builds the four images, starts the stack
 ./scripts/smoke-test.sh # end-to-end: setup, deploy, domain, proxy
 make dev-logs
 make dev-down

@@ -37,6 +37,7 @@ Every Go package opens with a comment naming what it owns and why it exists.
 | **Alias** | The stable name `p_<environment-id>_<service>` a service carries on the `vexdock-proxy` network. Nginx resolves it at request time, so a recreated container needs no proxy change. |
 | **Reconcile** | The full convergence pass: attach every domain's container to the proxy network under its alias, render every vhost, `nginx -t`, reload. Runs on Docker events and every two minutes. |
 | **Git provider** | A stored connection to a git host (GitHub App, GitLab, Bitbucket, Gitea OAuth) used to list repositories and clone. Distinct from a service's `provider` field, which only says what kind of source it is. |
+| **Project token** | An API token limited to listed projects, each at `read` or `write`. Its opposite is an admin token, which reaches every route as a dashboard session does. |
 | **Task** | A cron job that runs a command inside a service's container. |
 | **Bus** | The in-process pub/sub in `internal/events`. Everything a browser sees live comes off it. |
 
@@ -50,7 +51,7 @@ sequenceDiagram
     participant Page as routes/projects.$projectId.index.tsx
     participant API as lib/api.ts
     participant Nginx
-    participant Protected as api.go protected()
+    participant Protected as api/access.go project()
     participant Handler as handleDeploy
     participant Engine as deployments.Engine
     participant DB as database
@@ -206,7 +207,7 @@ sequenceDiagram
     participant Nginx
     participant Auth as apps/auth server.ts
     participant AuthDB as auth.db
-    participant Manager as manager protected()
+    participant Manager as manager authenticated()
 
     Browser->>Gate: load any route
     Gate->>Nginx: GET /api/auth/platform-status
@@ -239,7 +240,9 @@ The gate holds the route back until both queries answer, so an unauthenticated
 visitor never mounts the shell and fires a burst of 401s. A bearer
 `Authorization` header takes the other branch in `auth.Authenticate`: the
 token hash is looked up in the manager's own `api_tokens` table, and the user
-row is read from `auth.db` for its current name.
+row is read from `auth.db` for its current name. The token rides on the user
+(`User.Token`), and the route's wrapper in `api/access.go` checks it against
+the project the route resolves.
 
 ### Self-update
 
@@ -299,11 +302,11 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | `apps/web/` | The dashboard, [below](#dashboard) |
 | `apps/auth/` | The auth service, [below](#auth-service) |
 | `compose.yml` | The production stack the installer fetches for a release tag; `compose.dev.yml` overlays local builds and `./.vexdock` on it |
-| `docker/` | One Dockerfile per image; `nginx/` holds Nginx's own config: `nginx.conf` (rate-limit zones), `dashboard.conf` (the panel's server block and the `/api` split), `proxy-headers.conf` (shared by every proxying location) |
+| `docker/` | One Dockerfile per image; `nginx/` holds Nginx's own config: `nginx.conf` (rate-limit zones), `dashboard.conf` (the panel's server block and the `/api` and `/mcp` split), `proxy-headers.conf` (shared by every proxying location) |
 | `installer/install.sh` | Install, update and uninstall on a host. `PLATFORM_LOCAL_COMPOSE` points it at a local compose file, which is how CI runs it; `PLATFORM_RAW_BASE` swaps the base URL it downloads `compose.yml` from |
 | `scripts/` | `smoke-test.sh` (the real deploy path against a running stack), `release-beta.sh` and `migrate-dokploy.ts` (one Dokploy project, volumes included) |
 | `site/index.html` | The landing page: one self-contained file, no build |
-| `skills/vexdock-api/` | An agent skill for operating a Vexdock host over the API. Shipped to users, so it moves with `docs/api.md` |
+| `skills/vexdock-mcp/` | An agent skill describing the MCP server: how to connect, what each tool does, what the errors mean. Shipped to users, so it moves with the tool list in `cmd/mcp/tools.go` |
 | `.pi/skills/release-beta/` | The maintainer's skill that drives `make release-beta` |
 | `.github/workflows/` | `ci.yml` (checks, shellcheck, a real installer run followed by the smoke test), `release.yml` (images on a `v*.*.*` tag), `delete-merged-branch.yml` |
 
@@ -316,7 +319,8 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | Package | Owns |
 |---|---|
 | `cmd/server` | `main`: config, construction, background goroutines, HTTP server |
-| `internal/api` | Routes, middleware, one `*_handlers.go` per resource, SSE writer |
+| `cmd/mcp` | The MCP server, its own image: tools that call the manager's REST API with the caller's token |
+| `internal/api` | Routes, middleware, one `*_handlers.go` per resource, SSE writer; `access.go` holds the three wrappers every authenticated route goes through and the project resolvers |
 | `internal/auth` | Session lookup in `auth.db`, API tokens, the same-origin check |
 | `internal/backup` | Snapshots of both databases, proxy config, certificates, volumes |
 | `internal/certificates` | ACME issuance (HTTP-01 and Cloudflare DNS-01), uploaded certificate validation |
@@ -350,6 +354,8 @@ if you find yourself wanting one, the logic is in the wrong package.
   failures with `badRequest`, `lookupFailed` or `serverError`
   (`api/respond.go`). Every error is `{"error": {"code", "message", "details"}}`.
 - Project routes take `?environment=`; `s.projectEnv(w, r)` resolves it.
+- A route is registered through `s.signedIn`, `s.admin` or
+  `s.project(level, projectOf..., h)` (`api/access.go`); there is no fourth way.
 - Anything a user typed that will end up in an argv, a file name or a YAML
   file goes through `internal/security` first.
 - Secrets are stored through `security.Cipher` and never logged or returned.
