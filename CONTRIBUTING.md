@@ -170,14 +170,15 @@ same three bumps, then:
 git tag -a v0.1.0 -m v0.1.0 <merge commit> && git push origin v0.1.0
 ```
 
-That publishes `manager`, `auth` and `nginx` to `ghcr.io/<owner>` and attaches
-`install.sh` and `compose.yml` to the GitHub release.
+That publishes `manager`, `auth`, `mcp` and `nginx` to `ghcr.io/<owner>` and
+attaches `install.sh` and `compose.yml` to the GitHub release.
 
-**The first release needs one manual step.** Packages pushed by a workflow are
-private, and an installer on someone else's VPS pulls anonymously. After the
-first successful run, open each package under
-`github.com/<owner>?tab=packages` and set its visibility to Public. Verify from
-a logged-out machine before announcing anything:
+**The first release of an image needs one manual step.** Packages pushed by a
+workflow are private, and an installer on someone else's VPS pulls anonymously.
+After the first successful run that publishes a new image (`mcp` arrived after
+the other three), open that package under `github.com/<owner>?tab=packages` and
+set its visibility to Public. Verify from a logged-out machine before
+announcing anything:
 
 ```sh
 docker logout ghcr.io
