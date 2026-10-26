@@ -87,14 +87,35 @@ func TestProjectTokenScope(t *testing.T) {
 		{"/api/services/s-p1/duplicate", `{"name":"copy","environment_id":"p2"}`},
 		{"/api/services/s-p1/move", `{"environment_id":"p2"}`},
 	}
-	for _, c := range intoOtherProject {
-		r := httptest.NewRequest("POST", c.path, strings.NewReader(c.body))
-		r.Header.Set("Authorization", "Bearer "+writer)
+	send := func(token, method, path, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, path, strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
-		if w.Code != http.StatusForbidden {
+		return w
+	}
+	for _, c := range intoOtherProject {
+		if w := send(writer, "POST", c.path, c.body); w.Code != http.StatusForbidden {
 			t.Errorf("POST %s into another project: %d, want 403: %s", c.path, w.Code, w.Body)
 		}
+	}
+
+	// Where a service comes from is an admin's: a Git connection or a registry
+	// login reaches other projects' repositories and images, a fragment the host.
+	sourceChanges := []struct{ method, path, body string }{
+		{"PATCH", "/api/services/s-p1", `{"image":"registry.example.com/other/private:latest"}`},
+		{"PATCH", "/api/services/s-p1", `{"git_provider_id":"g1","owner":"acme","repository":"secret"}`},
+		{"PATCH", "/api/services/s-p1", `{"compose_fragment":"image: alpine\nprivileged: true"}`},
+		{"POST", "/api/projects/p1/services", `{"name":"web","provider":"github","git_provider_id":"g1","owner":"acme","repository":"secret"}`},
+		{"POST", "/api/projects/p1/services", `{"name":"db","database":{"engine":"other","image":"registry.example.com/private:1"}}`},
+	}
+	for _, c := range sourceChanges {
+		if w := send(writer, c.method, c.path, c.body); w.Code != http.StatusForbidden {
+			t.Errorf("write token %s %s %s: %d, want 403: %s", c.method, c.path, c.body, w.Code, w.Body)
+		}
+	}
+	if w := send(writer, "PATCH", "/api/services/s-p1", `{"branch":"dev"}`); w.Code == http.StatusForbidden {
+		t.Errorf("a write token could not change the branch: %s", w.Body)
 	}
 
 	var domains []database.Domain

@@ -514,8 +514,21 @@ export type ApiToken = {
 	/** An admin token reaches every route; any other only the projects in `projects`. */
 	admin: boolean
 	projects: ProjectGrant[]
+	/** Set when an MCP client got this token through OAuth rather than a person creating it. */
+	client_id: string
 	last_used_at: string
 	created_at: string
+}
+
+/** An MCP client's OAuth authorization request, the fields the consent screen passes on. */
+export type OAuthAuthorization = {
+	client_id: string
+	redirect_uri: string
+	response_type: string
+	code_challenge: string
+	code_challenge_method: string
+	state: string
+	resource: string
 }
 
 /** One entry of the built-in database catalog. */
@@ -706,9 +719,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 	if (!response.ok) {
 		// The manager's session outlived the browser's: every mounted query would
 		// otherwise retry against a signed-out API behind a shell that still looks
-		// signed in. A full load re-runs AuthGate.
-		if (response.status === 401 && window.location.pathname !== '/login') {
-			window.location.replace('/login')
+		// signed in. A full load re-runs AuthGate, and signing in comes back here.
+		const { pathname, search } = window.location
+		if (response.status === 401 && pathname !== '/login') {
+			window.location.replace(
+				pathname === '/' ? '/login' : `/login?${new URLSearchParams({ next: pathname + search })}`,
+			)
 		}
 		const envelope = payload as { error?: { code: string; message: string; details?: Record<string, unknown> } }
 		throw new ApiError(
@@ -1056,6 +1072,13 @@ export const api = {
 	createToken: (name: string, projects?: ProjectGrant[]) =>
 		request<{ token: ApiToken; value: string }>('/api/tokens', { method: 'POST', body: { name, projects } }),
 	deleteToken: (id: string) => request<{ ok: boolean }>(`/api/tokens/${id}`, { method: 'DELETE' }),
+
+	/** Checks a client's authorization request, passed on as its raw query string. */
+	oauthCheck: (search: string) =>
+		request<{ client_name: string; redirect_uri: string }>(`/api/oauth/authorize${search}`),
+	/** Approves it; without `projects` the grant has full access. Answers where to send the browser. */
+	oauthApprove: (authorization: OAuthAuthorization, projects?: ProjectGrant[]) =>
+		request<{ redirect: string }>('/api/oauth/authorize', { method: 'POST', body: { ...authorization, projects } }),
 
 	templates: () => request<Template[]>('/api/templates'),
 

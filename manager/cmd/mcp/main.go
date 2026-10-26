@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -24,7 +25,7 @@ func main() {
 	// No client timeout: deploy waits up to its own limit and every call
 	// carries the tool call's context.
 	tools := &toolbox{base: base, http: &http.Client{}}
-	srv := &http.Server{Addr: listen, Handler: handler(tools, envOr("PLATFORM_VERSION", "dev"), log), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: listen, Handler: handler(tools, envOr("PLATFORM_VERSION", "dev"), resourceMetadataURL(os.Getenv("PLATFORM_PUBLIC_URL")), log), ReadHeaderTimeout: 10 * time.Second}
 	log.Info("mcp listening", "addr", listen, "manager", base)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Error("mcp stopped", "error", err)
@@ -32,13 +33,13 @@ func main() {
 	}
 }
 
-func handler(tools *toolbox, version string, log *slog.Logger) http.Handler {
+func handler(tools *toolbox, version, resourceMetadata string, log *slog.Logger) http.Handler {
 	server := newServer(tools, version)
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{Stateless: true, Logger: log},
 	)
-	requireToken := auth.RequireBearerToken(tools.verify, &auth.RequireBearerTokenOptions{AllowMissingExpiration: true})
+	requireToken := auth.RequireBearerToken(tools.verify, &auth.RequireBearerTokenOptions{AllowMissingExpiration: true, ResourceMetadataURL: resourceMetadata})
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", requireToken(streamable))
 	return mux
@@ -61,6 +62,16 @@ func (t *toolbox) verify(ctx context.Context, token string, r *http.Request) (*a
 		return nil, err
 	}
 	return &auth.TokenInfo{UserID: me.User.ID}, nil
+}
+
+// resourceMetadataURL is where a 401 sends an OAuth client to discover the
+// manager's authorization server (RFC 9728). Without a public URL there is no
+// OAuth, and clients need a token.
+func resourceMetadataURL(publicURL string) string {
+	if publicURL == "" {
+		return ""
+	}
+	return strings.TrimSuffix(publicURL, "/") + "/.well-known/oauth-protected-resource/mcp"
 }
 
 func envOr(key, fallback string) string {

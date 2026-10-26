@@ -53,10 +53,26 @@ Everything in front of it is therefore treated as untrusted input.
   never returns a variable value, database credentials or Studio rows. It does
   return container logs, deployment output and a raw service's compose
   fragment, so a secret an application prints or a fragment inlines is readable
-  at `read`; keep secrets in variables.
+  at `read`; keep secrets in variables. `write` cannot change where a service
+  comes from ([api.md](api.md#authentication) lists the fields): a Git
+  connection or a registry login is shared across projects, and a raw compose
+  fragment can ask for `privileged` or a host mount, so either would carry a
+  project token past its grants. Docker keeps registry logins daemon-wide,
+  though, so a Dockerfile in a repository a write token can push to may still
+  build `FROM` an image only another project's login can pull.
 - The MCP server holds no credential of its own. It forwards the caller's token
   to the manager, which decides every call; the server itself only learns
   whether `GET /api/me` accepted the token.
+- OAuth ([api.md](api.md#oauth)) issues the same API tokens, so its grants obey
+  the same scopes. It runs only behind an https `PUBLIC_URL`. Every client is
+  public, so PKCE `S256` is mandatory and a code is single-use and bound to its
+  client and exact redirect URI. Registration is open, but registering grants
+  nothing: only the administrator's approval on the consent screen does, and
+  that screen names the redirect host so a client cannot hide behind a borrowed
+  name. A redirect URI may not use a scheme a browser would run on the
+  dashboard's origin (`javascript:`, `data:`), and the dashboard refuses to be
+  framed, so the Allow button cannot be clickjacked. Refresh tokens rotate on
+  every use; a replayed one revokes its grant.
 - Credential endpoints are rate limited twice: better-auth allows five attempts
   a minute per client, and Nginx throttles the same paths independently.
 - Every state-changing API call is recorded in an audit log with the actor, the

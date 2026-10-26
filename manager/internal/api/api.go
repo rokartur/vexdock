@@ -51,14 +51,15 @@ type Deps struct {
 // Server wires every subsystem into one HTTP handler.
 type Server struct {
 	Deps
+	codes *authCodes
 }
 
 func New(d Deps) *Server {
-	return &Server{Deps: d}
+	return &Server{Deps: d, codes: &authCodes{pending: map[string]authCode{}}}
 }
 
-// Handler builds the router. The three routes registered straight on the mux
-// are public; the rest go through signedIn, admin or project (access.go) and need a
+// Handler builds the router. The routes registered straight on the mux are
+// public; the rest go through signedIn, admin or project (access.go) and need a
 // session cookie or a bearer API token.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -68,6 +69,20 @@ func (s *Server) Handler() http.Handler {
 	// One deploy endpoint per provider, because each signs its payload its own
 	// way and names the repository in its own shape.
 	mux.HandleFunc("POST /api/deploy/{provider}", s.handleProviderWebhook)
+	// OAuth for MCP clients (oauth_handlers.go). Consent is the administrator's.
+	for pattern, h := range map[string]http.HandlerFunc{
+		"GET /.well-known/oauth-authorization-server":   s.handleAuthorizationServerMetadata,
+		"GET /.well-known/oauth-protected-resource":     s.handleProtectedResourceMetadata,
+		"GET /.well-known/oauth-protected-resource/mcp": s.handleProtectedResourceMetadata,
+		"POST /api/oauth/register":                      s.handleOAuthRegister,
+		"POST /api/oauth/token":                         s.handleOAuthToken,
+	} {
+		_, path, _ := strings.Cut(pattern, " ")
+		mux.HandleFunc(pattern, allowAnyOrigin(h))
+		mux.HandleFunc("OPTIONS "+path, allowAnyOrigin(h))
+	}
+	mux.Handle("GET /api/oauth/authorize", s.admin(s.handleOAuthAuthorizeCheck))
+	mux.Handle("POST /api/oauth/authorize", s.admin(s.handleOAuthAuthorize))
 
 	mux.Handle("GET /api/me", s.signedIn(s.handleMe))
 

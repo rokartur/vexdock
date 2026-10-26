@@ -116,6 +116,13 @@ func (s *Server) handleCreateService(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err)
 		return
 	}
+	// Where a service comes from stays with an admin: a Git connection or a docker
+	// login reaches past one project, and a compose fragment can mount the host. A
+	// catalog database, whose image is the engine's own, is the one a project token may add.
+	if !isAdmin(r) && (req.Database == nil || req.Database.Image != "") {
+		forbidden(w)
+		return
+	}
 	in := projects.ServiceInput{
 		Name:             req.Name,
 		ContainerName:    req.ContainerName,
@@ -240,6 +247,15 @@ func (s *Server) handleUpdateService(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := decode(r, &req); err != nil {
 		badRequest(w, err)
+		return
+	}
+	// The same rule as handleCreateService: the source is an admin's to change.
+	changesSource := req.Provider != nil || req.RepositoryURL != nil || req.CredentialKind != nil ||
+		req.CredentialSecret != nil || req.GitProviderID != nil || req.Owner != nil || req.Repository != nil ||
+		req.Image != nil || req.ComposeFragment != nil ||
+		req.RegistryURL != nil || req.RegistryUsername != nil || req.RegistryPassword != nil
+	if changesSource && !isAdmin(r) {
+		forbidden(w)
 		return
 	}
 	if err := adoptProvider(service, req.Provider); err != nil {

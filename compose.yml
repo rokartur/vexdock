@@ -104,6 +104,7 @@ services:
 
     environment:
       PLATFORM_VERSION: ${VERSION:-latest}
+      PLATFORM_PUBLIC_URL: ${PUBLIC_URL:-}
 
     networks:
       - internal

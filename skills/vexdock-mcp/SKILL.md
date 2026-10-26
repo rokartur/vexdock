@@ -41,6 +41,14 @@ A missing or revoked token fails the connection itself with `401`. Treat the
 token as a secret: it goes in the client's config or an environment variable,
 never in a reply, a commit or a log.
 
+**OAuth, without a token.** Clients that cannot send a header (claude.ai,
+ChatGPT) add the server by its URL alone. The `401` points them at the panel's
+OAuth metadata; they register themselves, open the panel's consent screen,
+where the administrator picks full access or projects and levels, and refresh
+their own access token from then on. This works only once the panel has an
+`https://` address set as `PUBLIC_URL`. The grant appears beside the tokens,
+named after the client, and is revoked there.
+
 ## Permissions
 
 A token is one of:
@@ -51,7 +59,9 @@ A token is one of:
     domains, tasks. Variable values, database credentials and SQL stay out of
     reach.
   - `write`: everything inside the project, including deploy, exec, variables,
-    `query_database` and editing services and domains.
+    `query_database` and editing services and domains. Where a service comes
+    from (provider, repository, Git connection, credentials, image, compose
+    fragment, registry login) stays admin only; branch and build settings do not.
   - `docker_cleanup` is admin only, whatever the projects.
 
 `whoami` answers which kind this token is and, for a project token, the
@@ -85,7 +95,7 @@ project's default environment (production).
 | `get_variables` | write | One layer's variables in clear: `scope` is `project`, `environment` or `service`, `id` is that thing's id |
 | `set_variables` | write | Adds or changes keys (`set`), deletes keys (`remove`), marks new keys secret (`secret_keys`); untouched keys stay |
 | `add_service_from_template` | write | Adds a template's services with generated passwords; deploy afterwards |
-| `update_service` | write | Changes service fields by their `get_service` names; takes effect on the next deploy |
+| `update_service` | write | Changes service fields by their `get_service` names; takes effect on the next deploy. Source fields need admin |
 | `add_domain` | write | Routes a hostname to a compose service and container port; `https_enabled` issues a certificate |
 | `remove_domain` | write | Stops routing a hostname |
 | `run_task` | write | Runs a scheduled task now and answers its output |

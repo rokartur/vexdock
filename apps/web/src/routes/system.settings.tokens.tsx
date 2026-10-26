@@ -4,10 +4,10 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/r
 import { createFileRoute } from '@tanstack/react-router'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { AccessPicker } from '../components/access-picker'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
-	Check,
 	Confirm,
 	ErrorText,
 	Field,
@@ -17,19 +17,14 @@ import {
 	Refresh,
 	RelativeTime,
 	Section,
-	Select,
 } from '../components/primitives'
-import { api, type ApiToken, type ProjectGrant } from '../lib/api'
+import { type Access, grantList, picksNothing } from '../lib/access'
+import { api, type ApiToken } from '../lib/api'
 import { preload, projectsQuery } from '../lib/queries'
 
 const tokensQuery = queryOptions({ queryKey: ['tokens'], queryFn: api.tokens })
 
-type Level = ProjectGrant['level']
-
-const levels = [
-	{ value: 'read', label: 'Read' },
-	{ value: 'write', label: 'Write' },
-] as const
+const fullAccess: Access = { full: true, grants: {} }
 
 export const Route = createFileRoute('/system/settings/tokens')({
 	loader: ({ context: { queryClient } }) =>
@@ -64,6 +59,9 @@ function tokenTableColumns(revoke: (id: string) => void, projectName: (id: strin
 				<span className='inline-flex items-center gap-2 font-medium'>
 					<IconKey className='size-4 text-muted' />
 					{row.original.name}
+					{row.original.client_id ? (
+						<Badge title='Granted to an MCP client through OAuth'>OAuth</Badge>
+					) : null}
 				</span>
 			),
 		}),
@@ -117,23 +115,19 @@ function ApiTokens() {
 	const projects = useQuery(projectsQuery)
 	const [creating, setCreating] = useState(false)
 	const [name, setName] = useState('')
-	const [fullAccess, setFullAccess] = useState(true)
-	const [grants, setGrants] = useState<Record<string, Level>>({})
+	const [access, setAccess] = useState(fullAccess)
 	const [issued, setIssued] = useState('')
 
 	const create = useMutation({
 		mutationFn: () => {
-			if (fullAccess) return api.createToken(name)
-			const picked = Object.entries(grants).map(([project_id, level]) => ({ project_id, level }))
-			// An empty list is an admin token to the API, the opposite of what an empty selection means here.
-			if (picked.length === 0) throw new Error('Pick at least one project, or Full access.')
-			return api.createToken(name, picked)
+			if (access.full) return api.createToken(name)
+			if (picksNothing(access)) throw new Error('Pick at least one project, or Full access.')
+			return api.createToken(name, grantList(access))
 		},
 		onSuccess: async result => {
 			setIssued(result.value)
 			setName('')
-			setFullAccess(true)
-			setGrants({})
+			setAccess(fullAccess)
 			setCreating(false)
 			await queryClient.invalidateQueries({ queryKey: ['tokens'] })
 		},
@@ -153,13 +147,6 @@ function ApiTokens() {
 		() => tokenTableColumns(revokeToken, id => projectNames.get(id) ?? id),
 		[revokeToken, projectNames],
 	)
-
-	const toggleProject = (id: string, checked: boolean) =>
-		setGrants(current =>
-			checked
-				? { ...current, [id]: 'read' }
-				: Object.fromEntries(Object.entries(current).filter(([projectId]) => projectId !== id)),
-		)
 
 	return (
 		<div className='max-w-3xl'>
@@ -215,46 +202,7 @@ function ApiTokens() {
 					label='Access'
 					hint='Read: state, logs, deployments, domains. Write: also deploy, exec, variables and the database.'
 				>
-					<div className='rounded-lg divide-y divide-border border border-border'>
-						<div className='px-3 py-2'>
-							<Check
-								label='Full access: every project and the whole server'
-								checked={fullAccess}
-								onChange={setFullAccess}
-							/>
-						</div>
-						{(projects.data ?? []).map(project => {
-							const level = grants[project.id]
-							return (
-								<div
-									key={project.id}
-									className='flex min-h-11 items-center justify-between gap-3 px-3 py-1.5'
-								>
-									<Check
-										label={project.name}
-										checked={level !== undefined}
-										onChange={checked => toggleProject(project.id, checked)}
-										disabled={fullAccess}
-										muted={fullAccess}
-										className='min-w-0'
-									/>
-									{level && !fullAccess ? (
-										<Select
-											label={`Access to ${project.name}`}
-											value={level}
-											options={levels}
-											onChange={next =>
-												setGrants(current => ({ ...current, [project.id]: next }))
-											}
-											className='w-28'
-										/>
-									) : (
-										<span className='text-xs text-muted'>{fullAccess ? '' : 'no access'}</span>
-									)}
-								</div>
-							)
-						})}
-					</div>
+					<AccessPicker projects={projects.data ?? []} value={access} onChange={setAccess} />
 				</Field>
 			</FormDialog>
 		</div>

@@ -12,6 +12,8 @@ import { Button } from './primitives'
 export function AuthGate({ children }: { children: ReactNode }) {
 	const navigate = useNavigate()
 	const pathname = useRouterState({ select: state => state.location.pathname })
+	const searchStr = useRouterState({ select: state => state.location.searchStr })
+	const next = useRouterState({ select: state => safeNext((state.location.search as { next?: unknown }).next) })
 	// Holding back until the first route's loaders settle paints the shell and the page in one frame.
 	const routeLoaded = useRouterState({ select: state => state.resolvedLocation !== undefined })
 
@@ -30,13 +32,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
 			return
 		}
 		if (!needsSetup && !authenticated && pathname !== '/login') {
-			void navigate({ to: '/login', replace: true })
+			// A deep link, such as an MCP client's consent request, survives signing in.
+			void navigate({
+				to: '/login',
+				search: { next: pathname === '/' ? undefined : pathname + searchStr },
+				replace: true,
+			})
 			return
 		}
 		if (authenticated && (pathname === '/login' || pathname === '/setup')) {
-			void navigate({ to: '/', replace: true })
+			void navigate({ href: next ?? '/', replace: true })
 		}
-	}, [resolved, needsSetup, authenticated, pathname, navigate])
+	}, [resolved, needsSetup, authenticated, pathname, searchStr, next, navigate])
 
 	if (!resolved || !routeLoaded) {
 		// A failed status query never fills `setup.data`, so both the error and the
@@ -53,6 +60,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	if (target && target !== pathname) return null
 
 	return children
+}
+
+/**
+ * Where to go once signed in: only a path on this origin, never `//host` or `/\host`, so a link cannot send a fresh
+ * session elsewhere.
+ */
+export function safeNext(value: unknown) {
+	return typeof value === 'string' && /^\/(?![/\\])/u.test(value) ? value : undefined
 }
 
 /**

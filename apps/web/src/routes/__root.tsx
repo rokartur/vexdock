@@ -25,8 +25,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 	component: RootComponent,
 })
 
-/** Routes that render without the authenticated shell. */
-const publicRoutes = new Set(['/login', '/setup'])
+/** Routes that render without the shell. The OAuth consent screen still needs a session; AuthGate decides that. */
+const publicRoutes = new Set(['/login', '/setup', '/oauth/authorize'])
 
 function RootComponent() {
 	const pathname = useRouterState({ select: state => state.location.pathname })

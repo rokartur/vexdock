@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { IconLogin2 } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { safeNext } from '../components/auth-gate'
 import { Logo } from '../components/logo'
 import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signIn } from '../lib/auth-client'
 
 export const Route = createFileRoute('/login')({
+	validateSearch: (search: Record<string, unknown>): { next?: string } => ({ next: safeNext(search.next) }),
 	component: LoginPage,
 	// Pages inside the shell name the tab themselves; this one is outside it.
 	head: () => ({ meta: [{ title: 'Sign in · Vexdock' }] }),
@@ -14,6 +16,7 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
 	const navigate = useNavigate()
+	const { next } = Route.useSearch()
 	const queryClient = useQueryClient()
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
@@ -25,7 +28,7 @@ function LoginPage() {
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries()
-			await navigate({ to: '/', replace: true })
+			await navigate({ href: next ?? '/', replace: true })
 		},
 	})
 

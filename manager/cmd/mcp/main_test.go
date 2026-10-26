@@ -71,11 +71,21 @@ func TestServer(t *testing.T) {
 	var put []envVar
 	manager := fakeManager(t, &put)
 	tools := &toolbox{base: manager.URL, http: manager.Client()}
-	mcpServer := httptest.NewServer(handler(tools, "test", slog.New(slog.NewTextHandler(io.Discard, nil))))
+	metadata := resourceMetadataURL("https://panel.example.com/")
+	mcpServer := httptest.NewServer(handler(tools, "test", metadata, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	t.Cleanup(mcpServer.Close)
 
 	if _, err := connect(t, mcpServer.URL+"/mcp", "bad"); err == nil {
 		t.Fatal("a token the manager rejects connected")
+	}
+	// An OAuth client starts from the 401's pointer to the resource metadata.
+	resp, err := http.Post(mcpServer.URL+"/mcp", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if got, want := resp.Header.Get("WWW-Authenticate"), `Bearer resource_metadata="https://panel.example.com/.well-known/oauth-protected-resource/mcp"`; got != want {
+		t.Errorf("WWW-Authenticate = %q, want %q", got, want)
 	}
 
 	session, err := connect(t, mcpServer.URL+"/mcp", "good")
