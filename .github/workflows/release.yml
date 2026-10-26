@@ -9,10 +9,10 @@ permissions:
   packages: write
 
 env:
-  MANAGER: ghcr.io/${{ github.repository_owner }}/manager
-  AUTH: ghcr.io/${{ github.repository_owner }}/auth
-  MCP: ghcr.io/${{ github.repository_owner }}/mcp
-  PROXY: ghcr.io/${{ github.repository_owner }}/nginx
+  MANAGER: ghcr.io/${{ github.repository_owner }}/vexdock/manager
+  AUTH: ghcr.io/${{ github.repository_owner }}/vexdock/auth
+  MCP: ghcr.io/${{ github.repository_owner }}/vexdock/mcp
+  PROXY: ghcr.io/${{ github.repository_owner }}/vexdock/nginx
   # Links each GHCR package back to this repository.
   SOURCE: ${{ github.server_url }}/${{ github.repository }}
 

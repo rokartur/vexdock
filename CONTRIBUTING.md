@@ -170,19 +170,19 @@ same three bumps, then:
 git tag -a v0.1.0 -m v0.1.0 <merge commit> && git push origin v0.1.0
 ```
 
-That publishes `manager`, `auth`, `mcp` and `nginx` to `ghcr.io/<owner>` and
+That publishes `manager`, `auth`, `mcp` and `nginx` to `ghcr.io/<owner>/vexdock` and
 attaches `install.sh` and `compose.yml` to the GitHub release.
 
 **The first release of an image needs one manual step.** Packages pushed by a
 workflow are private, and an installer on someone else's VPS pulls anonymously.
-After the first successful run that publishes a new image (`mcp` arrived after
-the other three), open that package under `github.com/<owner>?tab=packages` and
+After the first successful run that publishes a new image (all four moved under
+`vexdock/` in 0.1.2-beta.3), open that package under `github.com/<owner>?tab=packages` and
 set its visibility to Public. Verify from a logged-out machine before
 announcing anything:
 
 ```sh
 docker logout ghcr.io
-docker pull ghcr.io/<owner>/manager:latest
+docker pull ghcr.io/<owner>/vexdock/manager:latest
 ```
 
 Images are `linux/amd64` only, and the installer refuses to run anywhere else.
