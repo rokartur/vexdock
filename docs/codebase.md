@@ -311,7 +311,7 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | `scripts/` | `smoke-test.sh` (the real deploy path against a running stack), `release-beta.sh` and `migrate-dokploy.ts` (one Dokploy project, volumes included) |
 | `site/index.html` | The landing page: one self-contained file, no build |
 | `skills/vexdock-mcp/` | An agent skill describing the MCP server: how to connect, what each tool does, what the errors mean. Shipped to users, so it moves with the tool list in `manager/src/bin/mcp/tools.rs` |
-| `.pi/skills/release-beta/` | The maintainer's skill that drives `make release-beta` |
+| `.agents/skills/release-beta/` | The maintainer's skill that drives `make release-beta` |
 | `.github/workflows/` | `ci.yml` (checks, shellcheck, a real installer run followed by the smoke test), `release.yml` (images on a `v*.*.*` tag), `delete-merged-branch.yml` |
 
 ## Manager
