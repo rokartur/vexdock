@@ -1,0 +1,64 @@
+[package]
+name = "vexdock-manager"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[[bin]]
+name = "manager"
+path = "src/bin/manager.rs"
+
+[[bin]]
+name = "mcp"
+path = "src/bin/mcp/main.rs"
+
+[dependencies]
+aes-gcm = "0.10"
+anyhow = "1"
+axum = { version = "0.8", features = ["ws", "macros"] }
+base64 = "0.22"
+bollard = "0.19"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+chrono-tz = "0.10"
+futures = "0.3"
+hex = "0.4"
+hmac = "0.12"
+libc = "0.2"
+mongodb = "3.9"
+mysql_async = { version = "0.37", default-features = false, features = ["minimal"] }
+instant-acme = { version = "0.8", default-features = false, features = ["ring", "hyper-rustls", "rcgen"] }
+percent-encoding = "2"
+p256 = { version = "0.13", features = ["pem", "pkcs8"] }
+rand = "0.8"
+regex = "1"
+ring = "0.17"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+subtle = "2"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-postgres = "0.7"
+tokio-stream = { version = "0.1", features = ["sync"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+ulid = "1"
+url = "2"
+x509-parser = "0.18"
+
+[dev-dependencies]
+http-body-util = "0.1"
+rcgen = "0.14"
+rsa = { version = "0.9", features = ["sha2"] }
+time = "0.3"
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+strip = true
+lto = "thin"
