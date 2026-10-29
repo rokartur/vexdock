@@ -90,8 +90,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # The cargo cache mounts in docker/*.Dockerfile die with the runner; a cold
-      # release build of the manager takes about six minutes.
+      # The cargo cache mounts in docker/*.Dockerfile die with the runner.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: cargo-image-cache
         with:
@@ -114,7 +113,7 @@ jobs:
       - name: Publish the images to a local registry
         run: |
           docker run -d -p 5000:5000 --name registry registry:2
-          make images VERSION=ci
+          make images VERSION=ci CARGO_PROFILE=ci
           for image in manager auth mcp nginx; do
             docker tag "vexdock-$image:ci" "localhost:5000/vexdock/$image:ci"
             docker push "localhost:5000/vexdock/$image:ci"

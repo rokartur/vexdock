@@ -6,9 +6,10 @@ RUN apk add --no-cache musl-dev
 
 WORKDIR /src
 COPY manager/ ./
+ARG CARGO_PROFILE=release
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
-    cargo build --release --locked --bin mcp && cp target/release/mcp /mcp
+    cargo build --profile "$CARGO_PROFILE" --locked --bin mcp && cp "target/$CARGO_PROFILE/mcp" /mcp
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
