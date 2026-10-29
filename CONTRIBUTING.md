@@ -9,7 +9,7 @@ bun install
 make check
 ```
 
-`make check` runs gofmt, `go vet`, the Go tests, and the typecheck and tests of
+`make check` runs rustfmt, clippy, the Rust tests, and the typecheck and tests of
 both the dashboard and the auth service. CI runs that plus `shellcheck` over the
 shell scripts and an integration job that installs and deploys against real
 Docker, so a green `make check` is necessary but not sufficient when you touch
@@ -46,10 +46,12 @@ from a button to the database and back. Read it before your first change.
 
 ## Conventions
 
-**Go.** Standard library first. No framework, no ORM. Errors are wrapped with
-context and returned, not logged and swallowed. Anything that reaches a command
-line is validated in `internal/security` before it gets there, and arguments are
-always separate slice elements.
+**Rust.** Few dependencies, no ORM: SQL lives in `src/database`. Errors are
+`anyhow` with context and returned, not logged and swallowed; the API maps them
+to its envelope in `src/api/respond.rs`. `cargo fmt` and `cargo clippy -D
+warnings` decide formatting and lint. Anything that reaches a command line is
+validated in `src/security` before it gets there, and arguments are always
+separate elements of the argument list.
 
 **TypeScript.** Strict mode, no `any`, inferred types wherever possible. Server
 state belongs to TanStack Query; component state is local.

@@ -1,4 +1,4 @@
-# Auth service: better-auth on Bun. It owns users and sessions; the Go manager
+# Auth service: better-auth on Bun. It owns users and sessions; the manager
 # only reads the session table to authenticate API requests.
 #
 # The lockfile covers the whole workspace, so the install has to be the whole

@@ -14,34 +14,26 @@ concurrency:
 
 jobs:
   manager:
-    name: Manager (Go)
+    name: Manager (Rust)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: '1.25'
-          cache-dependency-path: manager/go.sum
-
+      # rustup on the runner installs the toolchain manager/rust-toolchain.toml pins.
       - name: Format check
         working-directory: manager
-        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+        run: cargo fmt --check
 
-      - name: Vet
+      - name: Lint
         working-directory: manager
-        run: go vet ./...
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: Test
         working-directory: manager
-        run: go test -race ./...
-
-      - name: Build
-        working-directory: manager
-        run: CGO_ENABLED=0 go build ./...
+        run: cargo test --locked
 
   web:
     name: Dashboard and auth (TypeScript)
@@ -80,7 +72,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y shellcheck
           shellcheck -s sh installer/*.sh
-          shellcheck -s sh manager/internal/updater/update.sh
+          shellcheck -s sh manager/src/updater/update.sh
           shellcheck scripts/smoke-test.sh scripts/release-beta.sh
 
   install:

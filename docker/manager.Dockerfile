@@ -1,14 +1,15 @@
-# Manager image: the Go binary plus the two CLIs it drives (git and docker
+# Manager image: the Rust binary plus the two CLIs it drives (git and docker
 # compose). Nothing else, so the attack surface stays small.
-FROM golang:1.25-alpine AS build
+FROM rust:1.99-alpine3.22 AS build
+
+# musl-dev links the static binary; SQLite and ring compile their C with it.
+RUN apk add --no-cache musl-dev
 
 WORKDIR /src
-COPY manager/go.mod manager/go.sum ./
-RUN go mod download
-
 COPY manager/ ./
-# CGO stays off: modernc.org/sqlite is pure Go, so the binary is static.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/manager ./cmd/server
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target \
+    cargo build --release --locked --bin manager && cp target/release/manager /manager
 
 FROM alpine:3.22
 
@@ -16,7 +17,7 @@ FROM alpine:3.22
 # The manager runs as root on purpose: it drives the host's Docker socket.
 RUN apk add --no-cache ca-certificates git openssh-client docker-cli docker-cli-compose tzdata
 
-COPY --from=build /out/manager /usr/local/bin/manager
+COPY --from=build /manager /usr/local/bin/manager
 
 ENV PLATFORM_ROOT=/opt/vexdock \
     PLATFORM_LISTEN=:8080

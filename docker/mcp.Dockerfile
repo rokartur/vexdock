@@ -1,17 +1,18 @@
 # MCP server image: one static binary that talks to the manager over the
 # internal network. It holds no state and no secret.
-FROM golang:1.25-alpine AS build
+FROM rust:1.99-alpine3.22 AS build
+
+RUN apk add --no-cache musl-dev
 
 WORKDIR /src
-COPY manager/go.mod manager/go.sum ./
-RUN go mod download
-
 COPY manager/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/mcp ./cmd/mcp
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target \
+    cargo build --release --locked --bin mcp && cp target/release/mcp /mcp
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
-COPY --from=build /out/mcp /usr/local/bin/mcp
+COPY --from=build /mcp /usr/local/bin/mcp
 
 ENV MCP_LISTEN=:8090
 EXPOSE 8090

@@ -99,9 +99,9 @@ Four containers. Nginx is the only public entry point.
 
 | Component | Role |
 |---|---|
-| `vexdock-manager` | Go binary. Owns the Docker socket, SQLite state, the deploy pipeline, Nginx generation and ACME. |
+| `vexdock-manager` | Rust binary. Owns the Docker socket, SQLite state, the deploy pipeline, Nginx generation and ACME. |
 | `vexdock-auth` | better-auth on Bun. Owns accounts and sessions; the manager only validates them. |
-| `vexdock-mcp` | Go binary. The MCP server on `/mcp`; turns tool calls into API calls made with the caller's token. |
+| `vexdock-mcp` | Rust binary. The MCP server on `/mcp`; turns tool calls into API calls made with the caller's token. |
 | `vexdock-nginx` | Reverse proxy for every application plus the static dashboard. |
 
 Applications are ordinary compose projects on a shared `vexdock-proxy` network
@@ -157,7 +157,7 @@ change.
 ## Development
 
 ```sh
-make check      # go vet, go test, typecheck
+make check      # rustfmt, clippy, cargo test, typecheck
 make dev-up     # build the four images and run the whole stack locally
 make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 ./scripts/smoke-test.sh

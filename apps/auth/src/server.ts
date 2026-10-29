@@ -3,7 +3,7 @@ import { getMigrations } from 'better-auth/db/migration'
 import { backfillAccountIssuer } from './account-issuer'
 import { auth, authOptions, database } from './auth'
 
-// Nginx routes /api/auth/* here; everything else goes to the Go manager.
+// Nginx routes /api/auth/* here; everything else goes to the manager.
 const port = Number(process.env.PORT ?? 8081)
 
 // A fresh panel is reachable on a public IP before anyone has signed up, so the
@@ -24,7 +24,7 @@ function setupTokenAccepted(given: string): boolean {
 	return timingSafeEqual(bytes, setupTokenBytes)
 }
 
-// The schema is applied on boot, the same way the Go manager migrates its own
+// The schema is applied on boot, the same way the manager migrates its own
 // database, so a fresh install needs no separate migration step. The backfill
 // runs first: better-auth refuses to migrate a table whose existing rows it
 // cannot fill in.

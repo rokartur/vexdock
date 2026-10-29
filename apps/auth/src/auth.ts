@@ -3,14 +3,14 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { betterAuth } from 'better-auth'
 
-// better-auth owns users and sessions in its own SQLite file. The Go manager
+// better-auth owns users and sessions in its own SQLite file. The manager
 // never issues credentials; it reads the session table to authenticate API
 // requests, so there is exactly one implementation of login.
 const root = process.env.PLATFORM_ROOT ?? '/opt/vexdock'
 const databasePath = process.env.PLATFORM_AUTH_DB ?? `${root}/data/auth.db`
 mkdirSync(path.dirname(databasePath), { recursive: true })
 
-// WAL lets the Go manager read sessions from this file while the auth service
+// WAL lets the manager read sessions from this file while the auth service
 // writes to it.
 export const database = new Database(databasePath, { create: true })
 database.exec('PRAGMA journal_mode = WAL')

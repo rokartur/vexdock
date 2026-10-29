@@ -9,3 +9,4 @@ bin
 apps/web/.output
 apps/web/.tanstack
 apps/web/.vite
+**/target

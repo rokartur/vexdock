@@ -11,7 +11,7 @@
                            ▼                  ▼
                       ┌──────────────┐   ┌──────────────────────┐
                       │ vexdock-     │   │ your services        │
-                      │ manager (Go) │   │ (compose projects)   │
+                      │ manager      │   │ (compose projects)   │
                       └──────┬───────┘   └──────────────────────┘
                              │ docker.sock
                              ▼
@@ -35,10 +35,8 @@ cannot send a token gets one through OAuth, with the manager as the
 authorization server and the dashboard as its consent screen; the grant is one
 more API token, so nothing downstream tells the two apart.
 
-All four run under memory ceilings, and the manager's Go runtime under a soft
-limit below its container's, so the panel gives memory back before the kernel
-takes it and a runaway process restarts alone instead of starving the
-applications. The ceilings and their `.env` keys are in
+All four run under memory ceilings, so a runaway process restarts alone
+instead of starving the applications. The ceilings and their `.env` keys are in
 [install.md](install.md#memory).
 
 ## Why Nginx and not Traefik
@@ -223,7 +221,7 @@ A service can carry cron jobs that run inside its own container. They live in
 the manager for the same reason everything else does: it is the only component
 holding the Docker socket, so scheduling them anywhere else would mean handing
 that socket to a second process. There is no cron daemon and no crontab on the
-host. One goroutine wakes on the wall clock minute, reads that instant in each
+host. One task wakes on the wall clock minute, reads that instant in each
 enabled task's own timezone, and execs the ones whose expression matches; a task
 whose previous run has not finished is skipped rather than stacked, and a tick
 missed while the manager was down is not replayed. The timezone is the task's,
