@@ -16,7 +16,7 @@
 		"typecheck": "cd apps/web && bun run typecheck && cd ../auth && bun run typecheck"
 	},
 	"devDependencies": {
-		"ultracite": "7.12.4",
+		"ultracite": "8.1.0",
 		"vite": "catalog:",
 		"vite-plus": "catalog:"
 	},
