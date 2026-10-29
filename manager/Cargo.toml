@@ -62,3 +62,9 @@ tower = { version = "0.5", features = ["util"] }
 [profile.release]
 strip = true
 lto = "thin"
+
+# CI's throwaway installer images (make images CARGO_PROFILE=ci); release.yml
+# builds the shipped binaries with the release profile.
+[profile.ci]
+inherits = "dev"
+debug = false

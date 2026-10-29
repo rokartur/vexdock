@@ -7,9 +7,10 @@ RUN apk add --no-cache musl-dev
 
 WORKDIR /src
 COPY manager/ ./
+ARG CARGO_PROFILE=release
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
-    cargo build --release --locked --bin manager && cp target/release/manager /manager
+    cargo build --profile "$CARGO_PROFILE" --locked --bin manager && cp "target/$CARGO_PROFILE/manager" /manager
 
 FROM alpine:3.22
 

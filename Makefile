@@ -4,6 +4,7 @@ SHELL := /bin/sh
 # Local development writes to ./.vexdock so nothing touches /opt.
 PLATFORM_ROOT ?= $(CURDIR)/.vexdock
 VERSION ?= dev
+CARGO_PROFILE ?= release
 # Fixed on purpose: a local stack keeps its sessions across restarts. The
 # installer generates a real one per install.
 DEV_AUTH_SECRET ?= dev-only-not-a-secret
@@ -53,9 +54,9 @@ web-check: ## Typecheck and test the dashboard and the auth service
 
 .PHONY: images
 images: ## Build the four container images locally
-	docker build -f docker/manager.Dockerfile -t vexdock-manager:$(VERSION) .
+	docker build -f docker/manager.Dockerfile --build-arg CARGO_PROFILE=$(CARGO_PROFILE) -t vexdock-manager:$(VERSION) .
 	docker build -f docker/auth.Dockerfile -t vexdock-auth:$(VERSION) .
-	docker build -f docker/mcp.Dockerfile -t vexdock-mcp:$(VERSION) .
+	docker build -f docker/mcp.Dockerfile --build-arg CARGO_PROFILE=$(CARGO_PROFILE) -t vexdock-mcp:$(VERSION) .
 	docker build -f docker/nginx.Dockerfile -t vexdock-nginx:$(VERSION) .
 
 ## ---- local stack ----
