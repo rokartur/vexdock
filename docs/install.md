@@ -61,7 +61,6 @@ spawns, and the manager runs at most two deploys at once for the same reason
 | `.env` key | Default | Container |
 |---|---|---|
 | `MANAGER_MEMORY` | `1g` | `vexdock-manager`, including the git and compose processes of a deploy |
-| `MANAGER_GOMEMLIMIT` | `256MiB` | Soft ceiling for the manager's own Go heap; stays well under `MANAGER_MEMORY` |
 | `AUTH_MEMORY` | `256m` | `vexdock-auth` |
 | `MCP_MEMORY` | `64m` | `vexdock-mcp` |
 | `NGINX_MEMORY` | `256m` | `vexdock-nginx` |

@@ -17,21 +17,22 @@ help: ## Show this help
 # The running version comes from PLATFORM_VERSION in the environment, not from
 # the binary, so there is nothing to stamp in here.
 .PHONY: manager
-manager: ## Build the manager binary into ./bin
-	cd manager && go build -trimpath -ldflags "-s -w" -o ../bin/manager ./cmd/server
+manager: ## Build the manager and MCP binaries into ./bin
+	cd manager && cargo build --release --locked --bins
+	mkdir -p bin && cp manager/target/release/manager manager/target/release/mcp bin/
 
 .PHONY: run
 run: ## Run the manager against ./.vexdock on :8080
-	cd manager && PLATFORM_ROOT=$(PLATFORM_ROOT) PLATFORM_LISTEN=127.0.0.1:8080 PLATFORM_LOG_LEVEL=debug go run ./cmd/server
+	cd manager && PLATFORM_ROOT=$(PLATFORM_ROOT) PLATFORM_LISTEN=127.0.0.1:8080 PLATFORM_LOG_LEVEL=debug cargo run --bin manager
 
 .PHONY: test
-test: ## Run Go tests
-	cd manager && go test ./...
+test: ## Run the Rust tests
+	cd manager && cargo test --locked
 
 .PHONY: lint
-lint: ## Vet and format-check the Go code
-	cd manager && go vet ./...
-	@test -z "$$(cd manager && gofmt -l .)" || { echo "gofmt needed:"; cd manager && gofmt -l .; exit 1; }
+lint: ## Format-check and lint the Rust code
+	cd manager && cargo fmt --check
+	cd manager && cargo clippy --locked --all-targets -- -D warnings
 
 ## ---- frontend ----
 
@@ -80,7 +81,7 @@ dev-logs: ## Follow the manager logs
 	docker logs -f vexdock-manager
 
 .PHONY: check
-check: lint test web-check ## The gate: gofmt, vet, Go and Bun tests, typechecks
+check: lint test web-check ## The gate: rustfmt, clippy, Rust and Bun tests, typechecks
 
 ## ---- release ----
 

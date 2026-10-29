@@ -48,10 +48,6 @@ services:
       # `docker login` for a private registry writes here: on the host, so the
       # credential survives the recreate every update does.
       DOCKER_CONFIG: ${PLATFORM_ROOT:-/opt/vexdock}/system/docker
-      # Soft ceiling for the Go heap, well under the container's limit. The
-      # collector only works harder as the heap nears it, so an idle manager
-      # pays nothing and a busy one gives memory back instead of being killed.
-      GOMEMLIMIT: ${MANAGER_GOMEMLIMIT:-256MiB}
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
