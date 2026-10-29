@@ -1,13 +1,13 @@
 # API
 
 The dashboard is a client of the same REST API you can use from CI. This
-document is the description of it; `manager/internal/api/api.go` is the routing
-table it is written from.
+document is the description of it; `router()` in `manager/src/api/mod.rs` is the
+routing table it is written from.
 
 ## Authentication
 
 Everything under `/api/auth` is served by the better-auth service; the rest is
-the Go manager. Two credentials are accepted.
+the manager. Two credentials are accepted.
 
 **Session cookie.** `POST /api/auth/sign-in/email` sets an HttpOnly cookie named
 `better-auth.session_token`. The manager validates it against better-auth's

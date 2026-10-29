@@ -52,7 +52,7 @@ export function useEventSource(url: string | null, handlers: Record<string, (dat
 }
 
 /**
- * Mirrors the publish sites in `deployments/engine.go` and `events/reconciler.go`. EventSource has no wildcard, so an
+ * Mirrors the publish sites in `deployments/mod.rs` and `events/reconciler.rs`. EventSource has no wildcard, so an
  * event missing from this list never reaches the panel.
  */
 const systemEvents = [

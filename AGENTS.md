@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Vexdock: a self-hosted deployment platform for one Linux server. Three
-containers: a Go manager that owns the Docker socket, better-auth on Bun, and
+containers: a Rust manager that owns the Docker socket, better-auth on Bun, and
 Nginx as the only public entry point. [README.md](README.md) says what it does,
 [docs/codebase.md](docs/codebase.md) maps the tree, the words and the packages,
 [CONTRIBUTING.md](CONTRIBUTING.md) has the conventions, tests and releasing.
@@ -12,7 +12,7 @@ Read the one that matches the change before making it.
 | Question | Where |
 |---|---|
 | How the pieces fit, why Nginx, how deploys run | [docs/architecture.md](docs/architecture.md) |
-| What the API exposes, errors, SSE streams | [docs/api.md](docs/api.md), `manager/internal/api/api.go` |
+| What the API exposes, errors, SSE streams | [docs/api.md](docs/api.md), `manager/src/api/mod.rs` |
 | Trust boundary, CSRF, secrets, encryption | [docs/security.md](docs/security.md) |
 | Install, update, uninstall, installer flags | [docs/install.md](docs/install.md), `installer/install.sh` |
 | Something is broken | [docs/troubleshooting.md](docs/troubleshooting.md) |
@@ -23,9 +23,9 @@ Read the one that matches the change before making it.
 `make check` is the gate ([CONTRIBUTING.md](CONTRIBUTING.md#getting-set-up) says
 what it runs). Run it before reporting done. `make help` lists everything else.
 
-CI (`.github/workflows/ci.yml`) skips the Bun tests but adds `go test -race`,
-the builds, `shellcheck` over the scripts it lists, and an integration job that
-runs the real installer against images in a local registry, then
+CI (`.github/workflows/ci.yml`) skips the Bun tests but adds the dashboard
+build, `shellcheck` over the scripts it lists, and an integration job that runs
+the real installer against images in a local registry, then
 `./scripts/smoke-test.sh`.
 Touching a shell script means running shellcheck locally; touching the deploy
 path means `make dev-up` then `./scripts/smoke-test.sh`, the local stand-in for
@@ -46,27 +46,29 @@ quotes, no semicolons, 120 columns. The config decides, so let it.
 The API is described in three places and none derives from the others. Change
 one, change the rest:
 
-1. `manager/internal/api/api.go`, the mux. The only one that actually routes.
+1. `manager/src/api/mod.rs`, the route table in `router()`. The only one that
+   actually routes.
 2. `docs/api.md`, errors, streams, examples, token scopes and the MCP tool
    table.
-3. `manager/cmd/mcp/tools.go`, for a route a tool calls or a shape it decodes.
+3. `manager/src/bin/mcp/tools.rs`, for a route a tool calls or a shape it
+   decodes.
 
 `apps/web/src/lib/api.ts` is the fourth whenever a request or response shape
 moved.
 
-The MCP tools are described twice: `manager/cmd/mcp/tools.go` and
+The MCP tools are described twice: `manager/src/bin/mcp/tools.rs` and
 `skills/vexdock-mcp/SKILL.md`. The skill runs on users' machines without the
 repo, so it repeats instead of linking. Add, rename or change a tool, change
 both, and the tool table in `docs/api.md`.
 
 ## Recipes
 
-**New endpoint.** Handler in the matching `internal/api/*_handlers.go`, register
-it in `api.go` through one of the wrappers in `internal/api/access.go`:
-`s.project(level, projectOf..., h)` for anything inside one project (`read`
-unless it changes state or returns a secret), `s.admin` for anything wider,
-`s.signedIn` only for what every token may see. A public route goes straight on
-the mux. Then walk the [parallel lists](#parallel-lists).
+**New endpoint.** Handler in the matching `src/api/*_handlers.rs`, one line in
+`router()` in `src/api/mod.rs` with its `Access` from `src/api/access.rs`:
+`Project(READ or WRITE, ProjectOf::...)` for anything inside one project (`READ`
+unless it changes state or returns a secret), `Admin` for anything wider,
+`SignedIn` only for what every token may see, `Public` for what needs no
+credential. Then walk the [parallel lists](#parallel-lists).
 
 **Schema change.** A new `manager/migrations/000N_name.sql`. They are embedded
 in the binary and applied in filename order on boot, so a shipped migration is
@@ -75,7 +77,7 @@ start with `-- vexdock:rebuild`, which runs it with foreign keys off and checks
 for dangling references before committing; without the marker `DROP TABLE`
 silently cascade-deletes every dependent row.
 
-**New template.** One entry in `manager/internal/templates/catalog.go`: compose
+**New template.** One entry in `manager/src/templates/catalog.rs`: compose
 service bodies at zero indentation, a `Variable` for every `${VAR}` they use,
 and the service and port its domain reaches. The test fails on a fragment that
 references a variable nobody declares.
@@ -138,12 +140,13 @@ not send is a backend change, not a placeholder.
 
 **Environment-scoped work.** The environment, not the project, owns the compose
 project name, the directory and the services. A project API route takes
-`?environment=`; `s.projectEnv(w, r)` resolves it and falls back to the default.
+`?environment=`; `s.project_env(&id, &q)` resolves it and falls back to the
+default.
 The dashboard's own URLs carry it as `?env=` through `lib/environment.ts`.
-Never reach for `project.ComposeProjectName` in new code.
+Never reach for `project.compose_project_name` in new code.
 
-**Anything reaching a command line** is validated in `internal/security` first,
-with every argument as its own slice element.
+**Anything reaching a command line** is validated in `src/security` first,
+with every argument as its own element of the argument list.
 
 ## Keep the docs in sync
 

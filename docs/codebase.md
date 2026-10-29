@@ -8,18 +8,20 @@ shape lives in the tree and how a request moves through it.
 
 Read in this order, about an hour in total:
 
-1. `manager/cmd/server/main.go`: every subsystem is constructed here and handed
-   to the API. The `run` function is the dependency graph in about 120 lines.
-2. `manager/internal/api/api.go`: the route table, then `protected`, which is
-   the whole auth and CSRF story in one function.
-3. One handler file, `manager/internal/api/domain_handlers.go`: the pattern
-   every endpoint follows.
-4. `apps/web/src/lib/api.ts`: the dashboard's only way to talk to the manager.
-5. One page, `apps/web/src/routes/docker.networks.tsx`: the pattern every page
+1. `manager/src/api/mod.rs`: `Server::new` constructs every subsystem, the
+   dependency graph in about 30 lines; `router()` below it is the route table
+   with each route's access level.
+2. `manager/src/api/access.rs`: `guard`, the whole auth and CSRF story in one
+   function.
+3. One handler file, `manager/src/api/domain_handlers.rs`: the pattern every
+   endpoint follows.
+4. `manager/src/bin/manager.rs`: boot, the background tasks and the listeners.
+5. `apps/web/src/lib/api.ts`: the dashboard's only way to talk to the manager.
+6. One page, `apps/web/src/routes/docker.networks.tsx`: the pattern every page
    follows.
 
-Every Go package opens with a comment naming what it owns and why it exists.
-`cd manager && go doc ./internal/domains` prints one without opening the file.
+Every Rust module opens with a `//!` comment naming what it owns and why it
+exists. `cd manager && cargo doc --open` renders them all.
 
 ## Words
 
@@ -40,7 +42,7 @@ Every Go package opens with a comment naming what it owns and why it exists.
 | **Project token** | An API token limited to listed projects, each at `read` or `write`. Its opposite is an admin token, which reaches every route as a dashboard session does. |
 | **OAuth grant** | An API token an MCP client got through OAuth instead of a person creating it: it has a `client_id`, its access token rotates hourly and its refresh token on every use. Same scopes, same revoke. |
 | **Task** | A cron job that runs a command inside a service's container. |
-| **Bus** | The in-process pub/sub in `internal/events`. Everything a browser sees live comes off it. |
+| **Bus** | The in-process pub/sub in `src/events`. Everything a browser sees live comes off it. |
 
 ## One request, end to end
 
@@ -52,30 +54,30 @@ sequenceDiagram
     participant Page as routes/projects.$projectId.index.tsx
     participant API as lib/api.ts
     participant Nginx
-    participant Protected as api/access.go project()
-    participant Handler as handleDeploy
-    participant Engine as deployments.Engine
+    participant Protected as api/access.rs guard
+    participant Handler as project_handlers::deploy
+    participant Engine as deployments::Engine
     participant DB as database
-    participant Bus as events.Bus
-    participant SSE as api/sse.go
+    participant Bus as events::Bus
+    participant SSE as api/sse.rs
 
     Page->>API: api.deploy(projectId, environmentId)
     API->>Nginx: POST /api/projects/{id}/deploy?environment= (cookie)
     Nginx->>Protected: proxy to manager:8080
-    Protected->>DB: Auth.Authenticate (auth.db, read-only)
-    Protected->>Protected: auth.SameOrigin (cookie + mutation)
+    Protected->>DB: Auth::authenticate (auth.db, read-only)
+    Protected->>Protected: auth::same_origin (cookie + mutation)
     Protected->>Handler: next
-    Handler->>DB: projectEnv: project + environment
-    Handler->>Engine: Trigger(env, scope)
-    Engine->>DB: CreateDeployment(status=queued)
+    Handler->>DB: project_env: project + environment
+    Handler->>Engine: trigger(env, scope)
+    Engine->>DB: create_deployment(status=queued)
     Engine->>Bus: deployment.queued
-    Engine-->>Handler: row (run() started in a goroutine)
+    Engine-->>Handler: row (run() spawned on the runtime)
     Handler-->>API: 202 deployment
     Protected->>DB: audit row
     API-->>Page: navigate to /deployments/{id}
 
     Page->>SSE: GET /api/deployments/{id}/events
-    SSE->>Bus: Subscribe(deployment topic)
+    SSE->>Bus: subscribe(deployment topic)
     loop each step: clone, checkout, validate, pull, build, start, healthcheck, proxy, finish
         Engine->>DB: step status + output
         Engine->>Bus: step event
@@ -92,25 +94,26 @@ sequenceDiagram
    with `credentials: 'same-origin'`. No token: the session cookie is the credential.
 3. Nginx (`docker/nginx/dashboard.conf`) proxies `/api/` to `manager:8080`. It
    adds `X-Forwarded-Proto` and `X-Real-IP` on the way.
-4. `api.go` matches `POST /api/projects/{id}/deploy` and wraps the handler in
-   `protected`: `Auth.Authenticate` reads the session out of `auth.db`, then
-   because this is a cookie-authenticated mutation, `auth.SameOrigin` compares
-   `Origin` with the addressed host. Fail either and the handler never runs.
-5. `handleDeploy` in `project_handlers.go` calls `s.projectEnv(w, r)`, which
+4. `router()` in `api/mod.rs` matches `POST /api/projects/{id}/deploy` and puts
+   `access::guard` in front of the handler: `Auth::authenticate` reads the
+   session out of `auth.db`, then because this is a cookie-authenticated
+   mutation, `auth::same_origin` compares `Origin` with the addressed host.
+   Fail either and the handler never runs.
+5. `deploy` in `project_handlers.rs` calls `s.project_env(&id, &q)`, which
    loads the project and resolves `?environment=` (falling back to the default),
-   then `Deployments.Trigger(...)`.
-6. `deployments/engine.go` `Trigger` inserts a `queued` row through
-   `database.CreateDeployment`, publishes `deployment.queued` on the bus,
-   starts `run` in a goroutine and returns. The handler answers `202` with the
+   then `deployments.trigger(...)`.
+6. `Engine::trigger` in `deployments/mod.rs` inserts a `queued` row through
+   `Db::create_deployment`, publishes `deployment.queued` on the bus, spawns
+   `run` on the Tokio runtime and returns. The handler answers `202` with the
    row; the HTTP request is never held open by a build.
-7. `protected` records the mutation in the audit log with the actor, path and
+7. `guard` records the mutation in the audit log with the actor, path and
    status.
 8. The dashboard navigates to the deployment page, which opens
-   `GET /api/deployments/{id}/events`. `api/sse.go` subscribes to the bus topic
+   `GET /api/deployments/{id}/events`. `api/sse.rs` subscribes to the bus topic
    for that deployment and streams every step and output line.
 9. `run` takes the per-environment lock, then walks the steps. Each step is
    written to the database and published on the bus as it changes. `start`
-   shells out through `internal/compose`; `proxy` calls `domains.Reconcile`.
+   shells out through `compose`; `proxy` calls `Domains::reconcile`.
 10. On finish the engine publishes `deployment.success` (or `failed`) on the
     system topic. `lib/sse.ts` `useSystemEvents`, mounted once in the shell,
     listens on `/api/system/events` and invalidates the whole query cache, so
@@ -123,35 +126,35 @@ attaches one on its own.
 ### Adding a domain
 
 The path from a hostname in a form to a certificate on disk. Everything after
-`CreateDomain` is best-effort: the mapping exists even if the proxy or ACME
+`create_domain` is best-effort: the mapping exists even if the proxy or ACME
 part fails, and the error tells the user which one did.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Handler as handleCreateDomain
-    participant Domains as domains.Service
+    participant Handler as domain_handlers::create_domain
+    participant Domains as domains::Domains
     participant Sec as security
     participant DB as database
-    participant Docker as docker.Client
-    participant Nginx as nginx.Manager
-    participant ACME as certificates.Issuer
+    participant Docker as docker::Docker
+    participant Nginx as nginx::Nginx
+    participant ACME as certificates::Issuer
 
-    Handler->>Domains: Create(hostname, service, port, https)
-    Domains->>Sec: ValidateHostname, ValidatePort, ValidateServiceName
-    Domains->>DB: ProjectByID, EnvironmentOrDefault, ServiceByName
-    Domains->>DB: CreateDomain (unique hostname)
-    Domains->>Domains: Reconcile()
-    Domains->>Docker: EnsureNetwork(vexdock-proxy)
-    Domains->>Docker: ConnectWithAlias(container, p_<env>_<service>)
-    Domains->>Nginx: Apply(desired vhosts, HTTP only: no cert yet)
+    Handler->>Domains: create(hostname, service, port, https)
+    Domains->>Sec: validate_hostname, validate_port, validate_service_name
+    Domains->>DB: project_by_id, environment_or_default, service_by_name
+    Domains->>DB: create_domain (unique hostname)
+    Domains->>Domains: reconcile()
+    Domains->>Docker: ensure_network(vexdock-proxy)
+    Domains->>Docker: connect_with_alias(container, p_<env>_<service>)
+    Domains->>Nginx: apply(desired vhosts, HTTP only: no cert yet)
     Nginx->>Nginx: write files, nginx -t, reload (restore old files on failure)
     alt https
-        Domains->>ACME: EnsureCertificate -> Issue(hostname)
+        Domains->>ACME: ensure_certificate -> issue(hostname)
         ACME->>Nginx: HTTP-01 token under /acme-challenge (or Cloudflare DNS-01)
         ACME-->>Domains: certificate + key written to /certificates/<host>/
-        Domains->>DB: UpsertCertificate(status=issued)
-        Domains->>Domains: Reconcile() again, vhost now has TLS
+        Domains->>DB: upsert_certificate(status=issued)
+        Domains->>Domains: reconcile() again, vhost now has TLS
     end
     Domains-->>Handler: domain (and the first error, if any)
 ```
@@ -166,10 +169,10 @@ domain mutation, and from here.
 sequenceDiagram
     autonumber
     participant Docker as Docker daemon
-    participant Rec as events.Reconciler
-    participant Bus as events.Bus
-    participant Domains as domains.Service
-    participant Nginx as nginx.Manager
+    participant Rec as events::Reconciler
+    participant Bus as events::Bus
+    participant Domains as domains::Domains
+    participant Nginx as nginx::Nginx
 
     par watchDocker
         Docker-->>Rec: container start | die | stop | destroy | health_status
@@ -180,14 +183,14 @@ sequenceDiagram
     and tick
         Rec->>Rec: notify(trigger) on boot and every sweep interval
     end
-    Rec->>Rec: debounce, one Reconcile per burst
-    Rec->>Domains: Reconcile()
+    Rec->>Rec: debounce, one reconcile per burst
+    Rec->>Domains: reconcile()
     Domains->>Domains: lock, list every domain
     loop each domain
         Domains->>Docker: find the service container, attach with alias
         Domains->>Domains: render vhost (TLS only if the cert file exists)
     end
-    Domains->>Nginx: Apply(desired)
+    Domains->>Nginx: apply(desired)
     Nginx->>Nginx: diff against disk, nginx -t, reload or roll back
 ```
 
@@ -208,7 +211,7 @@ sequenceDiagram
     participant Nginx
     participant Auth as apps/auth server.ts
     participant AuthDB as auth.db
-    participant Manager as manager authenticated()
+    participant Manager as manager access::guard
 
     Browser->>Gate: load any route
     Gate->>Nginx: GET /api/auth/platform-status
@@ -239,10 +242,10 @@ sequenceDiagram
 
 The gate holds the route back until both queries answer, so an unauthenticated
 visitor never mounts the shell and fires a burst of 401s. A bearer
-`Authorization` header takes the other branch in `auth.Authenticate`: the
+`Authorization` header takes the other branch in `Auth::authenticate`: the
 token hash is looked up in the manager's own `api_tokens` table, and the user
 row is read from `auth.db` for its current name. The token rides on the user
-(`User.Token`), and the route's wrapper in `api/access.go` checks it against
+(`User::token`), and the route's `Access` in `api/access.rs` checks it against
 the project the route resolves.
 
 ### Self-update
@@ -255,18 +258,18 @@ panel can keep rendering while the manager itself is being recreated.
 sequenceDiagram
     autonumber
     participant Page as routes/system.settings.about.tsx
-    participant Handler as handleUpdate
-    participant Upd as updater.Service
-    participant Backup as backup.Service
+    participant Handler as system_handlers::update
+    participant Upd as updater::Updater
+    participant Backup as backup::Backup
     participant Docker as docker CLI
     participant Script as vexdock-updater (update.sh)
     participant State as system/update-state.json
 
     Page->>Handler: POST /api/system/update {version}
-    Handler->>Upd: Start(version, prerelease, cleanupOldImages)
-    Upd->>Upd: version matches ^v?N.N.N(-pre)?$, no update Active()
+    Handler->>Upd: start(version, prerelease, cleanup_old_images)
+    Upd->>Upd: version matches ^v?N.N.N(-pre)?$, no update active()
     Upd->>State: phase=backup
-    Upd->>Backup: Create(platform state only, no app volumes)
+    Upd->>Backup: create(platform state only, no app volumes)
     Upd->>Upd: write update.sh under the platform root
     Upd->>Docker: docker run --detach --name vexdock-updater docker:28-cli sh update.sh VERSION
     Upd-->>Page: 202
@@ -299,7 +302,7 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 
 | Path | What |
 |---|---|
-| `manager/` | The Go manager, [below](#manager) |
+| `manager/` | The Rust manager, [below](#manager) |
 | `apps/web/` | The dashboard, [below](#dashboard) |
 | `apps/auth/` | The auth service, [below](#auth-service) |
 | `compose.yml` | The production stack the installer fetches for a release tag; `compose.dev.yml` overlays local builds and `./.vexdock` on it |
@@ -307,63 +310,65 @@ after `VERSION` is written goes through `rollback`, never through `set -e`.
 | `installer/install.sh` | Install, update and uninstall on a host. `PLATFORM_LOCAL_COMPOSE` points it at a local compose file, which is how CI runs it; `PLATFORM_RAW_BASE` swaps the base URL it downloads `compose.yml` from |
 | `scripts/` | `smoke-test.sh` (the real deploy path against a running stack), `release-beta.sh` and `migrate-dokploy.ts` (one Dokploy project, volumes included) |
 | `site/index.html` | The landing page: one self-contained file, no build |
-| `skills/vexdock-mcp/` | An agent skill describing the MCP server: how to connect, what each tool does, what the errors mean. Shipped to users, so it moves with the tool list in `cmd/mcp/tools.go` |
+| `skills/vexdock-mcp/` | An agent skill describing the MCP server: how to connect, what each tool does, what the errors mean. Shipped to users, so it moves with the tool list in `manager/src/bin/mcp/tools.rs` |
 | `.pi/skills/release-beta/` | The maintainer's skill that drives `make release-beta` |
 | `.github/workflows/` | `ci.yml` (checks, shellcheck, a real installer run followed by the smoke test), `release.yml` (images on a `v*.*.*` tag), `delete-merged-branch.yml` |
 
 ## Manager
 
-`manager/` is one Go module, standard library HTTP, SQLite through
-`modernc.org/sqlite`, the Docker SDK, and shelling out to `git` and
-`docker compose`.
+`manager/` is one Cargo crate: a library with one module per concern and two
+binaries on top of it. HTTP is axum on Tokio, SQLite is rusqlite (bundled),
+Docker is bollard, and it shells out to `git` and `docker compose`.
 
-| Package | Owns |
+| Module | Owns |
 |---|---|
-| `cmd/server` | `main`: config, construction, background goroutines, HTTP server |
-| `cmd/mcp` | The MCP server, its own image: tools that call the manager's REST API with the caller's token |
-| `internal/api` | Routes, middleware, one `*_handlers.go` per resource, SSE writer; `access.go` holds the three wrappers every authenticated route goes through and the project resolvers; `oauth_handlers.go` is the OAuth authorization server for MCP clients |
-| `internal/auth` | Session lookup in `auth.db`, API tokens, the same-origin check |
-| `internal/backup` | Snapshots of both databases, proxy config, certificates, volumes |
-| `internal/certificates` | ACME issuance (HTTP-01 and Cloudflare DNS-01), uploaded certificate validation |
-| `internal/compose` | The `docker compose` CLI wrapper |
-| `internal/config` | Environment variables to paths and settings; creates the state directories |
-| `internal/database` | The SQLite connection, migrations, models and every query |
-| `internal/deployments` | The pipeline |
-| `internal/docker` | Docker SDK wrapper: containers, images, volumes, networks, exec, stats |
-| `internal/domains` | Hostname to service, proxy attachment, vhost rendering, reconcile |
-| `internal/engines` | The database catalog and the compose fragment each engine renders |
-| `internal/events` | The bus and the Docker event reconciler |
-| `internal/git` | Clone with credentials, GitHub App JWTs, OAuth for the other hosts |
-| `internal/metrics` | Host and container sampling into the metrics tables |
-| `internal/nginx` | Vhost generation with a service's redirects and basic auth, `.htpasswd` files, `nginx -t`, reload with byte-for-byte rollback |
-| `internal/projects` | Project and environment lifecycle, on-disk layout, `managed.yml` rendering, import/export |
-| `internal/schedule` | Cron parsing and the task runner |
-| `internal/security` | Validation of anything that reaches a command line, AES-GCM cipher, path confinement, token hashing |
-| `internal/studio` | Studio: schema, rows, edits and queries against a catalog database, one file per wire protocol |
-| `internal/templates` | The application catalog: the compose services one entry installs and the values it seeds |
-| `internal/updater` | Self-update: state file, the detached updater container, `update.sh` |
+| `src/bin/manager.rs` | The manager binary: config, boot-time recovery, background tasks, the listeners, `-healthcheck` |
+| `src/bin/mcp/` | The MCP server, its own image: streamable HTTP by hand in `main.rs`, tools in `tools.rs` that call the manager's REST API with the caller's token |
+| `src/api` | `Server::new` and the route table in `mod.rs`, one `*_handlers.rs` per resource, the SSE writer; `access.rs` holds the `Access` levels, the `guard` every authenticated route goes through and the project resolvers; `oauth_handlers.rs` is the OAuth authorization server for MCP clients |
+| `src/auth` | Session lookup in `auth.db`, API tokens, the same-origin check |
+| `src/backup` | Snapshots of both databases, proxy config, certificates, volumes |
+| `src/certificates` | ACME issuance (HTTP-01 and Cloudflare DNS-01), uploaded certificate validation |
+| `src/compose` | The `docker compose` CLI wrapper |
+| `src/config.rs` | Environment variables to paths and settings; creates the state directories |
+| `src/database` | The SQLite connection, migrations, models and every query |
+| `src/deployments` | The pipeline |
+| `src/docker` | Docker SDK wrapper: containers, images, volumes, networks, exec, stats |
+| `src/domains` | Hostname to service, proxy attachment, vhost rendering, reconcile |
+| `src/engines` | The database catalog and the compose fragment each engine renders |
+| `src/events` | The bus and the Docker event reconciler |
+| `src/git` | Clone with credentials, GitHub App JWTs, OAuth for the other hosts |
+| `src/metrics` | Host and container sampling into the metrics tables |
+| `src/nginx` | Vhost generation with a service's redirects and basic auth, `.htpasswd` files, `nginx -t`, reload with byte-for-byte rollback |
+| `src/projects` | Project and environment lifecycle, on-disk layout, `managed.yml` rendering, import/export |
+| `src/schedule` | Cron parsing and the task runner |
+| `src/security` | Validation of anything that reaches a command line, AES-GCM cipher, path confinement, token hashing |
+| `src/studio` | Studio: schema, rows, edits and queries against a catalog database, one file per wire protocol |
+| `src/templates` | The application catalog: the compose services one entry installs and the values it seeds |
+| `src/updater` | Self-update: state file, the detached updater container, `update.sh` |
 | `migrations` | `000N_name.sql`, embedded, applied in order on boot |
 
-Dependency direction: `database` imports only the driver. Business packages
-(`projects`, `domains`, `deployments`, ...) import `database`. `api` imports
-everything and is imported by nothing but `main`. A cycle will not compile, so
-if you find yourself wanting one, the logic is in the wrong package.
+Dependency direction: `database` uses only the driver. Business modules
+(`projects`, `domains`, `deployments`, ...) use `database`. `api` uses
+everything and is used by nothing but the two binaries. Keep it that way: a
+module reaching back up is logic in the wrong module.
 
 ### Conventions you will see everywhere
 
-- A handler decodes with `decode`, answers with `writeJSON`, and reports
-  failures with `badRequest`, `lookupFailed` or `serverError`
-  (`api/respond.go`). Every error is `{"error": {"code", "message", "details"}}`.
-- Project routes take `?environment=`; `s.projectEnv(w, r)` resolves it.
-- A route is registered through `s.signedIn`, `s.admin` or
-  `s.project(level, projectOf..., h)` (`api/access.go`); there is no fourth way.
+- A handler returns `ApiResult`: it decodes with `decode`, answers with `ok`,
+  `created` or `done`, and fails with `bad_request`, `lookup` or `?` on an
+  `anyhow::Error` (`api/respond.rs`). Every error is
+  `{"error": {"code", "message", "details"}}`.
+- Project routes take `?environment=`; `s.project_env(&id, &q)` resolves it.
+- A route is one `.route("METHOD /path", access, handler)` line in `router()`,
+  with `Public`, `SignedIn`, `Admin` or `Project(level, ProjectOf::...)`
+  (`api/access.rs`); there is no fifth way.
 - Anything a user typed that will end up in an argv, a file name or a YAML
-  file goes through `internal/security` first.
-- Secrets are stored through `security.Cipher` and never logged or returned.
-- Long work starts a goroutine and answers `202`; progress goes on the bus.
-- Every timestamp is `database.Now()`, RFC3339 UTC, so string comparison in
+  file goes through `src/security` first.
+- Secrets are stored through `security::Cipher` and never logged or returned.
+- Long work is spawned on the runtime and answers `202`; progress goes on the bus.
+- Every timestamp is `database::now()`, RFC3339 UTC, so string comparison in
   SQL sorts correctly.
-- Logging is `slog`, structured, with a `component` field set at construction.
+- Logging is `tracing`, JSON lines on stdout.
 
 ## Dashboard
 
@@ -434,7 +439,7 @@ populated table gets a backfill beside it that runs first, the way
 
 | Changing | Command | Where it shows |
 |---|---|---|
-| Go code | `make dev-up` (rebuilds the manager image) | `:3000`, `make dev-logs` |
+| Rust code | `make dev-up` (rebuilds the manager image) | `:3000`, `make dev-logs` |
 | Dashboard, quick loop | `make dev-up` once, then `make web-dev` | `:5173` with HMR, `/api` proxied to the stack |
 | Dashboard, as shipped | `make web` | `:3000` at once; Nginx serves `apps/web/dist/client` from the tree |
 | A migration | `make dev-up` | applied on boot; watch `make dev-logs` |
@@ -448,7 +453,7 @@ dashboard.
 Dev state is `./.vexdock`. `make dev-down` stops the stack and keeps it; delete
 the directory to start from nothing.
 
-The manager reads `PLATFORM_*` variables; `internal/config/config.go` is the
+The manager reads `PLATFORM_*` variables; `manager/src/config.rs` is the
 full list with defaults, and `compose.yml` maps the stack's `.env` onto them.
 The one you want first is the log level: `LOG_LEVEL=debug make dev-up`, which
 compose passes on as `PLATFORM_LOG_LEVEL`.
@@ -456,11 +461,11 @@ compose passes on as `PLATFORM_LOG_LEVEL`.
 ### Running one test
 
 ```sh
-cd manager && go test ./internal/nginx/ -run TestRender -v
+cd manager && cargo test nginx::tests::render
 cd apps/web && bun test src/lib/format.test.ts
 ```
 
-Go tests sit beside the code as `*_test.go`; dashboard tests are `*.test.ts`
+Rust tests sit beside the code in a `tests` module or `tests.rs`; dashboard tests are `*.test.ts`
 beside the module. Tests cover logic that can fail silently (generation,
 parsing, validation, encryption, terminal states of a deployment).
 `scripts/smoke-test.sh` runs the real path against a running stack.
