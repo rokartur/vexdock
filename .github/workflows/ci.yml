@@ -22,6 +22,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: manager
+
       # rustup on the runner installs the toolchain manager/rust-toolchain.toml pins.
       - name: Format check
         working-directory: manager
@@ -79,13 +83,33 @@ jobs:
     name: Installer (real run)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [manager, web]
     # The one path every user takes and the only one the other jobs skip: the
     # installer script itself, against /opt/vexdock, with a real registry.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
+      # The cargo cache mounts in docker/*.Dockerfile die with the runner; a cold
+      # release build of the manager takes about six minutes.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo-image-cache
+        with:
+          path: |
+            ${{ runner.temp }}/cargo-registry
+            ${{ runner.temp }}/cargo-target
+          key: cargo-image-${{ hashFiles('manager/Cargo.lock', 'manager/rust-toolchain.toml', 'docker/manager.Dockerfile') }}
+          restore-keys: cargo-image-
+
+      - uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
+        with:
+          cache-map: |
+            {
+              "${{ runner.temp }}/cargo-registry": "/usr/local/cargo/registry",
+              "${{ runner.temp }}/cargo-target": "/src/target"
+            }
+          scratch-dir: ${{ runner.temp }}/cache-dance-scratch
+          skip-extraction: ${{ steps.cargo-image-cache.outputs.cache-hit }}
 
       - name: Publish the images to a local registry
         run: |
