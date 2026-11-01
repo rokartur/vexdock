@@ -9,9 +9,10 @@ bun install
 make check
 ```
 
-`make check` runs rustfmt, clippy, the Rust tests, and the typecheck and tests of
-both the dashboard and the auth service. CI runs that plus `shellcheck` over the
-shell scripts and an integration job that installs and deploys against real
+`make check` runs rustfmt, clippy, the Rust tests, `vp check` (oxlint and
+oxfmt), and the typecheck and tests of both the dashboard and the auth service.
+CI runs that plus `shellcheck` over the shell scripts and an integration job
+that installs and deploys against real
 Docker, so a green `make check` is necessary but not sufficient when you touch
 either.
 

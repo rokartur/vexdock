@@ -157,7 +157,7 @@ change.
 ## Development
 
 ```sh
-make check      # rustfmt, clippy, cargo test, typecheck
+make check      # rustfmt, clippy, cargo test, vp check, typecheck
 make dev-up     # build the four images and run the whole stack locally
 make web-dev    # dashboard on :5173 with HMR, proxying /api to the stack
 ./scripts/smoke-test.sh

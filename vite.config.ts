@@ -25,6 +25,8 @@ export default defineConfig({
 			'*.env.*',
 			'*.log',
 			'*.sh',
+			// The landing page is hand-packed one-rule-per-line CSS; oxfmt would triple its length.
+			'site/**',
 		],
 		arrowParens: 'avoid',
 		bracketSameLine: false,
