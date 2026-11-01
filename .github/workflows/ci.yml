@@ -54,6 +54,9 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - name: Lint and format check
+        run: bunx vp check
+
       - name: Typecheck
         run: |
           cd apps/web && bun run typecheck
