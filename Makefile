@@ -52,11 +52,20 @@ web-check: ## Typecheck and test the dashboard and the auth service
 
 ## ---- images ----
 
-.PHONY: images
-images: ## Build the four container images locally
+.PHONY: images image-manager image-auth image-mcp image-nginx
+images: image-manager image-auth image-mcp image-nginx ## Build the four container images locally (make -j builds them in parallel)
+
+image-manager:
 	docker build -f docker/manager.Dockerfile --build-arg CARGO_PROFILE=$(CARGO_PROFILE) -t vexdock-manager:$(VERSION) .
+
+image-auth:
 	docker build -f docker/auth.Dockerfile -t vexdock-auth:$(VERSION) .
+
+# Shares the manager's cargo cache mount; built after it, it only compiles the mcp binary.
+image-mcp: image-manager
 	docker build -f docker/mcp.Dockerfile --build-arg CARGO_PROFILE=$(CARGO_PROFILE) -t vexdock-mcp:$(VERSION) .
+
+image-nginx:
 	docker build -f docker/nginx.Dockerfile -t vexdock-nginx:$(VERSION) .
 
 ## ---- local stack ----
