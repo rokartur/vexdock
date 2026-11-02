@@ -247,7 +247,7 @@ fn move_service_takes_its_domain_along() {
 	// service and staging must start.
 	assert!(!std::path::Path::new(&format!("{}/managed.yml", s.cfg.project_dir(&production.id))).exists());
 	let body = std::fs::read_to_string(format!("{}/managed.yml", s.cfg.project_dir(&staging.id))).unwrap();
-	assert!(body.contains("acme-staging-web"), "{body}");
+	assert!(body.contains("  web:"), "{body}");
 }
 
 mod overlay;

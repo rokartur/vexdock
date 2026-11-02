@@ -348,6 +348,9 @@ environment in between when it is not the default one. It is unique across the
 whole host, so a name another service already holds is a 400. Services created
 before the manager named containers keep compose's own name until they are
 recreated, and a `raw` fragment that sets its own `container_name` keeps it.
+An application with no mount and no published port gets the name from its
+deploy rather than from compose, so while a deploy hands over, the new
+container carries compose's own name.
 
 `unconfigured` is an application that is so far only a name. It is skipped when
 the compose file is written, so it neither deploys nor breaks the deploy of its

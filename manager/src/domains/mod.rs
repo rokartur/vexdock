@@ -2,6 +2,7 @@
 //! shared proxy network under a stable alias, renders the Nginx configuration
 //! and drives certificate issuance.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use tokio::sync::Mutex;
 
 use crate::certificates::{self, CertResult, Issuer};
 use crate::config::Config;
-use crate::database::{self, Certificate, Db, Domain};
+use crate::database::{self, Certificate, Db, Domain, Environment, Service};
 use crate::docker::Docker;
 use crate::nginx::{self, Nginx};
 use crate::security;
@@ -36,6 +37,9 @@ pub struct Domains {
 	/// Two concurrent reconciles would race on the generated directory and on
 	/// network attachments.
 	reconcile_lock: Mutex<()>,
+	/// Alias to the short container id a deploy's handover routes it to
+	/// instead; Docker resolves a container's short id on every network.
+	pinned: std::sync::Mutex<HashMap<String, String>>,
 }
 
 /// The Add Domain form.
@@ -65,7 +69,7 @@ pub struct UpdateInput {
 
 impl Domains {
 	pub fn new(db: Arc<Db>, cfg: Arc<Config>, docker: Arc<Docker>, nginx: Arc<Nginx>, certs: Arc<Issuer>) -> Domains {
-		Domains { db, cfg, docker, nginx, certs, reconcile_lock: Mutex::new(()) }
+		Domains { db, cfg, docker, nginx, certs, reconcile_lock: Mutex::new(()), pinned: Default::default() }
 	}
 
 	/// Validates and stores a domain, then reconciles the proxy so it starts
@@ -192,6 +196,53 @@ impl Domains {
 		self.reconcile().await
 	}
 
+	/// Joins a deploy's new container to the proxy network under its service's
+	/// alias. Nginx only sends it traffic once `pin` points the vhosts at it.
+	pub async fn attach(&self, env: &Environment, service: &Service, container_id: &str) -> Result<()> {
+		if self.ports(service)?.is_empty() {
+			return Ok(());
+		}
+		let alias = nginx::alias(&env.id, &service.compose_service_name);
+		self.docker.connect_with_alias(&self.cfg.proxy_network, container_id, &alias).await
+	}
+
+	/// Waits until Nginx can open a connection to every port the service's
+	/// domains proxy to on the container, so it is listening before it serves.
+	pub async fn wait_listening(&self, service: &Service, container_id: &str, deadline: tokio::time::Instant) -> Result<()> {
+		for port in self.ports(service)? {
+			while !self.nginx.can_connect(short_id(container_id), port).await {
+				if tokio::time::Instant::now() >= deadline {
+					bail!("container {} is not listening on port {port}", short_id(container_id));
+				}
+				tokio::time::sleep(Duration::from_secs(1)).await;
+			}
+		}
+		Ok(())
+	}
+
+	/// Points the service's vhosts at one container instead of its alias and
+	/// reloads, so a handover moves traffic in one step rather than through
+	/// DNS round robin over both builds.
+	pub async fn pin(&self, env: &Environment, service: &Service, container_id: &str) -> Result<()> {
+		let alias = nginx::alias(&env.id, &service.compose_service_name);
+		self.pinned.lock().unwrap().insert(alias, short_id(container_id).to_string());
+		self.reconcile().await
+	}
+
+	/// Points the service's vhosts back at its alias.
+	pub async fn unpin(&self, env: &Environment, service: &Service) -> Result<()> {
+		self.pinned.lock().unwrap().remove(&nginx::alias(&env.id, &service.compose_service_name));
+		self.reconcile().await
+	}
+
+	fn ports(&self, service: &Service) -> Result<Vec<i64>> {
+		let mut ports: Vec<i64> =
+			self.db.list_domains()?.into_iter().filter(|d| d.service_id == service.id).map(|d| d.container_port).collect();
+		ports.sort_unstable();
+		ports.dedup();
+		Ok(ports)
+	}
+
 	/// Makes the running proxy match the database: every domain's container
 	/// joins the proxy network under its alias and the generated Nginx config is
 	/// rewritten, validated and reloaded as one atomic set.
@@ -227,9 +278,10 @@ impl Domains {
 			// silently drop the service's basic auth.
 			let redirects = self.db.service_redirects(&service.id)?;
 			let users = self.db.service_basic_auths(&service.id)?;
+			let pinned = self.pinned.lock().unwrap().get(&alias).cloned();
 			let upstream = nginx::Upstream {
 				hostname: d.hostname.clone(),
-				alias,
+				alias: pinned.unwrap_or(alias),
 				port: d.container_port,
 				https: d.https_enabled && self.certs.exists(&d.hostname),
 				redirect_https: d.redirect_https,
@@ -439,4 +491,9 @@ fn issued(d: &Domain, result: &CertResult, source: &str) -> Certificate {
 		source: source.into(),
 		..Default::default()
 	}
+}
+
+/// The 12-character id Docker also registers as a DNS name on every network.
+fn short_id(id: &str) -> &str {
+	id.get(..12).unwrap_or(id)
 }

@@ -20,7 +20,7 @@ use bollard::models::{
 use bollard::query_parameters::{
 	DataUsageOptions, EventsOptions, InspectNetworkOptions, ListContainersOptions, ListImagesOptions, ListNetworksOptions,
 	ListVolumesOptions, LogsOptions, PruneBuildOptions, RemoveContainerOptions, RemoveImageOptions, RemoveVolumeOptions,
-	RestartContainerOptions, StartContainerOptions, StopContainerOptions,
+	RenameContainerOptions, RestartContainerOptions, StartContainerOptions, StopContainerOptions,
 };
 use futures::Stream;
 use serde::Serialize;
@@ -80,20 +80,25 @@ impl Docker {
 	}
 
 	/// Maps a compose service to its container id, preferring a running one
-	/// over a stopped leftover.
+	/// over a stopped leftover. While a deploy starts the next container beside
+	/// the live one, the oldest running container is the live one.
 	pub async fn service_container(&self, compose_project: &str, compose_service: &str) -> Result<String> {
 		let mut stopped = None;
+		let mut running: Option<ContainerSummary> = None;
 		for ctr in self.list_containers(compose_project).await? {
-			let labels = ctr.labels.unwrap_or_default();
+			let labels = ctr.labels.clone().unwrap_or_default();
 			if labels.get(COMPOSE_SERVICE_LABEL).map(String::as_str) != Some(compose_service) {
 				continue;
 			}
-			if ctr.state.map(|s| s.to_string()).as_deref() == Some("running") {
-				return Ok(ctr.id.unwrap_or_default());
+			if ctr.state.map(|s| s.to_string()).as_deref() != Some("running") {
+				stopped = ctr.id;
+				continue;
 			}
-			stopped = ctr.id;
+			if running.as_ref().is_none_or(|r| ctr.created < r.created) {
+				running = Some(ctr);
+			}
 		}
-		stopped.ok_or_else(|| anyhow!("this service has no container yet - deploy it first"))
+		running.and_then(|c| c.id).or(stopped).ok_or_else(|| anyhow!("this service has no container yet - deploy it first"))
 	}
 
 	pub async fn inspect(&self, id: &str) -> Result<ContainerInspectResponse> {
@@ -114,6 +119,10 @@ impl Docker {
 
 	pub async fn remove(&self, id: &str, force: bool) -> Result<()> {
 		Ok(self.api.remove_container(id, Some(RemoveContainerOptions { force, ..Default::default() })).await?)
+	}
+
+	pub async fn rename(&self, id: &str, name: &str) -> Result<()> {
+		Ok(self.api.rename_container(id, RenameContainerOptions { name: name.to_string() }).await?)
 	}
 
 	/// Streams container output, already demultiplexed by the client.

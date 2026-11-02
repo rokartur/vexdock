@@ -134,10 +134,44 @@ auth_post -d "{\"project_id\":\"$PROJECT_ID\",\"service\":\"web\",\"hostname\":\
     "$API/domains" >/dev/null
 pass 'domain added'
 
-proxy_code=$(docker run --rm --network vexdock-internal curlimages/curl:latest \
-    -s -o /dev/null -w '%{http_code}' -H 'Host: smoke.test' http://vexdock-nginx/)
+# `nginx -s reload` returns once signalled, before new workers serve the new server block.
+for _ in $(seq 1 10); do
+    proxy_code=$(docker run --rm --network vexdock-internal curlimages/curl:latest \
+        -s -o /dev/null -w '%{http_code}' -H 'Host: smoke.test' http://vexdock-nginx/)
+    [ "$proxy_code" = "200" ] && break
+    sleep 1
+done
 [ "$proxy_code" = "200" ] || fail "the proxy returned $proxy_code for the new domain"
 pass 'the application answers through the proxy'
+
+step 'redeploy'
+# An application with no port or volume starts beside the old container and the
+# proxy switches to it at once: through a redeploy from nginx to httpd every
+# answer is a 200, and once httpd answers, nginx never answers again.
+docker run -d --name vexdock-smoke-probe --network vexdock-internal --entrypoint sh curlimages/curl:latest -c '
+    while :; do
+        r=$(curl -s -w " %{http_code}" -H "Host: smoke.test" http://vexdock-nginx/)
+        case "$r" in *nginx*) build=old ;; *"It works"*) build=new ;; *) build=other ;; esac
+        echo "$build ${r##* }"
+        sleep 0.05
+    done' >/dev/null
+trap 'rm -f "$COOKIES"; docker rm -f vexdock-smoke-probe >/dev/null 2>&1' EXIT
+until docker logs vexdock-smoke-probe 2>&1 | grep -q .; do sleep 0.2; done
+web_service=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services" | json "d[0]['id']")
+auth_post -X PATCH -d '{"image":"httpd:alpine"}' "$API/services/$web_service" >/dev/null
+wait_for_deployment "$(auth_post -X POST "$API/services/$web_service/deploy" | json "d['id']")"
+sleep 1
+answers=$(docker logs vexdock-smoke-probe 2>&1)
+docker rm -f vexdock-smoke-probe >/dev/null
+summary=$(echo "$answers" | sort | uniq -c | xargs)
+echo "$answers" | grep -qv ' 200$' && fail "the proxy answered $summary during the redeploy, expected only 200"
+order=$(echo "$answers" | cut -d' ' -f1 | uniq | xargs)
+[ "$order" = 'old new' ] || fail "the builds answered in the order '$order', expected 'old new'"
+pass "the proxy switched builds once with no error: $summary"
+container_name=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services" | json "d[0]['container_name']")
+[ "$(docker ps -q --filter "name=^${container_name}\$" | wc -l | xargs)" = 1 ] ||
+    fail "no single running container is named $container_name after the redeploy"
+pass "one container named $container_name runs after the redeploy"
 
 step 'variables'
 auth_post -X PUT -d '{"variables":[{"key":"SECRET_TOKEN","value":"top-secret","is_secret":true,"updated_at":""}]}' \

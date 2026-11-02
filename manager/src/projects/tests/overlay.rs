@@ -76,8 +76,13 @@ fn container_names() {
 	let taken = ServiceInput { container_name: "rokartur-db".into(), ..unconfigured("api") };
 	assert!(s.create_service(&staging, &taken).is_err(), "two services took the same container name");
 
+	// An application with no mount or port starts beside its old container on
+	// deploy, and compose refuses --scale on a fixed name, so the deploy names it.
+	let web = s.create_service(&default, &ServiceInput { image: "nginx:alpine".into(), ..database_service("web", None) }).unwrap();
+	assert_eq!(web.container_name, "rokartur-web");
 	let overlay = std::fs::read_to_string(s.write_overlay(&default).unwrap()).unwrap();
 	assert!(overlay.contains("container_name: rokartur-db"), "{overlay}");
+	assert!(!overlay.contains("container_name: rokartur-web"), "{overlay}");
 }
 
 // Every overlay after the first is re-rendered from the stored row, so a
