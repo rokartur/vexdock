@@ -92,6 +92,14 @@ impl Nginx {
 		Ok(())
 	}
 
+	/// Whether the proxy container opens a TCP connection to `host:port`.
+	/// BusyBox nc has no -z; exec attaches no stdin, so it connects and exits 0.
+	pub async fn can_connect(&self, host: &str, port: i64) -> bool {
+		let argv = ["nc".to_string(), "-w".to_string(), "1".to_string(), host.to_string(), port.to_string()];
+		let probe = self.docker.exec_output(&self.nginx_container, &argv);
+		matches!(tokio::time::timeout(Duration::from_secs(5), probe).await, Ok(Ok((_, 0))))
+	}
+
 	fn snapshot(&self) -> Result<FileSet> {
 		let mut out = FileSet::new();
 		for entry in std::fs::read_dir(&self.generated_dir).context("read generated dir")? {

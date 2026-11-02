@@ -11,7 +11,7 @@ use serde::Serialize;
 use tokio::sync::{Semaphore, oneshot};
 
 use crate::config::Config;
-use crate::database::{self, Db, Deployment, DeploymentStep, Environment, Project};
+use crate::database::{self, Db, Deployment, DeploymentStep, Environment, Project, Service};
 use crate::docker::{self, Docker};
 use crate::domains::Domains;
 use crate::events::{self, Bus};
@@ -256,6 +256,7 @@ impl<'a> Pipeline<'a> {
 			return Err(self.fail(anyhow!("compose has no service {:?}", self.target)));
 		};
 		let builds = service.build.is_some();
+		let starts_beside = service.starts_beside();
 		self.printf(&format!("Compose is valid; deploying service {}", self.target));
 		self.complete();
 
@@ -285,20 +286,142 @@ impl<'a> Pipeline<'a> {
 		self.complete();
 
 		self.begin(STEP_START);
-		let up = compose_project.up(self, &target).await;
+		let old = if starts_beside { self.sole_running_container().await } else { Ok(None) };
+		let old = self.check(old)?;
+		let up = match &old {
+			None => compose_project.up(self, &target).await,
+			Some(_) => {
+				self.printf(&format!("Starting the new {target} beside the running one"));
+				compose_project.up_beside(self, &target).await
+			}
+		};
+		if up.is_err() {
+			self.discard_new(old.as_deref()).await;
+		}
 		self.check(up)?;
 		self.complete();
 
 		self.begin(STEP_HEALTHCHECK);
-		let healthy = self.wait_healthy().await;
+		let healthy = self.wait_healthy(old.as_deref()).await;
+		if healthy.is_err() {
+			self.discard_new(old.as_deref()).await;
+		}
 		self.check(healthy)?;
 		self.complete();
 
 		self.begin(STEP_PROXY);
+		if let Some(old) = &old {
+			let handed = self.hand_over(old).await;
+			self.check(handed)?;
+		}
 		let reconciled = self.e.domains.reconcile().await;
 		self.check(reconciled)?;
 		self.printf("Proxy configuration reconciled");
+		// The new container already serves, so a failed rename is a log line.
+		if let Err(err) = self.name_container().await {
+			self.printf(&format!("container rename skipped: {err:#}"));
+		}
 		self.complete();
+		Ok(())
+	}
+
+	/// The target's container when it is the only one and running. A stopped
+	/// one would be restarted by --no-recreate with its old config, and the
+	/// handover pins Nginx to one address, so anything else recreates in place.
+	async fn sole_running_container(&self) -> Result<Option<String>> {
+		let containers = self.target_containers().await?;
+		let [container] = containers.as_slice() else {
+			return Ok(None);
+		};
+		let running = container.state.as_ref().map(|s| s.to_string()).as_deref() == Some("running");
+		Ok(if running { container.id.clone() } else { None })
+	}
+
+	async fn target_containers(&self) -> Result<Vec<bollard::models::ContainerSummary>> {
+		let containers = self.e.docker.list_containers(&self.environment.compose_project_name).await?;
+		Ok(containers
+			.into_iter()
+			.filter(|c| c.labels.as_ref().and_then(|l| l.get(docker::COMPOSE_SERVICE_LABEL)) == Some(&self.target))
+			.collect())
+	}
+
+	/// Removes the container a failed start-beside created, so the old one goes
+	/// on serving and the next deploy starts from one container again.
+	async fn discard_new(&mut self, old: Option<&str>) {
+		let Some(old) = old else {
+			return;
+		};
+		let containers = match self.target_containers().await {
+			Ok(containers) => containers,
+			Err(err) => return self.printf(&format!("could not list the new containers to remove them: {err:#}")),
+		};
+		for id in containers.into_iter().filter_map(|c| c.id).filter(|id| id != old) {
+			match self.e.docker.remove(&id, true).await {
+				Ok(()) => self.printf(&format!("Removed new container {}, the old one keeps serving", short(&id))),
+				Err(err) => self.printf(&format!("could not remove new container {}: {err:#}", short(&id))),
+			}
+		}
+	}
+
+	/// Moves the service's traffic from `old` to the new container at one Nginx
+	/// reload, so no request lands on a build that lacks its assets: pinned to
+	/// `old` while the new one joins the alias and starts listening, then pinned
+	/// to the new one; `old` stops, and the vhosts go back to the alias, which
+	/// by then names only the new container.
+	async fn hand_over(&mut self, old: &str) -> Result<()> {
+		let svc = self.e.db.service_by_name(&self.environment.id, &self.target)?;
+		let new = self
+			.target_containers()
+			.await?
+			.into_iter()
+			.filter_map(|c| c.id)
+			.find(|id| id != old)
+			.ok_or_else(|| anyhow!("the new {} container is gone", self.target))?;
+		if let Err(err) = self.move_traffic(&svc, old, &new).await {
+			if let Err(unpin) = self.e.domains.unpin(&self.environment, &svc).await {
+				self.printf(&format!("could not point the proxy back at the alias: {unpin:#}"));
+			}
+			self.discard_new(Some(old)).await;
+			return Err(err);
+		}
+		self.printf(&format!("Traffic moved to container {}", short(&new)));
+
+		// `nginx -s reload` returns before the new workers take over; until then
+		// the old ones still send requests to `old`.
+		tokio::time::sleep(Duration::from_secs(2)).await;
+		let retired = async {
+			self.e.docker.stop(old).await?;
+			self.e.docker.remove(old, false).await
+		}
+		.await;
+		let unpinned = self.e.domains.unpin(&self.environment, &svc).await;
+		retired?;
+		self.printf(&format!("Stopped and removed old container {}", short(old)));
+		unpinned
+	}
+
+	async fn move_traffic(&self, svc: &Service, old: &str, new: &str) -> Result<()> {
+		let domains = &self.e.domains;
+		domains.pin(&self.environment, svc, old).await?;
+		domains.attach(&self.environment, svc, new).await?;
+		domains.wait_listening(svc, new, tokio::time::Instant::now() + HEALTH_TIMEOUT).await?;
+		domains.pin(&self.environment, svc, new).await
+	}
+
+	/// Gives the container the name the service asked for. Compose only names
+	/// it when the overlay carries container_name; otherwise the deploy does.
+	async fn name_container(&mut self) -> Result<()> {
+		let svc = self.e.db.service_by_name(&self.environment.id, &self.target)?;
+		let containers = self.target_containers().await?;
+		let [container] = containers.as_slice() else {
+			return Ok(());
+		};
+		let current = container.names.iter().flatten().next().map(|n| n.trim_start_matches('/')).unwrap_or_default();
+		if svc.container_name.is_empty() || current == svc.container_name {
+			return Ok(());
+		}
+		self.e.docker.rename(container.id.as_deref().unwrap_or_default(), &svc.container_name).await?;
+		self.printf(&format!("Container named {}", svc.container_name));
 		Ok(())
 	}
 
@@ -367,19 +490,13 @@ impl<'a> Pipeline<'a> {
 		}
 	}
 
-	/// Polls the target's containers until they are running and, when a
-	/// healthcheck is declared, until Docker reports them healthy.
-	async fn wait_healthy(&mut self) -> Result<()> {
+	/// Polls the target's new container, everything but `old`, until it is
+	/// running and, when a healthcheck is declared, until Docker reports it healthy.
+	async fn wait_healthy(&mut self, old: Option<&str>) -> Result<()> {
 		let deadline = tokio::time::Instant::now() + HEALTH_TIMEOUT;
 		loop {
-			let containers: Vec<_> = self
-				.e
-				.docker
-				.list_containers(&self.environment.compose_project_name)
-				.await?
-				.into_iter()
-				.filter(|c| c.labels.as_ref().and_then(|l| l.get(docker::COMPOSE_SERVICE_LABEL)) == Some(&self.target))
-				.collect();
+			let mut containers = self.target_containers().await?;
+			containers.retain(|c| c.id.as_deref() != old);
 			if containers.is_empty() {
 				bail!("compose started no container for service {}", self.target);
 			}

@@ -33,7 +33,7 @@ Open the deployment and read the step that failed. The step name says where:
 | `build` | The build failed, or the server ran out of memory |
 | `start` | A port is already taken, or an image is missing |
 | `healthcheck` | The container exits or its healthcheck never turns healthy |
-| `proxy` | The generated Nginx config failed `nginx -t`, or the Nginx container is down. The containers are already up, only routing failed |
+| `proxy` | The generated Nginx config failed `nginx -t`, or the Nginx container is down. The containers are already up, only routing failed. `container ... is not listening on port N`: the new container never accepted a connection on a domain's port within three minutes; the domain's port is wrong or the app listens on `127.0.0.1` instead of `0.0.0.0`. The old container keeps serving |
 
 For `healthcheck` failures, open the service's Logs tab: the application's own
 output is almost always the answer.

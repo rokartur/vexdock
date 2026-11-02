@@ -60,8 +60,16 @@ impl Projects {
 			let (fragment, vols) =
 				self.render_service(env, svc, &vars).map_err(|err| anyhow!("service {}: {err:#}", svc.compose_service_name))?;
 			let _ = writeln!(body, "  {}:", svc.compose_service_name);
+			// A raw fragment is the user's own YAML; its ports belong in it.
+			let ports = if svc.provider == database::PROVIDER_RAW { Vec::new() } else { self.db.service_ports(&svc.id)? };
 			// A raw fragment may already name its container; a second key would fail the whole file.
-			if !svc.container_name.is_empty() && !svc.compose_fragment.contains("container_name:") {
+			// An application that can start beside its old container gets its name from the
+			// deploy instead, since compose refuses --scale on a fixed name.
+			let deploy_names_it = svc.kind == database::SERVICE_APPLICATION
+				&& svc.provider != database::PROVIDER_RAW
+				&& svc.mounts.trim().is_empty()
+				&& ports.is_empty();
+			if !svc.container_name.is_empty() && !deploy_names_it && !svc.compose_fragment.contains("container_name:") {
 				let _ = writeln!(body, "    container_name: {}", svc.container_name);
 			}
 			// Catalog fragments stop on their last content character, so without
@@ -73,15 +81,11 @@ impl Projects {
 				let image = built_image_name(&project.slug, &env.slug, &svc.compose_service_name);
 				let _ = writeln!(body, "    image: {image}:latest\n    pull_policy: never");
 			}
-			// A raw fragment is the user's own YAML; its ports belong in it.
-			if svc.provider != database::PROVIDER_RAW {
-				let ports = self.db.service_ports(&svc.id)?;
-				if !ports.is_empty() {
-					body.push_str("    ports:\n");
-				}
-				for p in ports {
-					let _ = writeln!(body, "      - \"{}:{}/{}\"", p.published, p.target, p.protocol);
-				}
+			if !ports.is_empty() {
+				body.push_str("    ports:\n");
+			}
+			for p in ports {
+				let _ = writeln!(body, "      - \"{}:{}/{}\"", p.published, p.target, p.protocol);
 			}
 			volumes.extend(vols);
 		}

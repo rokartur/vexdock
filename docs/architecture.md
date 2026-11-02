@@ -179,17 +179,46 @@ as soon as they are saved.
 declared, for Docker to report them healthy. A container that exits non-zero
 fails the deployment immediately rather than after the timeout.
 
-`start` is `docker compose up -d <service>`, the way Dokploy deploys a compose
-app: compose stops the old container, then starts the new one. Two builds never
-serve under one alias at once, so a page never loads HTML from one build and
-hashed assets from the other; the price is a short gap while the container
-restarts.
+`start` runs the new container beside the old one when the service can have
+two and has one: no `container_name` in the resolved config, no published
+port, no volume, and exactly one running container. It is `docker compose up
+-d --no-recreate --scale <service>=2`, and `healthcheck` waits for the new
+container only. A failed start, health wait or handover removes the new
+container and the old one keeps serving.
+
+`proxy` then moves the traffic in one step rather than through DNS round robin
+over both builds, which would send a new page's hashed assets to the old
+build. Each step is a reconcile:
+
+1. Pin the service's vhosts to the old container's short id, the DNS name
+   Docker gives every container, instead of the alias.
+2. Attach the new container under the alias and wait until Nginx can open a
+   TCP connection to every port the service's domains proxy to (`nc` inside
+   the Nginx container), so a service without a healthcheck is listening
+   before it serves.
+3. Pin the vhosts to the new container, wait two seconds for the reload to
+   take over, stop and remove the old container.
+4. Unpin: the alias now names only the new container.
+
+Swapping the alias itself would not do: Nginx caches a resolved address for
+1 s, and a request sent to the address of a stopped container waits out the
+connect timeout.
+
+Every other service (a database, anything with a mount, a published port or a
+raw fragment that names its container) is `docker compose up -d <service>`:
+compose stops the old container, then starts the new one, with a short gap
+while it restarts.
+
+Compose refuses `--scale` on a fixed name, so the overlay leaves
+`container_name` out for a service that starts beside, and the deploy renames
+the one remaining container to it after the handover.
 
 ## Reconciliation
 
 Docker events and a two-minute sweep both trigger the same reconcile pass:
 re-attach every domain's container to the proxy network under its alias, render
-the complete set of vhosts, validate, reload. Reconciliation is a full
+the complete set of vhosts (a service mid-handover keeps its pin), validate,
+reload. Reconciliation is a full
 convergence rather than an incremental patch, so a missed event self-heals.
 
 The same Docker events, plus the deployment engine's own, go onto the in-process

@@ -47,7 +47,11 @@ pub struct ConfigService {
 	#[serde(default)]
 	pub build: Option<Value>,
 	#[serde(default)]
+	pub container_name: String,
+	#[serde(default)]
 	pub ports: Vec<ConfigPort>,
+	#[serde(default)]
+	pub volumes: Vec<Value>,
 	#[serde(default)]
 	pub environment: BTreeMap<String, Value>,
 	#[serde(default)]
@@ -62,6 +66,15 @@ pub struct ConfigPort {
 	pub published: String,
 	#[serde(default)]
 	pub protocol: String,
+}
+
+impl ConfigService {
+	/// Whether a deploy may run the new container beside the old one: a fixed
+	/// name or a published port would collide, and two writers on one volume
+	/// can corrupt a database.
+	pub fn starts_beside(&self) -> bool {
+		self.container_name.is_empty() && self.volumes.is_empty() && self.ports.iter().all(|p| p.published.is_empty())
+	}
 }
 
 /// Decodes `docker compose config --format json` output.
@@ -127,6 +140,13 @@ impl Project {
 	/// just because they were not named.
 	pub async fn up(&self, out: &mut (dyn Write + Send), service: &str) -> Result<()> {
 		self.run(out, &["up", "-d", service]).await
+	}
+
+	/// Starts a second container of the service next to the running one: without
+	/// --no-recreate compose stops the old container before the new one starts.
+	pub async fn up_beside(&self, out: &mut (dyn Write + Send), service: &str) -> Result<()> {
+		let scale = format!("{service}=2");
+		self.run(out, &["up", "-d", "--no-recreate", "--scale", &scale, service]).await
 	}
 
 	pub async fn down(&self, out: &mut (dyn Write + Send), remove_volumes: bool) -> Result<()> {
@@ -203,6 +223,23 @@ mod tests {
 		assert_eq!(cfg.name, "p_01jabc");
 		assert_eq!(cfg.services.len(), 3);
 		assert!(cfg.services["api"].build.is_some(), "build section lost");
+	}
+
+	#[test]
+	fn starts_beside_only_without_a_name_port_or_volume() {
+		let cfg = parse_config(RESOLVED.as_bytes()).unwrap();
+		assert!(!cfg.services["web"].starts_beside(), "a published port would collide");
+		assert!(cfg.services["api"].starts_beside(), "an unpublished port is per container");
+		assert!(cfg.services["worker"].starts_beside());
+		let cfg = parse_config(
+			br#"{"services": {
+				"named": {"image": "busybox", "container_name": "acme-named"},
+				"db": {"image": "postgres", "volumes": [{"type": "volume", "source": "data", "target": "/var/lib/postgresql/data"}]}
+			}}"#,
+		)
+		.unwrap();
+		assert!(!cfg.services["named"].starts_beside());
+		assert!(!cfg.services["db"].starts_beside());
 	}
 
 	#[test]
