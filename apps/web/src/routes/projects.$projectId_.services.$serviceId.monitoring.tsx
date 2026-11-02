@@ -69,6 +69,7 @@ function ServiceMonitoring() {
 	const { serviceId } = Route.useParams()
 	const [range, setRange] = useState<MetricWindow>('30m')
 	const [stats, setStats] = useState<Sample | null>(null)
+	const [cursor, setCursor] = useState<number | null>(null)
 	const span = windows.find(option => option.value === range)?.ms ?? windows[0].ms
 
 	const service = useService(serviceId)
@@ -93,6 +94,7 @@ function ServiceMonitoring() {
 	// Until the first live sample lands, the newest recorded bucket is the reading.
 	const current = stats ?? history.at(-1)
 	const label = windows.find(option => option.value === range)?.label ?? range
+	const synced = { cursor, onCursor: setCursor }
 
 	return (
 		<Section title='Monitoring' actions={<Segmented value={range} onChange={setRange} options={windows} />}>
@@ -108,6 +110,7 @@ function ServiceMonitoring() {
 				<Cells className='grid-cols-1 lg:grid-cols-2'>
 					<MetricCard
 						label='CPU'
+						{...synced}
 						icon={IconCpu}
 						value={
 							current ? (
@@ -125,6 +128,7 @@ function ServiceMonitoring() {
 					/>
 					<MetricCard
 						label='Memory'
+						{...synced}
 						icon={IconServer}
 						value={
 							current ? (
@@ -142,6 +146,7 @@ function ServiceMonitoring() {
 					/>
 					<MetricCard
 						label='Network'
+						{...synced}
 						icon={IconAffiliate}
 						value={
 							<>
@@ -160,6 +165,7 @@ function ServiceMonitoring() {
 					/>
 					<MetricCard
 						label='Block i/o'
+						{...synced}
 						icon={IconDatabase}
 						value={
 							<>

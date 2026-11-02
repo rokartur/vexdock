@@ -1,13 +1,5 @@
 import { useState } from 'react'
-import {
-	IconChevronLeft,
-	IconChevronRight,
-	IconFilter,
-	IconPlus,
-	IconTable,
-	IconTrash,
-	IconX,
-} from '@tabler/icons-react'
+import { IconFilter, IconPlus, IconTable, IconTrash, IconX } from '@tabler/icons-react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useBlocker, useNavigate } from '@tanstack/react-router'
 import {
@@ -22,6 +14,8 @@ import {
 	Select,
 } from '../components/primitives'
 import { type GridRow, StudioGrid } from '../components/studio-grid'
+import { Pagination } from '../components/ui/pagination'
+import { SelectionToolbar } from '../components/ui/selection-toolbar'
 import {
 	api,
 	type StudioCell,
@@ -244,12 +238,11 @@ function TableView({
 			search: previous => ({ ...previous, where: next.length > 0 ? next : undefined, page: undefined }),
 		})
 	const offset = (page - 1) * pageSize
-	const last = data !== undefined && offset + pageSize >= data.total && !data.truncated
 
 	return (
 		<>
 			<ConfirmLeave blocker={leaving} />
-			<div className='flex h-11 shrink-0 items-center gap-2 border-b px-2'>
+			<div className='flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1.5'>
 				<IconButton
 					icon={IconFilter}
 					label='Filter'
@@ -270,35 +263,22 @@ function TableView({
 						/>
 					</span>
 				))}
-				<div className='ml-auto flex items-center gap-2'>
+				<div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
 					{readOnly ? <span className='text-xs text-muted'>{readOnly}</span> : null}
-					{selected.size > 0 ? (
-						<Button variant='danger' onClick={deleteSelected}>
-							<IconTrash />
-							Delete {selected.size}
-						</Button>
-					) : null}
 					<Button disabled={!editable} onClick={() => setInserts([...inserts, {}])}>
 						<IconPlus />
 						Add row
 					</Button>
 					<Refresh onClick={() => rows.refetch()} busy={rows.isFetching} />
-					<span className='text-xs text-muted tabular-nums'>{data ? pagerText(offset, data) : null}</span>
-					<IconButton
-						icon={IconChevronLeft}
-						label='Previous page'
-						disabled={page <= 1}
-						onClick={() =>
-							navigate({
-								search: previous => ({ ...previous, page: page > 2 ? page - 1 : undefined }),
-							})
+					<span className='text-xs whitespace-nowrap text-muted tabular-nums'>
+						{data ? pagerText(offset, data) : null}
+					</span>
+					<Pagination
+						page={page}
+						pageCount={Math.ceil((data?.total ?? 0) / pageSize)}
+						onPageChange={next =>
+							navigate({ search: previous => ({ ...previous, page: next > 1 ? next : undefined }) })
 						}
-					/>
-					<IconButton
-						icon={IconChevronRight}
-						label='Next page'
-						disabled={data === undefined || last}
-						onClick={() => navigate({ search: previous => ({ ...previous, page: page + 1 }) })}
 					/>
 				</div>
 			</div>
@@ -322,8 +302,19 @@ function TableView({
 					}
 				/>
 			) : null}
+			<div className='pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 *:pointer-events-auto'>
+				<SelectionToolbar
+					count={selected.size}
+					noun='row'
+					onClear={() => setSelected(new Set())}
+					actions={[{ label: 'Delete', icon: <IconTrash />, onClick: deleteSelected, destructive: true }]}
+				/>
+			</div>
 			{data && gridRows.length === 0 ? (
-				<EmptyState title={where.length > 0 ? 'No rows match these filters.' : 'This table is empty.'} />
+				<EmptyState
+					scene={where.length > 0 ? 'search' : undefined}
+					title={where.length > 0 ? 'No rows match these filters.' : 'This table is empty.'}
+				/>
 			) : null}
 			{pending > 0 || save.error ? (
 				<div className='shrink-0 border-t px-3 py-2'>

@@ -277,7 +277,15 @@ export function DataTable<TData extends RowData>({
 										{error ? (
 											<ErrorText error={error} />
 										) : typeof empty === 'string' ? (
-											<EmptyState title={globalFilter ? 'Nothing matches' : empty} />
+											globalFilter ? (
+												<EmptyState
+													scene='search'
+													title='Nothing matches'
+													description={`No row contains “${globalFilter}”.`}
+												/>
+											) : (
+												<EmptyState title={empty} />
+											)
 										) : (
 											empty
 										)}

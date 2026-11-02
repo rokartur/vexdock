@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { IconUserPlus } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Logo } from '../components/logo'
+import { AuthScreen } from '../components/auth-screen'
 import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signUp } from '../lib/auth-client'
 
@@ -39,13 +39,13 @@ function SetupPage() {
 	})
 
 	return (
-		<div className='mx-auto flex min-h-dvh max-w-sm enter-children flex-col justify-center px-6'>
-			<div className='mb-1 flex items-center gap-2.5'>
-				<Logo className='size-7' />
-				<h1 className='text-base font-medium'>Create administrator</h1>
-			</div>
-			<p className='mb-6 text-xs text-muted'>This is the only account creation step. It closes afterwards.</p>
+		<AuthScreen
+			label='Create administrator'
+			title='Create the administrator'
+			lead='The only account this server will have. This step closes once it succeeds.'
+		>
 			<form
+				className='grid'
 				onSubmit={event => {
 					event.preventDefault()
 					if (!mismatch) setup.mutate()
@@ -90,11 +90,11 @@ function SetupPage() {
 				</Field>
 				{mismatch ? <ErrorText error='Passwords do not match.' /> : null}
 				<ErrorText error={setup.error} />
-				<Button type='submit' variant='primary' disabled={setup.isPending || mismatch}>
+				<Button type='submit' variant='primary' loading={setup.isPending} disabled={mismatch}>
 					<IconUserPlus />
-					{setup.isPending ? 'Creating…' : 'Create account'}
+					Create account
 				</Button>
 			</form>
-		</div>
+		</AuthScreen>
 	)
 }

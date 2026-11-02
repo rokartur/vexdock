@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
 	IconBrandBitbucket,
 	IconBrandGithub,
@@ -11,10 +11,11 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { IntegrationList, IntegrationRow } from '../components/integration-list'
 import {
 	Button,
 	Confirm,
+	EmptyState,
 	ErrorText,
 	Field,
 	FormDialog,
@@ -48,69 +49,54 @@ const kinds = [
 	{ value: 'gitea', label: 'Gitea', icon: IconCup },
 ] as const satisfies readonly { value: GitProviderType; label: string; icon: unknown }[]
 
-const iconFor = (type: GitProviderType) => kinds.find(kind => kind.value === type)?.icon ?? IconPlug
-
 /** The origin the connection talks to, which is the only field all four share. */
 const hostOf = (provider: GitProvider) =>
 	provider.github?.github_url ?? provider.gitlab?.gitlab_url ?? provider.gitea?.gitea_url ?? 'https://bitbucket.org'
 
-function providerColumns(edit: (provider: GitProvider) => void, remove: (id: string) => void): Columns<GitProvider> {
-	const cell = columnsFor<GitProvider>()
-	return [
-		cell.accessor(provider => provider.name, {
-			id: 'name',
-			header: 'Name',
-			cell: ({ row }) => {
-				const Icon = iconFor(row.original.provider_type)
-				return (
-					<span className='inline-flex items-center gap-2 font-medium'>
-						<Icon className='size-4 text-muted' />
-						{row.original.name}
-					</span>
+function ProviderRow({
+	provider,
+	edit,
+	remove,
+}: {
+	provider: GitProvider
+	edit: (provider: GitProvider) => void
+	remove: (id: string) => void
+}) {
+	const kind = kinds.find(each => each.value === provider.provider_type)
+	return (
+		<IntegrationRow
+			icon={kind?.icon ?? IconPlug}
+			name={provider.name}
+			kind={kind?.label}
+			description={
+				<>
+					<span className='font-mono'>{hostOf(provider)}</span>, added{' '}
+					<RelativeTime at={provider.created_at} />
+				</>
+			}
+		>
+			<Status value={provider.connected ? 'connected' : 'pending'} />
+			{provider.github ? (
+				provider.install_url && (
+					// oxlint-disable-next-line jsx-a11y/control-has-associated-label -- Button renders its children into the link
+					<Button variant='ghost' render={<a href={provider.install_url} />}>
+						<IconSettings />
+						{provider.github.github_installation_id ? 'Repositories' : 'Finish install'}
+					</Button>
 				)
-			},
-		}),
-		cell.accessor(provider => provider.provider_type, { id: 'type', header: 'Provider' }),
-		cell.accessor(provider => hostOf(provider), { id: 'host', header: 'Host', meta: { mono: true } }),
-		cell.accessor(provider => (provider.connected ? 'connected' : 'pending'), {
-			id: 'state',
-			header: 'State',
-			cell: ({ row }) => <Status value={row.original.connected ? 'connected' : 'pending'} />,
-		}),
-		cell.accessor(provider => provider.created_at, {
-			id: 'added',
-			header: 'Added',
-			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
-		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<div className='flex items-center justify-end gap-1'>
-					{row.original.github ? (
-						row.original.install_url && (
-							// oxlint-disable-next-line jsx-a11y/control-has-associated-label -- Button renders its children into the link
-							<Button variant='ghost' render={<a href={row.original.install_url} />}>
-								<IconSettings />
-								{row.original.github.github_installation_id ? 'Repositories' : 'Finish install'}
-							</Button>
-						)
-					) : (
-						<IconButton icon={IconPencil} label='Edit' onClick={() => edit(row.original)} />
-					)}
-					<Confirm
-						title={`Remove ${row.original.name}?`}
-						description='Services cloning through it have to be pointed somewhere else first.'
-						action='Remove'
-						onConfirm={() => remove(row.original.git_provider_id)}
-					>
-						<IconButton icon={IconTrash} label='Remove' />
-					</Confirm>
-				</div>
-			),
-		}),
-	]
+			) : (
+				<IconButton icon={IconPencil} label='Edit' onClick={() => edit(provider)} />
+			)}
+			<Confirm
+				title={`Remove ${provider.name}?`}
+				description='Services cloning through it have to be pointed somewhere else first.'
+				action='Remove'
+				onConfirm={() => remove(provider.git_provider_id)}
+			>
+				<IconButton icon={IconTrash} label='Remove' />
+			</Confirm>
+		</IntegrationRow>
+	)
 }
 
 /** Every field any of the four asks for, so one form covers all of them. */
@@ -264,26 +250,22 @@ function GitProviders() {
 	})
 
 	const { mutate: removeProvider } = remove
-	const columns = useMemo(
-		() =>
-			providerColumns(provider => {
-				setForm({
-					...emptyForm,
-					id: provider.git_provider_id,
-					kind: provider.provider_type,
-					name: provider.name,
-					host: hostOf(provider),
-					organization: provider.gitlab?.group_name ?? provider.gitea?.organization_name ?? '',
-					clientId: provider.gitlab?.application_id ?? provider.gitea?.client_id ?? '',
-					username: provider.bitbucket?.bitbucket_username ?? '',
-					email: provider.bitbucket?.bitbucket_email ?? '',
-					workspace: provider.bitbucket?.bitbucket_workspace_name ?? '',
-					webhookUrl: provider.webhook_url ?? '',
-				})
-				setOpen(true)
-			}, removeProvider),
-		[removeProvider],
-	)
+	const edit = (provider: GitProvider) => {
+		setForm({
+			...emptyForm,
+			id: provider.git_provider_id,
+			kind: provider.provider_type,
+			name: provider.name,
+			host: hostOf(provider),
+			organization: provider.gitlab?.group_name ?? provider.gitea?.organization_name ?? '',
+			clientId: provider.gitlab?.application_id ?? provider.gitea?.client_id ?? '',
+			username: provider.bitbucket?.bitbucket_username ?? '',
+			email: provider.bitbucket?.bitbucket_email ?? '',
+			workspace: provider.bitbucket?.bitbucket_workspace_name ?? '',
+			webhookUrl: provider.webhook_url ?? '',
+		})
+		setOpen(true)
+	}
 
 	const listed = providers.data ?? []
 	const connected = listed.filter(provider => provider.connected).length
@@ -318,15 +300,29 @@ function GitProviders() {
 					</>
 				}
 			>
-				<ErrorText error={remove.error ?? (redirectError ? new Error(redirectError) : null)} />
-				<DataTable
-					data={listed}
-					columns={columns}
-					loading={providers.isLoading}
-					error={providers.error}
-					getRowId={provider => provider.git_provider_id}
-					empty='No connections. A service can still clone from a git URL.'
+				<ErrorText
+					error={remove.error ?? providers.error ?? (redirectError ? new Error(redirectError) : null)}
 				/>
+				{listed.length === 0 ? (
+					<div className='rounded-surface border bg-surface'>
+						<EmptyState
+							icon={IconPlug}
+							title={providers.isLoading ? 'Loading connections' : 'No connections'}
+							description='A service can still clone from a git URL.'
+						/>
+					</div>
+				) : (
+					<IntegrationList>
+						{listed.map(provider => (
+							<ProviderRow
+								key={provider.git_provider_id}
+								provider={provider}
+								edit={edit}
+								remove={removeProvider}
+							/>
+						))}
+					</IntegrationList>
+				)}
 			</Section>
 
 			<FormDialog

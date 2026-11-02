@@ -1,17 +1,9 @@
 import { useEffect, useState } from 'react'
 import { IconCloud, IconTrash, IconWorld } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import {
-	Button,
-	ErrorText,
-	Field,
-	FormSection,
-	Input,
-	RelativeTime,
-	SaveButton,
-	Switch,
-} from '../components/primitives'
+import { createFileRoute, useBlocker } from '@tanstack/react-router'
+import { Button, Confirm, ErrorText, Field, FormSection, Input, RelativeTime, Switch } from '../components/primitives'
+import { IslandBar, useIslandBar } from '../components/ui/save-bar'
 import { api, type Certificate } from '../lib/api'
 import { certificatesQuery, preload } from '../lib/queries'
 
@@ -23,10 +15,8 @@ export const Route = createFileRoute('/system/settings/')({
 	component: GeneralSettings,
 })
 
-/**
- * The API writes settings as one object, so every Save is the same call and replays the fields its card does not own.
- * acme_email has no field yet and is replayed as it was read.
- */
+// The API writes settings as one object, so the page has one draft and one save bar, not a Save per card.
+// acme_email has no field yet and is replayed as it was read.
 function GeneralSettings() {
 	const queryClient = useQueryClient()
 	const settings = useQuery(settingsQuery)
@@ -45,46 +35,65 @@ function GeneralSettings() {
 
 	// The Cloudflare token is write-only: undefined keeps the stored one (the key
 	// is dropped on serialization), '' clears it.
+	const write = (fields: { token: string | undefined; domain: string; https: boolean }) =>
+		settings.data
+			? api.saveSettings({
+					acme_email: settings.data.acme_email,
+					dashboard_domain: fields.domain,
+					dashboard_https: fields.https,
+					cloudflare_api_token: fields.token,
+				})
+			: Promise.reject(new Error('settings not loaded yet'))
+	const refresh = () => queryClient.invalidateQueries({ queryKey: ['settings'] })
+
 	const save = useMutation({
-		mutationFn: (fields: { token: string | undefined; domain: string; https: boolean }) =>
-			settings.data
-				? api.saveSettings({
-						acme_email: settings.data.acme_email,
-						dashboard_domain: fields.domain,
-						dashboard_https: fields.https,
-						cloudflare_api_token: fields.token,
-					})
-				: Promise.reject(new Error('settings not loaded yet')),
+		mutationFn: () => write({ token: draft.token || undefined, domain: draft.domain, https: draft.https }),
 		onSuccess: async () => {
 			setDraft(current => ({ ...current, token: '' }))
-			await queryClient.invalidateQueries({ queryKey: ['settings'] })
+			await refresh()
 		},
 	})
 
-	const apply = () => save.mutate({ token: draft.token || undefined, domain: draft.domain, https: draft.https })
+	// Removing the token replays the saved domain, never an unsaved edit in the draft.
+	const removeToken = useMutation({
+		mutationFn: () => {
+			const loaded = settings.data
+			return write({ token: '', domain: loaded?.dashboard_domain ?? '', https: loaded?.dashboard_https ?? true })
+		},
+		onSuccess: refresh,
+	})
 
-	// Removing the token replays the saved domain, never an unsaved edit sitting
-	// in the card above it.
-	const removeToken = () => {
-		const loaded = settings.data
-		if (!loaded) return
-		save.mutate({ token: '', domain: loaded.dashboard_domain, https: loaded.dashboard_https })
-	}
-	const tokenStored = settings.data?.cloudflare_token_set ?? false
 	const loaded = settings.data
-	const domainDirty =
-		loaded !== undefined && (draft.domain !== loaded.dashboard_domain || draft.https !== loaded.dashboard_https)
-	const certificate = certificates.data?.find(cert => cert.hostname === settings.data?.dashboard_domain)
+	const dirty =
+		loaded !== undefined &&
+		(draft.domain !== loaded.dashboard_domain || draft.https !== loaded.dashboard_https || draft.token !== '')
+	const bar = useIslandBar({
+		dirty,
+		value: draft,
+		onSave: () => save.mutateAsync(),
+		onDiscard: () =>
+			loaded && setDraft({ domain: loaded.dashboard_domain, https: loaded.dashboard_https, token: '' }),
+	})
+	useBlocker({ shouldBlockFn: () => bar.guard({ kind: 'shake', focus: true }), enableBeforeUnload: false })
+
+	const tokenStored = loaded?.cloudflare_token_set ?? false
+	const certificate = certificates.data?.find(cert => cert.hostname === loaded?.dashboard_domain)
 	const wildcards = certificates.data?.filter(cert => cert.hostname.startsWith('*.')).length ?? 0
 
 	return (
-		<div className='max-w-3xl'>
-			<ErrorText error={save.error} />
+		<form
+			className='max-w-3xl pb-20'
+			noValidate
+			onSubmit={event => {
+				event.preventDefault()
+				void bar.save()
+			}}
+		>
+			<ErrorText error={removeToken.error} />
 			<FormSection
 				title='Dashboard domain'
 				icon={IconWorld}
 				hint='Leave empty to keep using the server IP on port 3000.'
-				actions={<SaveButton mutation={save} dirty={domainDirty} />}
 				aside={[
 					{
 						label: 'Reached at',
@@ -92,7 +101,6 @@ function GeneralSettings() {
 					},
 					{ label: 'Certificate', value: <CertificateFact certificate={certificate} /> },
 				]}
-				onSave={apply}
 			>
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Hostname'>
@@ -121,17 +129,20 @@ function GeneralSettings() {
 					{ label: 'Wildcard certificates', value: wildcards },
 				]}
 				actions={
-					<>
-						{tokenStored ? (
-							<Button variant='ghost' onClick={removeToken} disabled={save.isPending}>
+					tokenStored ? (
+						<Confirm
+							title='Remove the Cloudflare token?'
+							description='Wildcard certificates stop renewing until a new token is stored.'
+							action='Remove token'
+							onConfirm={() => removeToken.mutate()}
+						>
+							<Button variant='ghost' disabled={removeToken.isPending}>
 								<IconTrash />
 								Remove token
 							</Button>
-						) : null}
-						<SaveButton mutation={save} dirty={draft.token !== ''} />
-					</>
+						</Confirm>
+					) : null
 				}
-				onSave={apply}
 			>
 				<Field
 					label='Cloudflare API token'
@@ -145,7 +156,12 @@ function GeneralSettings() {
 					/>
 				</Field>
 			</FormSection>
-		</div>
+			{/* Enter in a field submits only when the form has a submit button; the bar's Save lives in a portal. */}
+			<button type='submit' hidden>
+				Save
+			</button>
+			<IslandBar {...bar.props} />
+		</form>
 	)
 }
 

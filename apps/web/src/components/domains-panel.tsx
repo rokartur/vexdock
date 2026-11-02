@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
+	IconAlertCircle,
 	IconCertificate,
+	IconCircleDashed,
 	IconExternalLink,
+	IconLoader2,
 	IconLock,
 	IconPlus,
 	IconRefresh,
@@ -10,24 +13,25 @@ import {
 	IconWorld,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
 import { api, type Certificate, type CertificateSource, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { certificatesQuery, projectDomainsQuery } from '../lib/queries'
-import { type Columns, DataTable, columnsFor } from './data-table'
 import {
 	Button,
 	Confirm,
+	EmptyState,
 	ErrorText,
 	Field,
 	FormDialog,
 	IconButton,
 	Input,
+	NumberField,
 	Refresh,
 	RelativeTime,
 	Section,
 	Segmented,
-	Status,
 	Switch,
 	Textarea,
 } from './primitives'
@@ -37,90 +41,122 @@ const certificateSources = [
 	{ value: 'custom', label: 'Upload my own', icon: IconUpload },
 ] as const satisfies readonly { value: CertificateSource; label: string; icon: unknown }[]
 
-type DomainTableDeps = {
-	certificateFor: (domainId: string) => Certificate | undefined
+const statusIcon = { size: 16, stroke: 1.75, 'aria-hidden': true, className: 'flex-none' } as const
+
+function CertificateState({ domain, certificate }: { domain: Domain; certificate: Certificate | undefined }) {
+	if (!domain.https_enabled)
+		return <StateLabel icon={<IconCircleDashed {...statusIcon} />} label='HTTP only' className='text-muted' />
+	if (!certificate || certificate.status === 'pending')
+		return (
+			<StateLabel
+				icon={<IconLoader2 {...statusIcon} className='flex-none animate-spin [animation-duration:630ms]' />}
+				label='Issuing'
+			/>
+		)
+	if (certificate.status === 'failed')
+		return (
+			<StateLabel
+				icon={<IconAlertCircle {...statusIcon} />}
+				label='Failed'
+				className='*:[svg]:text-danger'
+				title={certificate.last_error}
+			/>
+		)
+	return (
+		<StateLabel
+			icon={<IconLock {...statusIcon} />}
+			label={
+				<>
+					Expires <RelativeTime at={certificate.expires_at} />
+				</>
+			}
+			className='*:[svg]:text-success'
+		/>
+	)
+}
+
+function StateLabel({
+	icon,
+	label,
+	className,
+	title,
+}: {
+	icon: ReactNode
+	label: ReactNode
+	className?: string
+	title?: string
+}) {
+	return (
+		<span
+			title={title}
+			className={cn('inline-flex items-center gap-1.5 text-sm whitespace-nowrap *:[svg]:text-muted', className)}
+		>
+			{icon}
+			<span>{label}</span>
+		</span>
+	)
+}
+
+function DomainRow({
+	domain,
+	certificate,
+	renew,
+	renewing,
+	replace,
+	remove,
+}: {
+	domain: Domain
+	certificate: Certificate | undefined
 	renew: (domainId: string) => void
 	renewing: boolean
 	replace: (domain: Domain) => void
 	remove: (domainId: string) => void
-}
-
-function domainTableColumns({ certificateFor, renew, renewing, replace, remove }: DomainTableDeps): Columns<Domain> {
-	const cell = columnsFor<Domain>()
-	return [
-		cell.accessor(domain => domain.hostname, {
-			id: 'hostname',
-			header: 'Domain',
-			cell: ({ row: { original } }) => (
+}) {
+	const source = domain.certificate_source === 'custom' ? ', uploaded certificate' : ", Let's Encrypt"
+	return (
+		<li className='grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-5 py-3 not-first:border-t not-first:border-border-subtle max-sm:px-4 sm:grid-cols-[16px_minmax(0,1fr)_auto_auto]'>
+			<IconWorld className='size-4 text-muted' stroke={1.75} />
+			<div className='grid min-w-0 gap-0.5'>
 				<a
-					href={`${original.https_enabled ? 'https' : 'http'}://${original.hostname}`}
+					href={`${domain.https_enabled ? 'https' : 'http'}://${domain.hostname}`}
 					target='_blank'
 					rel='noreferrer'
-					className='group inline-flex items-center gap-2 underline-offset-4 hover:underline'
+					className='group inline-flex min-w-0 items-center gap-1.5 font-medium underline-offset-4 hover:underline'
 				>
-					<IconWorld className='size-4 text-muted' />
-					<span className='font-mono text-xs'>{original.hostname}</span>
-					<IconExternalLink className='size-3 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
+					<span className='truncate'>{domain.hostname}</span>
+					<IconExternalLink className='size-3 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
 				</a>
-			),
-		}),
-		cell.accessor(domain => domain.container_port, { id: 'port', header: 'Port', meta: { mono: true } }),
-		cell.accessor(domain => (domain.https_enabled ? 'on' : 'off'), { id: 'https', header: 'HTTPS' }),
-		cell.accessor(domain => (domain.certificate_source === 'custom' ? 'uploaded' : "Let's Encrypt"), {
-			id: 'source',
-			header: 'Source',
-		}),
-		cell.accessor(domain => certificateFor(domain.id)?.status ?? 'none', {
-			id: 'certificate',
-			header: 'Certificate',
-			cell: ({ row }) => {
-				const certificate = certificateFor(row.original.id)
-				if (!certificate) return <span className='text-muted'>none</span>
-				return (
-					<span className='flex items-center gap-2'>
-						<Status value={certificate.status} />
-						{certificate.expires_at ? (
-							<span className='text-xs text-muted'>
-								expires <RelativeTime at={certificate.expires_at} />
-							</span>
-						) : null}
-					</span>
-				)
-			},
-		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row: { original } }) => (
-				<span className='flex justify-end gap-0.5'>
-					{original.https_enabled && original.certificate_source !== 'custom' ? (
-						<IconButton
-							icon={IconRefresh}
-							label='Renew certificate'
-							onClick={() => renew(original.id)}
-							disabled={renewing}
-						/>
-					) : null}
-					{original.certificate_source === 'custom' ? (
-						<IconButton
-							icon={IconCertificate}
-							label='Replace certificate'
-							onClick={() => replace(original)}
-						/>
-					) : null}
-					<Confirm
-						title={`Remove ${original.hostname}?`}
-						description='Nginx stops answering for it. Its certificate is kept until it expires.'
-						action='Remove'
-						onConfirm={() => remove(original.id)}
-					>
-						<IconButton icon={IconTrash} label='Remove' />
-					</Confirm>
+				<span className='text-xs text-muted'>
+					port <span className='font-mono'>{domain.container_port}</span>
+					{domain.https_enabled ? source : null}
 				</span>
-			),
-		}),
-	]
+			</div>
+			<span className='col-start-2 row-start-2 sm:col-start-auto sm:row-start-auto'>
+				<CertificateState domain={domain} certificate={certificate} />
+			</span>
+			<span className='col-start-3 row-span-2 row-start-1 flex justify-end gap-0.5 sm:col-start-auto sm:row-span-1'>
+				{domain.https_enabled && domain.certificate_source !== 'custom' ? (
+					<IconButton
+						icon={IconRefresh}
+						label='Renew certificate'
+						onClick={() => renew(domain.id)}
+						disabled={renewing}
+					/>
+				) : null}
+				{domain.certificate_source === 'custom' ? (
+					<IconButton icon={IconCertificate} label='Replace certificate' onClick={() => replace(domain)} />
+				) : null}
+				<Confirm
+					title={`Remove ${domain.hostname}?`}
+					description='Nginx stops answering for it. Its certificate is kept until it expires.'
+					action='Remove'
+					onConfirm={() => remove(domain.id)}
+				>
+					<IconButton icon={IconTrash} label='Remove' />
+				</Confirm>
+			</span>
+		</li>
+	)
 }
 
 export function DomainsPanel({ projectId, service }: { projectId: string; service: Service }) {
@@ -201,18 +237,6 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 
 	const { mutate: issueCertificate, isPending: issuing } = issue
 	const { mutate: removeDomain } = remove
-	const { data: certificateList } = certificates
-	const columns = useMemo(
-		() =>
-			domainTableColumns({
-				certificateFor: domainId => certificateList?.find(cert => cert.domain_id === domainId),
-				renew: issueCertificate,
-				renewing: issuing,
-				replace: setReplacing,
-				remove: removeDomain,
-			}),
-		[certificateList, issueCertificate, issuing, removeDomain],
-	)
 	const rows = (domains.data ?? []).filter(domain => domain.service_id === service.id)
 
 	return (
@@ -229,19 +253,34 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 					</>
 				}
 			>
-				<ErrorText error={remove.error ?? issue.error} />
+				<ErrorText error={remove.error ?? issue.error ?? domains.error} />
 				{warning ? <Alert tone='warning' title={warning} className='mb-3' /> : null}
 				{failedCertificate ? (
 					<Alert tone='warning' title={failedCertificate.last_error} className='mb-3' />
 				) : null}
-				<DataTable
-					data={rows}
-					columns={columns}
-					loading={domains.isLoading}
-					error={domains.error}
-					getRowId={domain => domain.id}
-					empty='No domains yet. Point an A record at this server, then add it.'
-				/>
+				{rows.length === 0 ? (
+					<div className='rounded-surface border bg-surface'>
+						<EmptyState
+							icon={IconWorld}
+							title={domains.isLoading ? 'Loading domains' : 'No domains yet'}
+							description='Point an A record at this server, then add it.'
+						/>
+					</div>
+				) : (
+					<ul className='rounded-surface border bg-surface'>
+						{rows.map(domain => (
+							<DomainRow
+								key={domain.id}
+								domain={domain}
+								certificate={certificates.data?.find(cert => cert.domain_id === domain.id)}
+								renew={issueCertificate}
+								renewing={issuing}
+								replace={setReplacing}
+								remove={removeDomain}
+							/>
+						))}
+					</ul>
+				)}
 			</Section>
 
 			<FormDialog
@@ -302,14 +341,7 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 						/>
 					</Field>
 					<Field label='Container port'>
-						<Input
-							type='number'
-							required
-							min={1}
-							max={65_535}
-							value={port}
-							onChange={event => setPort(Number(event.target.value))}
-						/>
+						<NumberField min={1} max={65_535} value={port} onValueChange={setPort} />
 					</Field>
 					<div className='flex flex-col justify-center gap-2 pb-3'>
 						<Switch label='Enable HTTPS' checked={https} onChange={setHttps} />

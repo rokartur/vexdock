@@ -22,6 +22,8 @@ type EmptyStateProps = {
 	description?: string
 	action?: ReactNode
 	icon?: ReactNode
+	// vexdock: a scene from ui/empty-states.tsx in place of the icon tile, for a page-sized empty state.
+	illustration?: ReactNode
 	className?: string
 	label?: string
 }
@@ -40,7 +42,7 @@ const iconIn: TargetAndTransition = { opacity: 0, scale: 0.6, filter: `blur(${bl
 const shown: TargetAndTransition = { opacity: 1, y: '0em', scale: 1, filter: 'blur(0px)' }
 const fadeOut: TargetAndTransition = { opacity: 0, transition: { duration: duration.instant } }
 
-export function EmptyState({ title, description, action, icon, className, label }: EmptyStateProps) {
+export function EmptyState({ title, description, action, icon, illustration, className, label }: EmptyStateProps) {
 	const reduce = useReducedMotion()
 	const glyph = icon ?? <IconFolder size={24} stroke={1.5} />
 	const enter: Transition = reduce
@@ -60,23 +62,25 @@ export function EmptyState({ title, description, action, icon, className, label 
 				className,
 			)}
 		>
-			<div
-				aria-hidden='true'
-				className='relative grid size-12 place-items-center rounded-panel border bg-surface-muted text-secondary transition-[opacity,scale] duration-340 ease-enter starting:scale-92 starting:opacity-0'
-			>
-				<AnimatePresence mode='popLayout' initial={false}>
-					<Swap
-						key={iconKey(glyph)}
-						className='grid place-items-center'
-						initial={reduce ? { opacity: 0 } : iconIn}
-						animate={shown}
-						exit={reduce ? fadeOut : { ...iconIn, transition: exitFast }}
-						transition={reduce ? enter : spring.snappy}
-					>
-						{glyph}
-					</Swap>
-				</AnimatePresence>
-			</div>
+			{illustration ?? (
+				<div
+					aria-hidden='true'
+					className='relative grid size-12 place-items-center rounded-panel border bg-surface-muted text-secondary transition-[opacity,scale] duration-340 ease-enter starting:scale-92 starting:opacity-0'
+				>
+					<AnimatePresence mode='popLayout' initial={false}>
+						<Swap
+							key={iconKey(glyph)}
+							className='grid place-items-center'
+							initial={reduce ? { opacity: 0 } : iconIn}
+							animate={shown}
+							exit={reduce ? fadeOut : { ...iconIn, transition: exitFast }}
+							transition={reduce ? enter : spring.snappy}
+						>
+							{glyph}
+						</Swap>
+					</AnimatePresence>
+				</div>
+			)}
 			<HeightFrame reduce={reduce} morphKey={`${title}\n${description}`}>
 				<h3 className='relative mt-4 font-display text-base leading-[1.1] font-medium tracking-[-0.03em] text-foreground'>
 					<AnimatePresence mode='popLayout' initial={false}>

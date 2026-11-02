@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { IconBrandDocker, IconPlus, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { IntegrationList, IntegrationRow } from '../components/integration-list'
 import {
 	Button,
 	Confirm,
+	EmptyState,
 	ErrorText,
 	Field,
 	FormDialog,
@@ -25,42 +26,28 @@ export const Route = createFileRoute('/system/settings/registries')({
 	component: Registries,
 })
 
-function registryTableColumns(remove: (id: string) => void): Columns<Registry> {
-	const cell = columnsFor<Registry>()
-	return [
-		cell.accessor(registry => registry.name, {
-			id: 'name',
-			header: 'Name',
-			cell: ({ row }) => (
-				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconBrandDocker className='size-4 text-muted' />
-					{row.original.name}
-				</span>
-			),
-		}),
-		cell.accessor(registry => registry.url, { id: 'url', header: 'URL', meta: { mono: true } }),
-		cell.accessor(registry => registry.username, { id: 'username', header: 'Username', meta: { mono: true } }),
-		cell.accessor(registry => registry.created_at, {
-			id: 'added',
-			header: 'Added',
-			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
-		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<Confirm
-					title={`Remove ${row.original.name}?`}
-					description='Services pulling from it with these credentials will fail on their next deploy.'
-					action='Remove'
-					onConfirm={() => remove(row.original.id)}
-				>
-					<IconButton icon={IconTrash} label='Remove' />
-				</Confirm>
-			),
-		}),
-	]
+function RegistryRow({ registry, remove }: { registry: Registry; remove: (id: string) => void }) {
+	return (
+		<IntegrationRow
+			icon={IconBrandDocker}
+			name={registry.name}
+			kind={registry.username}
+			description={
+				<>
+					<span className='font-mono'>{registry.url}</span>, added <RelativeTime at={registry.created_at} />
+				</>
+			}
+		>
+			<Confirm
+				title={`Remove ${registry.name}?`}
+				description='Services pulling from it with these credentials will fail on their next deploy.'
+				action='Remove'
+				onConfirm={() => remove(registry.id)}
+			>
+				<IconButton icon={IconTrash} label='Remove' />
+			</Confirm>
+		</IntegrationRow>
+	)
 }
 
 const emptyForm = { name: '', url: '', username: '', password: '' }
@@ -86,7 +73,7 @@ function Registries() {
 	})
 
 	const { mutate: removeRegistry } = remove
-	const columns = useMemo(() => registryTableColumns(removeRegistry), [removeRegistry])
+	const listed = registries.data ?? []
 
 	return (
 		<div className='max-w-3xl'>
@@ -102,15 +89,22 @@ function Registries() {
 					</>
 				}
 			>
-				<ErrorText error={remove.error} />
-				<DataTable
-					data={registries.data ?? []}
-					columns={columns}
-					loading={registries.isLoading}
-					error={registries.error}
-					getRowId={registry => registry.id}
-					empty='No registries configured. Public images work without one.'
-				/>
+				<ErrorText error={remove.error ?? registries.error} />
+				{listed.length === 0 ? (
+					<div className='rounded-surface border bg-surface'>
+						<EmptyState
+							icon={IconBrandDocker}
+							title={registries.isLoading ? 'Loading registries' : 'No registries configured'}
+							description='Public images work without one.'
+						/>
+					</div>
+				) : (
+					<IntegrationList>
+						{listed.map(registry => (
+							<RegistryRow key={registry.id} registry={registry} remove={removeRegistry} />
+						))}
+					</IntegrationList>
+				)}
 			</Section>
 
 			<FormDialog

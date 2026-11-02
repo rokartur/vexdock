@@ -113,7 +113,7 @@ function CrumbPicker({
 									if (event.key === 'Enter') pick(choice)
 								}}
 								className={cn(
-									'flex cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 text-sm [&>svg]:size-4 [&>svg]:shrink-0',
+									'flex items-center gap-2 rounded-control px-2 py-1.5 text-sm [&>svg]:size-4 [&>svg]:shrink-0',
 									choice === active && 'bg-surface-muted',
 									choice.current && 'font-medium',
 								)}

@@ -1,10 +1,10 @@
-import { type ReactNode, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { IconCheck, IconX } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useRouterState } from '@tanstack/react-router'
 import { Alert } from '@/components/ui/alert'
 import { AccessPicker } from '../components/access-picker'
-import { Logo } from '../components/logo'
+import { AuthScreen } from '../components/auth-screen'
 import { Button, ErrorText } from '../components/primitives'
 import { accessSummary, grantList, noAccess, picksNothing } from '../lib/access'
 import { api, type OAuthAuthorization } from '../lib/api'
@@ -47,11 +47,9 @@ function Consent() {
 	if (check.isPending) return null
 	if (check.isError) {
 		return (
-			<Frame>
-				<Alert tone='danger' title='This request cannot be approved'>
-					{check.error.message}
-				</Alert>
-			</Frame>
+			<AuthScreen label='Authorize' title='This request cannot be approved'>
+				<Alert tone='danger' title={check.error.message} />
+			</AuthScreen>
 		)
 	}
 
@@ -67,12 +65,16 @@ function Consent() {
 	}
 
 	return (
-		<Frame>
-			<h1 className='text-base font-medium'>Allow {client}?</h1>
-			<p className='mt-1 mb-4 text-sm text-secondary'>
-				Sends you back to{' '}
-				<span className='font-mono text-xs text-foreground'>{`${returnTo.protocol}//${returnTo.host}`}</span>
-			</p>
+		<AuthScreen
+			label='Authorize'
+			title={`Allow ${client}?`}
+			lead={
+				<>
+					Sends you back to{' '}
+					<span className='font-mono text-xs text-foreground'>{`${returnTo.protocol}//${returnTo.host}`}</span>
+				</>
+			}
+		>
 			<AccessPicker projects={projects.data ?? []} value={access} onChange={setAccess} />
 			{summary ? (
 				<Alert tone={access.full ? 'warning' : 'info'} title={summary} className='mt-3' />
@@ -89,25 +91,14 @@ function Consent() {
 				</Button>
 				<Button
 					variant='primary'
-					disabled={picksNothing(access) || approve.isPending}
+					disabled={picksNothing(access)}
+					loading={approve.isPending}
 					onClick={() => approve.mutate()}
 				>
 					<IconCheck />
 					Allow {client}
 				</Button>
 			</div>
-		</Frame>
-	)
-}
-
-function Frame({ children }: { children: ReactNode }) {
-	return (
-		<div className='mx-auto flex min-h-dvh max-w-md enter-children flex-col justify-center px-6'>
-			<div className='mb-6 flex items-center gap-2.5'>
-				<Logo className='size-7' />
-				<span className='text-base font-medium'>vexdock</span>
-			</div>
-			{children}
-		</div>
+		</AuthScreen>
 	)
 }

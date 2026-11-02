@@ -68,9 +68,12 @@ function VariableRows({
 	onChange: (vars: EnvVar[]) => void
 }) {
 	const [key, setKey] = useState('')
-	const columns = shared
-		? 'minmax(0,13rem) minmax(0,1fr) 9rem 4.5rem 2rem'
-		: 'minmax(0,13rem) minmax(0,1fr) 4.5rem 2rem'
+	const columns = cn(
+		'grid-cols-[minmax(0,1fr)_2rem]',
+		shared
+			? 'sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_6rem_2rem]'
+			: 'sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_2rem]',
+	)
 
 	const add = () => {
 		const trimmed = key.trim()
@@ -83,51 +86,51 @@ function VariableRows({
 
 	return (
 		<div className='rounded-panel border'>
-			<div
-				style={{ gridTemplateColumns: columns }}
-				className={cn(ROW, 'border-b border-border-subtle text-xs text-muted')}
-			>
+			<div className={cn(ROW, columns, 'border-b border-border-subtle text-xs text-muted max-sm:hidden')}>
 				<span>Key</span>
 				<span>Value</span>
 				{shared ? <span>From</span> : null}
-				<span>Changed</span>
 				<span />
 			</div>
 			{vars.map((variable, index) => (
 				// Keyed by position: a key renamed one character at a time would remount the input and lose the caret.
-				<div
-					key={index}
-					style={{ gridTemplateColumns: columns }}
-					className={cn(ROW, 'border-b border-border-subtle')}
-				>
-					<Input
-						mono
-						aria-label='Key'
-						value={variable.key}
-						onChange={event => patch(index, { key: event.target.value })}
-					/>
-					<Input
-						mono
-						aria-label={`Value of ${variable.key}`}
-						value={variable.value}
-						onChange={event => patch(index, { value: event.target.value })}
-					/>
+				<div key={index} className={cn(ROW, columns, 'items-start border-b border-border-subtle')}>
+					<span className='grid gap-0.5'>
+						<Input
+							mono
+							aria-label='Key'
+							value={variable.key}
+							onChange={event => patch(index, { key: event.target.value })}
+						/>
+						<span className='px-1 text-xs text-muted'>
+							<UpdatedAt at={stored.find(saved => saved.key === variable.key)?.updated_at} />
+						</span>
+					</span>
+					<span className='max-sm:col-span-full max-sm:row-start-2'>
+						<Input
+							mono
+							type='password'
+							autoComplete='off'
+							aria-label={`Value of ${variable.key}`}
+							value={variable.value}
+							onChange={event => patch(index, { value: event.target.value })}
+						/>
+					</span>
 					{shared ? (
-						<span>
+						<span className='max-sm:col-span-full max-sm:row-start-3 max-sm:empty:hidden'>
 							{shared.some(above => above.key === variable.key) ? <Badge>overrides</Badge> : null}
 						</span>
 					) : null}
-					<span className='text-xs'>
-						<RelativeTime at={stored.find(saved => saved.key === variable.key)?.updated_at} />
+					<span className='max-sm:col-start-2 max-sm:row-start-1'>
+						<IconButton
+							icon={IconTrash}
+							label={`Remove ${variable.key}`}
+							onClick={() => onChange(vars.filter((_, i) => i !== index))}
+						/>
 					</span>
-					<IconButton
-						icon={IconTrash}
-						label={`Remove ${variable.key}`}
-						onClick={() => onChange(vars.filter((_, i) => i !== index))}
-					/>
 				</div>
 			))}
-			<div style={{ gridTemplateColumns: columns }} className={ROW}>
+			<div className={cn(ROW, columns)}>
 				<Input
 					mono
 					aria-label='New key'
@@ -141,9 +144,18 @@ function VariableRows({
 						add()
 					}}
 				/>
-				<span className='text-xs text-muted'>Enter adds the row</span>
+				<span className='text-xs text-muted max-sm:hidden sm:col-span-2'>Enter adds the row</span>
 			</div>
 		</div>
+	)
+}
+
+function UpdatedAt({ at }: { at: string | undefined }) {
+	if (!at) return 'Not saved yet'
+	return (
+		<>
+			Updated <RelativeTime at={at} />
+		</>
 	)
 }
 

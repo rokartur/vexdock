@@ -4,7 +4,7 @@
 @import '@xterm/xterm/css/xterm.css';
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-/* Chromium matches :active and :hover on a disabled <button>, and Base UI's focusable disabled parts carry data-disabled. Hover, as in Arc, also needs a fine pointer. */
+/* Chromium matches :active and :hover on a disabled <button>, and Base UI's focusable disabled parts carry data-disabled; :where keeps the stock specificity. Hover, as in Arc, also needs a fine pointer. */
 @custom-variant active (&:active:where(:not(:disabled, [data-disabled])));
 @custom-variant hover {
 	@media (hover: hover) and (pointer: fine) {
@@ -112,7 +112,8 @@
 		1
 	);
 	--default-transition-timing-function: var(--ease-standard);
-	--default-transition-duration: 160ms;
+	/* Every duration is Arc's at 0.7x on Arc's curves: 85, 110, 125, 170, 280, 340, 400. */
+	--default-transition-duration: 110ms;
 }
 
 @theme inline {
@@ -146,31 +147,41 @@
 	--color-series-2: var(--series-2);
 	--color-series-3: var(--series-3);
 	--color-series-4: var(--series-4);
+	--color-syntax-string: var(--syntax-string);
+	--color-syntax-number: var(--syntax-number);
+	--color-syntax-keyword: var(--syntax-keyword);
+	--color-syntax-type: var(--syntax-type);
+	--color-syntax-function: var(--syntax-function);
+	--color-syntax-property: var(--syntax-property);
+	--color-activity-ring-1: var(--activity-ring-1);
+	--color-activity-ring-2: var(--activity-ring-2);
+	--color-activity-ring-3: var(--activity-ring-3);
 	--shadow-resting: var(--shadow-resting);
 	--shadow-raised: var(--shadow-raised);
 	--shadow-floating: var(--shadow-floating);
 	--shadow-thumb: var(--control-thumb-shadow);
 }
 
+/* Hover, pressed and the segmented track are tints of the text color, so they read the same on every layer. */
 :root {
 	color-scheme: light;
-	--background: oklch(100% 0 0);
+	--background: oklch(98.3% 0 0);
 	--surface: oklch(100% 0 0);
 	--surface-raised: oklch(100% 0 0);
-	--surface-muted: oklch(97.8% 0 0);
-	--surface-pressed: oklch(95.5% 0 0);
+	--surface-muted: color-mix(in oklab, var(--foreground) 5%, transparent);
+	--surface-pressed: color-mix(in oklab, var(--foreground) 9%, transparent);
 	--surface-thumb: var(--surface-raised);
 	--foreground: oklch(15% 0 0);
 	--text-secondary: oklch(46% 0 0);
-	--text-muted: oklch(59% 0 0);
-	--border: oklch(93.5% 0 0);
-	--border-subtle: oklch(96.5% 0 0);
-	--border-strong: oklch(82% 0 0);
-	--accent: oklch(33% 0 0);
-	--accent-strong: oklch(24% 0 0);
-	--accent-subtle: oklch(33% 0 0 / 0.1);
-	--accent-foreground: var(--background);
-	--control-on: oklch(23% 0 0);
+	--text-muted: oklch(53% 0 0);
+	--border: oklch(91% 0 0);
+	--border-subtle: oklch(94.5% 0 0);
+	--border-strong: oklch(80% 0 0);
+	--accent: oklch(15% 0 0);
+	--accent-strong: oklch(0% 0 0);
+	--accent-subtle: oklch(15% 0 0 / 0.08);
+	--accent-foreground: oklch(100% 0 0);
+	--control-on: oklch(15% 0 0);
 	--control-glyph: oklch(100% 0 0);
 	--control-track: oklch(89.5% 0 0);
 	--control-track-hover: oklch(86% 0 0);
@@ -182,32 +193,45 @@
 	--success: oklch(49% 0.19 150);
 	--warning: oklch(58% 0.18 75);
 	--danger: oklch(54% 0.21 25);
-	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.035);
-	--shadow-raised: 0 6px 18px oklch(0% 0 0 / 0.065), 0 1px 3px oklch(0% 0 0 / 0.035);
-	--shadow-floating: 0 20px 48px oklch(0% 0 0 / 0.105), 0 3px 10px oklch(0% 0 0 / 0.045);
+	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.05);
+	--shadow-raised: 0 6px 18px oklch(0% 0 0 / 0.07), 0 1px 3px oklch(0% 0 0 / 0.04);
+	--shadow-floating: 0 16px 40px oklch(0% 0 0 / 0.12), 0 3px 10px oklch(0% 0 0 / 0.05);
 	--series-1: #1f7dcf;
 	--series-2: #7128a5;
 	--series-3: #e58f00;
 	--series-4: #009e84;
+	/* Arc's code-block highlighting; tags share the type color. */
+	--syntax-string: oklch(46% 0.13 150);
+	--syntax-number: oklch(50% 0.14 55);
+	--syntax-keyword: oklch(48% 0.15 285);
+	--syntax-type: oklch(46% 0.13 230);
+	--syntax-function: oklch(43% 0.12 25);
+	--syntax-property: oklch(44% 0.12 85);
+	/* Arc's activity-rings palette, one set for both themes. */
+	--activity-ring-1: oklch(60% 0.17 275);
+	--activity-ring-2: oklch(75% 0.15 68);
+	--activity-ring-3: oklch(66% 0.09 160);
 }
 
+/* Black page, near-black cards: the border draws each layer, the shadow only lifts what floats. */
 :root[data-theme='dark'] {
 	color-scheme: dark;
-	--background: #0d0d0d;
-	--surface: oklch(21.5% 0 0);
-	--surface-raised: oklch(24% 0 0);
-	--surface-muted: oklch(26% 0 0);
-	--surface-pressed: oklch(29% 0 0);
+	--background: oklch(0% 0 0);
+	--surface: oklch(13% 0 0);
+	--surface-raised: oklch(19% 0 0);
+	--surface-muted: color-mix(in oklab, var(--foreground) 7%, transparent);
+	--surface-pressed: color-mix(in oklab, var(--foreground) 11%, transparent);
 	--surface-thumb: color-mix(in oklab, var(--foreground) 18%, var(--surface-raised));
 	--foreground: oklch(96% 0 0);
-	--text-secondary: oklch(77% 0 0);
+	--text-secondary: oklch(74% 0 0);
 	--text-muted: oklch(64% 0 0);
-	--border: oklch(29% 0 0);
-	--border-subtle: oklch(25% 0 0);
-	--border-strong: oklch(40% 0 0);
-	--accent: oklch(80% 0 0);
-	--accent-strong: oklch(91% 0 0);
-	--accent-subtle: oklch(80% 0 0 / 0.13);
+	--border: oklch(25% 0 0);
+	--border-subtle: oklch(20% 0 0);
+	--border-strong: oklch(36% 0 0);
+	--accent: oklch(96% 0 0);
+	--accent-strong: oklch(100% 0 0);
+	--accent-subtle: oklch(96% 0 0 / 0.12);
+	--accent-foreground: oklch(0% 0 0);
 	/* Neutral dark inverts: near-white track, dark thumb, so on and off never read alike */
 	--control-on: oklch(93% 0 0);
 	--control-glyph: oklch(19% 0 0);
@@ -221,127 +245,19 @@
 	--success: oklch(78% 0.18 150);
 	--warning: oklch(83% 0.17 80);
 	--danger: oklch(76% 0.2 25);
-	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.18);
-	--shadow-raised: 0 8px 22px oklch(0% 0 0 / 0.22);
-	--shadow-floating: 0 22px 55px oklch(0% 0 0 / 0.34);
+	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.3);
+	--shadow-raised: 0 8px 22px oklch(0% 0 0 / 0.45);
+	--shadow-floating: 0 16px 40px oklch(0% 0 0 / 0.6);
 	--series-1: #55adff;
 	--series-2: #9c37be;
 	--series-3: #e66e00;
 	--series-4: #00a861;
-}
-
-/* Optional hue, set with data-accent on <html>. Light and dark rows per hue; the control-* row keeps a white thumb legible on the fill. */
-:root[data-accent='violet'] {
-	--accent: #7747ff;
-	--accent-strong: #5528ce;
-	--accent-subtle: rgb(119 71 255 / 0.13);
-	--control-on: #7747ff;
-	--control-thumb-on: #fff;
-	--control-glyph: #fff;
-}
-:root[data-accent='blue'] {
-	--accent: #0562ef;
-	--accent-strong: #074db7;
-	--accent-subtle: rgb(5 98 239 / 0.12);
-	--control-on: #0562ef;
-	--control-thumb-on: #fff;
-	--control-glyph: #fff;
-}
-:root[data-accent='green'] {
-	--accent: #0db879;
-	--accent-strong: #087c54;
-	--accent-subtle: rgb(13 184 121 / 0.13);
-	--accent-foreground: #102016;
-	--control-on: #10a870;
-	--control-thumb-on: #fff;
-	--control-glyph: #fff;
-}
-:root[data-accent='amber'] {
-	--accent: #f3ad20;
-	--accent-strong: #9c6300;
-	--accent-subtle: rgb(243 173 32 / 0.16);
-	--accent-foreground: #20190d;
-	--control-on: #eda11a;
-	--control-thumb-on: #fff;
-	--control-glyph: #2a1c03;
-}
-:root[data-accent='orange'] {
-	--accent: #f48120;
-	--accent-strong: #aa4700;
-	--accent-subtle: rgb(244 129 32 / 0.13);
-	--accent-foreground: #17130f;
-	--control-on: #f07818;
-	--control-thumb-on: #fff;
-	--control-glyph: #fff;
-}
-:root[data-accent='coral'] {
-	--accent: #f15f55;
-	--accent-strong: #b92c27;
-	--accent-subtle: rgb(241 95 85 / 0.14);
-	--accent-foreground: #21110f;
-	--control-on: #ec564b;
-	--control-thumb-on: #fff;
-	--control-glyph: #fff;
-}
-:root[data-accent='rose'] {
-	--accent: #ed4e9d;
-	--accent-strong: #ae2570;
-	--accent-subtle: rgb(237 78 157 / 0.14);
-	--accent-foreground: #250f1b;
-	--control-on: #e64494;
-	--control-thumb-on: #fff;
-	--control-glyph: #fff;
-}
-:root[data-theme='dark'][data-accent='violet'] {
-	--accent: #a78bff;
-	--accent-strong: #c7b7ff;
-	--accent-subtle: rgb(119 71 255 / 0.22);
-	--control-on: #8a66ff;
-	--control-fill: #8a66ff;
-}
-:root[data-theme='dark'][data-accent='blue'] {
-	--accent: #6ba3ff;
-	--accent-strong: #a4c7ff;
-	--accent-subtle: rgb(5 98 239 / 0.22);
-	--control-on: #3b82f6;
-	--control-fill: #3b82f6;
-}
-:root[data-theme='dark'][data-accent='green'] {
-	--accent: #53dca6;
-	--accent-strong: #93efd0;
-	--accent-subtle: rgb(13 184 121 / 0.2);
-	--control-on: #1fae78;
-	--control-fill: #1fae78;
-}
-:root[data-theme='dark'][data-accent='amber'] {
-	--accent: #ffcb62;
-	--accent-strong: #ffe0a1;
-	--accent-subtle: rgb(243 173 32 / 0.2);
-	--control-on: #e8a52a;
-	--control-fill: #e8a52a;
-	--control-glyph: #241803;
-}
-:root[data-theme='dark'][data-accent='orange'] {
-	--accent: #ffad5e;
-	--accent-strong: #ffd0a0;
-	--accent-subtle: rgb(244 129 32 / 0.2);
-	--accent-foreground: #17130f;
-	--control-on: #ef873a;
-	--control-fill: #ef873a;
-}
-:root[data-theme='dark'][data-accent='coral'] {
-	--accent: #ff9386;
-	--accent-strong: #ffc1ba;
-	--accent-subtle: rgb(241 95 85 / 0.2);
-	--control-on: #ec6a60;
-	--control-fill: #ec6a60;
-}
-:root[data-theme='dark'][data-accent='rose'] {
-	--accent: #ff8bc5;
-	--accent-strong: #ffc0df;
-	--accent-subtle: rgb(237 78 157 / 0.2);
-	--control-on: #e457a0;
-	--control-fill: #e457a0;
+	--syntax-string: oklch(77% 0.15 150);
+	--syntax-number: oklch(80% 0.14 75);
+	--syntax-keyword: oklch(78% 0.16 285);
+	--syntax-type: oklch(79% 0.13 230);
+	--syntax-function: oklch(80% 0.13 25);
+	--syntax-property: oklch(79% 0.12 85);
 }
 
 @layer base {
@@ -355,14 +271,75 @@
 	body {
 		@apply bg-background text-foreground;
 	}
-	button:not(:disabled),
-	[role='button']:not(:disabled) {
+	/* Base UI menu items and options render a div: without this they show the text cursor. */
+	:is(
+		button,
+		[role='button'],
+		[role='menuitem'],
+		[role='menuitemcheckbox'],
+		[role='menuitemradio'],
+		[role='option']
+	):not(:disabled, [aria-disabled='true'], [data-disabled]) {
 		cursor: pointer;
 	}
-	button,
-	[role='button'],
-	a {
+	:is(
+		button,
+		[role='button'],
+		[role='menuitem'],
+		[role='menuitemcheckbox'],
+		[role='menuitemradio'],
+		[role='option']
+	):is(:disabled, [data-disabled]) {
+		cursor: not-allowed;
+	}
+	:is(button, [role='button'])[aria-busy='true'] {
+		cursor: progress;
+	}
+	/* A press or a double tap never highlights the label: controls and links are not text to copy. */
+	:is(
+		button,
+		[role='button'],
+		a,
+		[role='link'],
+		[role='menuitem'],
+		[role='menuitemcheckbox'],
+		[role='menuitemradio'],
+		[role='option'],
+		[role='tab'],
+		[role='switch'],
+		[role='checkbox'],
+		[role='radio'],
+		summary
+	) {
+		user-select: none;
 		touch-action: manipulation;
+	}
+	/* press or a transition-* utility replaces this fade; a duration-* or ease-* utility retimes it. */
+	:where(
+		a,
+		button,
+		summary,
+		input,
+		select,
+		textarea,
+		[role='button'],
+		[role='link'],
+		[role='combobox'],
+		[role='tab'],
+		[role='menuitem'],
+		[role='menuitemcheckbox'],
+		[role='menuitemradio'],
+		[role='option'],
+		[role='switch'],
+		[role='checkbox'],
+		[role='radio'],
+		[role='treeitem'],
+		[role='gridcell'],
+		[role='row']
+	) {
+		transition-property: color, background-color, border-color, text-decoration-color, opacity, box-shadow;
+		transition-duration: 110ms;
+		transition-timing-function: var(--ease-standard);
 	}
 	h1,
 	h2,
@@ -374,54 +351,41 @@
 		text-wrap: pretty;
 	}
 
-	/* Pointer focus draws no ring. Keyboard focus draws one accent outline, except on text fields (border and caret show it),
-     menu items and options (the highlight shows it) and tabindex="-1" targets (focused by script). Tune with --focus-outline* on any element. */
-	:focus:not(:focus-visible),
-	:is(
-		input:not(
-			[type='button'],
-			[type='checkbox'],
-			[type='color'],
-			[type='file'],
-			[type='image'],
-			[type='radio'],
-			[type='range'],
-			[type='reset'],
-			[type='submit']
-		),
-		textarea,
-		[contenteditable]:not([contenteditable='false']),
-		[role='menuitem'],
-		[role='menuitemcheckbox'],
-		[role='menuitemradio'],
-		[role='option'],
-		[tabindex='-1']
-	):focus {
+	/* Pointer focus draws no ring; keyboard focus draws one accent outline (a slider's thumb carries it for its hidden
+     range input). Tune with --focus-outline* on any element. */
+	:focus:not(:focus-visible) {
 		outline: none !important;
 	}
-	:focus-visible:not(
-		input:not(
-			[type='button'],
-			[type='checkbox'],
-			[type='color'],
-			[type='file'],
-			[type='image'],
-			[type='radio'],
-			[type='range'],
-			[type='reset'],
-			[type='submit']
-		),
-		textarea,
-		[contenteditable]:not([contenteditable='false']),
-		[role='menuitem'],
-		[role='menuitemcheckbox'],
-		[role='menuitemradio'],
-		[role='option'],
-		[tabindex='-1']
-	) {
+	:is(:focus-visible, :has(> input[type='range']:focus-visible)) {
 		outline: var(--focus-outline-width, 2px) solid
 			var(--focus-outline, color-mix(in oklab, var(--accent-strong) 72%, transparent)) !important;
 		outline-offset: var(--focus-outline-offset, 2px) !important;
+	}
+	/* Outside forced colors, text fields (border, caret), menu items and options (highlight fill) and tabindex="-1"
+     targets (focused by script) other than headings go without the ring; forced colors repaint those cues away, so the ring stays there. */
+	@media (forced-colors: none) {
+		:is(
+			input:not(
+				[type='button'],
+				[type='checkbox'],
+				[type='color'],
+				[type='file'],
+				[type='image'],
+				[type='radio'],
+				[type='range'],
+				[type='reset'],
+				[type='submit']
+			),
+			textarea,
+			[contenteditable]:not([contenteditable='false']),
+			[role='menuitem'],
+			[role='menuitemcheckbox'],
+			[role='menuitemradio'],
+			[role='option'],
+			[tabindex='-1']:not(h1, h2, h3, h4, h5, h6, [role='heading'])
+		):focus {
+			outline: none !important;
+		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
@@ -431,8 +395,18 @@
 		::after {
 			animation-duration: 0.01ms !important;
 			animation-iteration-count: 1 !important;
+			animation-delay: 0s !important;
 			transition-duration: 0.01ms !important;
+			transition-delay: 0s !important;
 			scroll-behavior: auto !important;
+		}
+		/* Own rule: a browser without view transitions drops a selector list that names them. */
+		::view-transition-group(*),
+		::view-transition-old(*),
+		::view-transition-new(*) {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			animation-delay: 0s !important;
 		}
 	}
 }
@@ -447,18 +421,39 @@
 }
 
 @utility press {
-	transition-property: scale;
-	transition-duration: 580ms;
-	transition-timing-function: var(--ease-spring);
-	&:active:not(:disabled, [aria-disabled='true'], [data-disabled]) {
-		scale: 0.97;
+	transition:
+		scale 400ms var(--ease-spring),
+		color 110ms var(--ease-standard),
+		background-color 110ms var(--ease-standard),
+		border-color 110ms var(--ease-standard),
+		text-decoration-color 110ms var(--ease-standard),
+		opacity 110ms var(--ease-standard),
+		box-shadow 110ms var(--ease-standard);
+	@media (prefers-reduced-motion: no-preference) {
+		/* As in Arc, no scale on a popup or disclosure trigger, so an anchored popup never measures one pressed;
+       aria-expanded stands in for Radix's data-state. Unlike Arc, a tooltip trigger scales: Base UI closes the
+       tooltip on pointerdown. */
+		&:active:not(
+				:disabled,
+				[aria-disabled='true'],
+				[data-disabled],
+				[aria-haspopup]:not([aria-haspopup='false']),
+				[aria-expanded],
+				[role='combobox'],
+				[data-popup-open]
+			) {
+			scale: 0.97;
+			/* One duration per property of the shorthand above, in its order: Arc's 120ms press-in at 0.7x on scale; the release keeps the spring. */
+			transition-duration: 85ms, 110ms, 110ms, 110ms, 110ms, 110ms, 110ms;
+			transition-timing-function: var(--ease-standard);
+		}
 	}
 }
 
 @utility popup {
 	transform-origin: var(--transform-origin, center);
 	transition-property: opacity, scale, translate;
-	transition-duration: var(--tw-duration, 240ms);
+	transition-duration: var(--tw-duration, 170ms);
 	transition-timing-function: var(--tw-ease, var(--ease-enter));
 	&[data-starting-style],
 	&[data-ending-style] {
@@ -466,25 +461,172 @@
 		scale: 0.96;
 	}
 	&[data-ending-style] {
-		transition-duration: 180ms;
+		transition-duration: calc(var(--tw-duration, 170ms) * 0.75);
 		transition-timing-function: var(--ease-exit);
 	}
+	/* Base UI sets data-instant on keyboard and focus opens, dismissals and group skips across tooltips or menubar menus; timing from Arc's tooltip. */
 	&[data-instant] {
-		transition-duration: 0ms;
+		scale: 1;
+		transition-duration: 85ms;
+		transition-timing-function: var(--ease-standard);
 	}
 }
 
 @utility scrim {
 	transition-property: opacity;
-	transition-duration: var(--tw-duration, 240ms);
+	transition-duration: var(--tw-duration, 170ms);
 	transition-timing-function: var(--ease-standard);
 	&[data-starting-style],
 	&[data-ending-style] {
 		opacity: 0;
 	}
 	&[data-ending-style] {
-		transition-duration: 180ms;
+		transition-duration: calc(var(--tw-duration, 170ms) * 0.75);
 	}
+}
+
+/* Recede (the Recede recipe): the page under a blocking layer steps back while the layer is up. Only a `scrim`
+   (dialog, drawer, sheet) triggers it; menus and popovers float over a page that stays put. */
+[data-recede] {
+	transition:
+		scale 340ms var(--ease-enter),
+		filter 340ms var(--ease-enter);
+	transform-origin: 50% 40%;
+}
+body:has(.scrim[data-open]:not([data-ending-style])) [data-recede] {
+	scale: 0.98;
+	filter: blur(2px);
+}
+@media (prefers-reduced-motion: reduce) {
+	body:has(.scrim[data-open]:not([data-ending-style])) [data-recede] {
+		scale: 1;
+		filter: none;
+	}
+}
+
+/* Page swap (the Page swap recipe): the router starts a view transition of type `page` on a navigation, with `forward`
+   or `back` when the content has a direction (a month, a step). Every piece swaps the Arc way (its `badge`,
+   `action-button`, `avatar-group`): the old one leaves up and out of focus (110ms, 4px, blur 2px) as the new one
+   arrives from below (170ms, 5px, blur 4px), and the regions marked `data-swap="1"` to `"5"` each run 25ms behind the
+   one before, small things first. Only `main[data-content]`, the shell's scroll container, is snapshotted: nothing
+   outside it moves, and a region has no `starting:` entrance of its own. */
+:root:active-view-transition-type(page) {
+	--swap-out: 0 -4px;
+	--swap-in: 0 5px;
+}
+:root:active-view-transition-type(forward) {
+	--swap-out: -4px 0;
+	--swap-in: 6px 0;
+}
+:root:active-view-transition-type(back) {
+	--swap-out: 4px 0;
+	--swap-in: -6px 0;
+}
+:root:active-view-transition-type(page) [data-content] {
+	view-transition-name: content;
+}
+:root:active-view-transition-type(page) [data-content] [data-swap='1'] {
+	view-transition-name: swap-1;
+}
+:root:active-view-transition-type(page) [data-content] [data-swap='2'] {
+	view-transition-name: swap-2;
+}
+:root:active-view-transition-type(page) [data-content] [data-swap='3'] {
+	view-transition-name: swap-3;
+}
+:root:active-view-transition-type(page) [data-content] [data-swap='4'] {
+	view-transition-name: swap-4;
+}
+:root:active-view-transition-type(page) [data-content] [data-swap='5'] {
+	view-transition-name: swap-5;
+}
+:root:active-view-transition-type(page)::view-transition-group(*),
+:root:active-view-transition-type(page)::view-transition-new(root) {
+	animation: none;
+}
+:root:active-view-transition-type(page)::view-transition-old(root) {
+	display: none;
+}
+:root:active-view-transition-type(page)::view-transition-image-pair(content) {
+	overflow: clip;
+}
+/* A snapshot is sized to its group by default (inline-size 100%), so an old region drawn in the new region's group
+   stretches to its width and reads as a zoom. Natural size keeps every piece at the scale it was captured at. */
+:root:active-view-transition-type(page)::view-transition-old(*),
+:root:active-view-transition-type(page)::view-transition-new(*) {
+	inline-size: auto;
+	block-size: auto;
+}
+:root:active-view-transition-type(page)::view-transition-old(*) {
+	animation: 110ms var(--ease-standard) both swap-out;
+}
+:root:active-view-transition-type(page)::view-transition-new(*) {
+	animation: 170ms var(--ease-enter) both swap-in;
+}
+:root:active-view-transition-type(page)::view-transition-new(swap-2) {
+	animation-delay: 25ms;
+}
+:root:active-view-transition-type(page)::view-transition-new(swap-3) {
+	animation-delay: 50ms;
+}
+:root:active-view-transition-type(page)::view-transition-new(swap-4) {
+	animation-delay: 75ms;
+}
+:root:active-view-transition-type(page)::view-transition-new(swap-5) {
+	animation-delay: 100ms;
+}
+@keyframes swap-out {
+	to {
+		opacity: 0;
+		translate: var(--swap-out);
+		filter: blur(2px);
+	}
+}
+@keyframes swap-in {
+	from {
+		opacity: 0;
+		translate: var(--swap-in);
+		filter: blur(4px);
+	}
+}
+@keyframes fade-out {
+	to {
+		opacity: 0;
+	}
+}
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+}
+
+/* Theme switch (the Theme switch recipe): a plain dissolve. The default pair blends with plus-lighter, which flashes
+   between black and white; here the old page sits on top at its own brightness and fades to reveal the new one. */
+:root:active-view-transition-type(theme)::view-transition-old(root) {
+	animation: 280ms var(--ease-standard) both fade-out;
+	mix-blend-mode: normal;
+	z-index: 1;
+}
+:root:active-view-transition-type(theme)::view-transition-new(root) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+
+/* Morph (the Morph recipe): one element carries over between two states; the rest crossfades. The shared element
+   is named only for the transition, so a routine re-render never snapshots it. */
+:root:active-view-transition-type(morph)::view-transition-group(*) {
+	animation-duration: 340ms;
+	animation-timing-function: var(--ease-enter);
+}
+/* The one target is always named; a source is one row of many, named only while the pointer or focus is on it. */
+:root:active-view-transition-type(morph) :is([data-morph], [data-morph-from]:is(:hover, :focus-visible)) {
+	view-transition-name: var(--morph);
+}
+:root:active-view-transition-type(morph)::view-transition-old(root) {
+	animation: 125ms var(--ease-exit) both fade-out;
+}
+:root:active-view-transition-type(morph)::view-transition-new(root) {
+	animation: 170ms var(--ease-enter) both fade-in;
 }
 
 /* Everything above is the ui skill's styles.css unchanged but for the xterm import; below are vexdock's own additions. */
@@ -495,19 +637,6 @@
 	--console-foreground: oklch(87% 0 0);
 	--code-key: oklch(71.7% 0.152 251);
 	--code-value: oklch(83.2% 0.156 147);
-}
-
-/* On #000 the skill's 21.5% cards read as slabs. Cards and menus stay opaque (dialogs and sticky headers cover content);
- * hover, selection, tracks and lines are translucent white, so they land one step above whatever they sit on. */
-:root[data-theme='dark'] {
-	--background: #000;
-	--surface: oklch(15% 0 0);
-	--surface-raised: oklch(19% 0 0);
-	--surface-muted: oklch(100% 0 0 / 0.08);
-	--surface-pressed: oklch(100% 0 0 / 0.12);
-	--border: oklch(100% 0 0 / 0.1);
-	--border-subtle: oklch(100% 0 0 / 0.06);
-	--border-strong: oklch(100% 0 0 / 0.16);
 }
 
 @theme inline {
@@ -532,11 +661,6 @@
 
 	:hover {
 		scrollbar-color: color-mix(in oklch, currentColor 60%, transparent) transparent;
-	}
-
-	::selection {
-		background: var(--foreground);
-		color: var(--background);
 	}
 }
 

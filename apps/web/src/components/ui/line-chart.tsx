@@ -61,6 +61,8 @@ type LineChartProps = {
 	className?: string
 	// vexdock: lowest ceiling for the scale, so an idle byte rate gets 0..1 KiB ticks instead of 0..1 B, which bytes() rounds to duplicates.
 	max?: number
+	// vexdock: a crosshair shared across small multiples; this chart still reports its own through onActiveChange.
+	activeIndex?: number | null
 }
 
 type Point = [x: number, value: number]
@@ -116,6 +118,7 @@ export function LineChart({
 	ref,
 	className,
 	max = 0,
+	activeIndex,
 }: LineChartProps) {
 	const reduced = useReducedMotion() ?? false
 	const chart = useRef<HTMLDivElement>(null)
@@ -163,7 +166,9 @@ export function LineChart({
 		setSeenSignature(signature)
 		setActive(null)
 	}
-	const index = active === null || empty ? null : Math.min(active, last)
+	const own = active === null || empty ? null : Math.min(active, last)
+	const shared = activeIndex === undefined ? own : activeIndex
+	const index = shared === null || empty ? null : Math.min(shared, last)
 	const scrubbing = index !== null
 
 	const width = useRef(0)
@@ -360,8 +365,8 @@ export function LineChart({
 		onActive.current = onActiveChange
 	})
 	useEffect(() => {
-		onActive.current?.(index, index === null ? null : data[index]!)
-	}, [index])
+		onActive.current?.(own, own === null ? null : data[own]!)
+	}, [own])
 
 	function toggle(key: string) {
 		const next = hidden.includes(key) ? hidden.filter(item => item !== key) : [...hidden, key]
