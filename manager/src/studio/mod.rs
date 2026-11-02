@@ -29,6 +29,8 @@ pub struct ReadOnly;
 
 pub const MAX_PAGE_SIZE: i64 = 500;
 pub const MAX_RESULT_ROWS: usize = 1000;
+/// Bounds what one result holds in the manager's memory, whatever its row count.
+pub const MAX_RESULT_BYTES: usize = 16 << 20;
 const DEFAULT_PAGE_LEN: i64 = 50;
 
 /// One cell: text, or None for NULL.

@@ -117,6 +117,7 @@ async fn project_token_scope() {
 		("unknown id looks forbidden", &reader, "GET", "/api/services/nope", StatusCode::FORBIDDEN),
 		("instance routes are admin only", &writer, "GET", "/api/tokens", StatusCode::FORBIDDEN),
 		("deleting a project is admin only", &writer, "DELETE", "/api/projects/p1", StatusCode::FORBIDDEN),
+		("publishing a host port is admin only", &writer, "POST", "/api/services/s-p1/ports", StatusCode::FORBIDDEN),
 		("admin token passes", &admin, "GET", "/api/tokens", StatusCode::OK),
 		("admin token reaches every project", &admin, "GET", "/api/projects/p2/environments", StatusCode::OK),
 	];
@@ -249,4 +250,68 @@ async fn oauth_flow() {
 		StatusCode::UNAUTHORIZED,
 		"the replay did not revoke the grant"
 	);
+}
+
+#[tokio::test]
+async fn project_domain_cannot_take_the_panel_hostname() {
+	let h = harness("");
+	h.server.db.set_setting(crate::domains::SETTING_DASHBOARD_DOMAIN, "panel.example.com").unwrap();
+	let writer = format!("Bearer {}", h.mint(&[grant("p1", database::ACCESS_WRITE)]));
+	let headers = [("content-type", "application/json"), ("authorization", writer.as_str())];
+	let create = json!({"project_id": "p1", "service": "web", "hostname": "panel.example.com", "container_port": 80}).to_string();
+	let (status, _, body) = h.send("POST", "/api/domains", &headers, &create).await;
+	assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+	assert!(body.contains("panel's own hostname"), "{body}");
+	let (status, _, body) = h.send("PATCH", "/api/domains/d-p1", &headers, r#"{"hostname":"panel.example.com"}"#).await;
+	assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+	assert_eq!(h.server.db.domain_by_id("d-p1").unwrap().hostname, "p1.example.com");
+	let err = h.server.domains.set_dashboard_domain("p2.example.com", false).await.unwrap_err();
+	assert!(format!("{err:#}").contains("already a project domain"), "{err:#}");
+}
+
+#[tokio::test]
+async fn domain_is_not_kept_when_the_proxy_rejects_it() {
+	let h = harness("");
+	let admin = format!("Bearer {}", h.mint(&[]));
+	let headers = [("content-type", "application/json"), ("authorization", admin.as_str())];
+	let create = json!({"project_id": "p1", "service": "web", "hostname": "new.example.com", "container_port": 80}).to_string();
+	let (status, _, body) = h.send("POST", "/api/domains", &headers, &create).await;
+	assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+	assert!(h.server.db.list_domains().unwrap().iter().all(|d| d.hostname != "new.example.com"), "the rejected domain stayed");
+}
+
+#[tokio::test]
+async fn deleting_a_service_removes_its_domain_certificates() {
+	let h = harness("");
+	let admin = h.mint(&[]);
+	let dir = h.server.certs.dir("p1.example.com");
+	std::fs::create_dir_all(&dir).unwrap();
+	for file in ["fullchain.pem", "privkey.pem"] {
+		std::fs::write(format!("{dir}/{file}"), "x").unwrap();
+	}
+	assert_eq!(h.call(&admin, "DELETE", "/api/services/s-p1").await, StatusCode::NO_CONTENT);
+	assert!(!h.server.certs.exists("p1.example.com"), "the certificate outlived its domain");
+}
+
+#[tokio::test]
+async fn git_callbacks_refuse_a_bare_connection_id() {
+	let h = harness("https://panel.example.com");
+	let admin = h.mint(&[]);
+	let bearer = format!("Bearer {admin}");
+	let (status, _, body) = h.send("POST", "/api/git-providers/github", &[("authorization", &bearer)], r#"{"name":"gh"}"#).await;
+	assert_eq!(status, StatusCode::CREATED, "{body}");
+	let created: Value = serde_json::from_str(&body).unwrap();
+	let id = created["git_provider_id"].as_str().unwrap();
+	let manifest_url = created["manifest_url"].as_str().unwrap();
+	let state = manifest_url.split_once("state=").unwrap().1;
+
+	let forged = format!("/api/providers/github/installed?installation_id=42&state={id}");
+	assert_eq!(h.call(&admin, "GET", &forged).await, StatusCode::BAD_REQUEST, "a project token can read the bare id");
+	let provider = h.server.db.git_provider_by_id(id).unwrap();
+	assert_eq!(provider.github.unwrap().installation_id, "");
+
+	let sealed = format!("/api/providers/github/installed?installation_id=42&state={state}");
+	assert_eq!(h.call(&admin, "GET", &sealed).await, StatusCode::FOUND);
+	let provider = h.server.db.git_provider_by_id(id).unwrap();
+	assert_eq!(provider.github.unwrap().installation_id, "42");
 }

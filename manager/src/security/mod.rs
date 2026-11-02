@@ -88,6 +88,23 @@ pub fn hash_token(token: &str) -> String {
 	hex::encode(Sha256::digest(token.as_bytes()))
 }
 
+/// The symlink-aware half of resolve_inside, for paths inside a git checkout:
+/// a committed symlink passes every lexical check and can still point the build
+/// at the platform's own state. A path that does not exist yet is let through,
+/// since nothing can be read through it.
+pub fn ensure_resolves_inside(base: &str, path: &str) -> Result<()> {
+	let root = std::fs::canonicalize(base).with_context(|| format!("resolve {base}"))?;
+	let resolved = match std::fs::canonicalize(path) {
+		Ok(resolved) => resolved,
+		Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+		Err(err) => return Err(err).with_context(|| format!("resolve {path}")),
+	};
+	if !resolved.starts_with(&root) {
+		bail!("{path} resolves outside the repository, to {}", resolved.display());
+	}
+	Ok(())
+}
+
 /// Joins a user-supplied relative path onto base and guarantees the result
 /// stays inside base. The single guard against path traversal for compose
 /// file paths, backup names and project file access.

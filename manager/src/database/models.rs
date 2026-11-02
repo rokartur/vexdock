@@ -222,6 +222,10 @@ pub struct GitProvider {
 	/// only a request knows the panel's public origin.
 	#[serde(skip_serializing_if = "String::is_empty", default)]
 	pub webhook_url: String,
+	/// Where a GitHub App's owner picks its repositories, carrying a sealed
+	/// handshake state, so only the API can build it.
+	#[serde(skip_serializing_if = "String::is_empty", default)]
+	pub install_url: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub github: Option<GitHubProvider>,
 	#[serde(skip_serializing_if = "Option::is_none")]

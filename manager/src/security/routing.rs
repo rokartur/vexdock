@@ -27,8 +27,9 @@ pub fn validate_redirect(regex: &str, replacement: &str) -> Result<String> {
 	let mut i = 0;
 	while i < bytes.len() {
 		if bytes[i] == b'\\' {
-			if i == bytes.len() - 1 || b"\\'trn".contains(&bytes[i + 1]) {
-				bail!(r"regex must not end in \ or use \\, \', \t, \r or \n");
+			// \u and \U compile here but not in nginx's PCRE2.
+			if i == bytes.len() - 1 || b"\\'trnuU".contains(&bytes[i + 1]) {
+				bail!(r"regex must not end in \ or use \\, \', \t, \r, \n, \u or \U");
 			}
 			i += 1;
 		}

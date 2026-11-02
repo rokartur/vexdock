@@ -16,7 +16,10 @@ Everything in front of it is therefore treated as untrusted input.
   identifiers checked against the introspected schema; the query console runs
   what it is given with the service's own credentials, which is the point of
   it. Every change and query is a `POST`, so it passes the CSRF check and lands
-  in the audit log.
+  in the audit log. A result holds at most 1000 rows and 16 MiB of cells, and a
+  Valkey reply or an sqld response past that is refused, so a project's own
+  database cannot fill the manager's memory. The sqld client follows no
+  redirects.
 - Accounts, password hashing and sessions belong to better-auth, running as its
   own service with its own SQLite database. The manager never issues a
   credential; it validates the session cookie by reading that database.
@@ -72,7 +75,9 @@ Everything in front of it is therefore treated as untrusted input.
   name. A redirect URI may not use a scheme a browser would run on the
   dashboard's origin (`javascript:`, `data:`), and the dashboard refuses to be
   framed, so the Allow button cannot be clickjacked. Refresh tokens rotate on
-  every use; a replayed one revokes its grant.
+  every use; a replayed one revokes its grant. A redirect URI is at most 2048
+  bytes, and only the newest 1000 clients that never got a grant are kept, so
+  open registration cannot grow the database without end.
 - Credential endpoints are rate limited twice: better-auth allows five attempts
   a minute per client, and Nginx throttles the same paths independently.
 - Every state-changing API call is recorded in an audit log with the actor, the
@@ -94,7 +99,11 @@ Values that reach a command line are validated first:
 - **Git refs** reject anything starting with `-` and any shell metacharacter.
 - **Build paths** must stay inside the checkout: `..`, backslashes and anything
   a path clean would rewrite are rejected, on create and on edit alike, so a
-  build context cannot be aimed at an arbitrary host directory.
+  build context cannot be aimed at an arbitrary host directory. After the
+  clone the context and the Dockerfile are resolved again, so a symlink
+  committed to the repository cannot lead out of the checkout either. A `$` in
+  a value written to the compose file is doubled, so it never reaches compose
+  interpolation.
 - **Image references and volume mount points** are matched against a narrow
   pattern before being written into the generated compose file. Both are user
   values that end up in YAML, where a space or a `#` is enough to change which
@@ -163,8 +172,10 @@ row every mutation gets.
   the panel's own access log. A verified delivery still deploys only what a
   service already tracks: the exact owner, repository and branch. An unknown
   repository is answered `202 ignored`.
-- The OAuth state for all three handshakes is the connection row's own id, so a
-  code can only ever be exchanged against the connection that started the flow.
+- The OAuth state for all three handshakes is the connection row's id sealed
+  with the master key and an hour's expiry, so a code can only be exchanged
+  against the connection that started the flow, and a link built from the bare
+  id, which project tokens can read, is refused.
   The redirect URI is `PLATFORM_PUBLIC_URL` when it is set and the address the
   browser reached the panel on otherwise, so an install with no domain yet can
   still connect. The request-derived form is only ever read from a request that
@@ -250,7 +261,19 @@ as strong as the passwords in it; use long random ones.
 
 A published port binds the host directly and bypasses the proxy: no TLS, no
 basic auth, no redirects. Ports 80 and 443 are refused because the proxy owns
-them, and one host port and protocol belongs to one service.
+them, and one host port and protocol belongs to one service. Publishing or
+removing one is admin only: a port shares the panel's hostname, so the session
+cookie, which carries no port, reaches whatever a project puts there.
+
+A project domain may not be the panel's own hostname, and the panel may not
+take a project's. A domain the proxy refuses is not saved, and deleting a
+service or an environment removes its domains' certificates with them, so the
+next domain on that hostname starts without them.
+
+Every service rendered from the catalog or from git runs with `pids_limit:
+4096` and Docker's `json-file` log driver capped at three 10 MB files, so one
+project cannot exhaust the host's processes or disk through its logs. A raw
+compose fragment keeps whatever it declares.
 
 ## Reporting a vulnerability
 

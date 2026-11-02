@@ -103,8 +103,9 @@ pub async fn delete_environment(State(s): State<Arc<Server>>, Path(id): Path<Str
 		tracing::error!(environment = env.id, error = %err, "compose down during environment delete");
 		return Err(server_error(err.context(format!("stop environment {}", env.name))));
 	}
+	let domains: Vec<_> = s.db.list_domains()?.into_iter().filter(|d| d.environment_id == env.id).collect();
 	s.projects.delete_environment(&env).map_err(bad_request)?;
-	if let Err(err) = s.domains.reconcile().await {
+	if let Err(err) = s.domains.forget(&domains).await {
 		tracing::warn!(error = %err, "reconcile after environment delete");
 	}
 	done()

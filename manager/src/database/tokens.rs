@@ -16,6 +16,9 @@ pub const ACCESS_WRITE: &str = "write";
 pub const OAUTH_ACCESS_LIFETIME: Duration = Duration::from_secs(3600);
 pub const OAUTH_REFRESH_LIFETIME: Duration = Duration::from_secs(30 * 24 * 3600);
 
+/// How many registered clients without a grant are kept, newest first.
+pub const MAX_UNUSED_OAUTH_CLIENTS: i64 = 1000;
+
 /// A non-cookie credential for CI, the CLI and MCP clients. Only the hash and a
 /// short display prefix are stored. An admin token reaches every route; any
 /// other reaches only the projects in `projects`. A token with a client_id is
@@ -168,6 +171,14 @@ impl Db {
 			"DELETE FROM oauth_clients WHERE created_at < ?
 			 AND id NOT IN (SELECT client_id FROM api_tokens WHERE client_id IS NOT NULL)",
 			[format_time(Utc::now() - chrono::Duration::hours(24))],
+		)?;
+		// Registration is open, so the day of grace alone would let one caller
+		// fill the disk; the oldest unused clients make room instead.
+		self.exec(
+			"DELETE FROM oauth_clients WHERE id IN (
+			 SELECT id FROM oauth_clients WHERE id NOT IN (SELECT client_id FROM api_tokens WHERE client_id IS NOT NULL)
+			 ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET ?)",
+			[MAX_UNUSED_OAUTH_CLIENTS - 1],
 		)?;
 		let c = OAuthClient { id: new_id(), name: name.into(), redirect_uris: redirect_uris.to_vec(), created_at: now() };
 		self.exec(

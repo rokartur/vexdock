@@ -108,3 +108,26 @@ fn tail_keeps_the_end() {
 	assert_eq!(tail("abcdef", 3, false), "... truncated ...\ndef");
 	assert_eq!(tail("abc", 10, true), "... truncated ...\nabc");
 }
+
+// A webhook burst or repeated clicks must not grow the shared queue: while one
+// deployment of the same thing waits, a new trigger returns it.
+#[tokio::test]
+async fn trigger_joins_a_waiting_deployment() {
+	let f = fixture();
+	let e = &f.engine;
+	let taken = e.slots.acquire_many(MAX_CONCURRENT as u32).await.unwrap();
+	let project = e.db.project_by_id("p1").unwrap();
+	let env = e.db.environment_by_id("p1").unwrap();
+	let opts = |service: &str| Options { trigger: TRIGGER_MANUAL.into(), service_name: service.into(), ..Default::default() };
+	let first = e.trigger(&project, &env, opts("web")).unwrap();
+	let second = e.trigger(&project, &env, opts("web")).unwrap();
+	let other = e.trigger(&project, &env, opts("api")).unwrap();
+	assert_eq!(second.id, first.id, "a second deployment of the same service was queued");
+	assert_ne!(other.id, first.id);
+	for id in [&first.id, &other.id] {
+		while e.cancel(id).is_err() {
+			tokio::time::sleep(Duration::from_millis(5)).await;
+		}
+	}
+	drop(taken);
+}

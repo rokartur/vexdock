@@ -121,6 +121,8 @@ fn redirect() {
 		("^(.*)\n", "https://$1"),
 		(r"^(.*)\", "https://$1"),
 		(r"^(.*)\n", "https://$1"),
+		(r"^/\u0041(.*)", "https://$1"),
+		(r"^/\U00000041(.*)", "https://$1"),
 		("^(.*", "https://$1"),
 		("^(.*)", "https://$host$1"),
 		("^(.*)", r"https://\$1"),
@@ -148,5 +150,30 @@ fn sub_path() {
 	assert_eq!(validate_sub_path("").unwrap(), "");
 	for bad in ["..", "../x", "a/../b", "a//b", "a\\b"] {
 		assert!(validate_sub_path(bad).is_err(), "{bad:?}");
+	}
+}
+
+#[test]
+fn ensure_resolves_inside_follows_symlinks() {
+	let root = tempfile::tempdir().unwrap();
+	let outside = tempfile::tempdir().unwrap();
+	let repo = root.path().join("repository");
+	std::fs::create_dir_all(repo.join("app")).unwrap();
+	std::fs::write(outside.path().join(".env"), "SECRET=1").unwrap();
+	std::os::unix::fs::symlink(outside.path(), repo.join("ctx")).unwrap();
+	let base = repo.to_str().unwrap();
+	assert!(ensure_resolves_inside(base, &format!("{base}/app")).is_ok());
+	assert!(ensure_resolves_inside(base, &format!("{base}/missing/Dockerfile")).is_ok());
+	assert!(ensure_resolves_inside(base, &format!("{base}/ctx")).is_err(), "a symlinked context escaped");
+	assert!(ensure_resolves_inside(base, &format!("{base}/ctx/.env")).is_err(), "a Dockerfile through a symlinked parent escaped");
+}
+
+#[test]
+fn container_names_nginx_resolves_are_reserved() {
+	for name in ["manager", "Auth", "mcp", "nginx", "p_01jabc_web", "0123456789ab"] {
+		assert!(validate_container_name(name).is_err(), "{name} was allowed");
+	}
+	for name in ["acme-web", "managerial", "vexdock-db"] {
+		assert!(validate_container_name(name).is_ok(), "{name} was refused");
 	}
 }

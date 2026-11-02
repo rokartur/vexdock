@@ -70,6 +70,9 @@ those projects:
   connection or a registry login reaches other projects' code and images, and a
   compose fragment can mount the host. Branch, build settings and mounts stay at
   `write`.
+- Publishing or removing a host port stays with admin tokens. A listener on
+  any port of the panel's host receives the panel's session cookie, which
+  browsers scope to the host and not to the port.
 - Creating or deleting a project, Docker, the system, Git providers, registries
   and tokens stay with admin tokens.
 - `GET /api/projects`, `/api/tasks` and `/api/domains` answer only the granted
@@ -460,7 +463,8 @@ first failure; Valkey edits string values and TTLs only, in one `MULTI`.
 The query runs as typed, in autocommit, against the given schema: SQL for the
 SQL engines, one Extended JSON command document for MongoDB
 (`{"find":"users","limit":5}`), one command line for Valkey. At most 1,000
-rows come back, with `truncated` set when there were more.
+rows and 16 MiB of cells come back, with `truncated` set when there were more.
+A Valkey reply past 16 MiB fails with `QUERY_FAILED`.
 
 ```sh
 curl -fsS -X POST \
@@ -542,6 +546,7 @@ stop later reconciles.
 - `POST .../basic-auth` takes `{"username", "password"}` and answers the user
   without its password. A username taken on the service is `409 CONFLICT`.
 - `POST .../ports` takes `{"published", "target", "protocol"}`, `tcp` or `udp`.
+  Adding and removing a port are admin only.
   It lands in the compose overlay on the next deploy, and so does a `DELETE`:
   the container keeps the host port open until the service is deployed again,
   which its `published_ports` shows. `80` and `443` belong to the proxy, a host
@@ -719,7 +724,7 @@ picked from a list instead of pasted as a URL.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/git-providers` | `{"git_providers": [...]}`; the only secret in the answer is the token inside `webhook_url` |
+| `GET /api/git-providers` | `{"git_providers": [...]}`; the only secret in the answer is the token inside `webhook_url`; a GitHub App with a name carries `install_url`, its install screen with a sealed state |
 | `GET /api/git-providers/{id}` | One connection with its detail |
 | `PATCH /api/git-providers/{id}` | `{"name"}` |
 | `DELETE /api/git-providers/{id}` | Removes one; `409 GIT_PROVIDER_IN_USE` while services still clone through it |
@@ -754,7 +759,9 @@ exchanged for the App's id, private key, client secret and webhook secret; the
 browser then goes to GitHub's install screen, where the owner picks all
 repositories or a few, and returns to `/api/providers/github/installed`, which
 records the installation. Clones use an installation token minted on demand and
-cached until it expires.
+cached until it expires. Every handshake's `state` is the connection id sealed
+with the master key and valid for an hour; a callback with any other state is
+refused with `400`.
 
 ### GitLab and Gitea
 
