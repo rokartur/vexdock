@@ -121,11 +121,11 @@ jobs:
           done
 
       - name: Install
+        # The runner's sudo ignores -E, so the variables go on the command line;
+        # without them the installer pulls the latest release from ghcr.
         run: |
-          export PLATFORM_REGISTRY=localhost:5000
-          export PLATFORM_LOCAL_COMPOSE=compose.yml
-          export PLATFORM_VERSION=ci
-          sudo -E sh installer/install.sh
+          sudo env PLATFORM_REGISTRY=localhost:5000 PLATFORM_LOCAL_COMPOSE=compose.yml PLATFORM_VERSION=ci \
+            sh installer/install.sh
 
       - name: The installer generated its secrets
         run: |
