@@ -196,8 +196,11 @@ build. Each step is a reconcile:
    TCP connection to every port the service's domains proxy to (`nc` inside
    the Nginx container), so a service without a healthcheck is listening
    before it serves.
-3. Pin the vhosts to the new container, wait two seconds for the reload to
-   take over, stop and remove the old container.
+3. Pin the vhosts to the new container. The reload returns only once every
+   accepting Nginx worker runs the new configuration (`nginx -s reload` alone
+   returns before that, and the old workers keep proxying to the old
+   container). Wait two seconds for requests already in flight, stop and
+   remove the old container.
 4. Unpin: the alias now names only the new container.
 
 Swapping the alias itself would not do: Nginx caches a resolved address for

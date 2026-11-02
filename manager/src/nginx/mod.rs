@@ -31,6 +31,23 @@ pub struct Nginx {
 /// File name to contents, the shape of the generated directory.
 pub type FileSet = BTreeMap<String, String>;
 
+// Exits 0 once every accepting worker started after the reload. A worker that is
+// shutting down renames itself and stops accepting, so `process$` skips it.
+// Exit 3: the master kept the old workers for 10s, e.g. it rejected the config.
+const RELOAD_AND_WAIT: &str = r#"
+workers() { ps -o pid,args | awk '/nginx: worker process$/ { print $1 }'; }
+before=" $(workers | xargs) "
+nginx -s reload || exit 1
+for _ in $(seq 200); do
+	now=$(workers)
+	stale=0
+	for pid in $now; do case "$before" in *" $pid "*) stale=1 ;; esac; done
+	[ -n "$now" ] && [ "$stale" = 0 ] && exit 0
+	sleep 0.05
+done
+exit 3
+"#;
+
 impl Nginx {
 	pub fn new(generated_dir: String, nginx_container: String, docker: Arc<Docker>) -> Nginx {
 		Nginx { generated_dir, nginx_container, docker, reload_pending: Mutex::new(false) }
@@ -79,17 +96,20 @@ impl Nginx {
 	}
 
 	/// Asks Nginx to pick up the validated configuration without dropping
-	/// in-flight connections.
+	/// in-flight connections, and returns once only workers on the new
+	/// configuration accept: `nginx -s reload` returns as soon as it signals the
+	/// master, while the old workers still serve the previous upstreams.
 	pub async fn reload(&self) -> Result<()> {
-		let argv = ["nginx".to_string(), "-s".to_string(), "reload".to_string()];
+		let argv = ["sh".to_string(), "-c".to_string(), RELOAD_AND_WAIT.to_string()];
 		let (out, code) = tokio::time::timeout(Duration::from_secs(30), self.docker.exec_output(&self.nginx_container, &argv))
 			.await
 			.map_err(|_| anyhow!("nginx reload: timed out"))?
 			.context("nginx reload")?;
-		if code != 0 {
-			bail!("nginx reload exited with {code}: {}", condense(&out, None));
+		match code {
+			0 => Ok(()),
+			3 => bail!("nginx reload: the workers still run the previous configuration after 10s"),
+			_ => bail!("nginx reload exited with {code}: {}", condense(&out, None)),
 		}
-		Ok(())
 	}
 
 	/// Whether the proxy container opens a TCP connection to `host:port`.
