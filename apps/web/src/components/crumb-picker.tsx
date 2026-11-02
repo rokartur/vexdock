@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { SearchField } from '@/components/ui/search-field'
 import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
 import { projectQuery, projectsQuery, serviceQuery, servicesQuery } from '../lib/queries'
-import { Status } from './primitives'
+import { Button, Status } from './primitives'
 
 type Choice = {
 	id: string
@@ -89,13 +89,12 @@ function CrumbPicker({
 				/>
 				<div id={listId} role='listbox' className='mt-1.5 max-h-72 overflow-y-auto'>
 					{query.isError ? (
-						<button
-							type='button'
-							onClick={() => query.refetch()}
-							className='w-full px-3 py-4 text-left text-sm text-muted hover:text-foreground'
-						>
-							Could not load. Retry
-						</button>
+						<div className='flex items-center justify-between gap-2 px-3 py-3 text-sm text-muted'>
+							Could not load
+							<Button variant='ghost' onClick={() => query.refetch()}>
+								Retry
+							</Button>
+						</div>
 					) : shown.length === 0 ? (
 						<p className='px-3 py-4 text-sm text-muted'>No matches</p>
 					) : (

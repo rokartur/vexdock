@@ -3,6 +3,7 @@ import {
 	createContext,
 	type ReactElement,
 	type ReactNode,
+	isValidElement,
 	memo,
 	useContext,
 	useMemo,
@@ -40,6 +41,7 @@ import { PasswordField } from '@/components/ui/password-field'
 import { Progress } from '@/components/ui/progress'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Select as ArcSelect } from '@/components/ui/select'
+import { Stepper } from '@/components/ui/stepper'
 import { Switch as ArcSwitch } from '@/components/ui/switch'
 import { Tabs as ArcTabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea as ArcTextarea } from '@/components/ui/textarea'
@@ -741,21 +743,35 @@ export function StatStrip({ items, className }: { items: { label: string; value:
 }
 
 /** An ordered run of steps, each with the state it ended in. The shape for a pipeline that is watched while it runs. */
-export function Timeline({ steps }: { steps: { id: string; name: string; status: string; detail?: ReactNode }[] }) {
+export function Timeline({
+	label,
+	steps,
+}: {
+	label: string
+	steps: {
+		id: string
+		name: string
+		status: 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
+		detail?: string
+	}[]
+}) {
+	const current = steps.findIndex(step => step.status !== 'success')
+	const stepErrors: Partial<Record<(typeof steps)[number]['status'], string>> = {
+		failed: 'Failed',
+		cancelled: 'Cancelled',
+	}
 	return (
-		<ol className='relative ml-[3px] border-l border-border-subtle'>
-			{steps.map(step => (
-				<li key={step.id} className='flex items-center gap-3 py-1 pl-4 text-sm'>
-					<span className='absolute -left-[3.5px]'>
-						<Status dot value={step.status} />
-					</span>
-					<span className='min-w-0 flex-1 truncate font-mono'>{step.name}</span>
-					{step.detail ? (
-						<span className='shrink-0 font-mono text-xs text-muted tabular-nums'>{step.detail}</span>
-					) : null}
-				</li>
-			))}
-		</ol>
+		<Stepper
+			label={label}
+			orientation='vertical'
+			current={current === -1 ? steps.length : current}
+			steps={steps.map(step => ({
+				id: step.id,
+				label: step.name,
+				description: step.detail,
+				error: stepErrors[step.status],
+			}))}
+		/>
 	)
 }
 
@@ -923,7 +939,7 @@ export function FormDialog({
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	title: string
-	description?: ReactNode
+	description?: string
 	action: string
 	icon: TablerIcon
 	mutation: { isPending: boolean; error: unknown; reset: () => void }
@@ -979,8 +995,8 @@ export function DetailDialog({
 }: {
 	open: boolean
 	onOpenChange: (open: boolean) => void
-	title: ReactNode
-	description?: ReactNode
+	title: string
+	description?: string
 	children: ReactNode
 }) {
 	return (
@@ -1067,15 +1083,14 @@ export function Select<TValue extends string>({
 	onChange: (value: TValue) => void
 	required?: boolean
 	disabled?: boolean
-	/** For a picker with no Field around it, like a page filter. */
+	/** For a picker with no Field around it, like a page filter: names it for assistive tech only. */
 	label?: string
 	/** Layout only, e.g. a filter that sizes to its content. */
 	className?: string
 }) {
 	return (
 		<ArcSelect
-			aria-label={label}
-			{...useFieldNaming(label)}
+			{...useFieldLabel(label)}
 			options={[...options]}
 			value={value}
 			onValueChange={next => {
@@ -1100,8 +1115,8 @@ export function Combo<TValue extends string>({
 	empty = 'No matches',
 	custom,
 }: {
-	/** The accessible name; Field's label names the group, not the input inside it. */
-	label: string
+	/** Names the picker when no Field is around it. */
+	label?: string
 	value: TValue | ''
 	options: readonly { value: NoInfer<TValue>; label: string }[]
 	/** `''` when the picked value is cleared. */
@@ -1116,8 +1131,7 @@ export function Combo<TValue extends string>({
 }) {
 	return (
 		<Combobox
-			aria-label={label}
-			{...useFieldNaming(label)}
+			{...useFieldLabel(label)}
 			options={[...options]}
 			value={value}
 			onValueChange={next => onChange(options.find(option => option.value === next)?.value ?? '')}
@@ -1129,43 +1143,57 @@ export function Combo<TValue extends string>({
 	)
 }
 
-/** `mono` is for machine text typed by hand: a variable name, a value, an id. A password gets Arc's show/hide toggle. */
-export function Input({ mono, ...props }: Omit<ComponentProps<typeof ArcInput>, 'className'> & { mono?: boolean }) {
-	const naming = useFieldNaming(props['aria-label'])
+type OwnLabel<TProps> = Omit<TProps, 'className' | 'label' | 'description' | 'hideLabel'> & { mono?: boolean }
+
+/** `mono` is for machine text typed by hand: a variable name, a value, an id. A password gets Arc's show/hide toggle.
+ * `aria-label` names a control with no Field around it, such as a cell in a table row. */
+export function Input({ mono, ...props }: OwnLabel<ComponentProps<typeof ArcInput>>) {
+	const naming = useFieldLabel(props['aria-label'])
 	if (props.type === 'password') return <PasswordField className={cn(mono && 'font-mono')} {...naming} {...props} />
 	return <ArcInput className={cn(mono && 'font-mono')} {...naming} {...props} />
 }
 
-export function Textarea({
-	mono,
-	...props
-}: Omit<ComponentProps<typeof ArcTextarea>, 'className'> & { mono?: boolean }) {
-	return <ArcTextarea className={cn(mono && 'font-mono')} {...useFieldNaming(props['aria-label'])} {...props} />
+export function Textarea({ mono, ...props }: OwnLabel<ComponentProps<typeof ArcTextarea>>) {
+	return <ArcTextarea className={cn(mono && 'font-mono')} {...useFieldLabel(props['aria-label'])} {...props} />
 }
 
-const FieldContext = createContext<{ labelId: string; hintId: string | undefined } | null>(null)
+const FieldContext = createContext<{ label: string; hint: string | undefined; visible: boolean } | null>(null)
 
-/** Field's label names the group, so the control inside takes it too; an own aria-label wins. */
-function useFieldNaming(ariaLabel: string | undefined) {
+/** Arc's controls draw their own label and hint. Inside a Field with one control, they draw the Field's; a control
+ * named by its own `ownLabel`, or one of several in a Field, keeps the label for assistive tech only. */
+function useFieldLabel(ownLabel: string | undefined) {
 	const field = useContext(FieldContext)
-	return {
-		'aria-labelledby': ariaLabel ? undefined : field?.labelId,
-		'aria-describedby': field?.hintId,
-	}
+	if (ownLabel !== undefined || !field) return { label: ownLabel ?? '', hideLabel: true }
+	return { label: field.label, description: field.visible ? field.hint : undefined, hideLabel: !field.visible }
 }
 
-/** A label over one control, styled as Arc's own. A group, not a <label>: a field can hold a switch row or a picker
- * that already labels itself. */
+const labeledControls = new Set<unknown>([Input, Textarea, Select, Combo])
+
+/** A label over one control. An Input, Textarea, Select or Combo draws it as Arc's own label and hint; anything else
+ * (a switch row, a segmented picker, a control with a button beside it) sits in a group under the label. */
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
 	const labelId = useId()
 	const hintId = useId()
-	const naming = useMemo(() => ({ labelId, hintId: hint ? hintId : undefined }), [labelId, hintId, hint])
+	const labeled = isValidElement(children) && labeledControls.has(children.type)
+	const context = useMemo(() => ({ label, hint, visible: labeled }), [label, hint, labeled])
+	if (labeled) {
+		return (
+			<div className='mb-4'>
+				<FieldContext value={context}>{children}</FieldContext>
+			</div>
+		)
+	}
 	return (
-		<div role='group' aria-labelledby={labelId} className='mb-4 grid content-start gap-2'>
+		<div
+			role='group'
+			aria-labelledby={labelId}
+			aria-describedby={hint ? hintId : undefined}
+			className='mb-4 grid content-start gap-2'
+		>
 			<span id={labelId} className='text-sm font-medium'>
 				{label}
 			</span>
-			<FieldContext value={naming}>{children}</FieldContext>
+			<FieldContext value={context}>{children}</FieldContext>
 			{hint ? (
 				<span id={hintId} className='text-xs text-muted'>
 					{hint}

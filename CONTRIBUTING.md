@@ -62,13 +62,12 @@ state belongs to TanStack Query; component state is local.
 already on the wire: the deployment status `cancelled` and the `deployment.cancelled`
 event keep their spelling because renaming them breaks stored rows and clients.
 
-**UI.** Arc UI's components (uiarc.dev) rebuilt by hand in `src/components/ui`,
-one flat file each, nothing installed from the Arc registry: an
-`@base-ui/react` primitive where Base UI has one (`render` instead of `asChild`,
-`data-open`/`data-starting-style` instead of `data-state`), a native element
-otherwise, Tailwind token classes instead of `var(--…)`, CSS transitions
-instead of a motion library, and only the props a caller uses. Sizes, radii and
-timings come from the tokens below, not Arc's defaults.
+**UI.** Arc UI's components (uiarc.dev) copied 1:1 into `src/components/ui`,
+one flat file each, nothing installed from the Arc registry: `@base-ui/react`
+primitives, Tailwind token classes and `motion/react` with the timings in
+`src/lib/motion.ts`, as Arc ships them. A prop Arc lacks is added in place and
+marked with a `// vexdock:` comment, so a diff against Arc shows every
+departure. `table.tsx` is the one file with no Arc original.
 Pages go through the vocabulary first:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
@@ -126,16 +125,17 @@ left, value right, a rule between rows.
 
 Motion is a token too. The `popup` and `scrim` utilities and the
 `ease-enter|standard|exit|spring` tokens time every popover, menu, select,
-dialog and tooltip without a page naming it, as CSS transitions. Reduced motion
-cuts every CSS transition and animation to 0.01ms (the base layer in
-`styles.css`); `MotionConfig reducedMotion='user'` drops the travel of the
-`motion/react` slides. Page
+dialog and tooltip without a page naming it, as CSS transitions; the Arc
+components that animate with `motion/react` take their springs and durations
+from `src/lib/motion.ts`. Reduced motion cuts every CSS transition and
+animation to 0.01ms (the base layer in `styles.css`); `MotionConfig
+reducedMotion='user'` and each Arc component's `useReducedMotion` drop the
+`motion/react` travel. Page
 blocks enter staggered (`enter-children` on `Page`), a selection slides
 (`ActivePill`), a panel's height follows `--collapsible-panel-height` on a
-Base UI `Collapsible`, and a live reading rolls its digits (`AnimatedNumber`).
-`ActivePill` is the one `motion/react` user: a highlight sliding between rows in
-different containers (`layoutId`) is the one thing CSS cannot do. Nothing
-loops: a busy button shows a static glyph, not a spinner.
+Base UI `Collapsible`, and a live reading rolls its digits (`AnimatedNumber`,
+over Arc's `RollingNumber`). Nothing loops: a busy button shows a static
+glyph, not a spinner.
 
 ## Tests
 

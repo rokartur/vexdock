@@ -198,9 +198,9 @@ function DashboardPage() {
 						label='CPU'
 						icon={IconCpu}
 						value={current ? <AnimatedNumber value={current.cpu_percent} format={percent} /> : '-'}
-						series={[seriesOf(history, sample => sample.cpu_percent)]}
+						series={{ CPU: seriesOf(history, sample => sample.cpu_percent) }}
+						format={percent}
 						max={100}
-						format={([cpu]) => percent(cpu)}
 						hint={stats?.load_average === undefined ? undefined : `load ${stats.load_average.toFixed(2)}`}
 						height={64}
 						inline
@@ -209,9 +209,9 @@ function DashboardPage() {
 						label='Memory'
 						icon={IconServer}
 						value={current ? <AnimatedNumber value={current.memory_used} format={bytes} /> : '-'}
-						series={[seriesOf(history, sample => sample.memory_used)]}
+						series={{ Memory: seriesOf(history, sample => sample.memory_used) }}
+						format={bytes}
 						max={current?.memory_total}
-						format={([used]) => bytes(used)}
 						hint={`of ${bytes(current?.memory_total ?? host?.memory_total)}`}
 						height={64}
 						inline

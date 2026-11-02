@@ -1,11 +1,11 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { IconEye, IconEyeOff, IconPlus, IconRefresh } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { RadioCards } from '@/components/ui/radio-cards'
 import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { engineMarks } from '../lib/engine-marks'
 import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
 import {
-	ActivePill,
 	Button,
 	Combo,
 	DialogFooter,
@@ -348,21 +348,18 @@ function EnginePicker({
 	value: string
 	onChange: (slug: string) => void
 }) {
-	const pillId = useId()
 	return (
-		<div className='overflow-hidden rounded-panel border'>
-			{engines.map(engine => {
+		<RadioCards
+			aria-label='Engine'
+			value={value}
+			onValueChange={onChange}
+			options={engines.map(engine => {
 				const mark = engineMarks[engine.slug]
-				return (
-					<button
-						key={engine.slug}
-						type='button'
-						aria-pressed={engine.slug === value}
-						onClick={() => onChange(engine.slug)}
-						className='relative isolate flex w-full items-center gap-2.5 border-b border-border-subtle px-2.5 py-2 text-sm last:border-b-0 hover:bg-surface-muted'
-					>
-						{engine.slug === value ? <ActivePill layoutId={pillId} /> : null}
-						<svg className='size-4 shrink-0' viewBox={mark?.viewBox ?? '0 0 24 24'} aria-hidden='true'>
+				return {
+					value: engine.slug,
+					label: engine.name,
+					icon: (
+						<svg viewBox={mark?.viewBox ?? '0 0 24 24'} aria-hidden='true'>
 							{mark ? (
 								<path d={mark.d} fill={mark.fill} fillRule={mark.fillRule} />
 							) : (
@@ -374,15 +371,16 @@ function EnginePicker({
 								/>
 							)}
 						</svg>
-						{engine.name}
-						<span className='ml-auto font-mono text-xs text-muted'>
+					),
+					meta: (
+						<span className='font-mono text-xs font-normal text-muted'>
 							{engine.repository
 								? `${engine.repository.replace('library/', '')}:${engine.default_tag}`
 								: 'any image'}
 						</span>
-					</button>
-				)
+					),
+				}
 			})}
-		</div>
+		/>
 	)
 }

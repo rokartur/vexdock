@@ -1,36 +1,103 @@
-import type { ComponentProps, MouseEvent, ReactElement } from 'react'
-import { useRender } from '@base-ui/react/use-render'
-import { IconDots } from '@tabler/icons-react'
+import {
+	type ComponentProps,
+	isValidElement,
+	type ReactElement,
+	type ReactNode,
+	type Ref,
+	type RefObject,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+} from 'react'
+import { Button as BaseButton } from '@base-ui/react/button'
 import { cn } from 'cn'
+import {
+	AnimatePresence,
+	animate,
+	motion,
+	type TargetAndTransition,
+	type Transition,
+	type Variants,
+	useIsPresent,
+	useMotionValue,
+	useReducedMotion,
+} from 'motion/react'
+import { motionTokens } from '../../lib/motion'
 
-// `not-disabled:` rather than `enabled:` so a rendered link, which has no :enabled state, still answers hover.
-// A disabled outlined button keeps its shape and fades only its label, so it still reads as a button that is off.
 const variants = {
 	primary:
-		'border-foreground bg-foreground text-background not-disabled:hover:opacity-91 not-disabled:hover:shadow-resting disabled:opacity-52',
+		'border-foreground bg-foreground text-background hover:opacity-91 hover:shadow-resting active:opacity-84 disabled:opacity-52',
 	secondary:
-		'border-border bg-surface-muted/50 text-foreground not-disabled:hover:bg-surface-muted disabled:bg-surface-muted disabled:text-muted',
-	ghost: 'text-secondary not-disabled:hover:bg-surface-muted not-disabled:hover:text-foreground aria-pressed:bg-surface-muted aria-pressed:text-foreground disabled:text-muted',
-	danger: 'border-border bg-surface-muted/50 text-danger not-disabled:hover:border-danger not-disabled:hover:bg-surface-muted disabled:bg-surface-muted disabled:text-danger/55',
+		'border-border bg-surface text-foreground hover:bg-surface-muted hover:shadow-resting active:bg-surface-pressed disabled:bg-surface-muted disabled:text-muted',
+	ghost: 'border-transparent text-secondary hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:text-foreground disabled:text-muted',
+	danger: 'border-border bg-surface text-danger hover:border-danger hover:bg-surface-muted active:border-danger active:bg-surface-pressed disabled:bg-surface-muted disabled:text-[color-mix(in_oklab,var(--danger)_55%,var(--surface-muted))]',
 } satisfies Record<string, string>
 
 const sizes = {
-	sm: 'h-control-sm px-2.5',
-	md: 'h-control-md px-2.5',
+	sm: 'min-h-control-sm px-2.5',
+	md: 'min-h-control-md px-3',
+	lg: 'min-h-control-lg px-4',
 } satisfies Record<string, string>
 
 export type ButtonVariant = keyof typeof variants
-export type ButtonSize = keyof typeof sizes
 
-export type ButtonProps = ComponentProps<'button'> & {
+// The drag and animation handlers would reach motion.button as gestures, so they are not forwarded.
+export type ButtonProps = Omit<
+	ComponentProps<'button'>,
+	'onDrag' | 'onDragEnd' | 'onDragStart' | 'onAnimationStart'
+> & {
 	variant?: ButtonVariant
-	size?: ButtonSize
+	size?: keyof typeof sizes
 	loading?: boolean
-	/** Square, for a lone icon. */
+	// vexdock: square, for a lone icon.
 	icon?: boolean
-	/** Renders this element (a router link) styled as the button instead of a <button>. */
+	// vexdock: renders this element (a router link) styled as the button.
 	render?: ReactElement
 }
+
+const { blur, duration, ease, spring } = motionTokens
+// Icon buttons press a little deeper, wide buttons a little less, so every size reads as the same push.
+const pressVariants: Variants = {
+	pressed: (button: RefObject<HTMLButtonElement | null>) => {
+		const width = button.current?.offsetWidth ?? 0
+		return {
+			scale: width > 220 ? 0.985 : width && width <= 48 ? 0.96 : 0.97,
+			transition: { duration: duration.instant, ease: [...ease.standard] },
+		}
+	},
+}
+const rest: TargetAndTransition = { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }
+const textIn: TargetAndTransition = { opacity: 0, y: 4, filter: `blur(${blur.soft}px)` }
+const textOut: TargetAndTransition = {
+	opacity: 0,
+	y: -3,
+	filter: `blur(${blur.soft}px)`,
+	transition: { duration: duration.fast, ease: [...ease.standard] },
+}
+const iconIn: TargetAndTransition = { opacity: 0, scale: 0.6, filter: `blur(${blur.subtle}px)` }
+const iconOut: TargetAndTransition = {
+	opacity: 0,
+	scale: 0.6,
+	filter: `blur(${blur.subtle}px)`,
+	transition: { duration: duration.fast, ease: [...ease.standard] },
+}
+const fadeOut: TargetAndTransition = { opacity: 0, transition: { duration: duration.instant } }
+const fadeEnter: Transition = { duration: duration.instant }
+// Scale rides the spring; opacity and blur tween so blur never overshoots below zero.
+const iconEnter: Transition = {
+	...spring.snappy,
+	opacity: { duration: duration.fast, ease: [...ease.enter] },
+	filter: { duration: duration.fast, ease: [...ease.enter] },
+}
+
+type Phase = { initial: TargetAndTransition; exit: TargetAndTransition; transition: Transition }
+const textPhase: Phase = {
+	initial: textIn,
+	exit: textOut,
+	transition: { duration: duration.standard, ease: [...ease.enter] },
+}
+const iconPhase: Phase = { initial: iconIn, exit: iconOut, transition: iconEnter }
+const fadePhase: Phase = { initial: { ...rest, opacity: 0 }, exit: fadeOut, transition: fadeEnter }
 
 export function Button({
 	variant = 'primary',
@@ -43,38 +110,148 @@ export function Button({
 	onClick,
 	...props
 }: ButtonProps) {
-	// A trigger that anchors a menu, popover or select answers with color, not scale: the layer positions against it.
-	const popup = props['aria-haspopup']
-	const anchorsPopup = (popup !== undefined && popup !== false && popup !== 'false') || props.role === 'combobox'
+	const reduceMotion = useReducedMotion() ?? false
+	const buttonRef = useRef<HTMLButtonElement>(null)
+	const contentRef = useRef<HTMLSpanElement>(null)
+	const key = labelKey(children)
+	let phase = /\S/.test(key.replaceAll(/<[^>]*>/g, '')) ? textPhase : iconPhase
+	if (reduceMotion) phase = fadePhase
 
-	return useRender({
-		defaultTagName: 'button',
-		render,
-		props: {
-			...props,
-			className: cn(
-				'relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-control border border-transparent text-sm font-medium whitespace-nowrap no-underline select-none disabled:cursor-not-allowed aria-busy:cursor-progress [&_svg]:size-4 [&_svg]:shrink-0',
-				anchorsPopup ? 'transition-colors' : 'press',
+	// A popup, menu or dialog trigger keeps its rect still while pressed, so the layer never measures a scaled anchor.
+	const popup = props['aria-haspopup']
+	const anchorsLayer =
+		(popup !== undefined && popup !== false && popup !== 'false') ||
+		props.role === 'combobox' ||
+		props['aria-expanded'] !== undefined
+	const inert = props.disabled || loading || props['aria-disabled'] === true || props['aria-disabled'] === 'true'
+
+	// The slot springs to a new label's width only within 700ms of the label changing; a late font or reflow jumps.
+	const width = useMotionValue<number | 'auto'>('auto')
+	const lastKey = useRef(key)
+	const armedUntil = useRef(0)
+	useLayoutEffect(() => {
+		if (lastKey.current === key) return
+		lastKey.current = key
+		armedUntil.current = performance.now() + 700
+	}, [key])
+	useEffect(() => {
+		const content = contentRef.current
+		const slot = content?.parentElement
+		if (!content || !slot) return
+		let measured = false
+		const observer = new ResizeObserver(([entry]) => {
+			const next = entry!.contentRect.width
+			if (!next || !measured || reduceMotion || performance.now() > armedUntil.current) {
+				measured = next > 0
+				width.jump(next || 'auto')
+				delete slot.dataset.morphing
+				return
+			}
+			slot.dataset.morphing = ''
+			animate(width, next, {
+				...spring.morph,
+				onComplete: () => delete slot.dataset.morphing,
+			})
+		})
+		observer.observe(content)
+		return () => observer.disconnect()
+	}, [reduceMotion, width])
+
+	return (
+		<BaseButton
+			tabIndex={0}
+			nativeButton={!render}
+			render={
+				render ?? (
+					<motion.button
+						ref={buttonRef}
+						custom={buttonRef}
+						variants={pressVariants}
+						whileTap={reduceMotion || anchorsLayer || inert ? undefined : 'pressed'}
+						transition={spring.snappy}
+					/>
+				)
+			}
+			className={cn(
+				'relative inline-flex items-center justify-center gap-1.5 rounded-control border text-sm font-medium whitespace-nowrap',
 				variants[variant],
 				sizes[size],
 				icon && 'aspect-square px-0',
 				className,
-			),
-			// Loading keeps the button focusable (disabled would drop keyboard focus mid-action) and swallows presses.
-			'aria-busy': loading || undefined,
-			'aria-disabled': loading || props['aria-disabled'] || undefined,
-			onClick: loading ? (event: MouseEvent<HTMLButtonElement>) => event.preventDefault() : onClick,
-			children: (
-				<>
-					{loading ? (
-						// A static glyph, not a spinner: a looping animation repaints every frame on high-refresh displays.
-						<span aria-hidden className='absolute inset-0 grid place-items-center'>
-							<IconDots />
-						</span>
-					) : null}
-					<span className={cn('inline-flex items-center gap-1.5', loading && 'invisible')}>{children}</span>
-				</>
-			),
-		},
-	})
+			)}
+			{...props}
+			aria-busy={loading || undefined}
+			// Loading keeps the button focusable, so keyboard focus survives the action, and swallows presses instead.
+			aria-disabled={loading || props['aria-disabled'] || undefined}
+			onClick={loading ? event => event.preventDefault() : onClick}
+		>
+			<AnimatePresence initial={false}>
+				{loading && (
+					<motion.span
+						key='loader'
+						aria-hidden
+						className='absolute top-1/2 left-1/2 -m-1.5 grid size-3'
+						initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
+						animate={{ opacity: 1, scale: 1 }}
+						exit={reduceMotion ? fadeOut : { ...iconOut, scale: 0.8 }}
+						transition={reduceMotion ? fadeEnter : iconEnter}
+					>
+						<span className='animate-spin rounded-full border-[1.5px] border-current border-r-transparent [animation-duration:700ms]' />
+					</motion.span>
+				)}
+			</AnimatePresence>
+			<motion.span
+				style={{ width }}
+				className={cn(
+					'relative inline-flex min-w-0 items-center justify-center transition-opacity data-morphing:[clip-path:inset(-50%_-0.625rem)]',
+					loading && 'opacity-0',
+				)}
+			>
+				<span ref={contentRef} className='inline-flex flex-none items-center'>
+					<AnimatePresence mode='popLayout' initial={false}>
+						<LabelPhase key={key} phase={phase}>
+							{children}
+						</LabelPhase>
+					</AnimatePresence>
+				</span>
+			</motion.span>
+		</BaseButton>
+	)
+}
+
+function LabelPhase({ children, phase, ref }: { children: ReactNode; phase: Phase; ref?: Ref<HTMLSpanElement> }) {
+	const present = useIsPresent()
+	return (
+		<motion.span
+			ref={ref}
+			aria-hidden={present ? undefined : true}
+			className='inline-flex items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:flex-none'
+			initial={phase.initial}
+			animate={rest}
+			exit={phase.exit}
+			transition={phase.transition}
+		>
+			{children}
+		</motion.span>
+	)
+}
+
+// Text plus element names, so a new label or icon crossfades while prop-only updates stay in place.
+function labelKey(node: ReactNode): string {
+	if (typeof node === 'string' || typeof node === 'number' || typeof node === 'bigint') {
+		return String(node)
+	}
+	if (Array.isArray(node)) return node.map(labelKey).join('')
+	if (!isValidElement<{ children?: ReactNode }>(node)) return ''
+	return `<${elementName(node.type)}>${labelKey(node.props.children)}`
+}
+
+// unknown, not React's element type: a Fragment's type is a symbol at runtime.
+function elementName(type: unknown): string {
+	if (typeof type === 'string') return type
+	if (typeof type !== 'function' && (typeof type !== 'object' || type === null)) return ''
+	const displayName = 'displayName' in type ? type.displayName : undefined
+	if (typeof displayName === 'string') return displayName
+	if ('name' in type && typeof type.name === 'string') return type.name
+	return ''
 }

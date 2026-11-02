@@ -91,8 +91,9 @@ breadcrumb derives itself from the URL. A section of a page is a child route, ne
 `_` is what keeps it out of the project's own tab strip.
 
 **UI.** Pages import `components/primitives.tsx`, which maps Arc UI to the
-dashboard's vocabulary. `components/ui/*` is Arc rebuilt on Base UI with CSS
-transitions, so a design change lands in `primitives.tsx`, `ui/*` or the tokens; a bare `<input>` or a hand-styled button is a
+dashboard's vocabulary. `components/ui/*` is Arc copied 1:1 (Base UI,
+`motion/react`), each added prop marked `// vexdock:`, so a design change lands in
+`primitives.tsx` or the tokens and a `ui/*` file only diverges from Arc on purpose; a bare `<input>` or a hand-styled button is a
 bug. Sub-navigation and page filters belong in `Page`'s `toolbar` and
 `filters`, actions in its `actions`; the breadcrumb and actions ride up into the
 shell's header and the rest becomes the page's own first row, so a page never
@@ -122,8 +123,8 @@ both sides, so the two views cannot disagree.
 
 **Density.** A number that moves gets the word for how it moves: `Meter` for a
 value against a ceiling, `AnimatedNumber` for a live reading that rolls to its
-new value, `Sparkline` (`metric-chart.tsx`) for a series in a
-table cell, `StatStrip` for the readings above a page, `FactBar` for facts that
+new value, `Sparkline` (`ui/sparkline.tsx`, `caption={false}`) for a series in a
+table cell, `MetricCard` (`metric-chart.tsx`) for a page's own chart, `StatStrip` for the readings above a page, `FactBar` for facts that
 are words (a service's image, its health) on one line above it, `Timeline` for
 ordered steps, `RelativeTime` for a stamp that ticks on its own, past (`3m
 ago`) or future (`in 2h`); raw `since()` and `until()` stay for a stamp inside

@@ -94,6 +94,7 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 						<span className='text-sm text-muted'>Waiting for the runner…</span>
 					) : (
 						<Timeline
+							label='Pipeline'
 							steps={steps.map(step => ({
 								id: step.id,
 								name: step.name,
