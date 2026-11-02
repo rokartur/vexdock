@@ -399,8 +399,8 @@ impl<'a> Pipeline<'a> {
 		}
 		self.printf(&format!("Traffic moved to container {}", short(&new)));
 
-		// `nginx -s reload` returns before the new workers take over; until then
-		// the old ones still send requests to `old`.
+		// New connections already reach `new`; the shutting-down workers may still
+		// be finishing requests they sent to `old`.
 		tokio::time::sleep(Duration::from_secs(2)).await;
 		let retired = async {
 			self.e.docker.stop(old).await?;
