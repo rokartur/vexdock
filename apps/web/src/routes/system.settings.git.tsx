@@ -54,10 +54,6 @@ const iconFor = (type: GitProviderType) => kinds.find(kind => kind.value === typ
 const hostOf = (provider: GitProvider) =>
 	provider.github?.github_url ?? provider.gitlab?.gitlab_url ?? provider.gitea?.gitea_url ?? 'https://bitbucket.org'
 
-/** Where the owner picks which repositories an installed GitHub App may reach. */
-const installationURL = (provider: GitProvider) =>
-	`${hostOf(provider)}/apps/${provider.github?.github_app_name}/installations/new?state=${provider.git_provider_id}`
-
 function providerColumns(edit: (provider: GitProvider) => void, remove: (id: string) => void): Columns<GitProvider> {
 	const cell = columnsFor<GitProvider>()
 	return [
@@ -93,11 +89,13 @@ function providerColumns(edit: (provider: GitProvider) => void, remove: (id: str
 			cell: ({ row }) => (
 				<div className='flex items-center justify-end gap-1'>
 					{row.original.github ? (
-						// oxlint-disable-next-line jsx-a11y/control-has-associated-label -- Button renders its children into the link
-						<Button variant='ghost' render={<a href={installationURL(row.original)} />}>
-							<IconSettings />
-							{row.original.github.github_installation_id ? 'Repositories' : 'Finish install'}
-						</Button>
+						row.original.install_url && (
+							// oxlint-disable-next-line jsx-a11y/control-has-associated-label -- Button renders its children into the link
+							<Button variant='ghost' render={<a href={row.original.install_url} />}>
+								<IconSettings />
+								{row.original.github.github_installation_id ? 'Repositories' : 'Finish install'}
+							</Button>
+						)
 					) : (
 						<IconButton icon={IconPencil} label='Edit' onClick={() => edit(row.original)} />
 					)}

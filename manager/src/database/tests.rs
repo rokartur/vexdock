@@ -300,3 +300,18 @@ fn task_runs_are_truncated_and_pruned() {
 	let listed = db.all_scheduled_tasks().unwrap();
 	assert_eq!(listed[0].last_run.as_ref().unwrap().exit_code, 4);
 }
+
+#[test]
+fn open_oauth_registration_keeps_a_bounded_number_of_unused_clients() {
+	let (_dir, db) = Db::open_temp();
+	let uris = vec!["http://127.0.0.1/callback".to_string()];
+	let first = db.create_oauth_client("first", &uris).unwrap();
+	let mut last = first.clone();
+	for _ in 0..MAX_UNUSED_OAUTH_CLIENTS {
+		last = db.create_oauth_client("flood", &uris).unwrap();
+	}
+	assert!(db.oauth_client_by_id(&first.id).is_err(), "the oldest unused client survived the flood");
+	assert!(db.oauth_client_by_id(&last.id).is_ok());
+	let count: i64 = db.one("SELECT COUNT(*) FROM oauth_clients", [], |r| r.get(0)).unwrap();
+	assert_eq!(count, MAX_UNUSED_OAUTH_CLIENTS);
+}

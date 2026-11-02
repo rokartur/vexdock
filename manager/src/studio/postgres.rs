@@ -40,15 +40,14 @@ impl PgRunner {
 			if set.columns.is_empty() {
 				set.columns = row.columns().iter().map(|c| c.name().to_string()).collect();
 			}
-			if set.rows.len() == max_rows {
-				set.truncated = true;
+			if set.truncated {
 				continue;
 			}
 			let mut cells = Vec::with_capacity(row.len());
 			for i in 0..row.len() {
 				cells.push(row.try_get::<_, Option<String>>(i)?);
 			}
-			set.rows.push(cells);
+			set.push(cells, max_rows);
 		}
 		set.affected = stream.rows_affected().map_or(0, |n| n as i64);
 		Ok(set)
@@ -65,13 +64,7 @@ impl PgRunner {
 					set = ResultSet { columns: columns.iter().map(|c| c.name().to_string()).collect(), ..Default::default() };
 					described = true;
 				}
-				SimpleQueryMessage::Row(row) => {
-					if set.rows.len() == max_rows {
-						set.truncated = true;
-						continue;
-					}
-					set.rows.push((0..row.len()).map(|i| row.get(i).map(String::from)).collect());
-				}
+				SimpleQueryMessage::Row(row) => set.push((0..row.len()).map(|i| row.get(i).map(String::from)).collect(), max_rows),
 				SimpleQueryMessage::CommandComplete(n) => {
 					if !described {
 						set = ResultSet::default();

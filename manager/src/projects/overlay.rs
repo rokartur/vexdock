@@ -13,6 +13,11 @@ use crate::security;
 /// environment. It is the only file compose is given: every service is a row.
 const OVERLAY_FILE_NAME: &str = "managed.yml";
 
+/// Every non-raw service gets these. The log options cap json-file at 30 MB a
+/// container; the daemon default keeps every line forever.
+const TENANT_LIMITS: &str =
+	"    pids_limit: 4096\n    logging:\n      driver: json-file\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n";
+
 /// Holds one checkout and one env file per service.
 pub(super) const SERVICES_DIR_NAME: &str = "services";
 
@@ -86,6 +91,11 @@ impl Projects {
 			}
 			for p in ports {
 				let _ = writeln!(body, "      - \"{}:{}/{}\"", p.published, p.target, p.protocol);
+			}
+			// Exec and app code run inside every tenant container, and the host they
+			// share also runs the panel: a fork bomb or a chatty stdout stops here.
+			if svc.provider != database::PROVIDER_RAW {
+				body.push_str(TENANT_LIMITS);
 			}
 			volumes.extend(vols);
 		}
@@ -230,6 +240,8 @@ pub(super) fn go_quote(s: &str) -> String {
 		match c {
 			'"' => out.push_str("\\\""),
 			'\\' => out.push_str("\\\\"),
+			// Compose interpolates the file, and a write token sets the .env it reads.
+			'$' => out.push_str("$$"),
 			'\n' => out.push_str("\\n"),
 			'\t' => out.push_str("\\t"),
 			'\r' => out.push_str("\\r"),

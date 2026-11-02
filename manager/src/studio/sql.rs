@@ -3,7 +3,7 @@
 
 use anyhow::{Result, bail};
 
-use super::{Cell, Changes, Column, MAX_RESULT_ROWS, Namespace, QueryResult, ReadOnly, Rows, RowsQuery, Table, Values};
+use super::{Cell, Changes, Column, MAX_RESULT_BYTES, MAX_RESULT_ROWS, Namespace, QueryResult, ReadOnly, Rows, RowsQuery, Table, Values};
 use super::{find_column, libsql, mysql, postgres};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -22,6 +22,24 @@ pub(super) struct ResultSet {
 	pub rows: Vec<Vec<Cell>>,
 	pub affected: i64,
 	pub truncated: bool,
+	pub bytes: usize,
+}
+
+impl ResultSet {
+	/// Keeps the row while the set stays under max_rows and MAX_RESULT_BYTES;
+	/// past either it drops the row and marks the set truncated.
+	pub(super) fn push(&mut self, row: Vec<Cell>, max_rows: usize) {
+		if self.truncated || self.rows.len() == max_rows {
+			self.truncated = true;
+			return;
+		}
+		self.bytes += row.iter().flatten().map(String::len).sum::<usize>();
+		if self.bytes > MAX_RESULT_BYTES {
+			self.truncated = true;
+			return;
+		}
+		self.rows.push(row);
+	}
 }
 
 #[derive(Clone, Debug, PartialEq)]

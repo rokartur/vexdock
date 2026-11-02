@@ -127,8 +127,8 @@ async fn oauth_register(State(s): State<Arc<Server>>, body: Bytes) -> Result<Res
 	if req.redirect_uris.is_empty() || req.redirect_uris.len() > 10 {
 		return Ok(oauth_error(StatusCode::BAD_REQUEST, "invalid_redirect_uri", "between 1 and 10 redirect_uris required"));
 	}
-	if let Some(uri) = req.redirect_uris.iter().find(|uri| !valid_redirect_uri(uri)) {
-		let description = format!("{uri:?} must be https, loopback http or an app's own scheme");
+	if let Some(uri) = req.redirect_uris.iter().find(|uri| uri.len() > 2048 || !valid_redirect_uri(uri)) {
+		let description = format!("{uri:?} must be https, loopback http or an app's own scheme, at most 2048 bytes");
 		return Ok(oauth_error(StatusCode::BAD_REQUEST, "invalid_redirect_uri", &description));
 	}
 	let mut name = req.client_name.trim();

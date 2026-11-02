@@ -37,11 +37,7 @@ impl MysqlRunner {
 			..Default::default()
 		};
 		while let Some(row) = result.next().await? {
-			if set.rows.len() == max_rows {
-				set.truncated = true;
-				continue;
-			}
-			set.rows.push((0..row.len()).map(|i| cell(row.as_ref(i))).collect());
+			set.push((0..row.len()).map(|i| cell(row.as_ref(i))).collect(), max_rows);
 		}
 		set.affected = result.affected_rows() as i64;
 		result.drop_result().await?;

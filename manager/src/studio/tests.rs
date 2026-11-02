@@ -132,9 +132,31 @@ fn split_command() {
 async fn read_reply() {
 	use super::valkey::Reply;
 	let mut r = tokio::io::BufReader::new(&b"*4\r\n$5\r\na\r\nbc\r\n:-2\r\n$-1\r\n-WRONGTYPE no\r\n"[..]);
-	let got = super::valkey::read_reply(&mut r).await.unwrap();
+	let got = super::valkey::read_reply(&mut r, &mut 1024).await.unwrap();
 	let want = Reply::Array(vec![Reply::Str(b"a\r\nbc".to_vec()), Reply::Int(-2), Reply::Nil, Reply::Error("WRONGTYPE no".into())]);
 	assert_eq!(got, want);
+}
+
+#[tokio::test]
+async fn read_reply_stops_at_its_budget() {
+	let huge_bulk = super::valkey::read_reply(&mut &b"$9999999999\r\n"[..], &mut 1024).await;
+	assert!(huge_bulk.is_err(), "a bulk length past the budget must fail before allocating");
+	let huge_array = super::valkey::read_reply(&mut &b"*4611686018427387904\r\n:1\r\n"[..], &mut 1024).await;
+	assert!(huge_array.is_err(), "an array count must not size an allocation");
+	let endless_line = super::valkey::read_reply(&mut &[b'+'; 2048][..], &mut 1024).await;
+	assert!(endless_line.is_err(), "a line past the budget must fail");
+}
+
+#[test]
+fn result_set_stops_at_its_byte_cap() {
+	let mut set = super::sql::ResultSet::default();
+	let wide = Some("x".repeat(super::MAX_RESULT_BYTES / 2));
+	set.push(vec![wide.clone()], 1000);
+	set.push(vec![Some("y".into())], 1000);
+	assert!(!set.truncated);
+	set.push(vec![wide], 1000);
+	set.push(vec![Some("z".into())], 1000);
+	assert_eq!((set.rows.len(), set.truncated), (2, true), "rows past the byte cap are dropped");
 }
 
 #[test]

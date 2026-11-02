@@ -83,12 +83,21 @@ impl Domains {
 		if let Err(err) = self.db.create_domain(&mut d) {
 			return (None, Err(anyhow!("domain {} is already in use: {err:#}", d.hostname)));
 		}
+		// A rejected configuration (say, a stored redirect nginx cannot compile)
+		// must not stay in the table, or every later reconcile fails on it.
+		if let Err(err) = self.reconcile().await {
+			if let Err(undo) = self.db.delete_domain(&d.id) {
+				tracing::error!(domain = %d.hostname, error = %undo, "undo domain after failed reconcile");
+			}
+			return (None, Err(err.context(format!("domain {} not saved", d.hostname))));
+		}
 		let result = self.serve_new(&d, input).await;
 		(Some(d), result)
 	}
 
 	fn validate_new(&self, input: &CreateInput) -> Result<Domain> {
 		let host = security::validate_hostname(&input.hostname)?;
+		self.refuse_dashboard_host(&host)?;
 		security::validate_port(input.container_port)?;
 		let project = self.db.project_by_id(&input.project_id)?;
 		security::validate_service_name(&input.service_name)?;
@@ -121,8 +130,16 @@ impl Domains {
 		if d.https_enabled && d.certificate_source == database::CERT_CUSTOM {
 			return self.install_custom_certificate(d, &input.certificate_pem, &input.private_key_pem).await;
 		}
-		self.reconcile().await?;
 		self.ensure_certificate(d).await
+	}
+
+	/// The panel and the domains share the certificate directory, keyed by
+	/// hostname, so a domain on the panel's name could replace or delete its pair.
+	fn refuse_dashboard_host(&self, host: &str) -> Result<()> {
+		if self.setting(SETTING_DASHBOARD_DOMAIN)? == host {
+			bail!("{host} is the panel's own hostname");
+		}
+		Ok(())
 	}
 
 	/// Stores a user-supplied pair and reloads the proxy.
@@ -155,6 +172,7 @@ impl Domains {
 
 	fn validate_update(&self, d: &mut Domain, input: &UpdateInput) -> Result<Domain> {
 		let host = security::validate_hostname(&d.hostname)?;
+		self.refuse_dashboard_host(&host)?;
 		let previous = self.db.domain_by_id(&d.id)?;
 		d.hostname = host;
 		security::validate_port(d.container_port)?;
@@ -192,6 +210,18 @@ impl Domains {
 		self.db.delete_domain(id)?;
 		if let Err(err) = self.certs.remove(&domain.hostname) {
 			tracing::warn!(domain = %domain.hostname, error = %err, "remove certificate for deleted domain");
+		}
+		self.reconcile().await
+	}
+
+	/// Deleting a service or an environment drops its domain rows through ON
+	/// DELETE CASCADE; their certificate files would outlive them and serve the
+	/// next domain on the same hostname, whoever creates it.
+	pub async fn forget(&self, domains: &[Domain]) -> Result<()> {
+		for d in domains {
+			if let Err(err) = self.certs.remove(&d.hostname) {
+				tracing::warn!(domain = %d.hostname, error = %err, "remove certificate for dropped domain");
+			}
 		}
 		self.reconcile().await
 	}
@@ -451,6 +481,9 @@ impl Domains {
 			return self.reconcile().await;
 		}
 		let host = security::validate_hostname(hostname)?;
+		if self.db.list_domains()?.iter().any(|d| d.hostname == host) {
+			bail!("{host} is already a project domain");
+		}
 		self.db.set_setting(SETTING_DASHBOARD_DOMAIN, &host)?;
 		self.db.set_setting(SETTING_DASHBOARD_HTTPS, if https { "true" } else { "false" })?;
 		self.reconcile().await?;

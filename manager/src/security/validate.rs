@@ -119,6 +119,13 @@ pub fn validate_container_name(name: &str) -> Result<()> {
 	if name.len() > 63 || !CONTAINER_PATTERN.is_match(name) {
 		bail!("invalid container name {name:?}");
 	}
+	// Nginx resolves its upstreams on the proxy network by these names: the
+	// platform's services, a domain's p_ alias, a pinned container's short id.
+	let lower = name.to_ascii_lowercase();
+	let short_id = lower.len() == 12 && lower.bytes().all(|b| b.is_ascii_hexdigit());
+	if ["manager", "auth", "mcp", "nginx"].contains(&lower.as_str()) || lower.starts_with("p_") || short_id {
+		bail!("container name {name:?} is reserved for the platform");
+	}
 	Ok(())
 }
 

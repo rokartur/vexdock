@@ -44,6 +44,8 @@ fn overlay_renders_a_database_service() {
 			"image: postgres:17-alpine",
 			"usagefleet-db-data:/var/lib/postgresql/data",
 			"PGDATA: /var/lib/postgresql/data",
+			"    pids_limit: 4096\n",
+			"        max-size: \"10m\"\n",
 			"\nvolumes:\n  usagefleet-db-data: {}\n",
 		],
 	);
@@ -164,6 +166,7 @@ fn overlay_renders_compose_fragment_volumes_and_env_file() {
 		],
 	);
 	assert!(!overlay.contains("- .env"), "env_file still points at a relative .env:\n{overlay}");
+	assert!(!overlay.contains("pids_limit"), "a raw fragment got keys it may already declare:\n{overlay}");
 }
 
 // A static build writes its Dockerfile into the overlay, so nginx's $uri has to
@@ -186,6 +189,7 @@ fn overlay_renders_build_types() {
 	let mut site = s.db.service_by_name(&env.id, "site").unwrap();
 	site.build_type = database::BUILD_STATIC.into();
 	site.output_dir = "web/dist".into();
+	site.build_path = "${X}".into();
 	let mut api = s.db.service_by_name(&env.id, "api").unwrap();
 	api.dockerfile = "docker/api.Dockerfile".into();
 	api.build_target = "production".into();
@@ -209,6 +213,7 @@ fn overlay_renders_build_types() {
 			"bun run build",
 			"      args:\n        OUTPUT_DIR: \"web/dist\"\n",
 			"try_files $$uri $$uri/ /index.html;",
+			"/repository/$${X}\"",
 			"      dockerfile: \"docker/api.Dockerfile\"",
 			"      target: \"production\"",
 			"    image: usagefleet/production/api:latest\n    pull_policy: never\n    ports:\n      - \"5353:53/udp\"\n",

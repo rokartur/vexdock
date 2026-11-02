@@ -6,7 +6,7 @@ use serde_json::Value;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
-use super::{Cell, Changes, Column, Namespace, QueryResult, Rows, RowsQuery, Table, Values, printable, require_key};
+use super::{Cell, Changes, Column, MAX_RESULT_BYTES, Namespace, QueryResult, Rows, RowsQuery, Table, Values, printable, require_key};
 use crate::engines::Connection;
 
 /// A RESP2 client of just the commands Studio sends. The whole keyspace of
@@ -239,18 +239,22 @@ impl ValkeyConn {
 			}
 		}
 		self.stream.get_mut().write_all(&out).await?;
+		let mut budget = MAX_RESULT_BYTES;
 		let mut replies = Vec::with_capacity(cmds.len());
 		for _ in cmds {
-			replies.push(read_reply(&mut self.stream).await?);
+			replies.push(read_reply(&mut self.stream, &mut budget).await?);
 		}
 		Ok(replies)
 	}
 }
 
-/// Decodes one RESP2 reply.
-pub(super) async fn read_reply<R: AsyncBufRead + Unpin + Send>(r: &mut R) -> Result<Reply> {
+/// Decodes one RESP2 reply, spending what it reads from budget so a reply
+/// cannot grow past it.
+pub(super) async fn read_reply<R: AsyncBufRead + Unpin + Send>(r: &mut R, budget: &mut usize) -> Result<Reply> {
 	let mut line = Vec::new();
-	if r.read_until(b'\n', &mut line).await? == 0 {
+	let read = (&mut *r).take(*budget as u64 + 1).read_until(b'\n', &mut line).await?;
+	spend(budget, read)?;
+	if !line.ends_with(b"\n") {
 		bail!("valkey closed the connection");
 	}
 	let line = line.strip_suffix(b"\r\n").unwrap_or(&line);
@@ -265,9 +269,11 @@ pub(super) async fn read_reply<R: AsyncBufRead + Unpin + Send>(r: &mut R) -> Res
 			if n < 0 {
 				return Ok(Reply::Nil);
 			}
-			let mut buf = vec![0; n as usize + 2];
+			let n = n as usize;
+			spend(budget, n + 2)?;
+			let mut buf = vec![0; n + 2];
 			r.read_exact(&mut buf).await?;
-			buf.truncate(n as usize);
+			buf.truncate(n);
 			Ok(Reply::Str(buf))
 		}
 		b'*' => {
@@ -275,14 +281,20 @@ pub(super) async fn read_reply<R: AsyncBufRead + Unpin + Send>(r: &mut R) -> Res
 			if n < 0 {
 				return Ok(Reply::Nil);
 			}
-			let mut items = Vec::with_capacity(n as usize);
+			let mut items = Vec::new();
 			for _ in 0..n {
-				items.push(Box::pin(read_reply(r)).await?);
+				items.push(Box::pin(read_reply(r, budget)).await?);
 			}
 			Ok(Reply::Array(items))
 		}
 		_ => bail!("unexpected reply from Valkey: {:?}", String::from_utf8_lossy(line)),
 	}
+}
+
+fn spend(budget: &mut usize, bytes: usize) -> Result<()> {
+	*budget =
+		budget.checked_sub(bytes).ok_or_else(|| anyhow!("Valkey answered more than {} MiB; narrow the command", MAX_RESULT_BYTES >> 20))?;
+	Ok(())
 }
 
 /// Turns a row's edited cells into commands, SET before the TTL so a new key

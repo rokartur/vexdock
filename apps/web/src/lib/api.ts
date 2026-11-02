@@ -454,6 +454,8 @@ export type GitProvider = {
 	connected: boolean
 	/** The push hook to paste into the host, token included. GitHub sets its own up and signs it, so it has none. */
 	webhook_url?: string
+	/** Where a GitHub App's owner picks its repositories; the API seals the handshake state into it. */
+	install_url?: string
 	github?: {
 		github_app_name: string
 		github_app_id: string

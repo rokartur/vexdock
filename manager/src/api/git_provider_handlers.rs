@@ -3,9 +3,11 @@
 //! second is the handshake with the host, which returns through the redirect
 //! handlers at the bottom of this file and is what flips connected to true.
 //!
-//! The row's id is the OAuth state throughout. The host echoes it back, it is
-//! unguessable for the same reason every other id is, and it says which
-//! connection the code belongs to without a side table of pending handshakes.
+//! The OAuth state is the row's id sealed with the master key and an expiry.
+//! The host echoes it back and it says which connection the code belongs to
+//! without a side table of pending handshakes. A bare id is not enough: project
+//! tokens can read it, and a link built from it would let them swap the
+//! connection's App or grant through an admin's click.
 
 use std::sync::Arc;
 
@@ -23,17 +25,20 @@ use crate::database::{self, BitbucketProvider, GitHubProvider, GitLabProvider, G
 use crate::git::{self, Account};
 use crate::security;
 
+/// Long enough to create a GitHub App and pick its repositories in one sitting.
+const HANDSHAKE_TTL_SECS: i64 = 3600;
+
 pub async fn list_git_providers(State(s): State<Arc<Server>>, headers: HeaderMap) -> ApiResult {
 	let mut providers = s.db.list_git_providers()?;
 	for provider in &mut providers {
-		s.attach_webhook_url(&headers, provider);
+		s.attach_links(&headers, provider)?;
 	}
 	ok(&json!({"git_providers": providers}))
 }
 
 pub async fn get_git_provider(State(s): State<Arc<Server>>, Path(id): Path<String>, headers: HeaderMap) -> ApiResult {
 	let mut provider = s.db.git_provider_by_id(&id).map_err(lookup)?;
-	s.attach_webhook_url(&headers, &mut provider);
+	s.attach_links(&headers, &mut provider)?;
 	ok(&provider)
 }
 
@@ -131,7 +136,7 @@ pub async fn create_github_provider(State(s): State<Arc<Server>>, headers: Heade
 	created(&json!({
 		"git_provider_id": provider.id,
 		"manifest": manifest,
-		"manifest_url": format!("{target}?state={}", provider.id),
+		"manifest_url": format!("{target}?state={}", git::query_escape(&s.handshake_state(&provider.id)?)),
 	}))
 }
 
@@ -150,7 +155,7 @@ pub async fn github_callback(State(s): State<Arc<Server>>, Query(q): Query<Callb
 	if q.code.is_empty() || q.state.is_empty() {
 		return Err(bad_request("github returned no code"));
 	}
-	let provider = s.db.git_provider_by_id(&q.state).map_err(lookup)?;
+	let provider = s.db.git_provider_by_id(&s.handshake_provider(&q.state)?).map_err(lookup)?;
 	let Some(mut g) = provider.github else {
 		return Err(bad_request(format!("{:?} is not a github connection", provider.name)));
 	};
@@ -164,7 +169,7 @@ pub async fn github_callback(State(s): State<Arc<Server>>, Query(q): Query<Callb
 	s.db.update_github_app(&g)?;
 	// The App exists but reaches nothing yet: the owner still has to install it
 	// and pick the repositories it may read.
-	Ok(found(&git::install_url(&g.url, &creds.slug, &provider.id)))
+	Ok(found(&git::install_url(&g.url, &creds.slug, &q.state)))
 }
 
 /// Records which installation the App became. Without it there is nothing to
@@ -173,7 +178,7 @@ pub async fn github_installed(State(s): State<Arc<Server>>, Query(q): Query<Call
 	if q.installation_id.is_empty() || q.state.is_empty() {
 		return Err(bad_request("github returned no installation"));
 	}
-	s.db.set_github_installation(&q.state, &q.installation_id).map_err(lookup)?;
+	s.db.set_github_installation(&s.handshake_provider(&q.state)?, &q.installation_id).map_err(lookup)?;
 	git::forget_installation(&q.installation_id);
 	Ok(redirect_to_settings())
 }
@@ -216,9 +221,9 @@ pub async fn save_gitlab_provider(State(s): State<Arc<Server>>, id: Option<Path<
 	} else {
 		s.db.update_gitlab_app(&g).map_err(lookup)?;
 	}
-	let authorize =
-		git::authorize_url(database::PROVIDER_GITLAB, &host, &g.application_id, &redirect_uri, &g.git_provider_id, git::GITLAB_SCOPES)
-			.map_err(bad_request)?;
+	let state = s.handshake_state(&g.git_provider_id)?;
+	let authorize = git::authorize_url(database::PROVIDER_GITLAB, &host, &g.application_id, &redirect_uri, &state, git::GITLAB_SCOPES)
+		.map_err(bad_request)?;
 	ok(&json!({"git_provider_id": g.git_provider_id, "authorize_url": authorize}))
 }
 
@@ -259,8 +264,9 @@ pub async fn save_gitea_provider(State(s): State<Arc<Server>>, id: Option<Path<S
 	} else {
 		s.db.update_gitea_app(&g).map_err(lookup)?;
 	}
-	let authorize = git::authorize_url(database::PROVIDER_GITEA, &host, &g.client_id, &redirect_uri, &g.git_provider_id, git::GITEA_SCOPES)
-		.map_err(bad_request)?;
+	let state = s.handshake_state(&g.git_provider_id)?;
+	let authorize =
+		git::authorize_url(database::PROVIDER_GITEA, &host, &g.client_id, &redirect_uri, &state, git::GITEA_SCOPES).map_err(bad_request)?;
 	ok(&json!({"git_provider_id": g.git_provider_id, "authorize_url": authorize}))
 }
 
@@ -324,7 +330,7 @@ pub async fn oauth_callback(
 	if q.code.is_empty() || q.state.is_empty() {
 		return Err(bad_request(format!("{provider_type} returned no authorization code")));
 	}
-	let provider = s.db.git_provider_by_id(&q.state).map_err(lookup)?;
+	let provider = s.db.git_provider_by_id(&s.handshake_provider(&q.state)?).map_err(lookup)?;
 	if provider.provider_type != provider_type {
 		return Err(bad_request(format!("{:?} is not a {provider_type} connection", provider.name)));
 	}
@@ -365,17 +371,42 @@ impl Server {
 			.map_err(|err| ApiError::new(StatusCode::BAD_REQUEST, "GIT_PROVIDER_UNAVAILABLE", format!("{err:#}")))
 	}
 
-	/// What the settings page pastes into the host's hook configuration.
-	/// GitHub sets its own hook up from the manifest and signs it, so it never
-	/// needs one.
-	fn attach_webhook_url(&self, headers: &HeaderMap, p: &mut GitProvider) {
-		if p.provider_type == database::PROVIDER_GITHUB || p.webhook_secret_enc.is_empty() {
-			return;
+	/// The links the settings page needs: the hook address to paste into the
+	/// host and, for a GitHub App, where to pick its repositories. GitHub sets
+	/// its own hook up from the manifest and signs it, so it never needs one.
+	fn attach_links(&self, headers: &HeaderMap, p: &mut GitProvider) -> Result<(), ApiError> {
+		if let Some(g) = &p.github {
+			if !g.app_name.is_empty() {
+				p.install_url = git::install_url(&g.url, &g.app_name, &self.handshake_state(&p.id)?);
+			}
+			return Ok(());
+		}
+		if p.webhook_secret_enc.is_empty() {
+			return Ok(());
 		}
 		let Ok(secret) = self.cipher.decrypt(&p.webhook_secret_enc) else {
-			return;
+			return Ok(());
 		};
 		p.webhook_url = format!("{}/api/deploy/{}?token={}", self.public_origin(headers), p.provider_type, git::query_escape(&secret));
+		Ok(())
+	}
+
+	/// The OAuth state for a handshake on connection id: unforgeable without
+	/// the master key and dead after HANDSHAKE_TTL_SECS.
+	fn handshake_state(&self, id: &str) -> Result<String, ApiError> {
+		let expires = chrono::Utc::now().timestamp() + HANDSHAKE_TTL_SECS;
+		Ok(self.cipher.encrypt(&format!("{id} {expires}"))?)
+	}
+
+	/// The connection a callback's state was sealed for.
+	fn handshake_provider(&self, state: &str) -> Result<String, ApiError> {
+		let refused = || bad_request("this link did not come from this panel or has expired; start connecting again");
+		let sealed = self.cipher.decrypt(state).map_err(|_| refused())?;
+		let (id, expires) = sealed.split_once(' ').ok_or_else(refused)?;
+		if expires.parse::<i64>().map_err(|_| refused())? < chrono::Utc::now().timestamp() {
+			return Err(refused());
+		}
+		Ok(id.to_string())
 	}
 
 	/// Writes the parent row and its detail in one transaction. The caller

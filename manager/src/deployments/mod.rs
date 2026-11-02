@@ -17,6 +17,7 @@ use crate::domains::Domains;
 use crate::events::{self, Bus};
 use crate::git;
 use crate::projects::Projects;
+use crate::security;
 
 // Step names, in pipeline order. Clone and checkout only appear when the
 // service is cloned from a repository.
@@ -126,6 +127,18 @@ impl Engine {
 		// An environment can pin a branch of its own, overriding what each
 		// service asks for; staging deploying main is the default, not a rule.
 		let reference = if opts.commit_sha.is_empty() { env.branch.clone() } else { opts.commit_sha.clone() };
+		// One still waiting builds the same thing when its turn comes, so a burst
+		// of webhooks or clicks queues one pipeline instead of one each.
+		let waiting = self.db.unfinished_deployments()?.into_iter().find(|d| {
+			d.status == database::DEPLOYMENT_QUEUED
+				&& d.environment_id == env.id
+				&& d.service_name == opts.service_name
+				&& d.branch == reference
+				&& d.commit_sha == opts.commit_sha
+		});
+		if let Some(waiting) = waiting {
+			return Ok(waiting);
+		}
 		let mut d = Deployment {
 			project_id: project.id.clone(),
 			environment_id: env.id.clone(),
@@ -450,6 +463,8 @@ impl<'a> Pipeline<'a> {
 		self.printf(&format!("Fetching {} @ {reference} for service {}", source.url, svc.compose_service_name));
 		let sha = repo.sync(self).await;
 		let sha = self.check(sha)?;
+		let confined = build_paths(&repo.dir, &svc).iter().try_for_each(|path| security::ensure_resolves_inside(&repo.dir, path));
+		self.check(confined)?;
 		self.complete();
 
 		self.begin(STEP_CHECKOUT);
@@ -690,6 +705,17 @@ fn tail(s: &str, n: usize, truncated: bool) -> String {
 		start += 1;
 	}
 	if truncated || start > 0 { format!("... truncated ...\n{}", &s[start..]) } else { s.to_string() }
+}
+
+/// What the compose client reads from the checkout: the build context and,
+/// unless the Dockerfile is inline, the Dockerfile inside it.
+fn build_paths(checkout: &str, svc: &Service) -> Vec<String> {
+	let context = security::clean_path(&format!("{checkout}/{}", svc.build_path));
+	if svc.build_type == database::BUILD_STATIC {
+		return vec![context];
+	}
+	let dockerfile = if svc.dockerfile.is_empty() { "Dockerfile" } else { &svc.dockerfile };
+	vec![format!("{context}/{dockerfile}"), context]
 }
 
 #[cfg(test)]

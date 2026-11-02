@@ -3,8 +3,13 @@ use base64::Engine as _;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::MAX_RESULT_BYTES;
 use super::sql::{Arg, Dialect, ResultSet, Runner, SqlConn, Statement};
 use crate::engines::Connection;
+
+/// The JSON around MAX_RESULT_BYTES of cells: quoting and escaping can grow
+/// a value several times over.
+const MAX_RESPONSE_BYTES: usize = 4 * MAX_RESULT_BYTES;
 
 /// Speaks sqld's Hrana-over-HTTP: every call is one pipeline that opens a
 /// stream, runs and closes it, so nothing stays open between requests.
@@ -23,7 +28,10 @@ pub(super) fn open(c: &Connection) -> SqlConn {
 			url: format!("http://{}/v2/pipeline", host_port(&c.host, c.port)),
 			user: c.user.clone(),
 			password: c.password.clone(),
-			http: reqwest::Client::new(),
+			http: reqwest::Client::builder()
+				.redirect(reqwest::redirect::Policy::none())
+				.build()
+				.expect("a client without TLS settings always builds"),
 		}),
 	}
 }
@@ -73,11 +81,10 @@ impl HranaRunner {
 			..Default::default()
 		};
 		for row in result.rows {
-			if set.rows.len() == max_rows {
-				set.truncated = true;
+			set.push(row.iter().map(text).collect::<Result<_>>()?, max_rows);
+			if set.truncated {
 				break;
 			}
-			set.rows.push(row.iter().map(text).collect::<Result<_>>()?);
 		}
 		Ok(set)
 	}
@@ -120,10 +127,17 @@ impl HranaRunner {
 		if !self.password.is_empty() {
 			req = req.basic_auth(&self.user, Some(&self.password));
 		}
-		let resp = req.send().await?;
+		let mut resp = req.send().await?;
 		let status = resp.status();
+		let mut body = Vec::new();
+		while let Some(chunk) = resp.chunk().await? {
+			if body.len() + chunk.len() > MAX_RESPONSE_BYTES {
+				bail!("sqld answered more than {} MiB; narrow the query", MAX_RESPONSE_BYTES >> 20);
+			}
+			body.extend_from_slice(&chunk);
+		}
 		if !status.is_success() {
-			let message = resp.text().await.unwrap_or_default();
+			let message = String::from_utf8_lossy(&body);
 			bail!("sqld answered {status}: {}", message.chars().take(4096).collect::<String>().trim());
 		}
 		#[derive(Deserialize)]
@@ -144,7 +158,7 @@ impl HranaRunner {
 			#[serde(default)]
 			result: Value,
 		}
-		let decoded: Pipeline = resp.json().await?;
+		let decoded: Pipeline = serde_json::from_slice(&body)?;
 		let first = decoded.results.into_iter().next().ok_or_else(|| anyhow!("sqld sent no result"))?;
 		if first.kind == "error" {
 			bail!("{}", first.error.map(|e| e.message).unwrap_or_default());

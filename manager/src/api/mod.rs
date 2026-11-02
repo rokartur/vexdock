@@ -199,8 +199,8 @@ pub fn router(s: Arc<Server>) -> Router {
 			routing_handlers::delete_service_basic_auth,
 		)
 		.route("GET /api/services/{id}/ports", Project(READ, ProjectOf::Service), routing_handlers::list_service_ports)
-		.route("POST /api/services/{id}/ports", Project(WRITE, ProjectOf::Service), routing_handlers::create_service_port)
-		.route("DELETE /api/services/{id}/ports/{portId}", Project(WRITE, ProjectOf::Service), routing_handlers::delete_service_port)
+		.route("POST /api/services/{id}/ports", Admin, routing_handlers::create_service_port)
+		.route("DELETE /api/services/{id}/ports/{portId}", Admin, routing_handlers::delete_service_port)
 		.route("GET /api/tasks", SignedIn, task_handlers::list_all_tasks)
 		.route("PATCH /api/tasks/{id}", Project(WRITE, ProjectOf::Task), task_handlers::update_task)
 		.route("DELETE /api/tasks/{id}", Project(WRITE, ProjectOf::Task), task_handlers::delete_task)

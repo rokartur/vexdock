@@ -322,7 +322,11 @@ fn validate_build_type(raw: &str) -> anyhow::Result<String> {
 /// database's data is a separate, explicit act.
 pub async fn delete_service(State(s): State<Arc<Server>>, Path(id): Path<String>) -> ApiResult {
 	let (service, _, env) = s.lookup_service(&id)?;
+	let domains: Vec<_> = s.db.list_domains()?.into_iter().filter(|d| d.service_id == service.id).collect();
 	s.projects.delete_service(&service, &env).map_err(bad_request)?;
+	if let Err(err) = s.domains.forget(&domains).await {
+		tracing::warn!(error = %err, "reconcile after service delete");
+	}
 	// Every deploy is scoped to one service, so no later deploy would remove
 	// this container as an orphan: nothing else will ever reap it, which is why
 	// a client that hangs up must not abort the removal and why a failure is
