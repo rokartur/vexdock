@@ -1,67 +1,147 @@
-import { useRef } from 'react'
-import type { ComponentProps, ReactNode } from 'react'
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
+import { type ComponentProps, createContext, type ReactNode, useContext, useState } from 'react'
+import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import { IconX } from '@tabler/icons-react'
 import { cn } from 'cn'
-import { Button } from './button'
+import { AnimatePresence, motion, type Transition, useReducedMotion } from 'motion/react'
+import { motionTokens } from '../../lib/motion'
 
-export const Dialog = DialogPrimitive.Root
-export const DialogTrigger = DialogPrimitive.Trigger
-export const DialogClose = DialogPrimitive.Close
+const { blur, duration, ease, spring } = motionTokens
 
-type DialogContentProps = Omit<ComponentProps<typeof DialogPrimitive.Popup>, 'title' | 'className' | 'render'> & {
-	title: ReactNode
-	description?: ReactNode
+// Mirrors the open state so the content can stay mounted while it animates out, and retarget mid-flight if it is reopened or closed early.
+const OpenContext = createContext(false)
+
+export function Dialog({
+	open: openProp,
+	defaultOpen = false,
+	onOpenChange,
+	...props
+}: ComponentProps<typeof BaseDialog.Root>) {
+	const [uncontrolled, setUncontrolled] = useState(defaultOpen)
+	const open = openProp ?? uncontrolled
+
+	function setOpen(next: boolean, eventDetails: BaseDialog.Root.ChangeEventDetails) {
+		if (openProp === undefined) setUncontrolled(next)
+		onOpenChange?.(next, eventDetails)
+	}
+
+	return (
+		<OpenContext.Provider value={open}>
+			<BaseDialog.Root {...props} open={open} onOpenChange={setOpen} />
+		</OpenContext.Provider>
+	)
+}
+
+export const DialogTrigger = BaseDialog.Trigger
+export const DialogClose = BaseDialog.Close
+
+type DialogContentProps = Omit<ComponentProps<typeof BaseDialog.Popup>, 'title' | 'children' | 'className'> & {
+	title: string
+	description?: string
 	children: ReactNode
 	className?: string
 }
 
-export function DialogContent(props: DialogContentProps) {
-	return (
-		<DialogPrimitive.Portal>
-			<DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-background/60 scrim data-closed:pointer-events-none supports-backdrop-filter:backdrop-blur-xs' />
-			<DialogPopup {...props} />
-		</DialogPrimitive.Portal>
-	)
-}
+const fade: Transition = { duration: duration.instant }
+const leave: Transition = { duration: duration.fast, ease: [...ease.standard] }
 
-function DialogPopup({ title, description, children, className, ...props }: DialogContentProps) {
-	// Base UI returns focus to what was focused before opening; a menu item that opened the dialog has unmounted with its
-	// menu by then, so the open menu's trigger stands in. Kept from the render that mounts the popup, before focus moves in.
-	const opener = useRef(openerOf(document.activeElement))
+// The overlay fades while the dialog rises 8px and scales up on a spring. Closing is shorter and quieter, and starts from wherever the entrance is.
+export function DialogContent({ title, description, children, className, ...props }: DialogContentProps) {
+	const open = useContext(OpenContext)
+	const reduced = useReducedMotion()
+
 	return (
-		<DialogPrimitive.Popup
-			finalFocus={() => (opener.current?.isConnected ? opener.current : true)}
-			{...props}
-			className={cn(
-				'fixed top-1/2 left-1/2 z-51 max-h-[calc(100dvh-2rem)] w-[min(calc(100%-2rem),var(--dialog-width,440px))] popup -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-surface border bg-surface text-foreground shadow-floating data-closed:pointer-events-none',
-				className,
+		<AnimatePresence>
+			{open && (
+				<BaseDialog.Portal key='dialog' keepMounted>
+					<BaseDialog.Backdrop
+						className='fixed inset-0 z-50 bg-background/46 backdrop-blur-[7px] data-closed:pointer-events-none'
+						render={
+							<motion.div
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0, transition: reduced ? fade : leave }}
+								transition={reduced ? fade : { duration: duration.standard, ease: [...ease.enter] }}
+							/>
+						}
+					/>
+					<BaseDialog.Popup
+						{...props}
+						className={cn(
+							// vexdock: --dialog-width lets a call site widen it (forms 32rem, log viewers 72rem); Arc pins 440px.
+							'fixed inset-0 z-51 m-auto h-fit max-h-[calc(100dvh-2rem)] w-[min(100%-2rem,var(--dialog-width,440px))] overflow-auto rounded-surface border bg-surface-raised text-foreground shadow-floating data-closed:pointer-events-none',
+							className,
+						)}
+						render={
+							<motion.div
+								initial={reduced ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.96 }}
+								animate={{ opacity: 1, y: 0, scale: 1 }}
+								exit={
+									reduced
+										? { opacity: 0, transition: fade }
+										: { opacity: 0, y: 4, scale: 0.98, transition: leave }
+								}
+								transition={
+									reduced
+										? fade
+										: {
+												default: spring.smooth,
+												opacity: { duration: duration.fast, ease: [...ease.enter] },
+											}
+								}
+							/>
+						}
+					>
+						<div className='flex items-start justify-between gap-3.5 border-b p-4'>
+							<div>
+								<BaseDialog.Title className='relative m-0 text-lg font-medium wrap-anywhere'>
+									<SwapText text={title} />
+								</BaseDialog.Title>
+								{description ? (
+									<BaseDialog.Description className='relative mt-1.5 text-sm wrap-anywhere text-secondary'>
+										<SwapText text={description} />
+									</BaseDialog.Description>
+								) : null}
+							</div>
+							{/* The negative margin centres the button on the title's first line. */}
+							<BaseDialog.Close
+								aria-label='Close dialog'
+								className='-my-[calc((1.75rem-var(--text-lg)*var(--text-lg--line-height))/2)] grid size-7 flex-none place-items-center rounded-control border bg-surface-muted/50 text-secondary [transition:background-color_110ms_var(--ease-standard),color_110ms_var(--ease-standard),scale_400ms_var(--ease-spring)] hover:bg-surface-muted hover:text-foreground active:[transition-duration:110ms,110ms,85ms] active:ease-standard motion-safe:active:scale-96'
+							>
+								<IconX size={16} stroke={1.75} aria-hidden />
+							</BaseDialog.Close>
+						</div>
+						<div className='p-4 text-sm'>{children}</div>
+					</BaseDialog.Popup>
+				</BaseDialog.Portal>
 			)}
-		>
-			<div className='flex items-start justify-between gap-3 border-b border-border-subtle p-4'>
-				<div className='min-w-0 flex-1'>
-					<DialogPrimitive.Title className='text-base font-medium wrap-anywhere'>
-						{title}
-					</DialogPrimitive.Title>
-					{description ? (
-						<DialogPrimitive.Description className='mt-1 text-sm wrap-anywhere text-secondary'>
-							{description}
-						</DialogPrimitive.Description>
-					) : null}
-				</div>
-				<DialogPrimitive.Close
-					render={<Button variant='ghost' size='sm' icon aria-label='Close dialog' className='-my-0.5' />}
-				>
-					<IconX aria-hidden />
-				</DialogPrimitive.Close>
-			</div>
-			<div className='p-4 text-sm'>{children}</div>
-		</DialogPrimitive.Popup>
+		</AnimatePresence>
 	)
 }
 
-function openerOf(active: Element | null) {
-	if (!(active instanceof HTMLElement) || active === document.body) return null
-	if (!active.closest('[role=menu]')) return active
-	return document.querySelector<HTMLElement>('[aria-haspopup="menu"][aria-expanded="true"]')
+// When the title or description changes while open, the new copy rises in and the old copy leaves upward.
+function SwapText({ text }: { text: string }) {
+	const reduced = useReducedMotion()
+	return (
+		<AnimatePresence mode='popLayout' initial={false}>
+			<motion.span
+				key={text}
+				className='block'
+				initial={reduced ? false : { opacity: 0, y: '0.3em', filter: `blur(${blur.soft}px)` }}
+				animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+				exit={
+					reduced
+						? { opacity: 0, transition: { duration: 0 } }
+						: {
+								opacity: 0,
+								y: '-0.3em',
+								filter: `blur(${blur.subtle}px)`,
+								transition: { duration: duration.fast, ease: [...ease.standard] },
+							}
+				}
+				transition={{ duration: duration.standard, ease: [...ease.enter] }}
+			>
+				{text}
+			</motion.span>
+		</AnimatePresence>
+	)
 }

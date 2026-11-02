@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { IconPlus, IconX } from '@tabler/icons-react'
+import { IconPlus } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { TagInput } from '@/components/ui/tag-input'
 import { api } from '../lib/api'
 import { Button, DialogFooter, ErrorText, Field, Input } from './primitives'
 
@@ -52,9 +52,15 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
 					<Input required value={name} onChange={event => setName(event.target.value)} placeholder='my-app' />
 				</Field>
 
-				<Field label='Tags (optional)' hint='Enter adds one, click a tag to drop it.'>
-					<TagInput value={tags} onChange={setTags} suggestions={knownTags} />
-				</Field>
+				<div className='mb-4'>
+					<TagInput
+						label='Tags (optional)'
+						placeholder='staging'
+						value={tags}
+						onValueChange={next => setTags([...new Set(next.map(toTag).filter(Boolean))])}
+						suggestions={knownTags}
+					/>
+				</div>
 			</div>
 
 			<ErrorText error={create.error} />
@@ -71,69 +77,10 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
 	)
 }
 
-/**
- * Tags are plain labels: typing one and pressing Enter creates it, and tags
- * already used by other projects are offered as native autocomplete.
- */
-function TagInput({
-	value,
-	onChange,
-	suggestions,
-}: {
-	value: string[]
-	onChange: (tags: string[]) => void
-	suggestions: string[]
-}) {
-	const [draft, setDraft] = useState('')
-
-	const add = (raw: string) => {
-		const tag = raw
-			.trim()
-			.toLowerCase()
-			.replaceAll(/[^a-z0-9]+/gu, '-')
-			.replaceAll(/^-|-$/gu, '')
-		if (tag && !value.includes(tag)) onChange([...value, tag])
-		setDraft('')
-	}
-
-	return (
-		<>
-			<Input
-				list='known-project-tags'
-				value={draft}
-				placeholder='staging'
-				onChange={event => setDraft(event.target.value)}
-				// A blur commits the draft so a typed tag is never lost on submit.
-				onBlur={() => add(draft)}
-				onKeyDown={event => {
-					if (event.key === 'Enter' || event.key === ',') {
-						event.preventDefault()
-						add(draft)
-					}
-					if (event.key === 'Backspace' && draft === '') onChange(value.slice(0, -1))
-				}}
-			/>
-			<datalist id='known-project-tags'>
-				{suggestions.map(tag => (
-					<option key={tag} value={tag}>
-						{tag}
-					</option>
-				))}
-			</datalist>
-			{value.length > 0 ? (
-				<div className='mt-2 flex flex-wrap gap-1.5'>
-					{value.map(tag => (
-						<button
-							key={tag}
-							type='button'
-							aria-label={`Remove ${tag}`}
-							onClick={() => onChange(value.filter(other => other !== tag))}
-						>
-							<Badge icon={<IconX />}>{tag}</Badge>
-						</button>
-					))}
-				</div>
-			) : null}
-		</>
-	)
+function toTag(raw: string) {
+	return raw
+		.trim()
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9]+/gu, '-')
+		.replaceAll(/^-|-$/gu, '')
 }

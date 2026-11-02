@@ -3,9 +3,9 @@ import { IconBox, IconFileText, IconPlayerPlay, IconPlayerStop, IconRefresh, Ico
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
+import { Sparkline } from '@/components/ui/sparkline'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
-import { Sparkline } from '../components/metric-chart'
 import {
 	Confirm,
 	DetailDialog,
@@ -105,11 +105,18 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			header: '30m',
 			cell: ({ row: { original } }) =>
 				sampled(original) ? (
-					<Sparkline
-						values={original.cpu_series ?? []}
-						max={100}
-						label={`${containerName(original)} cpu, last 30 minutes`}
-					/>
+					<div className='w-14'>
+						<Sparkline
+							data={original.cpu_series ?? []}
+							label={`${containerName(original)} cpu, last 30 minutes`}
+							width={56}
+							height={16}
+							area={false}
+							interactive={false}
+							caption={false}
+							max={100}
+						/>
+					</div>
 				) : (
 					'-'
 				),

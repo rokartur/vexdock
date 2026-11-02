@@ -242,7 +242,6 @@ function ExportServices({ projectId }: { projectId: string }) {
 			hint='With secrets off, they export as keys with empty values and the import leaves the generated ones alone.'
 			actions={
 				<CopyButton
-					variant='primary'
 					value={exported.data?.payload ?? ''}
 					disabled={!exported.data?.payload}
 					onError={() => setCopyError('Copying needs HTTPS. Select the text below and copy it by hand.')}

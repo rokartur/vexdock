@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
+import { Stepper } from '@/components/ui/stepper'
 import { Button, Cell, Cells, ErrorText, Field, FormSection, Segmented, Switch } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
 import { since } from '../lib/format'
@@ -240,30 +241,13 @@ function UpdateTimeline({ phase, target }: { phase: UpdatePhase; target: string 
 			<span className='pb-2 font-mono text-sm'>
 				{phase === 'done' ? `updated to ${target}` : `updating to ${target}`}
 			</span>
-			{steps.map((step, index) => {
-				const done = index < currentIndex
-				const now = index === currentIndex
-				return (
-					<div
-						key={step.phase}
-						className={cn(
-							'relative border-l pb-3.5 pl-4 last:border-l-transparent last:pb-0',
-							done && 'border-l-success/40',
-						)}
-					>
-						<span
-							className={cn(
-								'absolute top-1 -left-1 size-2 rounded-full border-2 border-background',
-								done && 'bg-success',
-								now && 'bg-foreground',
-								!(done || now) && 'bg-muted',
-							)}
-						/>
-						<div className={cn('text-sm font-medium', !(done || now) && 'text-muted')}>{step.label}</div>
-						{now ? <div className='text-xs text-muted'>{step.hint}</div> : null}
-					</div>
-				)
-			})}
+			<Stepper
+				label='Update progress'
+				orientation='vertical'
+				details='current'
+				current={currentIndex}
+				steps={steps.map(step => ({ id: step.phase, label: step.label, description: step.hint }))}
+			/>
 		</div>
 	)
 }

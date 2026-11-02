@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts, useRouterState } from '@tanstack/react-router'
 import { MotionConfig } from 'motion/react'
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthGate } from '../components/auth-gate'
 import { Shell } from '../components/shell'
 // Side-effect import: Vite emits and injects the hashed stylesheet itself.
@@ -36,19 +35,17 @@ function RootComponent() {
 	return (
 		<RootDocument>
 			<MotionConfig reducedMotion='user'>
-				<TooltipProvider>
-					<QueryClientProvider client={queryClient}>
-						<AuthGate>
-							{isPublic ? (
+				<QueryClientProvider client={queryClient}>
+					<AuthGate>
+						{isPublic ? (
+							<Outlet />
+						) : (
+							<Shell>
 								<Outlet />
-							) : (
-								<Shell>
-									<Outlet />
-								</Shell>
-							)}
-						</AuthGate>
-					</QueryClientProvider>
-				</TooltipProvider>
+							</Shell>
+						)}
+					</AuthGate>
+				</QueryClientProvider>
 			</MotionConfig>
 		</RootDocument>
 	)

@@ -4,6 +4,16 @@
 @import '@xterm/xterm/css/xterm.css';
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/* Chromium matches :active and :hover on a disabled <button>, and Base UI's focusable disabled parts carry data-disabled. Hover, as in Arc, also needs a fine pointer. */
+@custom-variant active (&:active:where(:not(:disabled, [data-disabled])));
+@custom-variant hover {
+	@media (hover: hover) and (pointer: fine) {
+		&:hover:where(:not(:disabled, [data-disabled])) {
+			@slot;
+		}
+	}
+}
+@custom-variant reduced-transparency (@media (prefers-reduced-transparency: reduce));
 
 @theme {
 	--color-*: initial;
@@ -110,6 +120,8 @@
 	--color-surface: var(--surface);
 	--color-surface-raised: var(--surface-raised);
 	--color-surface-muted: var(--surface-muted);
+	--color-surface-pressed: var(--surface-pressed);
+	--color-surface-thumb: var(--surface-thumb);
 	--color-foreground: var(--foreground);
 	--color-secondary: var(--text-secondary);
 	--color-muted: var(--text-muted);
@@ -146,6 +158,8 @@
 	--surface: oklch(100% 0 0);
 	--surface-raised: oklch(100% 0 0);
 	--surface-muted: oklch(97.8% 0 0);
+	--surface-pressed: oklch(95.5% 0 0);
+	--surface-thumb: var(--surface-raised);
 	--foreground: oklch(15% 0 0);
 	--text-secondary: oklch(46% 0 0);
 	--text-muted: oklch(59% 0 0);
@@ -183,6 +197,8 @@
 	--surface: oklch(21.5% 0 0);
 	--surface-raised: oklch(24% 0 0);
 	--surface-muted: oklch(26% 0 0);
+	--surface-pressed: oklch(29% 0 0);
+	--surface-thumb: color-mix(in oklab, var(--foreground) 18%, var(--surface-raised));
 	--foreground: oklch(96% 0 0);
 	--text-secondary: oklch(77% 0 0);
 	--text-muted: oklch(64% 0 0);
@@ -488,6 +504,7 @@
 	--surface: oklch(15% 0 0);
 	--surface-raised: oklch(19% 0 0);
 	--surface-muted: oklch(100% 0 0 / 0.08);
+	--surface-pressed: oklch(100% 0 0 / 0.12);
 	--border: oklch(100% 0 0 / 0.1);
 	--border-subtle: oklch(100% 0 0 / 0.06);
 	--border-strong: oklch(100% 0 0 / 0.16);

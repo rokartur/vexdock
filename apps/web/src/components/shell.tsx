@@ -31,7 +31,7 @@ import { useEnvironmentId } from '../lib/environment'
 import { useSystemEvents } from '../lib/sse'
 import { Logo } from './logo'
 import { NewProjectDialog } from './new-project'
-import { ActivePill, PageChrome, stateTone } from './primitives'
+import { ActivePill, IconButton, PageChrome, stateTone } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
@@ -337,14 +337,9 @@ export function Shell({ children }: { children: ReactNode }) {
 							>
 								Projects
 							</Link>
-							<button
-								type='button'
-								onClick={() => setCreating(true)}
-								aria-label='New project'
-								className='-my-1 rounded-control p-1 hover:bg-surface-muted hover:text-foreground'
-							>
-								<IconPlus stroke={1.5} className='size-3.5' />
-							</button>
+							<div className='-my-1.5'>
+								<IconButton icon={IconPlus} label='New project' onClick={() => setCreating(true)} />
+							</div>
 						</div>
 					</GroupLabel>
 					<NewProjectDialog open={creating} onOpenChange={setCreating} />
@@ -401,15 +396,14 @@ export function Shell({ children }: { children: ReactNode }) {
 
 			<div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
 				<header className='flex h-13 shrink-0 items-center gap-2 border-b pr-4 pl-6'>
-					<button
-						type='button'
-						aria-label='Navigation'
-						aria-expanded={navOpen}
-						onClick={() => setNavOpen(true)}
-						className='-ml-1 press rounded-control p-1.5 text-muted hover:bg-surface-muted hover:text-foreground md:hidden'
-					>
-						<IconMenu2 stroke={1.5} className='size-4' />
-					</button>
+					<div className='-ml-1 md:hidden'>
+						<IconButton
+							icon={IconMenu2}
+							label='Navigation'
+							aria-expanded={navOpen}
+							onClick={() => setNavOpen(true)}
+						/>
+					</div>
 					{/* The page's breadcrumb and actions land here, so a page owns what it
 					    is called without owning a bar of its own. */}
 					<div ref={setHeader} className='flex min-w-0 flex-1 items-center gap-3 overflow-hidden' />

@@ -61,16 +61,6 @@ function meanOf(points: Point[]) {
 
 const perSecond = (value: number | undefined) => `${bytes(value)}/s`
 
-/** A series' colour in a two-line chart, matching what `MetricCard` strokes it with. */
-function Key({ muted = false, children }: { muted?: boolean; children: string }) {
-	return (
-		<span className='inline-flex items-center gap-1'>
-			<span className={`inline-block size-2 rounded-full ${muted ? 'bg-muted' : 'bg-series-1'}`} />
-			{children}
-		</span>
-	)
-}
-
 /**
  * Four charts over one window the reader picks, each with what that window adds up to, then the container facts
  * the strip above does not already carry. Live samples extend the recorded window once a minute while it runs.
@@ -126,12 +116,12 @@ function ServiceMonitoring() {
 								'-'
 							)
 						}
-						series={[cpu]}
-						format={([value]) => percent(value)}
+						series={{ CPU: cpu }}
+						format={percent}
 						hint={`avg ${percent(meanOf(cpu))} · peak ${percent(peakOf(cpu))} · 100% is one core`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis={{ tick: percent, floor: 5 }}
+						axis
 					/>
 					<MetricCard
 						label='Memory'
@@ -143,12 +133,12 @@ function ServiceMonitoring() {
 								'-'
 							)
 						}
-						series={[memory]}
-						format={([value]) => bytes(value)}
+						series={{ Memory: memory }}
+						format={bytes}
 						hint={`of ${bytes(current?.memory_limit)} · peak ${bytes(peakOf(memory))}`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis={{ tick: bytes, floor: 1024 * 1024, base: 1024 }}
+						axis
 					/>
 					<MetricCard
 						label='Network'
@@ -160,17 +150,13 @@ function ServiceMonitoring() {
 								<AnimatedNumber key={`${serviceId}-sent`} value={latest(sent)} format={perSecond} />
 							</>
 						}
-						series={[received, sent]}
-						format={([rx, tx]) => `in ${perSecond(rx)} · out ${perSecond(tx)}`}
-						hint={
-							<span className='inline-flex gap-3'>
-								<Key>{`in ${bytes(totalOf(history, sample => sample.network_rx))}`}</Key>
-								<Key muted>{`out ${bytes(totalOf(history, sample => sample.network_tx))}`}</Key>
-							</span>
-						}
+						series={{ In: received, Out: sent }}
+						format={perSecond}
+						hint={`in ${bytes(totalOf(history, sample => sample.network_rx))} · out ${bytes(totalOf(history, sample => sample.network_tx))}`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis={{ tick: perSecond, floor: 1024, base: 1024 }}
+						axis
+						max={1024}
 					/>
 					<MetricCard
 						label='Block i/o'
@@ -186,17 +172,13 @@ function ServiceMonitoring() {
 								/>
 							</>
 						}
-						series={[read, written]}
-						format={([r, w]) => `read ${perSecond(r)} · write ${perSecond(w)}`}
-						hint={
-							<span className='inline-flex gap-3'>
-								<Key>{`read ${bytes(totalOf(history, sample => sample.block_read))}`}</Key>
-								<Key muted>{`written ${bytes(totalOf(history, sample => sample.block_write))}`}</Key>
-							</span>
-						}
+						series={{ Read: read, Write: written }}
+						format={perSecond}
+						hint={`read ${bytes(totalOf(history, sample => sample.block_read))} · written ${bytes(totalOf(history, sample => sample.block_write))}`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis={{ tick: perSecond, floor: 1024, base: 1024 }}
+						axis
+						max={1024}
 					/>
 				</Cells>
 			)}

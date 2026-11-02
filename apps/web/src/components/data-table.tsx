@@ -75,7 +75,7 @@ type DataTableProps<TData extends RowData> = {
 	detail?: {
 		openId: string | null
 		onOpenChange: (id: string | null) => void
-		title: (row: TData) => ReactNode
+		title: (row: TData) => string
 		render: (row: TData) => ReactNode
 	}
 }
