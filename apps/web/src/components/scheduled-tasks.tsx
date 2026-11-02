@@ -1,26 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
 	IconClock,
 	IconDeviceFloppy,
 	IconFileText,
 	IconPencil,
-	IconPlayerPause,
 	IconPlayerPlay,
 	IconPlus,
 	IconTrash,
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Switch as ArcSwitch } from '@/components/ui/switch'
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since } from '../lib/format'
 import { tasksQuery } from '../lib/queries'
-import { type Columns, DataTable, columnsFor } from './data-table'
 import { LogViewer } from './log-viewer'
 import {
 	Button,
 	Confirm,
+	EmptyState,
 	ErrorText,
 	Field,
 	IconButton,
@@ -30,6 +29,7 @@ import {
 	Segmented,
 	Select,
 	StatStrip,
+	Status,
 	Switch,
 	Textarea,
 } from './primitives'
@@ -78,126 +78,102 @@ type TaskActions = {
 	owner: boolean
 }
 
-function taskColumns({ select, edit, run, toggle, remove, runningId, owner }: TaskActions): Columns<ScheduledTask> {
-	const cell = columnsFor<ScheduledTask>()
-	const ownerColumn = cell.accessor(task => `${task.project_name} ${task.service_name}`, {
-		id: 'service',
-		header: 'Service',
-		cell: ({ row }) => (
-			<>
-				<Link
-					to='/projects/$projectId/services/$serviceId/tasks'
-					params={{ projectId: row.original.project_id, serviceId: row.original.service_id }}
-					className='underline-offset-4 hover:underline'
-				>
-					{row.original.service_name}
-				</Link>
-				<span className='block text-xs text-muted'>{row.original.project_name}</span>
-			</>
-		),
-	})
-	return [
-		cell.accessor(task => task.name, {
-			id: 'name',
-			header: 'Name',
-			cell: ({ row }) => (
-				<span className='flex items-center gap-2'>
-					<IconClock className='size-4 shrink-0 text-muted' />
-					<span className='min-w-0'>
-						<span className='flex items-center gap-2 font-medium'>
-							{row.original.name}
-							{row.original.enabled ? null : <Badge>paused</Badge>}
-						</span>
-						{row.original.description ? (
-							<span className='block max-w-64 truncate text-xs text-muted'>
-								{row.original.description}
-							</span>
-						) : null}
+/** Arc's agent-routines row: what runs and when, its last run, the schedule switch and Run now. */
+function TaskRow({
+	task,
+	actions: { select, edit, run, toggle, remove, runningId, owner },
+}: {
+	task: ScheduledTask
+	actions: TaskActions
+}) {
+	const running = runningId === task.id
+	const last = task.last_run
+	const schedule = cronPresets.find(preset => preset.value === task.schedule)?.label
+	return (
+		<li className='grid gap-x-4 gap-y-2 px-4 py-3 not-first:border-t not-first:border-border-subtle md:grid-cols-[minmax(0,1fr)_11rem_auto] md:items-center'>
+			<div className='grid min-w-0 gap-0.5'>
+				<span className='flex min-w-0 items-center gap-2'>
+					<span className='truncate font-medium'>{task.name}</span>
+					{owner ? (
+						<Link
+							to='/projects/$projectId/services/$serviceId/tasks'
+							params={{ projectId: task.project_id, serviceId: task.service_id }}
+							className='truncate text-xs text-muted underline-offset-4 hover:underline'
+						>
+							{task.project_name} / {task.service_name}
+						</Link>
+					) : null}
+				</span>
+				<span className='flex min-w-0 items-center gap-1.5 text-xs text-muted'>
+					<IconClock className='size-3.5 shrink-0' />
+					<span className='truncate'>
+						{schedule ?? <span className='font-mono'>{task.schedule}</span>} · {task.timezone}
 					</span>
 				</span>
-			),
-		}),
-		...(owner ? [ownerColumn] : []),
-		cell.accessor(task => task.schedule, {
-			id: 'schedule',
-			header: 'Schedule',
-			cell: ({ row }) => (
-				<>
-					<span className='font-mono'>{row.original.schedule}</span>
-					<span className='block text-xs text-muted'>{row.original.timezone}</span>
-				</>
-			),
-		}),
-		cell.accessor(task => task.next_run ?? '', {
-			id: 'next-run',
-			header: 'Next run',
-			cell: ({ row }) =>
-				row.original.next_run ? (
-					<RelativeTime at={row.original.next_run} />
-				) : (
-					<span className='text-muted'>{row.original.enabled ? 'never' : 'paused'}</span>
-				),
-		}),
-		cell.accessor(task => task.command, {
-			id: 'command',
-			header: 'Command',
-			meta: { mono: true },
-			cell: ({ row }) => <span className='block max-w-80 truncate'>{row.original.command}</span>,
-		}),
-		cell.accessor(task => task.last_run?.started_at ?? '', {
-			id: 'last-run',
-			header: 'Last run',
-			// The last run is the way into the history: clicking what a task did last
-			// shows everything it has done.
-			cell: ({ row }) => {
-				const last = row.original.last_run
-				if (!last) return <span className='text-muted'>never</span>
-				return (
-					<button
-						type='button'
-						className={`hover:underline ${last.exit_code === 0 ? '' : 'text-danger'}`}
-						onClick={() => select(row.original.id)}
-					>
-						<RelativeTime at={last.started_at} />
-						<span className='ml-2 font-mono text-xs text-muted'>
-							{last.finished_at ? duration(last.started_at, last.finished_at) : 'running'}
-						</span>
-						{last.exit_code === 0 ? '' : ` · exit ${last.exit_code}`}
-					</button>
-				)
-			},
-		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row: { original } }) => (
-				<div className='flex justify-end gap-0.5'>
-					<IconButton icon={IconFileText} label='Runs' onClick={() => select(original.id)} />
-					<IconButton
-						icon={IconPlayerPlay}
-						label={runningId === original.id ? 'Running…' : 'Run now'}
-						disabled={runningId !== null}
-						onClick={() => run(original.id)}
-					/>
-					<IconButton icon={IconPencil} label='Edit' onClick={() => edit(original)} />
-					<IconButton
-						icon={original.enabled ? IconPlayerPause : IconPlayerPlay}
-						label={original.enabled ? 'Pause' : 'Resume'}
-						onClick={() => toggle(original)}
-					/>
-					{/* Deleting a task takes its whole run history with it, so it asks first. */}
-					<Confirm
-						title={`Delete ${original.name}?`}
-						description='The task and every run it recorded are removed.'
-						onConfirm={() => remove(original.id)}
-					>
-						<IconButton icon={IconTrash} label='Delete' />
-					</Confirm>
-				</div>
-			),
-		}),
-	]
+				<span className='truncate font-mono text-xs text-secondary'>{task.command}</span>
+			</div>
+
+			<button
+				type='button'
+				onClick={() => select(task.id)}
+				className='-mx-2 grid justify-items-start gap-0.5 justify-self-start rounded-control px-2 py-1 text-left text-xs hover:bg-surface-muted md:mx-0'
+			>
+				<span className='text-secondary'>
+					{running ? (
+						'Running'
+					) : task.enabled ? (
+						task.next_run ? (
+							<>
+								Next run <RelativeTime at={task.next_run} />
+							</>
+						) : (
+							'Never comes round'
+						)
+					) : (
+						'Paused'
+					)}
+				</span>
+				<span className='flex items-center gap-1.5 text-muted'>
+					{last ? (
+						<>
+							<Status dot value={last.exit_code === 0 ? 'success' : 'failed'} />
+							<RelativeTime at={last.started_at} />
+							<span className='font-mono'>
+								{last.finished_at ? duration(last.started_at, last.finished_at) : 'running'}
+							</span>
+							{last.exit_code === 0 ? null : (
+								<span className='font-mono text-danger'>exit {last.exit_code}</span>
+							)}
+						</>
+					) : (
+						'No runs yet'
+					)}
+				</span>
+			</button>
+
+			<div className='flex items-center gap-1.5'>
+				<ArcSwitch
+					aria-label={`Run ${task.name} on schedule`}
+					checked={task.enabled}
+					onCheckedChange={() => toggle(task)}
+				/>
+				<Button disabled={runningId !== null} onClick={() => run(task.id)}>
+					<IconPlayerPlay />
+					{running ? 'Running…' : 'Run'}
+				</Button>
+				<IconButton icon={IconFileText} label='Runs' onClick={() => select(task.id)} />
+				<IconButton icon={IconPencil} label='Edit' onClick={() => edit(task)} />
+				{/* Deleting a task takes its whole run history with it, so it asks first. */}
+				<Confirm
+					title={`Delete ${task.name}?`}
+					description='The task and every run it recorded are removed.'
+					onConfirm={() => remove(task.id)}
+				>
+					<IconButton icon={IconTrash} label='Delete' />
+				</Confirm>
+			</div>
+		</li>
+	)
 }
 
 /**
@@ -258,25 +234,17 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 		},
 	})
 
-	const { mutate: runTask } = run
-	const { mutate: toggleTask } = toggle
-	const { mutate: removeTask } = remove
 	// A manual run holds the request open until the command exits, so the row has
 	// to say so; a second click would only earn a 409.
-	const runningId = run.isPending ? run.variables : null
-	const columns = useMemo(
-		() =>
-			taskColumns({
-				select: setSelected,
-				edit: task => setForm(taskToForm(task)),
-				run: runTask,
-				toggle: toggleTask,
-				remove: removeTask,
-				runningId,
-				owner: serviceId === undefined,
-			}),
-		[runTask, toggleTask, removeTask, runningId, serviceId],
-	)
+	const actions: TaskActions = {
+		select: setSelected,
+		edit: task => setForm(taskToForm(task)),
+		run: run.mutate,
+		toggle: toggle.mutate,
+		remove: remove.mutate,
+		runningId: run.isPending ? run.variables : null,
+		owner: serviceId === undefined,
+	}
 
 	const listed = tasks.data ?? []
 	const soonest = listed
@@ -312,15 +280,22 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 					) : null
 				}
 			>
-				<DataTable
-					data={listed}
-					columns={columns}
-					loading={tasks.isLoading}
-					error={tasks.error}
-					getRowId={task => task.id}
-					filter='Filter tasks'
-					empty={serviceId ? 'No scheduled tasks' : 'No scheduled tasks. Add one from a service.'}
-				/>
+				<ErrorText error={tasks.error} />
+				{listed.length === 0 ? (
+					<div className='rounded-surface border bg-surface'>
+						<EmptyState
+							icon={IconClock}
+							title={tasks.isLoading ? 'Loading tasks' : 'No scheduled tasks'}
+							description={serviceId ? undefined : 'Add one from a service.'}
+						/>
+					</div>
+				) : (
+					<ul className='rounded-surface border bg-surface'>
+						{listed.map(task => (
+							<TaskRow key={task.id} task={task} actions={actions} />
+						))}
+					</ul>
+				)}
 				<ErrorText error={run.error ?? toggle.error ?? remove.error} />
 			</Section>
 

@@ -1,23 +1,22 @@
 import { useMemo, useState } from 'react'
-import {
-	IconCertificate,
-	IconCpu,
-	IconDatabase,
-	IconFolder,
-	IconPlayerPlay,
-	IconServer,
-	IconStack2,
-	IconTag,
-} from '@tabler/icons-react'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { IconCertificate, IconFolder, IconPlayerPlay, IconServer, IconStack2, IconTag } from '@tabler/icons-react'
+import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { AnimatedNumber } from '../components/animated-number'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
-import { MetricCard, seriesOf, useHistory } from '../components/metric-chart'
-import { Cell, Cells, Meter, Page, Refresh, RelativeTime, Section, Status } from '../components/primitives'
-import { api, type Certificate, type HostPoint, type HostStats, type Project, type SystemInfo } from '../lib/api'
-import { bytes, percent, until } from '../lib/format'
+import { HostMetrics, WINDOWS } from '../components/host-metrics'
+import { useHistory } from '../components/metric-chart'
+import { Cell, Cells, Page, Refresh, RelativeTime, Section, Status } from '../components/primitives'
+import {
+	api,
+	type Certificate,
+	type HostPoint,
+	type HostStats,
+	type MetricWindow,
+	type Project,
+	type SystemInfo,
+} from '../lib/api'
+import { until } from '../lib/format'
 import { certificatesQuery, preload, projectsQuery, systemInfoQuery, versionQuery } from '../lib/queries'
 import { useEventSource } from '../lib/sse'
 
@@ -100,13 +99,18 @@ function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
 	]
 }
 
-const metricsQuery = queryOptions({ queryKey: ['system', 'metrics'], queryFn: () => api.systemMetrics('30m') })
+const metricsQuery = (window: MetricWindow) =>
+	queryOptions({
+		queryKey: ['system', 'metrics', window],
+		queryFn: () => api.systemMetrics(window),
+		placeholderData: keepPreviousData,
+	})
 
 export const Route = createFileRoute('/')({
 	loader: ({ context: { queryClient } }) =>
 		Promise.all([
 			preload(queryClient, systemInfoQuery),
-			preload(queryClient, metricsQuery),
+			preload(queryClient, metricsQuery('30m')),
 			preload(queryClient, versionQuery),
 			preload(queryClient, certificatesQuery),
 		]),
@@ -115,7 +119,8 @@ export const Route = createFileRoute('/')({
 
 function DashboardPage() {
 	const info = useQuery(systemInfoQuery)
-	const recorded = useQuery(metricsQuery)
+	const [window, setWindow] = useState<MetricWindow>('30m')
+	const recorded = useQuery(metricsQuery(window))
 	const version = useQuery(versionQuery)
 	const projects = useQuery(projectsQuery)
 	const certificates = useQuery(certificatesQuery)
@@ -129,10 +134,8 @@ function DashboardPage() {
 	const history = useHistory(
 		stats,
 		useMemo(() => (recorded.data ?? []).map(toMillis), [recorded.data]),
+		WINDOWS.find(option => option.value === window)?.ms,
 	)
-	// Until the first live sample lands, the newest recorded bucket is the reading.
-	const current = stats ?? history.at(-1)
-	const diskUsed = current && current.disk_total > 0 ? current.disk_used / current.disk_total : 0
 	const host = info.data?.host
 
 	// Every card already carries its own counts, so the fleet totals are a sum.
@@ -189,49 +192,10 @@ function DashboardPage() {
 				</Section>
 			) : null}
 
-			<Section title='Host'>
-				{/* A host is judged on cpu and memory, so on the fleet page those two get
-				    a row to themselves, each chart beside its reading and wide enough to read a
-				    trend off without costing the deployments below any height. */}
-				<Cells className='mb-3'>
-					<MetricCard
-						label='CPU'
-						icon={IconCpu}
-						value={current ? <AnimatedNumber value={current.cpu_percent} format={percent} /> : '-'}
-						series={{ CPU: seriesOf(history, sample => sample.cpu_percent) }}
-						format={percent}
-						max={100}
-						hint={stats?.load_average === undefined ? undefined : `load ${stats.load_average.toFixed(2)}`}
-						height={64}
-						inline
-					/>
-					<MetricCard
-						label='Memory'
-						icon={IconServer}
-						value={current ? <AnimatedNumber value={current.memory_used} format={bytes} /> : '-'}
-						series={{ Memory: seriesOf(history, sample => sample.memory_used) }}
-						format={bytes}
-						max={current?.memory_total}
-						hint={`of ${bytes(current?.memory_total ?? host?.memory_total)}`}
-						height={64}
-						inline
-					/>
-				</Cells>
-				<Cells>
-					{/* Disk moves in hours, so a line would be flat; the bar says more. */}
-					<Cell
-						label='Disk'
-						icon={IconDatabase}
-						value={current ? bytes(current.disk_used) : '-'}
-						hint={`of ${bytes(current?.disk_total)} · ${percent(diskUsed * 100)}`}
-					>
-						<Meter
-							className='mt-2.5'
-							label=''
-							value={current?.disk_used ?? 0}
-							max={current?.disk_total ?? 0}
-						/>
-					</Cell>
+			<HostMetrics history={history} window={window} onWindowChange={setWindow} load={stats?.load_average} />
+
+			<Section title='Fleet'>
+				<Cells className='grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]'>
 					<Cell
 						label='Certificates'
 						icon={IconCertificate}
@@ -243,7 +207,15 @@ function DashboardPage() {
 						label='Services'
 						icon={IconServer}
 						value={services.total}
-						hint={`${services.apps} apps · ${services.compose} compose · ${services.db} db`}
+						hint={
+							[
+								`${services.apps} app${services.apps === 1 ? '' : 's'}`,
+								`${services.compose} compose`,
+								`${services.db} db`,
+							]
+								.filter(part => !part.startsWith('0 '))
+								.join(' · ') || 'none yet'
+						}
 					/>
 					<Cell
 						label='Running'
@@ -261,7 +233,7 @@ function DashboardPage() {
 									to='/system/settings/about'
 									className='text-warning underline-offset-4 hover:underline'
 								>
-									{info.data?.version} · update
+									{info.data?.version}
 								</Link>
 							) : (
 								(info.data?.version ?? '-')

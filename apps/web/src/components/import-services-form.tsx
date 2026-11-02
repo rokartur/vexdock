@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type EnvVar, GIT_PROVIDERS, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { Button, Check, DialogFooter, ErrorText, Field, Textarea } from './primitives'
+import { FileUpload, type FileUploadItem } from './ui/file-upload'
 
 const providers = ['unconfigured', ...GIT_PROVIDERS, 'image', 'raw'] as readonly string[]
 
@@ -91,6 +92,7 @@ export function ImportServicesForm({
 	onCancel: () => void
 }) {
 	const [pasted, setPasted] = useState('')
+	const [file, setFile] = useState<FileUploadItem[]>([])
 	const [skipped, setSkipped] = useState<string[]>([])
 
 	const environmentId = useEnvironmentId()
@@ -156,6 +158,21 @@ export function ImportServicesForm({
 				run.mutate()
 			}}
 		>
+			<div className='mb-3'>
+				<FileUpload
+					accept='.txt,text/plain'
+					multiple={false}
+					maxSize={1024 * 1024}
+					label='Import from a file'
+					description='Drop the export saved as a .txt, or paste it below.'
+					value={file}
+					onChange={async next => {
+						setFile(next)
+						const [picked] = next
+						if (picked && !picked.error) setPasted(await picked.file.text())
+					}}
+				/>
+			</div>
 			<Field label='Export' hint='Copied from another project’s settings.'>
 				<Textarea
 					required
@@ -181,7 +198,8 @@ export function ImportServicesForm({
 							return (
 								<div
 									key={service.name}
-									className={`flex items-center gap-3 border-b border-border-subtle py-1.5 text-sm last:border-0 ${collides ? 'opacity-40' : ''}`}
+									data-collides={collides || undefined}
+									className='flex items-center gap-3 border-b border-border-subtle py-1.5 text-sm last:border-0 data-collides:opacity-40'
 								>
 									<Check
 										label={service.name}

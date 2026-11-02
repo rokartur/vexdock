@@ -72,14 +72,14 @@ Pages go through the vocabulary first:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
 IconButton, Status, Confirm, EmptyState), so a design change happens in one
-file. The shell is a sidebar that is the same on every page, carrying every
-destination and the project tree, and a header over the page; tables are `DataTable` in
+file. The shell is Arc's sidebar rail, the same on every page, carrying every
+destination and the project list, and a header over the page; tables are `DataTable` in
 `components/data-table.tsx`, its own primitive that pages import directly. A
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).
-The visual language is the ui skill's Arc system (`src/styles.css`, the only palette there is): a
-black canvas, cards a shade lighter resting on a hairline border with no shadow, hover,
-selection and lines in translucent white so they read one step above whatever they sit on, the
+The visual language is the ui skill's Arc system with its default tokens (`src/styles.css`
+copies the skill's file unchanged above the marked line, the only palette there is): a
+black canvas, cards a shade lighter, hover and pressed as tints of the text color, the
 foreground color for the one primary action, sentence case everywhere, a neutral gray ramp.
 The panel is monochrome throughout, charts included. Dense tables, and no continuously repainting animation: the panel
 is often left open.
@@ -96,7 +96,9 @@ never a hand-built box. A settings page is a stack of `FormSection` cards:
 a title, controls, then a footer strip with a hint on the left
 and that card's own Save on the right. `SaveButton` is handed the card's
 mutation so it can answer for two seconds after the write lands, and its `dirty`
-so only a card with unsaved edits shows a primary Save. `aside` is the
+so only a card with unsaved edits shows a primary Save. Cards that write one
+API object together share one draft and `ui/save-bar.tsx`'s `IslandBar`
+instead. `aside` is the
 read-only facts column next to the controls, and a card that also adds to a
 list puts the table in its body and the add form in a `FormDialog` opened from
 its actions, never under the table. Likewise a record opened from a list (a

@@ -21,6 +21,7 @@ import {
 	FormSection,
 	IconButton,
 	Input,
+	NumberField,
 	RelativeTime,
 	Select,
 	Status,
@@ -346,19 +347,18 @@ const portKey = (port: { published: number; target: number; protocol: string }) 
 
 function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: string; live: HostPort[] }) {
 	const [adding, setAdding] = useState(false)
-	const [published, setPublished] = useState('')
-	const [target, setTarget] = useState('')
+	const [published, setPublished] = useState(8080)
+	const [target, setTarget] = useState(80)
 	const [protocol, setProtocol] = useState<PortProtocol>('tcp')
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const { list, refresh } = useServiceList(serviceId, 'ports', api.servicePorts)
 
 	const create = useMutation({
-		mutationFn: () =>
-			api.createServicePort(serviceId, { published: Number(published), target: Number(target), protocol }),
+		mutationFn: () => api.createServicePort(serviceId, { published, target, protocol }),
 		onSuccess: async () => {
-			setPublished('')
-			setTarget('')
+			setPublished(8080)
+			setTarget(80)
 			setProtocol('tcp')
 			setAdding(false)
 			await refresh()
@@ -434,26 +434,10 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 			>
 				<div className='grid gap-x-6 md:grid-cols-3'>
 					<Field label='Published'>
-						<Input
-							required
-							type='number'
-							min={1}
-							max={65_535}
-							value={published}
-							onChange={event => setPublished(event.target.value)}
-							placeholder='8080'
-						/>
+						<NumberField min={1} max={65_535} value={published} onValueChange={setPublished} />
 					</Field>
 					<Field label='Target'>
-						<Input
-							required
-							type='number'
-							min={1}
-							max={65_535}
-							value={target}
-							onChange={event => setTarget(event.target.value)}
-							placeholder='80'
-						/>
+						<NumberField min={1} max={65_535} value={target} onValueChange={setTarget} />
 					</Field>
 					<Field label='Protocol'>
 						<Select label='Protocol' value={protocol} options={protocolOptions} onChange={setProtocol} />

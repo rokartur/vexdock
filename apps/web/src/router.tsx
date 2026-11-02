@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
-import { createRouter } from '@tanstack/react-router'
+import { createRouter, Link } from '@tanstack/react-router'
+import { Button, EmptyState } from './components/primitives'
 import { preload, projectsQuery } from './lib/queries'
 import { routeTree } from './routeTree.gen'
 
@@ -31,5 +32,14 @@ export function getRouter() {
 		defaultPreload: 'intent',
 		// The query cache decides freshness; the router's own loader cache would only skip preloads.
 		defaultPreloadStaleTime: 0,
+		defaultNotFoundComponent: NotFound,
 	})
+}
+
+function NotFound() {
+	return (
+		<EmptyState scene='map' title='Page not found' description='Nothing lives at this address.'>
+			<Button render={<Link to='/' />}>Back to the dashboard</Button>
+		</EmptyState>
+	)
 }

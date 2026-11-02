@@ -36,7 +36,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Combobox } from '@/components/ui/combobox'
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { EmptyState as ArcEmptyState } from '@/components/ui/empty-state'
+import { EmptyScene, type EmptySceneId } from '@/components/ui/empty-states'
 import { Input as ArcInput } from '@/components/ui/input'
+import { NumberField as ArcNumberField } from '@/components/ui/number-field'
 import { PasswordField } from '@/components/ui/password-field'
 import { Progress } from '@/components/ui/progress'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -429,7 +431,7 @@ export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; n
 	// Each layer fades itself: an ancestor below full opacity would cut its backdrop-filter off from the rows behind,
 	// and the blur would vanish for the whole fade and pop back at the end.
 	const fade = cn(
-		'transition-[opacity,visibility] duration-160 ease-standard',
+		'transition-[opacity,visibility] duration-170 ease-standard',
 		shown ? 'visible opacity-100' : 'invisible opacity-0',
 	)
 	return (
@@ -453,7 +455,7 @@ export function MoreBelow({ count, noun = 'more', onReveal }: { count: number; n
 				onClick={onReveal}
 				aria-label={`${label} ${noun} below, scroll to the end`}
 				className={cn(
-					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-control border bg-surface-raised pr-3 pl-2 text-xs text-foreground shadow-raised transition-[opacity,visibility,scale,border-color] duration-160 ease-standard hover:border-border-strong',
+					'absolute bottom-3 left-1/2 z-30 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-control border bg-surface-raised pr-3 pl-2 text-xs text-foreground shadow-raised transition-[opacity,visibility,scale,border-color] duration-170 ease-standard hover:border-border-strong',
 					shown ? 'visible scale-100 opacity-100' : 'invisible scale-95 opacity-0',
 				)}
 			>
@@ -807,16 +809,27 @@ export function ErrorText({ error }: { error: unknown }) {
 /** What a list shows when it has nothing to list, with optionally the action that fills it. */
 export function EmptyState({
 	icon: Icon = IconInbox,
+	scene,
 	title,
 	description,
 	children,
 }: {
 	icon?: TablerIcon
+	/** An Arc illustration in place of the icon, for a state that fills the page or the list. */
+	scene?: EmptySceneId
 	title: string
 	description?: string
 	children?: ReactNode
 }) {
-	return <ArcEmptyState icon={<Icon stroke={1.5} />} title={title} description={description} action={children} />
+	return (
+		<ArcEmptyState
+			icon={<Icon stroke={1.5} />}
+			illustration={scene ? <EmptyScene scene={scene} /> : undefined}
+			title={title}
+			description={description}
+			action={children}
+		/>
+	)
 }
 
 /** The one way to ask before something unrecoverable. The trigger is whatever `children` renders; a menu item, which
@@ -1157,6 +1170,12 @@ export function Textarea({ mono, ...props }: OwnLabel<ComponentProps<typeof ArcT
 	return <ArcTextarea className={cn(mono && 'font-mono')} {...useFieldLabel(props['aria-label'])} {...props} />
 }
 
+/** A whole number such as a port: digits roll, steppers hold to repeat, the range clamps. Grouping is off, `8080` not `8,080`. */
+export function NumberField(props: OwnLabel<ComponentProps<typeof ArcNumberField>>) {
+	const { label, description } = useFieldLabel(undefined)
+	return <ArcNumberField label={label} description={description} formatOptions={{ useGrouping: false }} {...props} />
+}
+
 const FieldContext = createContext<{ label: string; hint: string | undefined; visible: boolean } | null>(null)
 
 /** Arc's controls draw their own label and hint. Inside a Field with one control, they draw the Field's; a control
@@ -1167,9 +1186,9 @@ function useFieldLabel(ownLabel: string | undefined) {
 	return { label: field.label, description: field.visible ? field.hint : undefined, hideLabel: !field.visible }
 }
 
-const labeledControls = new Set<unknown>([Input, Textarea, Select, Combo])
+const labeledControls = new Set<unknown>([Input, Textarea, Select, Combo, NumberField])
 
-/** A label over one control. An Input, Textarea, Select or Combo draws it as Arc's own label and hint; anything else
+/** A label over one control. An Input, Textarea, Select, Combo or NumberField draws it as Arc's own label and hint; anything else
  * (a switch row, a segmented picker, a control with a button beside it) sits in a group under the label. */
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
 	const labelId = useId()

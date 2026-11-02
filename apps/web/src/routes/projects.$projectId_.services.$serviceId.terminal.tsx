@@ -1,4 +1,3 @@
-import { IconTerminal2 } from '@tabler/icons-react'
 import { createFileRoute } from '@tanstack/react-router'
 import { EmptyState } from '../components/primitives'
 import { Terminal } from '../components/terminal'
@@ -15,7 +14,7 @@ function ServiceTerminal() {
 	if (service.data?.state !== 'running') {
 		return (
 			<div className='rounded-surface border bg-surface'>
-				<EmptyState icon={IconTerminal2} title='Start the service to open a terminal' />
+				<EmptyState scene='offline' title='Start the service to open a terminal' />
 			</div>
 		)
 	}

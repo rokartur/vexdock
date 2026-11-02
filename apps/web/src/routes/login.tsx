@@ -3,7 +3,7 @@ import { IconLogin2 } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { safeNext } from '../components/auth-gate'
-import { Logo } from '../components/logo'
+import { AuthScreen } from '../components/auth-screen'
 import { Button, ErrorText, Field, Input } from '../components/primitives'
 import { signIn } from '../lib/auth-client'
 
@@ -33,12 +33,13 @@ function LoginPage() {
 	})
 
 	return (
-		<div className='mx-auto flex min-h-dvh max-w-sm enter-children flex-col justify-center px-6'>
-			<div className='mb-6 flex items-center gap-2.5'>
-				<Logo className='size-7' />
-				<h1 className='text-base font-medium'>Sign in to vexdock</h1>
-			</div>
+		<AuthScreen
+			label='Sign in'
+			title='Sign in to vexdock'
+			lead='The administrator account this server was set up with.'
+		>
 			<form
+				className='grid'
 				onSubmit={event => {
 					event.preventDefault()
 					login.mutate()
@@ -48,6 +49,9 @@ function LoginPage() {
 					<Input
 						type='email'
 						autoComplete='username'
+						autoCapitalize='none'
+						spellCheck={false}
+						placeholder='name@example.com'
 						required
 						value={email}
 						onChange={event => setEmail(event.target.value)}
@@ -63,11 +67,11 @@ function LoginPage() {
 					/>
 				</Field>
 				<ErrorText error={login.error} />
-				<Button type='submit' variant='primary' disabled={login.isPending}>
+				<Button type='submit' variant='primary' loading={login.isPending}>
 					<IconLogin2 />
-					{login.isPending ? 'Signing in…' : 'Sign in'}
+					Sign in
 				</Button>
 			</form>
-		</div>
+		</AuthScreen>
 	)
 }

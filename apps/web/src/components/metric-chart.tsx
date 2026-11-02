@@ -107,6 +107,8 @@ type MetricCardProps = {
 	axis?: boolean
 	/** Lowest ceiling for the scale, from zero: 100 for a percent, the total for memory, 1024 for an idle byte rate. */
 	max?: number
+	cursor?: number | null
+	onCursor?: (at: number | null) => void
 }
 
 /** Compact metric: label, current reading, and the recorded window as Arc's line chart or sparkline. */
@@ -122,30 +124,24 @@ export function MetricCard({
 	inline = false,
 	axis = false,
 	max,
+	cursor,
+	onCursor,
 }: MetricCardProps) {
-	const names = Object.keys(series)
-	const samples = series[names[0] ?? ''] ?? []
-	const span = (samples.at(-1)?.at ?? 0) - (samples[0]?.at ?? 0)
+	const samples = Object.values(series)[0] ?? []
 	const name = `${label}, ${windowLabel}`
 
 	return (
 		<Cell label={label} icon={icon} hint={hint} value={value} inline={inline}>
 			<div className={cn('min-w-0 flex-1', !inline && 'mt-3')}>
 				{axis ? (
-					<LineChart
+					<HistoryChart
 						label={name}
 						height={height}
-						categoryLabel='Time'
+						series={series}
+						format={format}
 						max={max}
-						formatValue={format}
-						formatTick={format}
-						series={names.map(key => ({ key, label: key, area: names.length === 1 }))}
-						data={samples.map((sample, index) => ({
-							key: String(sample.at),
-							label: (span > DAY_MS ? dayStamp : clockStamp)(sample.at),
-							axisLabel: (span > DAY_MS ? dayStamp : hourStamp)(sample.at),
-							values: Object.fromEntries(names.map(key => [key, series[key]?.[index]?.value])),
-						}))}
+						cursor={cursor}
+						onCursor={onCursor}
 					/>
 				) : (
 					<Sparkline
@@ -160,6 +156,54 @@ export function MetricCard({
 				)}
 			</div>
 		</Cell>
+	)
+}
+
+/** Arc's line chart with axes over named series that share their samples' clock. */
+export function HistoryChart({
+	label,
+	series,
+	format,
+	height,
+	max,
+	cursor,
+	onCursor,
+}: {
+	label: string
+	series: Record<string, Point[]>
+	format: (value: number) => string
+	height: number
+	max?: number
+	/** Hovered moment in ms, shared across charts; rate series run one sample short, so the clock lines them up, not the index. */
+	cursor?: number | null
+	onCursor?: (at: number | null) => void
+}) {
+	const names = Object.keys(series)
+	const samples = series[names[0] ?? ''] ?? []
+	const span = (samples.at(-1)?.at ?? 0) - (samples[0]?.at ?? 0)
+	let activeIndex: number | null | undefined
+	if (cursor !== undefined) {
+		const found = cursor === null ? -1 : samples.findIndex(sample => sample.at >= cursor)
+		activeIndex = found === -1 ? null : found
+	}
+	return (
+		<LineChart
+			activeIndex={activeIndex}
+			onActiveChange={index => onCursor?.(index === null ? null : (samples[index]?.at ?? null))}
+			label={label}
+			height={height}
+			categoryLabel='Time'
+			max={max}
+			formatValue={format}
+			formatTick={format}
+			series={names.map(key => ({ key, label: key, area: names.length === 1 }))}
+			data={samples.map((sample, index) => ({
+				key: String(sample.at),
+				label: (span > DAY_MS ? dayStamp : clockStamp)(sample.at),
+				axisLabel: (span > DAY_MS ? dayStamp : hourStamp)(sample.at),
+				values: Object.fromEntries(names.map(key => [key, series[key]?.[index]?.value])),
+			}))}
+		/>
 	)
 }
 

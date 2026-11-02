@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { IconKey, IconPlus, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { AccessPicker } from '../components/access-picker'
-import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
 	Confirm,
+	EmptyState,
 	ErrorText,
 	Field,
 	FormDialog,
@@ -32,81 +32,79 @@ export const Route = createFileRoute('/system/settings/tokens')({
 	component: ApiTokens,
 })
 
-function TokenAccess({ token, projectName }: { token: ApiToken; projectName: (id: string) => string }) {
-	if (token.admin) return <Badge tone='warning'>Full access</Badge>
-	if (token.projects.length > 2) {
-		const names = token.projects.map(grant => `${projectName(grant.project_id)}: ${grant.level}`).join(', ')
-		return <Badge title={names}>{token.projects.length} projects</Badge>
-	}
+function ScopeChip({ children, title }: { children: ReactNode; title?: string }) {
 	return (
-		<span className='inline-flex flex-wrap gap-1'>
-			{token.projects.map(grant => (
-				<Badge key={grant.project_id} tone={grant.level === 'write' ? 'success' : 'neutral'}>
-					{projectName(grant.project_id)}: {grant.level}
-				</Badge>
-			))}
+		<span
+			title={title}
+			className='inline-flex h-5.5 items-center rounded-full border px-2 font-mono text-xs whitespace-nowrap text-secondary'
+		>
+			{children}
 		</span>
 	)
 }
 
-function tokenTableColumns(revoke: (id: string) => void, projectName: (id: string) => string): Columns<ApiToken> {
-	const cell = columnsFor<ApiToken>()
-	return [
-		cell.accessor(token => token.name, {
-			id: 'name',
-			header: 'Name',
-			cell: ({ row }) => (
-				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconKey className='size-4 text-muted' />
-					{row.original.name}
-					{row.original.client_id ? (
-						<Badge title='Granted to an MCP client through OAuth'>OAuth</Badge>
+function TokenScopes({ token, projectName }: { token: ApiToken; projectName: (id: string) => string }) {
+	if (token.admin) return <ScopeChip>full access</ScopeChip>
+	if (token.projects.length > 2) {
+		const names = token.projects.map(grant => `${projectName(grant.project_id)}: ${grant.level}`).join(', ')
+		return <ScopeChip title={names}>{token.projects.length} projects</ScopeChip>
+	}
+	return token.projects.map(grant => (
+		<ScopeChip key={grant.project_id}>
+			{projectName(grant.project_id)}:{grant.level}
+		</ScopeChip>
+	))
+}
+
+function TokenRow({
+	token,
+	projectName,
+	revoke,
+}: {
+	token: ApiToken
+	projectName: (id: string) => string
+	revoke: (id: string) => void
+}) {
+	return (
+		<li className='grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-5 px-4 py-3 not-first:border-t not-first:border-border-subtle md:grid-cols-[minmax(0,1.25fr)_minmax(0,1.15fr)_minmax(128px,.6fr)_auto]'>
+			<span className='grid min-w-0 justify-items-start gap-0.5'>
+				<span className='flex max-w-full min-w-0 items-center gap-2'>
+					<span className='truncate text-sm font-medium'>{token.name}</span>
+					{token.client_id ? (
+						<Badge size='sm' title='Granted to an MCP client through OAuth'>
+							OAuth
+						</Badge>
 					) : null}
 				</span>
-			),
-		}),
-		cell.accessor(token => (token.admin ? 'full' : String(token.projects.length)), {
-			id: 'access',
-			header: 'Access',
-			cell: ({ row }) => <TokenAccess token={row.original} projectName={projectName} />,
-		}),
-		cell.accessor(token => token.prefix, {
-			id: 'prefix',
-			header: 'Prefix',
-			meta: { mono: true },
-			cell: ({ row }) => `${row.original.prefix}…`,
-		}),
-		cell.accessor(token => token.last_used_at ?? '', {
-			id: 'last-used',
-			header: 'Last used',
-			cell: ({ row }) =>
-				row.original.last_used_at ? (
-					<RelativeTime at={row.original.last_used_at} />
-				) : (
-					<span className='text-muted'>never</span>
-				),
-		}),
-		cell.accessor(token => token.created_at, {
-			id: 'created',
-			header: 'Created',
-			cell: ({ row }) => <RelativeTime at={row.original.created_at} />,
-		}),
-		cell.display({
-			id: 'actions',
-			header: '',
-			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<Confirm
-					title={`Revoke ${row.original.name}?`}
-					description='Anything still using this token is locked out immediately.'
-					action='Revoke'
-					onConfirm={() => revoke(row.original.id)}
-				>
-					<IconButton icon={IconTrash} label='Revoke' />
-				</Confirm>
-			),
-		}),
-	]
+				<span className='font-mono text-xs text-muted'>{token.prefix}••••</span>
+			</span>
+			<span className='hidden min-w-0 flex-wrap gap-1 md:flex'>
+				<TokenScopes token={token} projectName={projectName} />
+			</span>
+			<span className='grid min-w-0 justify-items-end gap-0.5 text-right text-xs text-muted md:justify-items-start md:text-left'>
+				<span className='whitespace-nowrap text-secondary'>
+					{token.last_used_at ? (
+						<>
+							Used <RelativeTime at={token.last_used_at} />
+						</>
+					) : (
+						'Never used'
+					)}
+				</span>
+				<span className='hidden md:inline'>
+					Created <RelativeTime at={token.created_at} />
+				</span>
+			</span>
+			<Confirm
+				title={`Revoke ${token.name}?`}
+				description='Anything still using this token is locked out immediately.'
+				action='Revoke'
+				onConfirm={() => revoke(token.id)}
+			>
+				<IconButton icon={IconTrash} label='Revoke' />
+			</Confirm>
+		</li>
+	)
 }
 
 function ApiTokens() {
@@ -143,10 +141,7 @@ function ApiTokens() {
 		() => new Map((projects.data ?? []).map(project => [project.id, project.name])),
 		[projects.data],
 	)
-	const columns = useMemo(
-		() => tokenTableColumns(revokeToken, id => projectNames.get(id) ?? id),
-		[revokeToken, projectNames],
-	)
+	const projectName = (id: string) => projectNames.get(id) ?? id
 
 	return (
 		<div className='max-w-3xl'>
@@ -162,15 +157,18 @@ function ApiTokens() {
 					</>
 				}
 			>
-				<ErrorText error={remove.error} />
-				<DataTable
-					data={tokens.data ?? []}
-					columns={columns}
-					loading={tokens.isLoading}
-					error={tokens.error}
-					getRowId={token => token.id}
-					empty='No tokens issued'
-				/>
+				<ErrorText error={remove.error ?? tokens.error} />
+				{(tokens.data ?? []).length === 0 ? (
+					<div className='rounded-surface border bg-surface'>
+						<EmptyState icon={IconKey} title={tokens.isLoading ? 'Loading tokens' : 'No tokens issued'} />
+					</div>
+				) : (
+					<ul className='rounded-surface border bg-surface'>
+						{tokens.data?.map(token => (
+							<TokenRow key={token.id} token={token} projectName={projectName} revoke={revokeToken} />
+						))}
+					</ul>
+				)}
 			</Section>
 
 			{issued ? (

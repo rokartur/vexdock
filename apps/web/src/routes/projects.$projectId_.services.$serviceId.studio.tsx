@@ -3,7 +3,8 @@ import { IconDatabaseOff, IconEye, IconPlayerPlay, IconRocket, IconTable, IconTe
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { ActivePill, Button, EmptyState, ErrorText, Input, Select } from '../components/primitives'
+import { ActivePill, Button, EmptyState, ErrorText, Select } from '../components/primitives'
+import { SearchField } from '../components/ui/search-field'
 import { api } from '../lib/api'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
@@ -53,7 +54,7 @@ function NotRunning({ serviceId }: { serviceId: string }) {
 	return (
 		<div className='rounded-surface border bg-surface'>
 			<EmptyState
-				icon={IconDatabaseOff}
+				scene='offline'
 				title='The database is not running.'
 				description='Studio talks to the running container. Start it, or deploy it if it never ran.'
 			>
@@ -89,8 +90,8 @@ function StudioPane() {
 	const needle = filter.trim().toLowerCase()
 
 	return (
-		<div className='flex min-h-96 flex-1 overflow-hidden rounded-surface border bg-surface'>
-			<aside className='flex w-60 shrink-0 flex-col gap-2 border-r p-2'>
+		<div className='flex min-h-96 flex-1 flex-col overflow-hidden rounded-surface border bg-surface sm:flex-row'>
+			<aside className='flex max-h-48 shrink-0 flex-col gap-2 border-b p-2 sm:max-h-none sm:w-60 sm:border-r sm:border-b-0'>
 				{schemas.data.schemas.length > 1 ? (
 					<Select
 						label='Schema'
@@ -105,12 +106,12 @@ function StudioPane() {
 						}
 					/>
 				) : null}
-				<Input
-					type='search'
-					aria-label='Search tables'
+				<SearchField
+					label='Search tables'
+					hideLabel
 					placeholder='Search tables'
 					value={filter}
-					onChange={event => setFilter(event.target.value)}
+					onValueChange={setFilter}
 				/>
 				<nav className='-mx-2 flex min-h-0 flex-1 flex-col overflow-y-auto px-2'>
 					<Link
@@ -147,7 +148,7 @@ function StudioPane() {
 						})}
 				</nav>
 			</aside>
-			<div className='flex min-w-0 flex-1 flex-col'>
+			<div className='relative flex min-h-0 min-w-0 flex-1 flex-col'>
 				<Outlet />
 			</div>
 		</div>

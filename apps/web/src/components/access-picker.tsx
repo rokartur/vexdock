@@ -22,7 +22,7 @@ export function AccessPicker({
 	}
 
 	return (
-		<div className='rounded-lg divide-y divide-border border border-border'>
+		<div className='divide-y divide-border rounded-panel border border-border'>
 			<div className='px-3 py-2'>
 				<Check
 					label='Full access: every project and the whole server'
