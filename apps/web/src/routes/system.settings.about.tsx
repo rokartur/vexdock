@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
+import { CodeBlock } from '@/components/ui/code-block'
 import { Stepper } from '@/components/ui/stepper'
 import { Button, Cell, Cells, ErrorText, Field, FormSection, Segmented, Switch } from '../components/primitives'
 import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
@@ -123,7 +124,7 @@ function Version() {
 					className='mb-4'
 				>
 					{state.data.log ? (
-						<pre className='max-w-full overflow-x-auto font-mono text-xs'>{state.data.log}</pre>
+						<CodeBlock filename='Update log' language='log' code={state.data.log} maxLines={12} />
 					) : null}
 				</Alert>
 			) : null}

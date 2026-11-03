@@ -15,6 +15,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { api, type Certificate, type CertificateSource, type Domain, type Service } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { certificatesQuery, projectDomainsQuery } from '../lib/queries'
@@ -263,11 +264,15 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 				) : null}
 				{rows.length === 0 ? (
 					<div className='rounded-surface border bg-surface'>
-						<EmptyState
-							icon={IconWorld}
-							title={domains.isLoading ? 'Loading domains' : 'No domains yet'}
-							description='Point an A record at this server, then add it.'
-						/>
+						{domains.isLoading ? (
+							<Skeleton label='Loading domains' className='p-5' />
+						) : (
+							<EmptyState
+								icon={IconWorld}
+								title='No domains yet'
+								description='Point an A record at this server, then add it.'
+							/>
+						)}
 					</div>
 				) : (
 					<ul className='rounded-surface border bg-surface'>
