@@ -11,6 +11,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch as ArcSwitch } from '@/components/ui/switch'
 import { api, type ScheduledTask, type TaskInput } from '../lib/api'
 import { duration, since } from '../lib/format'
@@ -283,11 +284,15 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 				<ErrorText error={tasks.error} />
 				{listed.length === 0 ? (
 					<div className='rounded-surface border bg-surface'>
-						<EmptyState
-							icon={IconClock}
-							title={tasks.isLoading ? 'Loading tasks' : 'No scheduled tasks'}
-							description={serviceId ? undefined : 'Add one from a service.'}
-						/>
+						{tasks.isLoading ? (
+							<Skeleton label='Loading tasks' className='p-5' />
+						) : (
+							<EmptyState
+								icon={IconClock}
+								title='No scheduled tasks'
+								description={serviceId ? undefined : 'Add one from a service.'}
+							/>
+						)}
 					</div>
 				) : (
 					<ul className='rounded-surface border bg-surface'>

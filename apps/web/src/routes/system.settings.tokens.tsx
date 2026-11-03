@@ -4,6 +4,9 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/r
 import { createFileRoute } from '@tanstack/react-router'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { CodeBlock } from '@/components/ui/code-block'
+import { CopyButton } from '@/components/ui/copy-button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AccessPicker } from '../components/access-picker'
 import {
 	Button,
@@ -115,6 +118,7 @@ function ApiTokens() {
 	const [name, setName] = useState('')
 	const [access, setAccess] = useState(fullAccess)
 	const [issued, setIssued] = useState('')
+	const [copyFailed, setCopyFailed] = useState(false)
 
 	const create = useMutation({
 		mutationFn: () => {
@@ -160,7 +164,11 @@ function ApiTokens() {
 				<ErrorText error={remove.error ?? tokens.error} />
 				{(tokens.data ?? []).length === 0 ? (
 					<div className='rounded-surface border bg-surface'>
-						<EmptyState icon={IconKey} title={tokens.isLoading ? 'Loading tokens' : 'No tokens issued'} />
+						{tokens.isLoading ? (
+							<Skeleton label='Loading tokens' className='p-5' />
+						) : (
+							<EmptyState icon={IconKey} title='No tokens issued' />
+						)}
 					</div>
 				) : (
 					<ul className='rounded-surface border bg-surface'>
@@ -173,13 +181,29 @@ function ApiTokens() {
 
 			{issued ? (
 				<Alert tone='warning' title='Copy it now. It is not shown again.' className='mb-4'>
-					<span className='font-mono text-xs break-all'>{issued}</span>
-					<span className='mt-2 block text-xs text-muted'>
+					<span className='mt-1 flex items-center gap-2'>
+						<span className='min-w-0 font-mono text-xs break-all'>{issued}</span>
+						<CopyButton
+							value={issued}
+							label='Copy token'
+							iconOnly
+							variant='plain'
+							onError={() => setCopyFailed(true)}
+						/>
+					</span>
+					{copyFailed ? (
+						<span className='mt-1 block text-xs text-danger'>
+							Copying needs HTTPS. Select the token and copy it by hand.
+						</span>
+					) : null}
+					<span className='mt-3 mb-1.5 block text-xs text-muted'>
 						Connect Claude Code to the MCP server on this panel:
 					</span>
-					<span className='font-mono text-xs break-all'>
-						{`claude mcp add --transport http vexdock ${window.location.origin}/mcp --header "Authorization: Bearer ${issued}"`}
-					</span>
+					<CodeBlock
+						filename='Claude Code'
+						language='bash'
+						code={`claude mcp add --transport http vexdock ${window.location.origin}/mcp --header "Authorization: Bearer ${issued}"`}
+					/>
 				</Alert>
 			) : null}
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { IconActivity, IconAffiliate, IconCpu, IconDatabase, IconServer } from '@tabler/icons-react'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AnimatedNumber } from '../components/animated-number'
 import { MetricCard, type Point, ratesOf, seriesOf, totalOf, useHistory } from '../components/metric-chart'
 import { Cells, EmptyState, Fact, Facts, RelativeTime, Section, Segmented } from '../components/primitives'
@@ -100,11 +101,15 @@ function ServiceMonitoring() {
 		<Section title='Monitoring' actions={<Segmented value={range} onChange={setRange} options={windows} />}>
 			{history.length === 0 ? (
 				<div className='rounded-surface border bg-surface'>
-					<EmptyState
-						icon={IconActivity}
-						title={recorded.isPending ? 'Loading readings…' : `No readings in the last ${label}`}
-						description='The manager records every running service once a minute.'
-					/>
+					{recorded.isPending ? (
+						<Skeleton label='Loading readings' className='p-5' />
+					) : (
+						<EmptyState
+							icon={IconActivity}
+							title={`No readings in the last ${label}`}
+							description='The manager records every running service once a minute.'
+						/>
+					)}
 				</div>
 			) : (
 				<Cells className='grid-cols-1 lg:grid-cols-2'>

@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { Skeleton } from '@/components/ui/skeleton'
 import { IntegrationList, IntegrationRow } from '../components/integration-list'
 import {
 	Button,
@@ -305,11 +306,15 @@ function GitProviders() {
 				/>
 				{listed.length === 0 ? (
 					<div className='rounded-surface border bg-surface'>
-						<EmptyState
-							icon={IconPlug}
-							title={providers.isLoading ? 'Loading connections' : 'No connections'}
-							description='A service can still clone from a git URL.'
-						/>
+						{providers.isLoading ? (
+							<Skeleton label='Loading connections' className='p-5' />
+						) : (
+							<EmptyState
+								icon={IconPlug}
+								title='No connections'
+								description='A service can still clone from a git URL.'
+							/>
+						)}
 					</div>
 				) : (
 					<IntegrationList>

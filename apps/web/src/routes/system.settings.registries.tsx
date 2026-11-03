@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { IconBrandDocker, IconPlus, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { Skeleton } from '@/components/ui/skeleton'
 import { IntegrationList, IntegrationRow } from '../components/integration-list'
 import {
 	Button,
@@ -92,11 +93,15 @@ function Registries() {
 				<ErrorText error={remove.error ?? registries.error} />
 				{listed.length === 0 ? (
 					<div className='rounded-surface border bg-surface'>
-						<EmptyState
-							icon={IconBrandDocker}
-							title={registries.isLoading ? 'Loading registries' : 'No registries configured'}
-							description='Public images work without one.'
-						/>
+						{registries.isLoading ? (
+							<Skeleton label='Loading registries' className='p-5' />
+						) : (
+							<EmptyState
+								icon={IconBrandDocker}
+								title='No registries configured'
+								description='Public images work without one.'
+							/>
+						)}
 					</div>
 				) : (
 					<IntegrationList>

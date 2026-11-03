@@ -4,7 +4,6 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/r
 import { createFileRoute } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
-	Button,
 	Confirm,
 	ErrorText,
 	IconButton,
@@ -14,6 +13,7 @@ import {
 	Section,
 	StatStrip,
 } from '../components/primitives'
+import { SplitButton } from '../components/ui/split-button'
 import { api, type Backup } from '../lib/api'
 import { bytes } from '../lib/format'
 import { preload } from '../lib/queries'
@@ -112,15 +112,20 @@ function BackupsPage() {
 				title='Snapshots'
 				actions={
 					<div className='flex items-center gap-2'>
-						<Button onClick={() => create.mutate(false)} disabled={create.isPending}>
-							<IconArchive size={16} stroke={1.75} />
-							Config only
-						</Button>
-						<Button variant='primary' onClick={() => create.mutate(true)} disabled={create.isPending}>
-							<IconDatabase size={16} stroke={1.75} />
-							{create.isPending ? 'Creating…' : 'Config + data'}
-						</Button>
 						<Refresh onClick={() => backups.refetch()} busy={backups.isFetching} />
+						<SplitButton
+							label={create.isPending ? 'Creating…' : 'Config + data'}
+							icon={<IconDatabase size={16} stroke={1.75} />}
+							onClick={() => create.mutate(true)}
+							disabled={create.isPending}
+							actions={[
+								{
+									label: 'Config only',
+									icon: <IconArchive size={16} stroke={1.75} />,
+									onSelect: () => create.mutate(false),
+								},
+							]}
+						/>
 					</div>
 				}
 			>
