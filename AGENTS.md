@@ -173,8 +173,8 @@ lives in one doc and the rest point to it.
 
 ## Local only
 
-Dev state is `./.vexdock`; `.mocks/` and `apps/web/DESIGN.md` are gitignored
-scratch. `/opt/vexdock` is a real installation. Never touch it from a dev box.
+Dev state is `./.vexdock`; `.mocks/` are gitignored scratch.
+`/opt/vexdock` is a real installation. Never touch it from a dev box.
 
 ## Agent skills
 
