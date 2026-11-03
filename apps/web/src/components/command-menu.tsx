@@ -28,7 +28,12 @@ export function CommandMenu({
 	}, [])
 
 	const items: CommandItem[] = groups.flatMap(group =>
-		group.pages.map(page => ({ id: page.to, label: page.label, group: group.label, icon: <page.icon /> })),
+		group.pages.map(page => ({
+			id: page.to,
+			label: page.label,
+			group: group.label,
+			icon: <page.icon size={16} stroke={1.75} />,
+		})),
 	)
 	for (const project of projects.data ?? []) {
 		items.push({
@@ -37,7 +42,7 @@ export function CommandMenu({
 			description: `${project.service_count} services`,
 			group: 'Projects',
 			keywords: project.tags,
-			icon: <IconFolder />,
+			icon: <IconFolder size={16} stroke={1.75} />,
 		})
 	}
 

@@ -91,7 +91,7 @@ function SetupPage() {
 				{mismatch ? <ErrorText error='Passwords do not match.' /> : null}
 				<ErrorText error={setup.error} />
 				<Button type='submit' variant='primary' loading={setup.isPending} disabled={mismatch}>
-					<IconUserPlus />
+					<IconUserPlus size={16} stroke={1.75} />
 					Create account
 				</Button>
 			</form>

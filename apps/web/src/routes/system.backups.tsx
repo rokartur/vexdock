@@ -26,7 +26,7 @@ function backupTableColumns(remove: (name: string) => void): Columns<Backup> {
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconArchive className='size-4 text-muted' />
+					<IconArchive stroke={1.75} className='size-4 text-muted' />
 					<span className='font-mono text-xs'>{row.original.name}</span>
 				</span>
 			),
@@ -113,11 +113,11 @@ function BackupsPage() {
 				actions={
 					<div className='flex items-center gap-2'>
 						<Button onClick={() => create.mutate(false)} disabled={create.isPending}>
-							<IconArchive />
+							<IconArchive size={16} stroke={1.75} />
 							Config only
 						</Button>
 						<Button variant='primary' onClick={() => create.mutate(true)} disabled={create.isPending}>
-							<IconDatabase />
+							<IconDatabase size={16} stroke={1.75} />
 							{create.isPending ? 'Creating…' : 'Config + data'}
 						</Button>
 						<Refresh onClick={() => backups.refetch()} busy={backups.isFetching} />

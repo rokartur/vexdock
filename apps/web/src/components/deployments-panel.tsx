@@ -118,7 +118,7 @@ function FeedItem({
 	return (
 		<li className="group/item relative grid grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-x-2.5 rounded-[12px] px-2.5 py-2 transition-colors after:absolute after:top-[46px] after:-bottom-1.5 after:left-[26px] after:-z-1 after:w-px after:bg-border-subtle after:content-[''] last:after:hidden pointer-fine:has-[>button:hover]:bg-surface-muted/70">
 			<span className='relative grid size-8 place-items-center rounded-full bg-surface-muted text-secondary shadow-[0_0_0_1px_var(--border)]'>
-				<IconRocket className='size-4' />
+				<IconRocket stroke={1.75} className='size-4' />
 				<span
 					aria-hidden
 					data-tone={tone}
@@ -136,7 +136,7 @@ function FeedItem({
 					<Status dot value={deployment.status} />
 					{deployment.branch ? (
 						<span className='inline-flex min-w-0 items-center gap-1 font-mono'>
-							<IconGitBranch className='size-3 flex-none' />
+							<IconGitBranch stroke={1.75} className='size-3 flex-none' />
 							<span className='truncate'>{deployment.branch}</span>
 						</span>
 					) : null}

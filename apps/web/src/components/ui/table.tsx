@@ -27,7 +27,7 @@ export function TableRow({ static: isStatic, className, ...props }: ComponentPro
 	return (
 		<tr
 			className={cn(
-				'transition-colors duration-160 data-[state=selected]:bg-foreground/5 motion-reduce:transition-none',
+				'transition-colors duration-170 data-[state=selected]:bg-foreground/5 motion-reduce:transition-none',
 				!isStatic && 'hover:bg-foreground/3',
 				className,
 			)}

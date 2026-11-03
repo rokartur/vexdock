@@ -97,7 +97,7 @@ function serviceTableColumns(selection: {
 				const Icon = original.service.type === 'database' ? IconDatabase : IconBox
 				return (
 					<span className='inline-flex items-center gap-2 font-medium'>
-						<Icon className='size-4 text-muted' />
+						<Icon stroke={1.75} className='size-4 text-muted' />
 						{original.service.compose_service_name}
 						<Badge>{original.service.type === 'database' ? 'db' : 'app'}</Badge>
 					</span>
@@ -141,7 +141,10 @@ function serviceTableColumns(selection: {
 							className='group inline-flex items-center gap-1 underline-offset-4 hover:underline'
 						>
 							{hostname}
-							<IconExternalLink className='size-3 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
+							<IconExternalLink
+								stroke={1.75}
+								className='size-3 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100'
+							/>
 						</a>
 						{more.length > 0 ? <span className='text-muted'>+{more.length}</span> : null}
 					</span>
@@ -290,24 +293,24 @@ function ProjectServices() {
 						{selected.length > 0 ? <ServiceBulkActions bulk={bulk} /> : null}
 						{data.length > 0 && (
 							<Button onClick={() => deployAll.mutate()} disabled={deployAll.isPending}>
-								<IconRocket />
+								<IconRocket size={16} stroke={1.75} />
 								{deployAll.isPending ? 'Starting…' : 'Deploy all'}
 							</Button>
 						)}
 						<Button onClick={() => setCreating('import')}>
-							<IconDownload />
+							<IconDownload size={16} stroke={1.75} />
 							Import
 						</Button>
 						<DropdownMenu
 							trigger={
 								<Button variant='primary'>
-									<IconPlus />
+									<IconPlus size={16} stroke={1.75} />
 									New service
 								</Button>
 							}
 							items={creatable.map(entry => ({
 								label: entry.label,
-								icon: <entry.icon />,
+								icon: <entry.icon size={16} stroke={1.75} />,
 								onSelect: () => setCreating(entry.kind),
 							}))}
 						/>

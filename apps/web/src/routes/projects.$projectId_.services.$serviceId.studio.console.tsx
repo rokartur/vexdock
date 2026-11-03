@@ -50,7 +50,7 @@ function StudioConsole() {
 				/>
 				<div className='flex items-center gap-3'>
 					<Button type='submit' variant='primary' disabled={!query.trim() || run.isPending}>
-						<IconPlayerPlay />
+						<IconPlayerPlay size={16} stroke={1.75} />
 						Run
 						<Keys keys={[mod, 'Enter']} />
 					</Button>

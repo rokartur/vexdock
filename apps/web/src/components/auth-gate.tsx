@@ -94,9 +94,9 @@ function BootScreen({ stalled = false }: { stalled?: boolean }) {
 		<div className='flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center'>
 			{/* Static on purpose: a spinning loader repaints for the whole boot wait. */}
 			{stalled ? (
-				<IconAlertCircle className='size-5 text-muted' />
+				<IconAlertCircle stroke={1.75} className='size-5 text-muted' />
 			) : (
-				<IconLoader2 className='size-5 text-muted' />
+				<IconLoader2 stroke={1.75} className='size-5 text-muted' />
 			)}
 			<p className='text-sm text-muted'>
 				{stalled ? 'The manager is not responding' : 'Connecting to the manager'}
@@ -107,7 +107,7 @@ function BootScreen({ stalled = false }: { stalled?: boolean }) {
 						window.location.reload()
 					}}
 				>
-					<IconRefresh />
+					<IconRefresh size={16} stroke={1.75} />
 					Retry
 				</Button>
 			) : null}

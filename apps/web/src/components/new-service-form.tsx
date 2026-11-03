@@ -327,7 +327,7 @@ export function NewServiceForm({
 					Cancel
 				</Button>
 				<Button type='submit' variant='primary' disabled={create.isPending}>
-					<IconPlus />
+					<IconPlus size={16} stroke={1.75} />
 					{create.isPending ? 'Adding…' : 'Add service'}
 				</Button>
 			</DialogFooter>

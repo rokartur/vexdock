@@ -102,7 +102,7 @@ function environmentColumns(remove: (id: string) => void, removing: boolean): Co
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconLayersLinked className='size-4 text-muted' />
+					<IconLayersLinked stroke={1.75} className='size-4 text-muted' />
 					{row.original.name}
 					{row.original.is_default ? <Badge>default</Badge> : null}
 				</span>
@@ -119,7 +119,7 @@ function environmentColumns(remove: (id: string) => void, removing: boolean): Co
 			cell: ({ row }) =>
 				row.original.branch ? (
 					<span className='inline-flex items-center gap-1 font-mono text-xs'>
-						<IconGitBranch className='size-3 text-muted' />
+						<IconGitBranch stroke={1.75} className='size-3 text-muted' />
 						{row.original.branch}
 					</span>
 				) : (
@@ -185,7 +185,7 @@ function Environments({ projectId }: { projectId: string }) {
 			icon={IconLayersLinked}
 			actions={
 				<Button variant='primary' onClick={() => setAdding(true)}>
-					<IconPlus />
+					<IconPlus size={16} stroke={1.75} />
 					Add environment
 				</Button>
 			}

@@ -69,7 +69,7 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
 					Cancel
 				</Button>
 				<Button type='submit' variant='primary' loading={create.isPending}>
-					<IconPlus />
+					<IconPlus size={16} stroke={1.75} />
 					Create
 				</Button>
 			</DialogFooter>

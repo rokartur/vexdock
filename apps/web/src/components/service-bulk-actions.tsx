@@ -94,15 +94,15 @@ export function ServiceBulkActions({ bulk }: { bulk: ReturnType<typeof useServic
 		<>
 			<span className='font-mono text-xs text-muted'>{chosen.length} selected</span>
 			<Button onClick={() => run.mutate({ kind: 'start' })} disabled={run.isPending}>
-				<IconPlayerPlay />
+				<IconPlayerPlay size={16} stroke={1.75} />
 				Start
 			</Button>
 			<Button onClick={() => run.mutate({ kind: 'stop' })} disabled={run.isPending}>
-				<IconPlayerStop />
+				<IconPlayerStop size={16} stroke={1.75} />
 				Stop
 			</Button>
 			<Button onClick={() => run.mutate({ kind: 'deploy' })} disabled={run.isPending}>
-				<IconRocket />
+				<IconRocket size={16} stroke={1.75} />
 				Deploy
 			</Button>
 			<IconButton
@@ -199,7 +199,7 @@ function MoveDialog({
 						loading={pending}
 						onClick={() => environment && onMove(environment.id)}
 					>
-						<IconArrowRight />
+						<IconArrowRight size={16} stroke={1.75} />
 						Move
 					</Button>
 				</DialogFooter>

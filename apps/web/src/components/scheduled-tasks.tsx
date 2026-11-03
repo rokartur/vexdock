@@ -105,7 +105,7 @@ function TaskRow({
 					) : null}
 				</span>
 				<span className='flex min-w-0 items-center gap-1.5 text-xs text-muted'>
-					<IconClock className='size-3.5 shrink-0' />
+					<IconClock stroke={1.75} className='size-3.5 shrink-0' />
 					<span className='truncate'>
 						{schedule ?? <span className='font-mono'>{task.schedule}</span>} · {task.timezone}
 					</span>
@@ -158,7 +158,7 @@ function TaskRow({
 					onCheckedChange={() => toggle(task)}
 				/>
 				<Button disabled={runningId !== null} onClick={() => run(task.id)}>
-					<IconPlayerPlay />
+					<IconPlayerPlay size={16} stroke={1.75} />
 					{running ? 'Running…' : 'Run'}
 				</Button>
 				<IconButton icon={IconFileText} label='Runs' onClick={() => select(task.id)} />
@@ -274,7 +274,7 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 				actions={
 					serviceId ? (
 						<Button variant='primary' onClick={() => setForm(emptyTask)}>
-							<IconPlus />
+							<IconPlus size={16} stroke={1.75} />
 							New task
 						</Button>
 					) : null
@@ -433,7 +433,7 @@ function TaskFormFields({
 			<ErrorText error={error} />
 			<div className='mt-4 flex justify-end'>
 				<Button type='submit' variant='primary' disabled={saving}>
-					{form.id ? <IconDeviceFloppy /> : <IconPlus />}
+					{form.id ? <IconDeviceFloppy size={16} stroke={1.75} /> : <IconPlus size={16} stroke={1.75} />}
 					{form.id ? 'Save task' : 'Add task'}
 				</Button>
 			</div>

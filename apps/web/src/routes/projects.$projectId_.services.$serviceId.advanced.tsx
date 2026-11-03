@@ -44,7 +44,7 @@ function ServiceAdvanced() {
 						onConfirm={() => remove.mutate()}
 					>
 						<Button variant='danger' disabled={remove.isPending}>
-							<IconTrash />
+							<IconTrash size={16} stroke={1.75} />
 							{remove.isPending ? 'Deleting…' : 'Delete service'}
 						</Button>
 					</Confirm>

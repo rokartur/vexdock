@@ -65,12 +65,12 @@ function ProjectLayout() {
 								project.data.service_count > 0
 									? {
 											label: `Delete its ${project.data.service_count} services first`,
-											icon: <IconTrash />,
+											icon: <IconTrash size={16} stroke={1.75} />,
 											disabled: true,
 										}
 									: {
 											label: 'Delete project',
-											icon: <IconTrash />,
+											icon: <IconTrash size={16} stroke={1.75} />,
 											destructive: true,
 											onSelect: () => setConfirmingDelete(true),
 										},

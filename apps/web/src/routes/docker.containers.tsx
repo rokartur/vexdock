@@ -49,7 +49,7 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconBox className='size-4 shrink-0 text-muted' />
+					<IconBox stroke={1.75} className='size-4 shrink-0 text-muted' />
 					<span title={containerName(row.original)} className='max-w-32 truncate font-mono text-xs'>
 						{containerName(row.original)}
 					</span>

@@ -95,7 +95,7 @@ function Redirects({ serviceId }: { serviceId: string }) {
 			icon={IconArrowForwardUp}
 			actions={
 				<Button variant='primary' onClick={() => setAdding(true)}>
-					<IconPlus />
+					<IconPlus size={16} stroke={1.75} />
 					Add redirect
 				</Button>
 			}
@@ -215,7 +215,7 @@ function BasicAuth({ serviceId }: { serviceId: string }) {
 			hint='With no users the service is open.'
 			actions={
 				<Button variant='primary' onClick={() => setAdding(true)}>
-					<IconPlus />
+					<IconPlus size={16} stroke={1.75} />
 					Add user
 				</Button>
 			}
@@ -403,12 +403,12 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 				<>
 					{pending ? (
 						<Button onClick={() => startDeploy()} disabled={deploying}>
-							<IconRocket />
+							<IconRocket size={16} stroke={1.75} />
 							{deploying ? 'Starting…' : 'Deploy'}
 						</Button>
 					) : null}
 					<Button variant='primary' onClick={() => setAdding(true)}>
-						<IconPlus />
+						<IconPlus size={16} stroke={1.75} />
 						Add port
 					</Button>
 				</>

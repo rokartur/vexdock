@@ -294,8 +294,9 @@ export function NotificationCenter({
 	return (
 		<Popover.Root open={isOpen} onOpenChange={setOpen}>
 			{/* The trigger anchors the panel, so it gives press feedback with color only; scaling it would shift the panel. */}
+			{/* vexdock: a ghost 36px trigger, the size and look of the header's other icon buttons */}
 			<Popover.Trigger
-				className='relative grid size-[42px] place-items-center rounded-[12px] border bg-surface text-foreground hover:border-border-strong hover:bg-surface-muted active:border-border-strong active:bg-surface-pressed data-popup-open:border-border-strong data-popup-open:bg-surface-muted'
+				className='relative grid size-control-md place-items-center rounded-control text-secondary transition-colors duration-110 ease-standard hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:text-foreground data-popup-open:bg-surface-muted data-popup-open:text-foreground motion-reduce:transition-none'
 				aria-label={`${label}${unreadCount ? `, ${unreadCount} unread` : ''}`}
 			>
 				<motion.span
@@ -303,13 +304,13 @@ export function NotificationCenter({
 					animate={{ rotate: isOpen && !reduce ? -12 : 0 }}
 					transition={reduce ? instant : spring.snappy}
 				>
-					<IconBell size={19} stroke={1.75} aria-hidden='true' />
+					<IconBell size={16} stroke={1.75} aria-hidden='true' />
 				</motion.span>
 				<AnimatePresence initial={false}>
 					{unreadCount > 0 && (
 						<motion.span
 							key='badge'
-							className='absolute -top-1.5 -right-1.5 grid h-5 min-w-5 place-items-center overflow-hidden rounded-full border-2 border-surface bg-foreground px-[5px] text-xs leading-none font-medium text-background tabular-nums'
+							className='absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center overflow-hidden rounded-full border-2 border-background bg-foreground px-[5px] text-xs leading-none font-medium text-background tabular-nums'
 							aria-hidden='true'
 							initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
 							animate={{ opacity: 1, scale: 1 }}

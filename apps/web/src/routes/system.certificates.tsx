@@ -38,7 +38,7 @@ function certificateTableColumns(replace: (hostname: string) => void): Columns<C
 			header: 'Domain',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<IconCertificate className='size-4 text-muted' />
+					<IconCertificate stroke={1.75} className='size-4 text-muted' />
 					<span className='font-mono text-xs'>{row.original.hostname}</span>
 				</span>
 			),
@@ -147,7 +147,7 @@ function Certificates() {
 							onClick={() => openUpload(hostname || (options[0]?.value ?? ''))}
 							disabled={options.length === 0}
 						>
-							<IconUpload />
+							<IconUpload size={16} stroke={1.75} />
 							Add certificate
 						</Button>
 					</>

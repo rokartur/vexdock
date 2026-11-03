@@ -240,7 +240,7 @@ export function ImportServicesForm({
 					Cancel
 				</Button>
 				<Button type='submit' variant='primary' disabled={run.isPending || importable.length === 0}>
-					<IconDownload />
+					<IconDownload size={16} stroke={1.75} />
 					{run.isPending ? 'Importing…' : `Import ${importable.length || ''}`.trim()}
 				</Button>
 			</DialogFooter>
