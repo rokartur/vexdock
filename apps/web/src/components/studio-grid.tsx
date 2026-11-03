@@ -48,11 +48,19 @@ export function StudioGrid({
 								<span className='flex flex-col items-start py-1 text-left'>
 									<span className='flex items-center gap-1 font-sans text-sm font-medium text-foreground'>
 										{column.primary_key ? (
-											<IconKey aria-label='Primary key' className='size-3 text-warning' />
+											<IconKey
+												stroke={1.75}
+												aria-label='Primary key'
+												className='size-3 text-warning'
+											/>
 										) : null}
 										{column.name}
-										{order === 'asc' ? <IconArrowNarrowUp className='size-3' /> : null}
-										{order === 'desc' ? <IconArrowNarrowDown className='size-3' /> : null}
+										{order === 'asc' ? (
+											<IconArrowNarrowUp stroke={1.75} className='size-3' />
+										) : null}
+										{order === 'desc' ? (
+											<IconArrowNarrowDown stroke={1.75} className='size-3' />
+										) : null}
 									</span>
 									{column.type ? (
 										<span className='font-normal'>

@@ -68,7 +68,7 @@ function LoginPage() {
 				</Field>
 				<ErrorText error={login.error} />
 				<Button type='submit' variant='primary' loading={login.isPending}>
-					<IconLogin2 />
+					<IconLogin2 size={16} stroke={1.75} />
 					Sign in
 				</Button>
 			</form>

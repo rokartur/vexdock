@@ -34,7 +34,7 @@ function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void, total
 			header: 'Target',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
-					<row.original.icon className='size-4 text-muted' />
+					<row.original.icon stroke={1.75} className='size-4 text-muted' />
 					{row.original.label}
 				</span>
 			),

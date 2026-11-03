@@ -201,13 +201,17 @@ export function LogViewer({
 									{
 										id: 'pause',
 										label: paused ? 'Resume' : 'Pause',
-										icon: paused ? <IconPlayerPlay /> : <IconPlayerPause />,
+										icon: paused ? (
+											<IconPlayerPlay size={16} stroke={1.75} />
+										) : (
+											<IconPlayerPause size={16} stroke={1.75} />
+										),
 										onSelect: () => setPaused(value => !value),
 									},
 									{
 										id: 'follow',
 										label: follow ? 'Stop following' : 'Follow',
-										icon: <IconArrowDown />,
+										icon: <IconArrowDown size={16} stroke={1.75} />,
 										pressed: follow,
 										onSelect: () => setFollow(value => !value),
 									},
@@ -216,7 +220,7 @@ export function LogViewer({
 						{
 							id: 'plain',
 							label: plain ? 'Formatted' : 'Plain text',
-							icon: <IconTextWrap />,
+							icon: <IconTextWrap size={16} stroke={1.75} />,
 							pressed: plain,
 							onSelect: () => setPlain(value => !value),
 						},
@@ -225,7 +229,7 @@ export function LogViewer({
 									{
 										id: 'clear',
 										label: 'Clear',
-										icon: <IconEraser />,
+										icon: <IconEraser size={16} stroke={1.75} />,
 										onSelect: () => setStreamed([]),
 									},
 								]
@@ -233,7 +237,7 @@ export function LogViewer({
 						{
 							id: 'download',
 							label: 'Download',
-							icon: <IconDownload />,
+							icon: <IconDownload size={16} stroke={1.75} />,
 							onSelect: () => download(visible),
 						},
 					]}

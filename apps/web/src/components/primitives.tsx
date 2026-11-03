@@ -95,7 +95,7 @@ export function IconButton({
 				aria-label={label}
 				{...props}
 			>
-				<Icon />
+				<Icon size={16} stroke={1.75} />
 			</ArcButton>
 		</Tooltip>
 	)
@@ -177,7 +177,7 @@ export function Status({ value, dot }: { value: string; dot?: boolean }) {
 	const tone = stateTones[value] ?? 'neutral'
 	const Icon = toneIcons[tone]
 	return (
-		<Badge tone={tone} icon={<Icon />}>
+		<Badge tone={tone} icon={<Icon size={13} stroke={2} />}>
 			{value}
 		</Badge>
 	)
@@ -299,12 +299,12 @@ export function Tabs({ base, tabs }: { base: string; tabs: { suffix: string; lab
 	)
 
 	return (
-		<ArcTabs value={active?.label ?? ''}>
+		<ArcTabs value={active?.label ?? ''} className='min-w-0'>
 			<TabsList>
 				{tabs.map(tab => (
 					<TabsTrigger key={tab.label} value={tab.label} href={base + tab.suffix}>
 						{tab.label}
-						{tab.count ? <span className='ml-1.5 font-mono text-xs text-muted'>{tab.count}</span> : null}
+						{tab.count ? <span className='text-xs text-muted tabular-nums'>{tab.count}</span> : null}
 					</TabsTrigger>
 				))}
 			</TabsList>
@@ -334,7 +334,7 @@ export function Segmented<TValue extends string>({
 			options={options.map(option => ({
 				value: option.value,
 				label: option.label,
-				icon: option.icon ? <option.icon /> : undefined,
+				icon: option.icon ? <option.icon size={16} stroke={1.75} /> : undefined,
 				accessory: option.accessory,
 			}))}
 			onValueChange={next => {
@@ -400,14 +400,14 @@ export function SaveButton({
 	if (saved) {
 		return (
 			<Button type='submit' variant='default'>
-				<IconCheck className='text-success' />
+				<IconCheck size={16} stroke={1.75} className='text-success' />
 				Saved
 			</Button>
 		)
 	}
 	return (
 		<Button type='submit' variant={dirty ? 'primary' : 'default'} disabled={mutation.isPending}>
-			<IconDeviceFloppy />
+			<IconDeviceFloppy size={16} stroke={1.75} />
 			{mutation.isPending ? 'Saving…' : label}
 			<Keys keys={[mod, 'S']} />
 		</Button>
@@ -544,7 +544,7 @@ export function FormSection({
 		<section className='mb-4 rounded-surface border bg-surface'>
 			<header className='px-5 pt-5'>
 				<h3 className='flex items-center gap-2 text-base font-medium'>
-					{Icon ? <Icon className='size-4 text-muted' /> : null}
+					{Icon ? <Icon stroke={1.75} className='size-4 text-muted' /> : null}
 					{title}
 				</h3>
 			</header>
@@ -611,13 +611,14 @@ export function Cell({
 	const reading = (
 		<>
 			<div className='flex min-h-5.5 items-center gap-2 text-(--text-secondary)'>
-				{Icon ? <Icon className='size-4 text-muted' /> : null}
+				{Icon ? <Icon stroke={1.75} className='size-4 text-muted' /> : null}
 				{label}
 			</div>
 			{value === undefined ? null : (
 				<div
 					title={typeof value === 'string' ? value : undefined}
-					className='mt-4 truncate font-display text-3xl font-medium'
+					// A RelativeTime is muted beside a row's text, but as the reading itself it is the figure.
+					className='mt-4 truncate font-display text-3xl font-medium [&_time]:text-current'
 				>
 					{value}
 				</div>
@@ -880,7 +881,7 @@ export function Confirm({
 							onConfirm()
 						}}
 					>
-						<IconTrash />
+						<IconTrash size={16} stroke={1.75} />
 						{action}
 					</Button>
 				</DialogFooter>
@@ -985,7 +986,7 @@ export function FormDialog({
 							Cancel
 						</Button>
 						<Button type='submit' variant='primary' loading={mutation.isPending}>
-							<Icon />
+							<Icon size={16} stroke={1.75} />
 							{action}
 						</Button>
 					</DialogFooter>

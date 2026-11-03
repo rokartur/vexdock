@@ -83,7 +83,7 @@ function Registries() {
 					<>
 						<Refresh onClick={() => registries.refetch()} busy={registries.isFetching} />
 						<Button variant='primary' onClick={() => setAdding(true)}>
-							<IconPlus />
+							<IconPlus size={16} stroke={1.75} />
 							Add registry
 						</Button>
 					</>

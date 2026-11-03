@@ -137,7 +137,7 @@ function GeneralSettings() {
 							onConfirm={() => removeToken.mutate()}
 						>
 							<Button variant='ghost' disabled={removeToken.isPending}>
-								<IconTrash />
+								<IconTrash size={16} stroke={1.75} />
 								Remove token
 							</Button>
 						</Confirm>

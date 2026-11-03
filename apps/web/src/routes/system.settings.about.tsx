@@ -142,7 +142,7 @@ function Version() {
 								className='inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline'
 							>
 								release notes
-								<IconExternalLink className='size-3' />
+								<IconExternalLink stroke={1.75} className='size-3' />
 							</a>
 						) : null}
 					</span>
@@ -150,11 +150,11 @@ function Version() {
 				actions={
 					<>
 						<Button onClick={() => check.mutate()} disabled={check.isPending || busy}>
-							<IconRefresh />
+							<IconRefresh size={16} stroke={1.75} />
 							Check for updates
 						</Button>
 						<Button variant='primary' onClick={() => update.mutate()} disabled={!canUpdate}>
-							<IconDownload />
+							<IconDownload size={16} stroke={1.75} />
 							{busy && 'Updating…'}
 							{!busy &&
 								(version.data?.update_available ? `Update to ${version.data.latest}` : 'Up to date')}

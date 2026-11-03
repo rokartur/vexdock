@@ -151,7 +151,7 @@ function ApiTokens() {
 					<>
 						<Refresh onClick={() => tokens.refetch()} busy={tokens.isFetching} />
 						<Button variant='primary' onClick={() => setCreating(true)}>
-							<IconPlus />
+							<IconPlus size={16} stroke={1.75} />
 							Create token
 						</Button>
 					</>

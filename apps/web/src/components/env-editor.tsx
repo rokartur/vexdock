@@ -117,11 +117,11 @@ function VariableRows({
 						/>
 					</span>
 					{shared ? (
-						<span className='max-sm:col-span-full max-sm:row-start-3 max-sm:empty:hidden'>
+						<span className='flex h-control-md items-center max-sm:col-span-full max-sm:row-start-3 max-sm:empty:hidden'>
 							{shared.some(above => above.key === variable.key) ? <Badge>overrides</Badge> : null}
 						</span>
 					) : null}
-					<span className='max-sm:col-start-2 max-sm:row-start-1'>
+					<span className='flex h-control-md items-center max-sm:col-start-2 max-sm:row-start-1'>
 						<IconButton
 							icon={IconTrash}
 							label={`Remove ${variable.key}`}

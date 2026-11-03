@@ -81,7 +81,7 @@ function railMarkTransition(collapsed: boolean, instant: boolean): Transition {
 }
 
 const iconButton =
-	'inline-grid size-8 flex-none place-items-center rounded-[8px] text-secondary transition-colors duration-110 ease-standard [-webkit-tap-highlight-color:transparent] hover:bg-surface-muted hover:text-foreground active:bg-[color-mix(in_oklab,var(--foreground)_9%,transparent)] active:text-foreground pointer-coarse:size-10 motion-reduce:transition-none'
+	'inline-grid size-control-md flex-none place-items-center rounded-control text-secondary transition-colors duration-110 ease-standard [-webkit-tap-highlight-color:transparent] hover:bg-surface-muted hover:text-foreground active:bg-[color-mix(in_oklab,var(--foreground)_9%,transparent)] active:text-foreground pointer-coarse:size-10 motion-reduce:transition-none'
 
 const scrim =
 	'absolute inset-0 bg-[color-mix(in_oklab,var(--foreground)_30%,transparent)] [-webkit-tap-highlight-color:transparent] dark:bg-background/50'
@@ -797,10 +797,14 @@ function Profile({ collapsed, instant }: { collapsed: boolean; instant: boolean 
 					</button>
 				}
 				items={[
-					{ label: 'About', icon: <IconInfoCircle />, href: '/system/settings/about' },
+					{
+						label: 'About',
+						icon: <IconInfoCircle size={16} stroke={1.75} />,
+						href: '/system/settings/about',
+					},
 					{
 						label: 'Log out',
-						icon: <IconLogout />,
+						icon: <IconLogout size={16} stroke={1.75} />,
 						separatorBefore: true,
 						onSelect: () => logout.mutate(),
 					},

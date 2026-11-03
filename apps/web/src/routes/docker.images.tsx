@@ -53,7 +53,7 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 				header: 'Repository',
 				cell: ({ getValue }) => (
 					<span className='inline-flex items-center gap-2'>
-						<IconStack2 className='size-4 text-muted' />
+						<IconStack2 stroke={1.75} className='size-4 text-muted' />
 						<span className='font-mono text-xs'>{getValue()}</span>
 					</span>
 				),

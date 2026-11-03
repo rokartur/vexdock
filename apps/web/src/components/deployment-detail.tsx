@@ -105,7 +105,7 @@ export function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 					)}
 					{isRunning ? (
 						<Button variant='danger' onClick={() => cancel.mutate()}>
-							<IconX />
+							<IconX size={16} stroke={1.75} />
 							Cancel
 						</Button>
 					) : null}

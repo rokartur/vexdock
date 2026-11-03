@@ -29,7 +29,7 @@ function volumeTableColumns(
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2' title={row.original.name}>
-					<IconDatabase className='size-4 text-muted' />
+					<IconDatabase stroke={1.75} className='size-4 text-muted' />
 					<span className='font-mono text-xs'>{shortName(row.original)}</span>
 				</span>
 			),

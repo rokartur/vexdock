@@ -190,12 +190,13 @@ export function TabsTrigger({ className, children, href, ...props }: TabsTrigger
 			{...props}
 			nativeButton={href === undefined}
 			render={href === undefined ? undefined : <Link to={href} activeOptions={{ exact: true }} />}
+			// vexdock: no min-w-22, each tab fits its label so a ten-tab strip keeps even gaps; the label row holds a count.
 			className={cn(
-				'relative inline-grid min-h-control-sm min-w-22 flex-none place-items-center rounded-[calc(var(--radius-control)-3px)] px-2.5 text-sm font-medium whitespace-nowrap text-muted transition-colors hover:text-foreground active:text-foreground data-active:text-accent-strong data-disabled:opacity-50',
+				'relative inline-grid min-h-control-sm flex-none place-items-center rounded-[calc(var(--radius-control)-3px)] px-2.5 text-sm font-medium whitespace-nowrap text-muted transition-colors hover:text-foreground active:text-foreground data-active:text-accent-strong data-disabled:opacity-50',
 				className,
 			)}
 		>
-			<span className='relative z-1'>{children}</span>
+			<span className='relative z-1 inline-flex items-center gap-1.5'>{children}</span>
 		</BaseTabs.Tab>
 	)
 }

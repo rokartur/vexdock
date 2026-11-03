@@ -86,7 +86,7 @@ function Consent() {
 			<ErrorText error={approve.error} />
 			<div className='mt-4 grid grid-cols-2 gap-2'>
 				<Button onClick={deny}>
-					<IconX />
+					<IconX size={16} stroke={1.75} />
 					Deny
 				</Button>
 				<Button
@@ -95,7 +95,7 @@ function Consent() {
 					loading={approve.isPending}
 					onClick={() => approve.mutate()}
 				>
-					<IconCheck />
+					<IconCheck size={16} stroke={1.75} />
 					Allow {client}
 				</Button>
 			</div>

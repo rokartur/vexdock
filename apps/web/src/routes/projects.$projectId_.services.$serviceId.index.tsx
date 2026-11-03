@@ -161,29 +161,27 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 					onClick={() => deploy.mutate()}
 					disabled={service.provider === 'unconfigured' || deploy.isPending}
 				>
-					<IconRocket />
+					<IconRocket size={16} stroke={1.75} />
 					{deploy.isPending ? 'Starting…' : 'Deploy'}
 				</Button>
 				<Button onClick={() => act.mutate('restart')} disabled={!running || act.isPending}>
-					<IconRefresh />
+					<IconRefresh size={16} stroke={1.75} />
 					Restart
 				</Button>
 				<Button variant='danger' onClick={() => act.mutate('stop')} disabled={!stoppable || act.isPending}>
-					<IconPlayerStop />
+					<IconPlayerStop size={16} stroke={1.75} />
 					Stop
 				</Button>
 				<Button render={<Link to='/projects/$projectId/services/$serviceId/terminal' params={params} />}>
-					<IconTerminal2 />
+					<IconTerminal2 size={16} stroke={1.75} />
 					Open terminal
 				</Button>
-				<span className='ml-1 rounded-control border border-border-subtle px-3 py-1.5'>
+				<span className='flex w-full flex-wrap items-center gap-x-6 gap-y-2'>
 					<Switch
 						label='Auto deploy'
 						checked={service.auto_deploy}
 						onChange={on => switches.mutate({ auto_deploy: on })}
 					/>
-				</span>
-				<span className='rounded-control border border-border-subtle px-3 py-1.5'>
 					<Switch
 						label='Prune build cache'
 						checked={service.prune_build_cache}
@@ -220,7 +218,7 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 				hint='The password is what the container was created with.'
 				actions={
 					<Button variant='ghost' onClick={() => setRevealed(value => !value)}>
-						{revealed ? <IconEyeOff /> : <IconEye />}
+						{revealed ? <IconEyeOff size={16} stroke={1.75} /> : <IconEye size={16} stroke={1.75} />}
 						{revealed ? 'Hide' : 'Reveal'}
 					</Button>
 				}

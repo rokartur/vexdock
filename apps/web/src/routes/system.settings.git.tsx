@@ -80,7 +80,7 @@ function ProviderRow({
 				provider.install_url && (
 					// oxlint-disable-next-line jsx-a11y/control-has-associated-label -- Button renders its children into the link
 					<Button variant='ghost' render={<a href={provider.install_url} />}>
-						<IconSettings />
+						<IconSettings size={16} stroke={1.75} />
 						{provider.github.github_installation_id ? 'Repositories' : 'Finish install'}
 					</Button>
 				)
@@ -294,7 +294,7 @@ function GitProviders() {
 					<>
 						<Refresh onClick={() => providers.refetch()} busy={providers.isFetching} />
 						<Button variant='primary' onClick={() => setOpen(true)}>
-							<IconPlug />
+							<IconPlug size={16} stroke={1.75} />
 							Connect a provider
 						</Button>
 					</>

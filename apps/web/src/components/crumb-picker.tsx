@@ -69,7 +69,7 @@ function CrumbPicker({
 		>
 			<PopoverTrigger className='flex h-7 min-w-0 items-center gap-1.5 rounded-control border border-transparent bg-surface-muted/50 px-2 text-sm transition-colors hover:border-border hover:bg-surface-muted data-popup-open:border-border data-popup-open:bg-surface-muted'>
 				<span className='flex min-w-0 items-center gap-2 truncate'>{label}</span>
-				<IconSelector className='size-3.5 shrink-0 text-muted' />
+				<IconSelector stroke={1.75} className='size-3.5 shrink-0 text-muted' />
 			</PopoverTrigger>
 			<PopoverContent className='w-72 p-1.5'>
 				<SearchField
@@ -142,7 +142,7 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 			query={projects}
 			label={
 				<>
-					<IconFolder className='size-4 shrink-0 text-muted' />
+					<IconFolder stroke={1.75} className='size-4 shrink-0 text-muted' />
 					{current.data?.name ?? projectId}
 					{current.data?.latest_deployment ? (
 						<Status dot value={current.data.latest_deployment.status} />
@@ -163,7 +163,7 @@ export function ProjectCrumb({ projectId }: { projectId: string }) {
 				},
 				children: (
 					<>
-						<IconFolder className='text-muted' />
+						<IconFolder size={16} stroke={1.75} className='text-muted' />
 						<span className='truncate'>{project.name}</span>
 						<span className='ml-auto flex items-center gap-1.5'>
 							{project.latest_deployment ? <Status dot value={project.latest_deployment.status} /> : null}
@@ -194,7 +194,7 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 			query={environments}
 			label={
 				<>
-					<IconLayersLinked className='size-4 shrink-0 text-muted' />
+					<IconLayersLinked stroke={1.75} className='size-4 shrink-0 text-muted' />
 					{current?.name ?? 'Production'}
 				</>
 			}
@@ -207,11 +207,11 @@ export function EnvironmentCrumb({ projectId }: { projectId: string }) {
 				},
 				children: (
 					<>
-						<IconLayersLinked className='text-muted' />
+						<IconLayersLinked size={16} stroke={1.75} className='text-muted' />
 						<span className='truncate'>{env.name}</span>
 						{env.branch ? (
 							<span className='ml-auto inline-flex items-center gap-1 truncate font-mono text-xs text-muted'>
-								<IconGitBranch className='size-3' />
+								<IconGitBranch stroke={1.75} className='size-3' />
 								{env.branch}
 							</span>
 						) : null}
@@ -239,9 +239,9 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 			label={
 				<>
 					{current.data?.type === 'database' ? (
-						<IconDatabase className='size-4 shrink-0 text-muted' />
+						<IconDatabase stroke={1.75} className='size-4 shrink-0 text-muted' />
 					) : (
-						<IconBox className='size-4 shrink-0 text-muted' />
+						<IconBox stroke={1.75} className='size-4 shrink-0 text-muted' />
 					)}
 					{current.data?.compose_service_name ?? serviceId}
 					{current.data ? <Status dot value={current.data.state || 'stopped'} /> : null}
@@ -260,9 +260,9 @@ export function ServiceCrumb({ projectId, serviceId }: { projectId: string; serv
 				children: (
 					<>
 						{service.type === 'database' ? (
-							<IconDatabase className='text-muted' />
+							<IconDatabase size={16} stroke={1.75} className='text-muted' />
 						) : (
-							<IconBox className='text-muted' />
+							<IconBox size={16} stroke={1.75} className='text-muted' />
 						)}
 						<span className='truncate'>{service.compose_service_name}</span>
 						<span className='ml-auto text-xs'>

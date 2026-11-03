@@ -61,11 +61,11 @@ function NotRunning({ serviceId }: { serviceId: string }) {
 				<ErrorText error={start.error ?? deploy.error} />
 				<div className='flex gap-2'>
 					<Button onClick={() => start.mutate()} disabled={busy}>
-						<IconPlayerPlay />
+						<IconPlayerPlay size={16} stroke={1.75} />
 						Start
 					</Button>
 					<Button variant='primary' onClick={() => deploy.mutate()} disabled={busy}>
-						<IconRocket />
+						<IconRocket size={16} stroke={1.75} />
 						Deploy
 					</Button>
 				</div>
@@ -121,7 +121,7 @@ function StudioPane() {
 						className={cn(entryClass, onConsole && activeClass)}
 					>
 						{onConsole ? <ActivePill layoutId='studio' /> : null}
-						<IconTerminal className='size-4 shrink-0' />
+						<IconTerminal stroke={1.75} className='size-4 shrink-0' />
 						Console
 					</Link>
 					{tables
@@ -138,9 +138,9 @@ function StudioPane() {
 								>
 									{active ? <ActivePill layoutId='studio' /> : null}
 									{t.view ? (
-										<IconEye aria-label='View' className='size-4 shrink-0' />
+										<IconEye stroke={1.75} aria-label='View' className='size-4 shrink-0' />
 									) : (
-										<IconTable className='size-4 shrink-0' />
+										<IconTable stroke={1.75} className='size-4 shrink-0' />
 									)}
 									<span className='truncate'>{t.name}</span>
 								</Link>

@@ -254,9 +254,9 @@ export function DataTable<TData extends RowData>({
 													>
 														<table.FlexRender header={header} />
 														{sorted === 'asc' ? (
-															<IconArrowNarrowUp className='size-3.5' />
+															<IconArrowNarrowUp stroke={1.75} className='size-3.5' />
 														) : sorted === 'desc' ? (
-															<IconArrowNarrowDown className='size-3.5' />
+															<IconArrowNarrowDown stroke={1.75} className='size-3.5' />
 														) : null}
 													</button>
 												) : (

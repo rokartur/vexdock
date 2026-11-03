@@ -266,7 +266,7 @@ function TableView({
 				<div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
 					{readOnly ? <span className='text-xs text-muted'>{readOnly}</span> : null}
 					<Button disabled={!editable} onClick={() => setInserts([...inserts, {}])}>
-						<IconPlus />
+						<IconPlus size={16} stroke={1.75} />
 						Add row
 					</Button>
 					<Refresh onClick={() => rows.refetch()} busy={rows.isFetching} />
@@ -307,7 +307,14 @@ function TableView({
 					count={selected.size}
 					noun='row'
 					onClear={() => setSelected(new Set())}
-					actions={[{ label: 'Delete', icon: <IconTrash />, onClick: deleteSelected, destructive: true }]}
+					actions={[
+						{
+							label: 'Delete',
+							icon: <IconTrash size={16} stroke={1.75} />,
+							onClick: deleteSelected,
+							destructive: true,
+						},
+					]}
 				/>
 			</div>
 			{data && gridRows.length === 0 ? (

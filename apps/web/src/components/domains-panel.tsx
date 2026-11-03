@@ -124,7 +124,10 @@ function DomainRow({
 					className='group inline-flex min-w-0 items-center gap-1.5 font-medium underline-offset-4 hover:underline'
 				>
 					<span className='truncate'>{domain.hostname}</span>
-					<IconExternalLink className='size-3 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100' />
+					<IconExternalLink
+						stroke={1.75}
+						className='size-3 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100'
+					/>
 				</a>
 				<span className='text-xs text-muted'>
 					port <span className='font-mono'>{domain.container_port}</span>
@@ -247,7 +250,7 @@ export function DomainsPanel({ projectId, service }: { projectId: string; servic
 					<>
 						<Refresh onClick={() => domains.refetch()} busy={domains.isFetching} />
 						<Button variant='primary' onClick={() => setAdding(true)}>
-							<IconPlus />
+							<IconPlus size={16} stroke={1.75} />
 							Add domain
 						</Button>
 					</>

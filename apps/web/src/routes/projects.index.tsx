@@ -17,7 +17,7 @@ const projectTableColumns: Columns<Project> = (() => {
 			header: 'Name',
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2 font-medium'>
-					<IconFolder className='size-4 text-muted' />
+					<IconFolder stroke={1.75} className='size-4 text-muted' />
 					{row.original.name}
 				</span>
 			),
@@ -92,7 +92,7 @@ function ProjectsPage() {
 		<Page
 			actions={
 				<Button variant='primary' onClick={() => setCreating(true)}>
-					<IconPlus />
+					<IconPlus size={16} stroke={1.75} />
 					New project
 				</Button>
 			}
