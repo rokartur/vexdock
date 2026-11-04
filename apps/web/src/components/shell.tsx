@@ -1,4 +1,13 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import {
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type ReactElement,
+	type ReactNode,
+	type RefObject,
+} from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip'
 import {
@@ -6,11 +15,13 @@ import {
 	IconAffiliate,
 	IconArchive,
 	IconBox,
+	IconBrandDocker,
 	IconCertificate,
 	IconChartBar,
 	IconChevronRight,
 	IconClock,
 	IconDatabase,
+	IconDots,
 	IconFolder,
 	IconHome,
 	IconInfoCircle,
@@ -37,7 +48,7 @@ import { useSystemEvents } from '../lib/sse'
 import { CommandMenu } from './command-menu'
 import { DeploymentInbox } from './deployment-inbox'
 import { Logo } from './logo'
-import { ActivePill, Keys, mod, PageChrome } from './primitives'
+import { ActivePill, Keys, mod, PageChrome, Tabs } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
@@ -64,6 +75,16 @@ const system: NavItem[] = [
 const settings: NavItem = { to: '/system/settings', label: 'Settings', icon: IconSettings }
 
 const isActive = (item: NavItem, pathname: string) => (item.exact ? pathname === item.to : pathname.startsWith(item.to))
+
+// What the phone's tab bar leaves to the More sheet, and the groups that get a section strip instead.
+const moreGroups = [
+	{ heading: 'Home', items: home.filter(item => item.to !== '/') },
+	{ heading: 'System', items: [...system, settings] },
+]
+const sectionGroups = [
+	{ base: '/docker', items: docker },
+	{ base: '/system', items: system },
+]
 
 const none: Transition = { duration: 0 }
 const standardEase = motionTokens.ease.standard
@@ -93,7 +114,8 @@ const railToggle =
 const scrim =
 	'absolute inset-0 bg-[color-mix(in_oklab,var(--foreground)_30%,transparent)] [-webkit-tap-highlight-color:transparent] dark:bg-background/50'
 
-/** Arc's sidebar-rail on the real routes: 240 wide, a 64 wide rail on `[` or below 760, floating below 640, a sheet below 480. */
+/** Arc's sidebar-rail on the real routes: 240 wide, a 64 wide rail on `[` or below 760, floating below 640, and below
+ * 480 a bottom tab bar whose More opens a sheet. */
 export function Shell({ children }: { children: ReactNode }) {
 	const baseId = useId()
 	const reduce = useReducedMotion() ?? false
@@ -102,7 +124,7 @@ export function Shell({ children }: { children: ReactNode }) {
 	const [collapsed, setCollapsed] = useState(false)
 	const [tablet, setTablet] = useState(false)
 	const [projectsOpen, setProjectsOpen] = useState(true)
-	const [sheetOpen, setSheetOpen] = useState(false)
+	const [moreOpen, setMoreOpen] = useState(false)
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [shell, setShell] = useState<HTMLElement | null>(null)
 	const [announcement, setAnnouncement] = useState('')
@@ -111,7 +133,7 @@ export function Shell({ children }: { children: ReactNode }) {
 	const [header, setHeader] = useState<HTMLElement | null>(null)
 	const sheetRef = useRef<HTMLDivElement>(null)
 	const sheetActions = useRef<Dialog.Root.Actions>(null)
-	const menuButtonRef = useRef<HTMLButtonElement>(null)
+	const moreButtonRef = useRef<HTMLButtonElement>(null)
 	const sheetDragging = useRef(false)
 	const closeTimer = useRef(0)
 	const wasWide = useRef<boolean | null>(null)
@@ -143,8 +165,8 @@ export function Shell({ children }: { children: ReactNode }) {
 			if (!shell) return
 			event.preventDefault()
 			if (shell.clientWidth < 480) {
-				if (sheetOpen) sheetActions.current?.close()
-				else setSheetOpen(true)
+				if (moreOpen) sheetActions.current?.close()
+				else setMoreOpen(true)
 				return
 			}
 			setCollapsed(!collapsed)
@@ -152,14 +174,14 @@ export function Shell({ children }: { children: ReactNode }) {
 		}
 		window.addEventListener('keydown', onKey)
 		return () => window.removeEventListener('keydown', onKey)
-	}, [shell, collapsed, sheetOpen])
+	}, [shell, collapsed, moreOpen])
 
 	useLayoutEffect(() => {
 		if (!shell) return
 		const shellElement = shell
 		function fit() {
 			const width = shellElement.clientWidth
-			if (width >= 480) setSheetOpen(false)
+			if (width >= 480) setMoreOpen(false)
 			const isTablet = width >= 480 && width < 640
 			setTablet(isTablet)
 			const wide = width >= 760
@@ -201,8 +223,8 @@ export function Shell({ children }: { children: ReactNode }) {
 		)
 	}
 
-	function toggleProjects(fromSheet: boolean) {
-		if (collapsed && !fromSheet) {
+	function toggleProjects() {
+		if (collapsed) {
 			setCollapsed(false)
 			setProjectsOpen(true)
 			setAnnouncement('Sidebar expanded')
@@ -211,16 +233,16 @@ export function Shell({ children }: { children: ReactNode }) {
 		setProjectsOpen(!projectsOpen)
 	}
 
-	const sheetX = useMotionValue<string | number>('-100%')
-	const sheetShown = useTransform(sheetX, x => {
-		const width = sheetRef.current?.offsetWidth || 288
+	const sheetY = useMotionValue<string | number>('100%')
+	const sheetShown = useTransform(sheetY, y => {
+		const height = sheetRef.current?.offsetHeight || 400
 		const offset =
-			typeof x === 'number'
-				? x / width
-				: x.endsWith('%')
-					? Number(x.slice(0, -1)) / 100
-					: Number(x.replace('px', '')) / width
-		return Math.min(1, Math.max(0, 1 + (Number.isFinite(offset) ? offset : -1)))
+			typeof y === 'number'
+				? y / height
+				: y.endsWith('%')
+					? Number(y.slice(0, -1)) / 100
+					: Number(y.replace('px', '')) / height
+		return Math.min(1, Math.max(0, 1 - (Number.isFinite(offset) ? offset : 1)))
 	})
 	const panelSpring = instant ? none : motionTokens.spring.smooth
 
@@ -277,13 +299,12 @@ export function Shell({ children }: { children: ReactNode }) {
 							</Tooltip>
 						</SearchRow>
 						<SidebarNav
-							variant='side'
 							baseId={baseId}
 							collapsed={collapsed}
 							projectsOpen={projectsOpen}
 							instant={instant}
 							onNavigate={() => navigated(false)}
-							onProjects={() => toggleProjects(false)}
+							onProjects={toggleProjects}
 						/>
 						<Profile collapsed={collapsed} instant={instant} />
 					</motion.div>
@@ -304,49 +325,44 @@ export function Shell({ children }: { children: ReactNode }) {
 						/>
 					)}
 				</AnimatePresence>
-				<div className='relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
-					<header className='flex min-h-13 flex-none items-center gap-3 px-6 pt-6 @max-[480px]/shell:gap-1 @max-[480px]/shell:px-3 @max-[480px]/shell:pt-3'>
-						<button
-							ref={menuButtonRef}
-							type='button'
-							className={cn(iconButton, 'hidden @max-[480px]/shell:inline-grid')}
-							aria-label='Open navigation'
-							aria-haspopup='dialog'
-							aria-expanded={sheetOpen}
-							aria-keyshortcuts='['
-							onClick={() => setSheetOpen(true)}
-						>
-							<PaneIcon collapsed={false} instant={instant} />
-						</button>
+				<div className='relative isolate flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
+					<header className='flex min-h-13 flex-none items-center gap-3 px-6 pt-6 @max-[480px]/shell:gap-1 @max-[480px]/shell:px-4 @max-[480px]/shell:pt-[max(0.75rem,env(safe-area-inset-top,0px))]'>
 						{/* The page's breadcrumb, title and actions land here, so a page owns what it
 						    is called without owning a bar of its own. */}
 						<div ref={setHeader} className='flex min-w-0 flex-1 items-center gap-3 overflow-hidden' />
 						<DeploymentInbox />
 					</header>
+					<SectionStrip />
 					<PageChrome value={header}>{children}</PageChrome>
+					<TabBar
+						moreOpen={moreOpen}
+						moreButtonRef={moreButtonRef}
+						onSearch={() => setSearchOpen(true)}
+						onMore={() => setMoreOpen(true)}
+					/>
 					<p role='status' aria-live='polite' className='sr-only'>
 						{announcement}
 					</p>
 				</div>
 				<Dialog.Root
-					open={sheetOpen}
+					open={moreOpen}
 					actionsRef={sheetActions}
 					onOpenChange={(open, eventDetails) => {
 						// Base UI would hide the popup at once; motion's exit slide ends the closing phase instead.
 						if (!open && !instant) eventDetails.preventUnmountOnClose()
-						setSheetOpen(open)
+						setMoreOpen(open)
 					}}
 					onOpenChangeComplete={open => {
 						if (open) return
-						// A held closing phase skips Base UI's focus return; the menu button takes it a frame later, once the shell is no longer inert.
+						// A held closing phase skips Base UI's focus return; the More tab takes it a frame later, once the shell is no longer inert.
 						const focusWasInSheet =
 							document.activeElement === document.body || document.activeElement?.closest('[role=dialog]')
 						if (focusWasInSheet)
-							requestAnimationFrame(() => menuButtonRef.current?.focus({ preventScroll: true }))
+							requestAnimationFrame(() => moreButtonRef.current?.focus({ preventScroll: true }))
 					}}
 				>
 					<AnimatePresence onExitComplete={() => sheetActions.current?.unmount()}>
-						{sheetOpen && shell && (
+						{moreOpen && shell && (
 							<Dialog.Portal keepMounted container={shell}>
 								<Dialog.Backdrop
 									render={
@@ -355,26 +371,24 @@ export function Shell({ children }: { children: ReactNode }) {
 								/>
 								<Dialog.Popup
 									ref={sheetRef}
-									initialFocus={() => {
-										const current =
-											sheetRef.current?.querySelector<HTMLElement>("[aria-current='page']")
-										return current && !current.closest('[inert]') ? current : true
-									}}
+									initialFocus={() =>
+										sheetRef.current?.querySelector<HTMLElement>("[aria-current='page']") ?? true
+									}
 									finalFocus={() => {
-										menuButtonRef.current?.focus({ preventScroll: true })
+										moreButtonRef.current?.focus({ preventScroll: true })
 										return false
 									}}
 									render={
 										<motion.div
-											className='absolute inset-y-0 left-0 z-21 flex w-[min(288px,calc(100%-40px))] touch-pan-y flex-col overscroll-contain rounded-r-[16px] border-r border-border bg-(--rail) pt-[env(safe-area-inset-top,0)] pb-[env(safe-area-inset-bottom,0)] pl-[env(safe-area-inset-left,0)] shadow-floating'
-											style={{ x: sheetX }}
-											initial={{ x: '-100%' }}
-											animate={{ x: 0 }}
-											exit={{ x: '-100%' }}
+											className='absolute inset-x-0 bottom-0 z-21 flex max-h-[calc(100%-40px)] touch-none flex-col overscroll-contain rounded-t-[16px] border-t border-border bg-(--rail) pr-[env(safe-area-inset-right,0)] pb-[env(safe-area-inset-bottom,0)] pl-[env(safe-area-inset-left,0)] shadow-floating'
+											style={{ y: sheetY }}
+											initial={{ y: '100%' }}
+											animate={{ y: 0 }}
+											exit={{ y: '100%' }}
 											transition={panelSpring}
-											drag={!reduce && 'x'}
-											dragConstraints={{ left: 0, right: 0 }}
-											dragElastic={{ left: 0.9, right: 0.04 }}
+											drag={!reduce && 'y'}
+											dragConstraints={{ top: 0, bottom: 0 }}
+											dragElastic={{ top: 0.04, bottom: 0.9 }}
 											dragMomentum={false}
 											onDragStart={() => {
 												sheetDragging.current = true
@@ -386,49 +400,30 @@ export function Shell({ children }: { children: ReactNode }) {
 												window.setTimeout(() => {
 													sheetDragging.current = false
 												}, 0)
-												if (info.offset.x < -72 || info.velocity.x < -480)
+												if (info.offset.y > 72 || info.velocity.y > 480)
 													sheetActions.current?.close()
 											}}
 										/>
 									}
 								>
-									<Dialog.Title className='sr-only'>Navigation</Dialog.Title>
+									<Dialog.Title className='sr-only'>More</Dialog.Title>
+									<span
+										aria-hidden='true'
+										className='mx-auto mt-2 h-1 w-9 flex-none rounded-full bg-border-strong'
+									/>
 									<div className='flex flex-none items-center pr-3'>
 										<Brand collapsed={false} instant={instant} className='flex-1' />
 										<Dialog.Close
-											render={
-												<button
-													type='button'
-													className={iconButton}
-													aria-label='Close navigation'
-												/>
-											}
+											render={<button type='button' className={iconButton} aria-label='Close' />}
 										>
 											<IconX size={18} stroke={1.75} aria-hidden='true' />
 										</Dialog.Close>
 									</div>
-									<SearchRow
-										collapsed={false}
-										instant={instant}
-										onSearch={() => {
-											sheetActions.current?.close()
-											setSearchOpen(true)
-										}}
-									/>
-									<SidebarNav
-										variant='sheet'
-										baseId={baseId}
-										collapsed={false}
-										projectsOpen={projectsOpen}
-										instant={instant}
+									<MoreNav
 										onNavigate={() => {
 											if (!sheetDragging.current) navigated(true)
 										}}
-										onProjects={() => {
-											if (!sheetDragging.current) toggleProjects(true)
-										}}
 									/>
-									<Profile collapsed={false} instant={instant} />
 								</Dialog.Popup>
 							</Dialog.Portal>
 						)}
@@ -487,8 +482,148 @@ function SearchRow({
 	)
 }
 
+const tabItem =
+	'press flex h-14 min-w-0 flex-col items-center justify-center gap-1 text-[11px]/none font-medium text-muted [-webkit-tap-highlight-color:transparent] data-lit:text-foreground'
+
+/** The rail below 480: three destinations, the command menu and the More sheet, under the thumb. */
+function TabBar({
+	moreOpen,
+	moreButtonRef,
+	onSearch,
+	onMore,
+}: {
+	moreOpen: boolean
+	moreButtonRef: RefObject<HTMLButtonElement | null>
+	onSearch: () => void
+	onMore: () => void
+}) {
+	const pathname = useRouterState({ select: state => state.location.pathname })
+	let lit: 'home' | 'projects' | 'docker' | 'more' = 'more'
+	if (pathname === '/') lit = 'home'
+	else if (pathname.startsWith('/projects')) lit = 'projects'
+	else if (pathname.startsWith('/docker')) lit = 'docker'
+
+	return (
+		<nav
+			aria-label='Tabs'
+			className='hidden h-(--tab-bar) flex-none grid-cols-5 border-t border-border bg-(--rail) pb-[env(safe-area-inset-bottom,0px)] @max-[480px]/shell:grid'
+		>
+			<Link
+				to='/'
+				draggable={false}
+				className={tabItem}
+				data-lit={lit === 'home' || undefined}
+				aria-current={lit === 'home' ? 'page' : undefined}
+			>
+				<TabFace icon={IconHome} label='Dashboard' lit={lit === 'home'} />
+			</Link>
+			<Link
+				to='/projects'
+				draggable={false}
+				className={tabItem}
+				data-lit={lit === 'projects' || undefined}
+				aria-current={pathname === '/projects' ? 'page' : undefined}
+			>
+				<TabFace icon={IconFolder} label='Projects' lit={lit === 'projects'} />
+			</Link>
+			<Link
+				to='/docker/containers'
+				search={{ q: undefined }}
+				draggable={false}
+				className={tabItem}
+				data-lit={lit === 'docker' || undefined}
+				aria-current={pathname === '/docker/containers' ? 'page' : undefined}
+			>
+				<TabFace icon={IconBrandDocker} label='Docker' lit={lit === 'docker'} />
+			</Link>
+			<button type='button' className={tabItem} aria-keyshortcuts='Meta+K' onClick={onSearch}>
+				<TabFace icon={IconSearch} label='Search' lit={false} />
+			</button>
+			<button
+				ref={moreButtonRef}
+				type='button'
+				className={tabItem}
+				data-lit={lit === 'more' || undefined}
+				aria-haspopup='dialog'
+				aria-expanded={moreOpen}
+				aria-keyshortcuts='['
+				onClick={onMore}
+			>
+				<TabFace icon={IconDots} label='More' lit={lit === 'more'} />
+			</button>
+		</nav>
+	)
+}
+
+function TabFace({ icon: TabIcon, label, lit }: { icon: TablerIcon; label: string; lit: boolean }) {
+	return (
+		<>
+			<span className='relative isolate grid h-7 w-14 place-items-center rounded-full'>
+				{lit ? <ActivePill layoutId='tab-bar' className='bg-(--row-active)' /> : null}
+				<TabIcon size={22} stroke={1.75} aria-hidden='true' className={lit ? 'text-accent' : undefined} />
+			</span>
+			<span className='max-w-full truncate px-1'>{label}</span>
+		</>
+	)
+}
+
+/** Below 480 the rail's Docker and System groups become a tab strip on the pages they hold. */
+function SectionStrip() {
+	const pathname = useRouterState({ select: state => state.location.pathname })
+	const group = sectionGroups.find(section => section.items.some(item => isActive(item, pathname)))
+	if (!group) return null
+	return (
+		<div className='hidden flex-none border-b px-4 pb-2 @max-[480px]/shell:block'>
+			<Tabs
+				base={group.base}
+				tabs={group.items.map(item => ({ suffix: item.to.slice(group.base.length), label: item.label }))}
+			/>
+		</div>
+	)
+}
+
+/** The More sheet's body: what the tab bar has no room for, as tiles, then the account. */
+function MoreNav({ onNavigate }: { onNavigate: () => void }) {
+	const pathname = useRouterState({ select: state => state.location.pathname })
+	return (
+		<>
+			<nav aria-label='More' className='grid gap-3 px-3 pb-3'>
+				{moreGroups.map(group => (
+					<section key={group.heading} aria-label={group.heading}>
+						<h2 className='px-1 pb-1.5 text-xs/none font-medium text-muted'>{group.heading}</h2>
+						<ul role='list' className='grid grid-cols-4 gap-1.5'>
+							{group.items.map(item => {
+								const current = isActive(item, pathname)
+								return (
+									<li key={item.to}>
+										<Link
+											to={item.to}
+											draggable={false}
+											onClick={onNavigate}
+											aria-current={current ? 'page' : undefined}
+											className='flex h-18 press flex-col items-center justify-center gap-1.5 rounded-[12px] bg-(--row-hover) text-xs text-secondary [-webkit-tap-highlight-color:transparent] aria-[current=page]:bg-(--row-active) aria-[current=page]:text-foreground'
+										>
+											<item.icon
+												size={22}
+												stroke={1.75}
+												aria-hidden='true'
+												className={current ? 'text-accent' : 'text-muted'}
+											/>
+											<span className='max-w-full truncate px-1'>{item.label}</span>
+										</Link>
+									</li>
+								)
+							})}
+						</ul>
+					</section>
+				))}
+			</nav>
+			<Profile collapsed={false} instant={false} />
+		</>
+	)
+}
+
 function SidebarNav({
-	variant,
 	baseId,
 	collapsed,
 	projectsOpen,
@@ -496,7 +631,6 @@ function SidebarNav({
 	onNavigate,
 	onProjects,
 }: {
-	variant: 'side' | 'sheet'
 	baseId: string
 	collapsed: boolean
 	projectsOpen: boolean
@@ -508,8 +642,8 @@ function SidebarNav({
 	const { projectId } = useParams({ strict: false })
 	const environmentId = useEnvironmentId()
 	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
-	const shared = { collapsed, tips: variant === 'side' && collapsed, layoutId: `${variant}-nav`, instant }
-	const listId = `${baseId}-${variant}-projects-list`
+	const shared = { collapsed, tips: collapsed, layoutId: 'side-nav', instant }
+	const listId = `${baseId}-projects-list`
 	const expanded = projectsOpen && !collapsed
 	const onProjectsPage = pathname.startsWith('/projects')
 
@@ -611,10 +745,10 @@ function SidebarNav({
 					</motion.ul>
 				</li>
 			</ul>
-			<NavSection id={`${baseId}-${variant}-docker`} heading='Docker' collapsed={collapsed} instant={instant}>
+			<NavSection id={`${baseId}-docker`} heading='Docker' collapsed={collapsed} instant={instant}>
 				{docker.map(leaf)}
 			</NavSection>
-			<NavSection id={`${baseId}-${variant}-system`} heading='System' collapsed={collapsed} instant={instant}>
+			<NavSection id={`${baseId}-system`} heading='System' collapsed={collapsed} instant={instant}>
 				{system.map(leaf)}
 			</NavSection>
 			<ul role='list' className='mt-auto grid grid-cols-[minmax(0,1fr)] gap-px pt-2'>
