@@ -198,7 +198,7 @@ function Breakdown({
 						>
 							<span
 								aria-hidden
-								className='rounded-md absolute inset-y-0 left-0 bg-accent/12'
+								className='absolute inset-y-0 left-0 rounded-[calc(var(--radius-control)-4px)] bg-accent/12'
 								style={{ width: `${(row.visitors / top) * 100}%` }}
 							/>
 							<span className='relative min-w-0 truncate' title={row.name}>

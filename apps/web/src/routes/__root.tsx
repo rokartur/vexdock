@@ -15,7 +15,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 			{ charSet: 'utf-8' },
 			{ name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
 			{ name: 'color-scheme', content: 'dark' },
-			{ name: 'theme-color', content: '#000' },
+			{ name: 'theme-color', content: '#0b0b0b' },
 			// Pages replace this from their breadcrumb; it stands for login and setup.
 			{ title: 'Vexdock' },
 		],
@@ -60,7 +60,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 			{/* The inline colors paint before the stylesheet arrives, so booting
           the SPA never flashes white. They are the dark --background and
           --foreground from styles.css, resolved to sRGB. */}
-			<body style={{ background: '#000', color: '#f2f2f2' }}>
+			<body style={{ background: '#0b0b0b', color: '#f2f2f2' }}>
 				<div id='root'>{children}</div>
 				<Scripts />
 			</body>

@@ -78,9 +78,9 @@ destination, the project list and the search that opens the command menu, and a 
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).
 The visual language is the ui skill's Arc system with its default tokens (`src/styles.css`
-copies the skill's file above the marked line, the only palette there is, with three
+copies the skill's file above the marked line, the only palette there is, with four
 calls of our own that its comments name: durations at 0.7x, shadows at half offset and
-blur, radii one step smaller): a near-black canvas, cards a shade lighter, hover and pressed as tints of the text color, the
+blur, radii 12 for controls and 16 for every box, dark grays 4 points darker): a near-black canvas, cards a shade lighter, hover and pressed as tints of the text color, the
 foreground color for the one primary action, sentence case everywhere, a neutral gray ramp.
 The panel is monochrome throughout, charts included. Dense tables, and no continuously repainting animation: the panel
 is often left open.

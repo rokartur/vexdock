@@ -194,7 +194,8 @@ export function DataTable<TData extends RowData>({
 			className={cn('overflow-hidden rounded-surface border bg-surface', fill && 'flex min-h-0 flex-1 flex-col')}
 		>
 			{filter ? (
-				<div className='border-b border-border-subtle p-2'>
+				// Concentric with the card: its radius minus this p-2; the resting border one step quieter than a form field's.
+				<div className='border-b border-border-subtle p-2 [&_div:has(>input)]:rounded-[calc(var(--radius-surface)-0.5rem)] [&_div:has(>input)]:border-border [&_div:has(>input)]:hover:not-focus-within:border-border-strong'>
 					<SearchField
 						label={filter}
 						hideLabel
