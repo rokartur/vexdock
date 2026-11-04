@@ -23,7 +23,7 @@ export function IntegrationRow({
 			<Icon className='size-5 text-foreground' stroke={1.75} />
 			<div className='grid min-w-0 gap-px'>
 				<div className='flex min-w-0 items-baseline gap-2'>
-					<h3 className='min-w-0 truncate font-display text-[13px] leading-[1.1] font-medium tracking-[-0.03em]'>
+					<h3 className='min-w-0 truncate font-display text-[13px] leading-[1.3] font-medium tracking-[-0.03em]'>
 						{name}
 					</h3>
 					{kind ? <span className='flex-none text-xs text-muted max-sm:hidden'>{kind}</span> : null}

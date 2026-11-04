@@ -707,7 +707,7 @@ function NavRow({
 			<BaseTooltip.Trigger
 				render={render}
 				className={cn(
-					'group/item relative isolate flex h-8 w-full items-center gap-2.5 rounded-[8px] pr-2.5 pl-3 text-left text-[13px]/none whitespace-nowrap transition-colors duration-110 ease-standard [-webkit-tap-highlight-color:transparent] active:bg-(--row-active) in-data-dragging:active:bg-transparent motion-reduce:transition-none pointer-coarse:h-10',
+					'group/item relative isolate flex h-8 w-full items-center gap-2.5 rounded-[8px] pr-2.5 pl-3 text-left text-[13px] whitespace-nowrap transition-colors duration-110 ease-standard [-webkit-tap-highlight-color:transparent] active:bg-(--row-active) in-data-dragging:active:bg-transparent motion-reduce:transition-none pointer-coarse:h-10',
 					lit ? 'text-foreground' : 'text-secondary hover:bg-(--row-hover) hover:text-foreground',
 					nested && 'ml-7 h-[30px] w-[calc(100%-28px)] pl-2.5',
 				)}
