@@ -87,7 +87,9 @@ references a variable nobody declares.
 `docker` or `system` in `components/shell.tsx` if it belongs in the sidebar;
 those three arrays are its groups, the Projects row under `home` opens the
 project list, `settings` sits alone at the bottom of the rail, and the
-breadcrumb derives itself from the URL. A section of a page is a child route, never a `?tab=`:
+breadcrumb derives itself from the URL. Below 480 px the same arrays feed the
+phone's tab bar, its More sheet and the Docker and System section strip, so
+there is no second list to edit. A section of a page is a child route, never a `?tab=`:
 `projects.$projectId_.services.$serviceId.*` is the pattern, and the trailing
 `_` is what keeps it out of the project's own tab strip.
 

@@ -255,8 +255,9 @@ export function IslandBar({
 		<div
 			data-slot='island-bar-dock'
 			className={cn(
-				'@container pointer-events-none inset-x-0 bottom-0 z-40 flex flex-col items-center px-3 pb-3',
-				contained ? 'absolute' : 'fixed sm:pb-6',
+				'@container pointer-events-none inset-x-0 z-40 flex flex-col items-center px-3 pb-3',
+				// vexdock: a fixed bar stands on the shell's phone tab bar instead of under it.
+				contained ? 'absolute bottom-0' : 'fixed bottom-(--tab-bar,0px) sm:pb-6',
 			)}
 		>
 			<div

@@ -73,7 +73,7 @@ Pages go through the vocabulary first:
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
 IconButton, Status, Confirm, EmptyState), so a design change happens in one
 file. The shell is Arc's workspace sidebar, the same on every page, carrying every
-destination, the project list and the search that opens the command menu, and a page header beside it; tables are `DataTable` in
+destination, the project list and the search that opens the command menu, and a page header beside it (on a phone, a bottom tab bar instead); tables are `DataTable` in
 `components/data-table.tsx`, its own primitive that pages import directly. A
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).

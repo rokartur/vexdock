@@ -239,6 +239,12 @@
 	--duration-spring: 400ms;
 }
 
+/* The phone tab bar's height, for the shell and anything fixed to the window's bottom (the save bar portals to body). Same 480px as the shell's container query. */
+@media (width < 480px) {
+	:root {
+		--tab-bar: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+	}
+}
 :root[data-theme='dark'] {
 	color-scheme: dark;
 	/* Arc's dark grays 4 points darker (background 19% there): operator's call. */
