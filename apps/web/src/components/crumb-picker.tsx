@@ -1,5 +1,13 @@
 import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
-import { IconBox, IconDatabase, IconFolder, IconGitBranch, IconLayersLinked, IconSelector } from '@tabler/icons-react'
+import {
+	IconBox,
+	IconChevronRight,
+	IconDatabase,
+	IconFolder,
+	IconGitBranch,
+	IconLayersLinked,
+	IconSelector,
+} from '@tabler/icons-react'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { cn } from 'cn'
@@ -67,7 +75,7 @@ function CrumbPicker({
 				setActiveIndex(0)
 			}}
 		>
-			<PopoverTrigger className='flex h-7 min-w-0 items-center gap-1.5 rounded-control border border-transparent bg-surface-muted/50 px-2 text-sm transition-colors hover:border-border hover:bg-surface-muted data-popup-open:border-border data-popup-open:bg-surface-muted'>
+			<PopoverTrigger className='-mx-1.5 flex h-7 min-w-0 items-center gap-1.5 rounded-control px-1.5 text-sm transition-colors hover:bg-surface-muted data-popup-open:bg-surface-muted'>
 				<span className='flex min-w-0 items-center gap-2 truncate'>{label}</span>
 				<IconSelector stroke={1.75} className='size-3.5 shrink-0 text-muted' />
 			</PopoverTrigger>
@@ -126,6 +134,11 @@ function CrumbPicker({
 			</PopoverContent>
 		</Popover>
 	)
+}
+
+/** The chevron `Breadcrumb` draws, for two pickers sharing one segment. */
+export function CrumbSeparator() {
+	return <IconChevronRight size={16} stroke={1.75} aria-hidden='true' className='flex-none text-border-strong' />
 }
 
 /** Switches between projects, keyed by the id already in the URL. */

@@ -3,7 +3,7 @@ import { IconDots, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { DropdownMenu } from '@/components/ui/dropdown-menu'
-import { EnvironmentCrumb, ProjectCrumb } from '../components/crumb-picker'
+import { CrumbSeparator, EnvironmentCrumb, ProjectCrumb } from '../components/crumb-picker'
 import { Confirm, ErrorText, IconButton, Page, Tabs } from '../components/primitives'
 import { api } from '../lib/api'
 import { environmentSearch } from '../lib/environment'
@@ -45,11 +45,13 @@ function ProjectLayout() {
 	return (
 		<Page
 			name={project.data?.name}
+			index='Services'
 			labels={{
+				environment: 'Variables',
 				[projectId]: (
 					<>
 						<ProjectCrumb projectId={projectId} />
-						<span className='text-muted/30'>/</span>
+						<CrumbSeparator />
 						<EnvironmentCrumb projectId={projectId} />
 					</>
 				),

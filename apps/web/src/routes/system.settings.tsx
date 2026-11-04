@@ -13,7 +13,7 @@ const tabs = [
 
 function SettingsLayout() {
 	return (
-		<Page toolbar={<Tabs base='/system/settings' tabs={tabs} />}>
+		<Page index='General' toolbar={<Tabs base='/system/settings' tabs={tabs} />}>
 			<Outlet />
 		</Page>
 	)

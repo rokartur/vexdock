@@ -91,6 +91,7 @@ function SiteLayout() {
 		<Page
 			labels={{ [domainId]: hostname ?? domainId }}
 			name={hostname}
+			index='Overview'
 			toolbar={<Tabs base={`/analytics/${domainId}`} tabs={tabs} />}
 			filters={spanless ? undefined : <SpanPicker />}
 		>
