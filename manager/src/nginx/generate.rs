@@ -172,6 +172,15 @@ fn analytics_locations() -> String {
 		b.push_str("        proxy_set_header Authorization \"\";\n");
 		b.push_str("    }\n\n");
 	}
+	// A prefix location with a URI in proxy_pass swaps /_vx/l/ for the API prefix, keeping the slug.
+	b.push_str("    location /_vx/l/ {\n");
+	b.push_str("        limit_req zone=api_limit burst=20 nodelay;\n");
+	let _ = writeln!(b, "        proxy_pass http://{MANAGER_UPSTREAM}/api/analytics/l/;");
+	b.push_str("        proxy_http_version 1.1;\n");
+	b.push_str(FORWARDED_HEADERS);
+	b.push_str("        proxy_set_header Cookie \"\";\n");
+	b.push_str("        proxy_set_header Authorization \"\";\n");
+	b.push_str("    }\n\n");
 	b
 }
 

@@ -83,6 +83,11 @@ Everything in front of it is therefore treated as untrusted input.
 - Every state-changing API call is recorded in an audit log with the actor, the
   path, the resulting status, the credential type and the client address.
   Rejected cross-origin attempts are recorded too.
+- The client address is the connection's, except that a connection from one of
+  Cloudflare's published ranges (`docker/nginx/nginx.conf`) names the visitor in
+  `CF-Connecting-IP`. Anyone else sending that header is ignored, so a direct
+  client cannot pick its own address for the rate limits, the audit log or
+  analytics.
 
 ## Command execution
 
@@ -254,17 +259,39 @@ characters; a replacement may use `$N` and nothing else with a `$`, so no rule
 can inject a directive or read an nginx variable. nginx answers a matching
 redirect before it checks basic auth, which reveals only the target URL.
 
-Every vhost also answers `/_vx/script.js` and `/_vx/event` from the manager,
+Every vhost also answers `/_vx/script.js`, `/_vx/event` and `/_vx/l/` from the manager,
 for [site analytics](api.md#analytics). Nginx strips the visitor's `Cookie`
 and `Authorization` before proxying them, so a site's session never reaches the
 manager and a dashboard session never rides along. The ingest is public and
 answers 204 to everything; it stores no IP address, keeps only browser, OS and
-device class of the user agent, and takes the country from Cloudflare's
-`CF-IPCountry` or else the browser's timezone. Its visitor and session ids are
-random cookies the script sets on the site's own hostname, not derived from the
-visitor, and old events are pruned. A hit can only be forged into
-the counts, never into another table: recording a payment needs a token that
-may write the domain's project.
+device class of the user agent, and takes the place from Cloudflare's
+`CF-IPCountry`, else a lookup of the address in the local DB-IP database (no
+third party sees it), else the browser's timezone. Its visitor and session ids
+are random cookies the script sets on the site's own hostname. In cookieless
+mode the visitor id is a SHA-256 of the address and user agent under a salt
+that lives in memory only and is replaced every UTC day, so yesterday's ids
+cannot be recomputed. Old events are pruned. A hit can only be forged into the
+counts, never into another table: recording a payment or a goal through the API
+needs a token that may write the domain's project. The dashboard and the shared
+report load referrer favicons from `icons.duckduckgo.com`, so DuckDuckGo sees
+each referrer hostname and the viewer's address.
+
+`/_vx/l/{slug}` (short links) redirects only to the http or https target its
+owner saved. A share link is a random token stored as a hash for lookup and
+sealed so the owner can read it back; it answers the aggregates and the
+chart's annotations only, served at `/shared/{token}` without a session, never
+visitors, the live feed or settings, and revoking it deletes both. It reads at
+most a year (`range` up to `12m`, no custom span), so whoever holds the link
+cannot make each request fold three years of events; its filters still narrow
+the aggregates to one page, city or device. Payment
+provider webhooks are public but signed: each provider's signing secret is
+sealed with the master key and never returned by the API, the signature is
+compared in constant time, and Stripe, Paddle and Polar signatures older than
+five minutes are refused. A notification URL must be https on a public
+address; the manager resolves it on every send, refuses private, loopback and
+link-local answers, pins the address it checked and follows no redirect, so a
+project writer cannot aim it at the host's internal services. The X bearer
+token is sealed and sent only to `api.x.com`.
 
 Basic-auth passwords are stored as salted SHA-1 (`{SSHA}`) in
 `nginx/generated/<host>.htpasswd`, mode 0644 so the nginx container can read

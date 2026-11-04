@@ -1,238 +1,149 @@
-import { useState } from 'react'
-import { IconChartBar, IconUsers } from '@tabler/icons-react'
-import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import { CodeBlock } from '@/components/ui/code-block'
-import { Skeleton } from '@/components/ui/skeleton'
-import { MetricCard } from '../components/metric-chart'
-import { EmptyState, ErrorText, Page, Segmented, StatStrip } from '../components/primitives'
-import { type AnalyticsRange, type AnalyticsReport, type AnalyticsRow, api } from '../lib/api'
-import { percent } from '../lib/format'
-import { preload } from '../lib/queries'
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Outlet, retainSearchParams, useNavigate, useRouterState } from '@tanstack/react-router'
+import { FilterChips } from '../components/analytics-report'
+import { Check, Input, Page, Segmented, Tabs } from '../components/primitives'
+import type { AnalyticsRange, AnalyticsSpan } from '../lib/api'
+import { analyticsSitesQuery, preload } from '../lib/queries'
 
-const reportQuery = (domainId: string, range: AnalyticsRange) =>
-	queryOptions({
-		queryKey: ['analytics', domainId, range],
-		queryFn: () => api.analyticsReport(domainId, range),
-		refetchInterval: 60_000,
-		placeholderData: keepPreviousData,
-	})
-
-export const Route = createFileRoute('/analytics/$domainId')({
-	loader: ({ context: { queryClient }, params: { domainId } }) => preload(queryClient, reportQuery(domainId, '7d')),
-	component: SiteReport,
-})
+type SiteSearch = {
+	range?: AnalyticsRange
+	from?: string
+	to?: string
+	filters?: [string, string][]
+	compare?: boolean
+}
 
 const ranges = [
+	{ value: 'today', label: 'Today' },
+	{ value: 'yesterday', label: 'Yesterday' },
 	{ value: '24h', label: '24h' },
 	{ value: '7d', label: '7d' },
 	{ value: '30d', label: '30d' },
 	{ value: '90d', label: '90d' },
+	{ value: '12m', label: '12m' },
+	{ value: 'all', label: 'All' },
 ] as const satisfies readonly { value: AnalyticsRange; label: string }[]
 
-const SNIPPET = '<script defer src="/_vx/script.js"></script>'
+const rangeOptions = [...ranges, { value: 'custom', label: 'Custom' }] as const
 
-/** Formats minor units in `currency`, with that currency's own number of decimals (none for JPY). */
-function moneyFormat(currency: string) {
-	if (!currency) return null
-	const format = new Intl.NumberFormat(undefined, { style: 'currency', currency })
-	const scale = 10 ** (format.resolvedOptions().maximumFractionDigits ?? 2)
-	return (minor: number) => format.format(minor / scale)
+const day = /^\d{4}-\d{2}-\d{2}$/u
+
+function isFilter(value: unknown): value is [string, string] {
+	return Array.isArray(value) && value.length === 2 && value.every(part => typeof part === 'string')
 }
 
-function sessionLength(seconds: number) {
-	const whole = Math.round(seconds)
-	return whole < 60 ? `${whole}s` : `${Math.floor(whole / 60)}m ${whole % 60}s`
+// The span lives in the URL, so a pasted link opens the same report and every tab reads the same one.
+function validateSearch(search: Record<string, unknown>): SiteSearch {
+	const out: SiteSearch = {}
+	const range = ranges.find(option => option.value === search.range)
+	if (range) out.range = range.value
+	if (typeof search.from === 'string' && day.test(search.from)) out.from = search.from
+	if (typeof search.to === 'string' && day.test(search.to)) out.to = search.to
+	if (Array.isArray(search.filters)) out.filters = search.filters.filter(isFilter)
+	if (search.compare === true) out.compare = true
+	return out
 }
 
-function SiteReport() {
+export const Route = createFileRoute('/analytics/$domainId')({
+	validateSearch,
+	search: { middlewares: [retainSearchParams<SiteSearch>(['range', 'from', 'to', 'filters', 'compare'])] },
+	loader: ({ context: { queryClient } }) => preload(queryClient, analyticsSitesQuery),
+	component: SiteLayout,
+})
+
+/** The span every tab of a site reports on, and a way to change it. */
+export function useSpan() {
+	const search = Route.useSearch()
+	const navigate = useNavigate()
+	const span: AnalyticsSpan = {
+		range: search.range ?? '7d',
+		from: search.from,
+		to: search.to,
+		filters: search.filters ?? [],
+		compare: search.compare ?? false,
+	}
+	const update = (patch: SiteSearch) =>
+		navigate({ to: '.', search: (previous: SiteSearch) => ({ ...previous, ...patch }), replace: true })
+	const addFilter = (dimension: string, value: string) => {
+		const kept = span.filters?.filter(([d]) => d !== dimension) ?? []
+		void update({ filters: [...kept, [dimension, value]] })
+	}
+	return { span, update, addFilter }
+}
+
+const tabs = [
+	{ suffix: '', label: 'Overview' },
+	{ suffix: '/live', label: 'Live' },
+	{ suffix: '/visitors', label: 'Visitors' },
+	{ suffix: '/funnels', label: 'Funnels' },
+	{ suffix: '/settings', label: 'Settings' },
+]
+
+function SiteLayout() {
 	const { domainId } = Route.useParams()
-	const [range, setRange] = useState<AnalyticsRange>('7d')
-	const report = useQuery(reportQuery(domainId, range))
-	const hostname = report.data?.domain.hostname
+	const sites = useQuery(analyticsSitesQuery)
+	const hostname = sites.data?.find(site => site.domain.id === domainId)?.domain.hostname
+	const pathname = useRouterState({ select: state => state.location.pathname })
+	// Live is always the last minutes, and settings have no span.
+	const spanless = pathname.endsWith('/live') || pathname.endsWith('/settings')
 
 	return (
 		<Page
 			labels={{ [domainId]: hostname ?? domainId }}
 			name={hostname}
-			filters={<Segmented label='Range' value={range} onChange={setRange} options={ranges} />}
+			toolbar={<Tabs base={`/analytics/${domainId}`} tabs={tabs} />}
+			filters={spanless ? undefined : <SpanPicker />}
 		>
-			<ErrorText error={report.error} />
-			{report.data ? (
-				<Report report={report.data.report} range={range} />
-			) : (
-				<Skeleton label='Loading the report' className='p-5' />
-			)}
+			<Outlet />
 		</Page>
 	)
 }
 
-function Report({ report, range }: { report: AnalyticsReport; range: AnalyticsRange }) {
-	const money = moneyFormat(report.currency)
-	const revenue = money
-		? [
-				{ label: 'Revenue', value: money(report.revenue) },
-				{ label: 'Conversion', value: percent((report.customers / Math.max(report.visitors, 1)) * 100) },
-				{ label: 'Revenue / visitor', value: money(report.revenue / Math.max(report.visitors, 1)) },
-			]
-		: [{ label: 'Pageviews', value: report.pageviews.toLocaleString() }]
-	const series = {
-		Visitors: report.series.map(point => ({ at: point.at * 1000, value: point.visitors })),
-		Pageviews: report.series.map(point => ({ at: point.at * 1000, value: point.pageviews })),
-	}
+function SpanPicker() {
+	const { span, update } = useSpan()
+	const custom = Boolean(span.from && span.to)
+	const today = new Date().toLocaleDateString('en-CA')
 
 	return (
-		<div className='flex flex-col gap-4'>
-			<StatStrip
-				items={[
-					{ label: 'Visitors', value: report.visitors.toLocaleString() },
-					...revenue,
-					{ label: 'Bounce rate', value: percent(report.bounce_rate * 100) },
-					{ label: 'Session', value: sessionLength(report.session_seconds) },
-					{ label: 'Online', value: report.online },
-				]}
+		<div className='flex min-w-0 flex-wrap items-center gap-3'>
+			<Segmented
+				label='Range'
+				value={custom ? 'custom' : span.range}
+				options={rangeOptions}
+				onChange={value =>
+					value === 'custom'
+						? update({ from: span.from ?? today, to: span.to ?? today })
+						: update({ range: value, from: undefined, to: undefined })
+				}
 			/>
-			{report.visitors === 0 ? (
-				<div className='rounded-surface border bg-surface'>
-					<EmptyState
-						icon={IconChartBar}
-						title={`No visits in the last ${range}`}
-						description='Add the script below to the site, then open a page on it.'
+			{custom ? (
+				<>
+					<Input
+						aria-label='From'
+						type='date'
+						max={span.to}
+						value={span.from}
+						onChange={event => event.target.value && update({ from: event.target.value })}
 					/>
-				</div>
-			) : (
-				<div className='overflow-hidden rounded-surface border'>
-					<MetricCard
-						label='Traffic'
-						icon={IconUsers}
-						value={report.pageviews.toLocaleString()}
-						hint='pageviews'
-						series={series}
-						format={value => Math.round(value).toLocaleString()}
-						windowLabel={`last ${range}`}
-						height={220}
-						axis
+					<Input
+						aria-label='To'
+						type='date'
+						min={span.from}
+						max={today}
+						value={span.to}
+						onChange={event => event.target.value && update({ to: event.target.value })}
 					/>
-				</div>
-			)}
-			<div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-				<Breakdown
-					title='Sources'
-					money={money}
-					views={[
-						{ value: 'channel', label: 'Channel', rows: report.channels },
-						{ value: 'referrer', label: 'Referrer', rows: report.referrers },
-						{ value: 'campaign', label: 'Campaign', rows: report.campaigns },
-					]}
-				/>
-				<Breakdown
-					title='Pages'
-					money={money}
-					views={[
-						{ value: 'top', label: 'Top', rows: report.pages },
-						{ value: 'entry', label: 'Entry', rows: report.entry_pages },
-						{ value: 'exit', label: 'Exit', rows: report.exit_pages },
-					]}
-				/>
-				<Breakdown
-					title='Locations'
-					money={money}
-					views={[{ value: 'region', label: 'Region', rows: report.locations }]}
-				/>
-				<Breakdown
-					title='Devices'
-					money={money}
-					views={[
-						{ value: 'device', label: 'Device', rows: report.devices },
-						{ value: 'browser', label: 'Browser', rows: report.browsers },
-						{ value: 'os', label: 'OS', rows: report.systems },
-					]}
-				/>
-				<Breakdown title='Goals' money={money} views={[{ value: 'goal', label: 'Goal', rows: report.goals }]} />
-				<Install />
-			</div>
+				</>
+			) : null}
+			<Check
+				label='Compare'
+				checked={span.compare ?? false}
+				onChange={checked => update({ compare: checked || undefined })}
+			/>
+			<FilterChips
+				filters={span.filters ?? []}
+				onRemove={index => update({ filters: span.filters?.filter((_, i) => i !== index) })}
+			/>
 		</div>
-	)
-}
-
-/** One card of the report: a ranked list of one dimension, each bar as wide as its share of the top row. */
-function Breakdown({
-	title,
-	views,
-	money,
-}: {
-	title: string
-	views: [
-		{ value: string; label: string; rows: AnalyticsRow[] },
-		...{ value: string; label: string; rows: AnalyticsRow[] }[],
-	]
-	money: ((minor: number) => string) | null
-}) {
-	const [picked, setPicked] = useState(views[0].value)
-	const view = views.find(option => option.value === picked) ?? views[0]
-	const top = Math.max(1, ...view.rows.map(row => row.visitors))
-
-	return (
-		<section className='flex min-w-0 flex-col rounded-surface border bg-surface p-4'>
-			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
-				<h2 className='font-medium'>{title}</h2>
-				{views.length > 1 ? (
-					<Segmented label={title} value={picked} onChange={setPicked} options={views} />
-				) : null}
-			</header>
-			<div className='flex justify-between px-2 pb-1 text-xs text-muted'>
-				<span>{view.label}</span>
-				<span className='flex gap-6'>
-					<span className='w-16 text-right'>Visitors</span>
-					{money ? <span className='w-20 text-right'>Revenue</span> : null}
-				</span>
-			</div>
-			{view.rows.length === 0 ? (
-				<p className='px-2 py-6 text-center text-sm text-muted'>Nothing recorded in this range</p>
-			) : (
-				<ol className='flex flex-col gap-0.5'>
-					{view.rows.map(row => (
-						<li
-							key={row.name}
-							className='relative flex items-center justify-between gap-4 px-2 py-1.5 text-sm'
-						>
-							<span
-								aria-hidden
-								className='absolute inset-y-0 left-0 rounded-[calc(var(--radius-control)-4px)] bg-accent/12'
-								style={{ width: `${(row.visitors / top) * 100}%` }}
-							/>
-							<span className='relative min-w-0 truncate' title={row.name}>
-								{row.name || 'Direct'}
-							</span>
-							<span className='relative flex shrink-0 gap-6 tabular-nums'>
-								<span className='w-16 text-right'>{row.visitors.toLocaleString()}</span>
-								{money ? (
-									<span className='w-20 text-right text-success'>{money(row.revenue)}</span>
-								) : null}
-							</span>
-						</li>
-					))}
-				</ol>
-			)}
-		</section>
-	)
-}
-
-function Install() {
-	const { domainId } = Route.useParams()
-	return (
-		<section className='flex min-w-0 flex-col gap-3 rounded-surface border bg-surface p-4'>
-			<h2 className='flex h-8 items-center font-medium'>Install</h2>
-			<p className='text-sm text-muted'>
-				Add this to every page. It loads from the site&apos;s own hostname, which Vexdock routes to the manager.
-			</p>
-			<CodeBlock filename='index.html' language='html' code={SNIPPET} />
-			<p className='text-sm text-muted'>
-				Count a goal with <code className='font-mono text-xs'>window.vx(&apos;signup&apos;)</code>. For revenue,
-				post each payment to <code className='font-mono text-xs'>POST /api/domains/{domainId}/payments</code>{' '}
-				with the buyer&apos;s <code className='font-mono text-xs'>vx_vid</code> cookie as{' '}
-				<code className='font-mono text-xs'>visitor_id</code>.
-			</p>
-		</section>
 	)
 }

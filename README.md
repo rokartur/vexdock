@@ -127,8 +127,9 @@ change.
 ├── secrets/             master.key, the AES key protecting secrets in the
 │                        database (0600), and known_hosts for SSH clones
 ├── system/              update script, previous compose.yml, update-state.json
-│                        (the update progress the panel polls) and docker/, the
-│                        registry logins `docker login` keeps
+│                        (the update progress the panel polls), docker/, the
+│                        registry logins `docker login` keeps, and
+│                        dbip-city-lite.mmdb, the analytics IP geolocation
 └── backups/<stamp>/     both databases, master key, config-compose.yml,
                          config-env (the system .env), nginx/, certificates,
                          volumes/ on request;

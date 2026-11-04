@@ -167,6 +167,7 @@ async fn scheduler(server: Arc<Server>) {
 				tracing::warn!(error = %format!("{err:#}"), "{what}");
 			}
 		}
+		server.run_analytics_jobs().await;
 	}
 }
 

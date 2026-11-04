@@ -101,6 +101,10 @@ tool error carrying its code.
 | `service_stats` | the first event of `GET /api/services/{id}/stats` |
 | `list_deployments`, `get_deployment` | `GET /api/projects/{id}/deployments`, `GET /api/deployments/{id}` (step output cut to fifty lines) |
 | `list_templates` | `GET /api/templates` |
+| `list_sites` | `GET /api/analytics` |
+| `site_report`, `site_visitors`, `site_funnels` | `GET /api/domains/{id}/analytics`, `/visitors`, `/funnels` with `compare=true` |
+| `site_visitor` | `GET /api/domains/{id}/analytics/visitors/{visitor}` |
+| `site_live` | `GET /api/domains/{id}/analytics/live` |
 | `deploy` | `POST /api/projects/{id}/deploy` or `/api/services/{id}/deploy`, then polls every 2 s for up to 15 minutes |
 | `cancel_deployment`, `rollback` | `POST /api/deployments/{id}/cancel`, `/rollback` (which waits like `deploy`) |
 | `service_action` | `POST /api/services/{id}/start\|stop\|restart` |
@@ -889,34 +893,101 @@ domain's hostname, so the beacon is first-party and the site needs no CORS.
 |---|---|---|
 | `GET /api/analytics/script.js` | public | The beacon, served as `/_vx/script.js` |
 | `POST /api/analytics/event` | public | One hit, served as `/_vx/event`; always 204 |
+| `GET /api/analytics/l/{slug}` | public | A short link, served as `/_vx/l/{slug}`: 302 to its target with its UTM parameters |
+| `GET /api/analytics/shared/{token}?range=` | public | The report behind a share link: `{"domain": {"hostname"}, "report", "previous", "annotations", "since", "until"}`. Takes `range` up to `12m`, `tz_offset`, `filters` and `compare`; `all`, `from` or `to` is 400 |
+| `POST /api/analytics/webhooks/{provider}/{id}` | public, signed | A payment provider's webhook for domain `{id}`: `stripe`, `lemonsqueezy`, `paddle` or `polar` |
 | `GET /api/analytics` | signed in | `[{"domain", "visitors", "hourly"}]` for each domain the caller may read: visitors over the last 24 hours and per hour, oldest first |
-| `GET /api/domains/{id}/analytics?range=&tz_offset=` | project read | `{"domain", "report"}` |
+| `GET /api/domains/{id}/analytics` | project read | `{"domain", "report", "previous", "annotations", "since", "until"}` |
+| `GET /api/domains/{id}/analytics/visitors` | project read | `{"total", "visitors"}`: how many visitors the span holds, and the 200 most recently seen |
+| `GET /api/domains/{id}/analytics/visitors/{visitor}` | project read | `{"visitor", "events", "payments"}`: one visitor's last 1000 pageviews and goals, oldest first |
+| `GET /api/domains/{id}/analytics/live` | project read | `{"online", "feed"}`: visitors seen in the last 3 minutes, and the last 50 pageviews, goals and payments |
+| `GET /api/domains/{id}/analytics/funnels` | project read | `[{"id", "name", "steps", "reached"}]`, `reached` counting visitors per step over the span |
+| `POST /api/domains/{id}/analytics/funnels`, `DELETE .../funnels/{funnel}` | project write | `{"name", "steps"}`: 2 to 8 steps of `{"kind": "page" \| "goal" \| "payment", "value"}` |
+| `POST /api/domains/{id}/analytics/annotations`, `DELETE .../annotations/{annotation}` | project write | A note on the chart: `{"text", "at"}`, `at` unix seconds or now |
+| `GET`, `POST /api/domains/{id}/analytics/links`, `DELETE .../links/{slug}` | read, write | Short links: `{"slug", "target", "utm_source", "utm_medium", "utm_campaign"}`; an empty slug is generated, a taken one is 409 |
+| `GET`, `PUT /api/domains/{id}/analytics/settings` | project write | The site's share link, notification webhook, excluded addresses, mention sources and provider secrets |
 | `POST /api/domains/{id}/payments` | project write | Attribute a payment to a visitor |
+| `POST /api/domains/{id}/goals` | project write | A goal from the site's backend: `{"name", "visitor_id", "props"}` |
 
 The hit names its domain by the `Host` it arrived on. It is dropped without an
-error when the host is no domain, the body is over 4 KiB, the user agent is a
-bot, or a field does not parse, so a prober learns nothing from the answer.
+error when the host is no domain, the address is excluded, the body is over
+4 KiB, the user agent is a bot, or a field does not parse, so a prober learns
+nothing from the answer.
 
-`range` is `24h` (hourly points, the default `7d`, `30d` or `90d` are daily)
-and `tz_offset` is the browser's minutes east of UTC, which aligns the days.
+The script records a pageview on load and on every history change, a heartbeat
+each minute while the tab is visible, and a goal for `window.vx('name', {key:
+'value'})` or a click on an element with `data-vx-goal="name"` (each
+`data-vx-goal-key="value"` on it becomes a parameter). A goal name is 1 to 64
+of `a-z0-9_-`; at most 10 parameters, values cut to 255 bytes, are kept.
+`localStorage.vx_ignore = 'true'` in a browser keeps its visits out.
+`data-cookieless` on the script tag sets no cookie: the manager names the
+visitor by a SHA-256 of a salt, the domain, the address and the user agent.
+The salt is random per UTC day and kept in memory only, so a cookieless
+visitor is a new one each day, and after a restart.
+
+Report routes take `range`, one of `today`, `yesterday` (hourly points), `24h`
+(hourly), `7d` (the default), `30d`, `90d`, `12m` (daily) and `all` (from the
+first event, weekly past 400 days); or `from` and `to`, two `YYYY-MM-DD` days in
+the viewer's timezone, which replace `range`. `tz_offset` is the browser's
+minutes east of UTC, which aligns the days. `filters` is a JSON array of
+`[dimension, value]` pairs, at most 10, every one of which a session must match
+to count: `channel`, `referrer`, `campaign`, `page`, `entry_page`, `exit_page`,
+`location`, `region`, `city`, `device`, `browser`, `os` or `goal`. `compare=true`
+adds `previous`, the same report over the span just before; otherwise it is
+`null`.
+
 The report carries `visitors`, `pageviews`, `sessions`, `bounce_rate` (0 to 1),
 `session_seconds`, `online` (visitors seen in the last 3 minutes), `revenue`,
 `currency`, `customers`, a `series` of `{at, visitors, pageviews, revenue}` and
 ranked rows of `{name, visitors, revenue}`, at most 50 each: `channels`,
 `referrers`, `campaigns`, `pages`, `entry_pages`, `exit_pages`, `locations`,
-`devices`, `browsers`, `systems` and `goals`. A visitor in two rows counts in
-both. Revenue is in minor units of the most-used `currency` in the window;
-payments in another currency are left out, and `currency` is `""` before the
-first payment.
+`regions`, `cities`, `devices`, `browsers`, `systems` and `goals`. A visitor in
+two rows counts in both. Revenue is in minor units of the most-used `currency`
+in the window; payments in another currency are left out, and `currency` is
+`""` before the first payment. A referrer from X keeps its `t.co/<code>`, which
+matches the `links` of an X mention among the `annotations`.
+
+`location` is a country code: Cloudflare's `CF-IPCountry` when the site is
+behind it, else the [DB-IP Lite](https://db-ip.com) city database, which also
+fills `region` and `city`; without either, the browser's timezone. The manager
+downloads the database into `/opt/vexdock/system/dbip-city-lite.mmdb` on its
+first scheduler run and again when it is 30 days old. IP geolocation by
+[DB-IP](https://db-ip.com), CC BY 4.0.
 
 A payment is `{"payment_id", "amount", "currency", "visitor_id"}`: `amount` a
 positive integer in minor units (`4900` for 49.00), `currency` a three-letter
 code, `visitor_id` the `vx_vid` cookie the script set, or `""` for revenue no
-visit explains. Send it from the site's backend, typically its payment
-provider's webhook, with a token that may write the project. The first post of
-a `payment_id` answers 201 `{"recorded": true}`, a repeat 200
+visit explains. Send it from the site's backend with a token that may write
+the project, or let the provider call its webhook route. The first post of a
+`payment_id` answers 201 `{"recorded": true}`, a repeat 200
 `{"recorded": false}`, so a retried webhook does not count twice. Events and
-payments older than 90 days are pruned.
+payments older than three years are pruned.
+
+A provider webhook needs the signing secret saved in the settings first;
+without it the route is 404, with a bad signature 401 `SIGNATURE_INVALID`, and
+so is a Stripe, Paddle or Polar signature older than five minutes (Lemon
+Squeezy signs no timestamp). The checkout carries the visitor in its metadata
+as `vx_visitor_id` (Stripe also reads `client_reference_id`; Lemon Squeezy
+`custom_data`, Paddle `custom_data`, Polar `metadata`). Counted: Stripe
+`checkout.session.completed` or `checkout.session.async_payment_succeeded`
+when paid and `invoice.paid` for renewals, Lemon Squeezy `order_created` and
+`subscription_payment_success` renewals, Paddle `transaction.completed`, Polar
+`order.paid`. Any other event answers 200 and is ignored.
+
+Settings answer `{"webhook_origin", "share_token", "notify_url",
+"excluded_ips", "reddit", "x_token", "providers"}`. `webhook_origin` is where a
+provider reaches the webhook routes: `PUBLIC_URL`, else the panel's domain, else
+the origin of the request itself. `x_token` and each of `providers` (`stripe`,
+`lemonsqueezy`, `paddle`, `polar`) say only whether a secret is set. A `PUT`
+takes any of `share` (`true` makes a link, `false` revokes it), `notify_url`,
+`excluded_ips` (one address per line, at most 100), `reddit`, `x_token`,
+`stripe_secret`, `lemonsqueezy_secret`, `paddle_secret` and `polar_secret`; a
+field left out keeps its value and `""` clears it. `notify_url` is an https URL
+on a public address; it receives `{"text", "content"}`, which Slack and Discord
+both read, on every new payment and once a week with the last 7 days against
+the 7 before. Every six hours the scheduler adds X posts linking to the
+hostname (with the site owner's X API bearer token; recent search is on X's
+paid tiers) and Reddit posts (when `reddit` is on) as `annotations`.
 
 ## Webhooks
 

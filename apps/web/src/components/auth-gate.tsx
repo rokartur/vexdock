@@ -24,6 +24,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	const needsSetup = setup.data?.needs_setup === true
 	const authenticated = Boolean(session.data?.user)
 	const resolved = setup.data !== undefined && !session.isPending
+	// A shared analytics report is read without an account.
+	const open = pathname.startsWith('/shared/')
 
 	useEffect(() => {
 		if (!resolved) return
@@ -31,7 +33,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 			void navigate({ to: '/setup', replace: true })
 			return
 		}
-		if (!needsSetup && !authenticated && pathname !== '/login') {
+		if (!needsSetup && !authenticated && !open && pathname !== '/login') {
 			// A deep link, such as an MCP client's consent request, survives signing in.
 			void navigate({
 				to: '/login',
@@ -43,7 +45,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 		if (authenticated && (pathname === '/login' || pathname === '/setup')) {
 			void navigate({ href: next ?? '/', replace: true })
 		}
-	}, [resolved, needsSetup, authenticated, pathname, searchStr, next, navigate])
+	}, [resolved, needsSetup, authenticated, open, pathname, searchStr, next, navigate])
 
 	if (!resolved || !routeLoaded) {
 		// A failed status query never fills `setup.data`, so both the error and the
@@ -56,7 +58,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	// Hold the route back while the redirect above is in flight. Rendering the
 	// authenticated shell first would mount every dashboard query and fire a
 	// burst of requests that can only answer 401.
-	const target = needsSetup ? '/setup' : authenticated ? null : '/login'
+	const target = needsSetup ? '/setup' : authenticated || open ? null : '/login'
 	if (target && target !== pathname) return null
 
 	return children

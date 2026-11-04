@@ -130,6 +130,7 @@ const stateTones: Record<string, BadgeTone> = {
 	issued: 'success',
 	connected: 'success',
 	open: 'success',
+	customer: 'success',
 	'opens on deploy': 'warning',
 	'closes on deploy': 'warning',
 	starting: 'warning',

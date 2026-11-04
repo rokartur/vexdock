@@ -104,7 +104,7 @@ async fn server() {
 
 	let list = result(&endpoint, "tools/list", json!({})).await;
 	let tools = list["tools"].as_array().unwrap();
-	assert_eq!(tools.len(), 23);
+	assert_eq!(tools.len(), 29);
 	// Every listed tool is one run knows: an empty call fails on its arguments
 	// or on the fake manager, never as an unknown tool.
 	for tool in tools {

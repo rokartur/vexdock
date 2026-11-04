@@ -21,7 +21,12 @@ export function getRouter() {
 
 	// The sidebar's project tree. The root route's loader would run only in the prerendered shell, never on the
 	// client's first load, so the fetch starts here to land with the page's own loaders.
-	if (typeof window !== 'undefined' && !['/login', '/setup'].includes(window.location.pathname)) {
+	// A shared analytics report has no session either, and a 401 here would send its reader to sign in.
+	if (
+		typeof window !== 'undefined' &&
+		!['/login', '/setup'].includes(window.location.pathname) &&
+		!window.location.pathname.startsWith('/shared/')
+	) {
 		void preload(queryClient, projectsQuery)
 	}
 

@@ -433,7 +433,7 @@ impl Server {
 	/// when set, because an install that knows its own domain should not depend
 	/// on which hostname a browser used; otherwise the request answers, so
 	/// connecting works on a fresh install with no domain configured yet.
-	fn public_origin(&self, headers: &HeaderMap) -> String {
+	pub(super) fn public_origin(&self, headers: &HeaderMap) -> String {
 		if !self.cfg.public_url.is_empty() {
 			return self.cfg.public_url.clone();
 		}

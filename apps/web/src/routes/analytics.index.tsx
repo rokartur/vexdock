@@ -1,14 +1,12 @@
 import { useMemo } from 'react'
 import { IconWorld } from '@tabler/icons-react'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Sparkline } from '@/components/ui/sparkline'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { Page, Refresh, Section, StatStrip } from '../components/primitives'
-import { type AnalyticsSite, api } from '../lib/api'
-import { preload } from '../lib/queries'
-
-const analyticsSitesQuery = queryOptions({ queryKey: ['analytics'], queryFn: api.analyticsSites })
+import type { AnalyticsSite } from '../lib/api'
+import { analyticsSitesQuery, preload } from '../lib/queries'
 
 export const Route = createFileRoute('/analytics/')({
 	loader: ({ context: { queryClient } }) => preload(queryClient, analyticsSitesQuery),

@@ -79,6 +79,8 @@ pub struct Server {
 	pub backups: Arc<Backup>,
 	pub tasks: Arc<schedule::Runner>,
 	pub cipher: Arc<Cipher>,
+	pub geo: Arc<crate::analytics::geo::Geo>,
+	pub salt: crate::analytics::Salt,
 	/// OAuth authorization codes waiting to be exchanged.
 	pub codes: oauth_handlers::AuthCodes,
 }
@@ -114,6 +116,7 @@ impl Server {
 		let backups = Arc::new(Backup::new(Arc::clone(&cfg), Arc::clone(&db), Arc::clone(&docker)));
 		let updater = Arc::new(Updater::new(Arc::clone(&cfg), Arc::clone(&backups), REPO_SLUG));
 		let tasks = schedule::Runner::new(Arc::clone(&db), Arc::clone(&docker));
+		let geo = Arc::new(crate::analytics::geo::Geo::new(&cfg.system_dir));
 		Arc::new(Server {
 			cfg,
 			db,
@@ -129,6 +132,8 @@ impl Server {
 			backups,
 			tasks,
 			cipher,
+			geo,
+			salt: Default::default(),
 			codes: oauth_handlers::AuthCodes::default(),
 		})
 	}
@@ -143,6 +148,9 @@ pub fn router(s: Arc<Server>) -> Router {
 		.route("POST /api/deploy/{provider}", Public, webhook_handlers::provider_webhook)
 		.route("GET /api/analytics/script.js", Public, analytics_handlers::script)
 		.route("POST /api/analytics/event", Public, analytics_handlers::collect)
+		.route("GET /api/analytics/l/{slug}", Public, analytics_handlers::follow_link)
+		.route("GET /api/analytics/shared/{token}", Public, analytics_handlers::shared_report)
+		.route("POST /api/analytics/webhooks/{provider}/{id}", Public, analytics_handlers::payment_webhook)
 		.route("GET /api/analytics", SignedIn, analytics_handlers::list_sites)
 		.route("GET /api/oauth/authorize", Admin, oauth_handlers::oauth_authorize_check)
 		.route("POST /api/oauth/authorize", Admin, oauth_handlers::oauth_authorize)
@@ -230,6 +238,24 @@ pub fn router(s: Arc<Server>) -> Router {
 		.route("POST /api/domains/{id}/certificate", Project(WRITE, ProjectOf::Domain), domain_handlers::issue_certificate)
 		.route("GET /api/domains/{id}/analytics", Project(READ, ProjectOf::Domain), analytics_handlers::site_report)
 		.route("POST /api/domains/{id}/payments", Project(WRITE, ProjectOf::Domain), analytics_handlers::record_payment)
+		.route("POST /api/domains/{id}/goals", Project(WRITE, ProjectOf::Domain), analytics_handlers::record_goal)
+		.route("GET /api/domains/{id}/analytics/visitors", Project(READ, ProjectOf::Domain), analytics_handlers::site_visitors)
+		.route("GET /api/domains/{id}/analytics/visitors/{visitor}", Project(READ, ProjectOf::Domain), analytics_handlers::site_visitor)
+		.route("GET /api/domains/{id}/analytics/live", Project(READ, ProjectOf::Domain), analytics_handlers::site_live)
+		.route("GET /api/domains/{id}/analytics/funnels", Project(READ, ProjectOf::Domain), analytics_handlers::list_funnels)
+		.route("POST /api/domains/{id}/analytics/funnels", Project(WRITE, ProjectOf::Domain), analytics_handlers::create_funnel)
+		.route("DELETE /api/domains/{id}/analytics/funnels/{funnel}", Project(WRITE, ProjectOf::Domain), analytics_handlers::delete_funnel)
+		.route("POST /api/domains/{id}/analytics/annotations", Project(WRITE, ProjectOf::Domain), analytics_handlers::create_annotation)
+		.route(
+			"DELETE /api/domains/{id}/analytics/annotations/{annotation}",
+			Project(WRITE, ProjectOf::Domain),
+			analytics_handlers::delete_annotation,
+		)
+		.route("GET /api/domains/{id}/analytics/links", Project(READ, ProjectOf::Domain), analytics_handlers::list_links)
+		.route("POST /api/domains/{id}/analytics/links", Project(WRITE, ProjectOf::Domain), analytics_handlers::create_link)
+		.route("DELETE /api/domains/{id}/analytics/links/{slug}", Project(WRITE, ProjectOf::Domain), analytics_handlers::delete_link)
+		.route("GET /api/domains/{id}/analytics/settings", Project(WRITE, ProjectOf::Domain), analytics_handlers::get_settings)
+		.route("PUT /api/domains/{id}/analytics/settings", Project(WRITE, ProjectOf::Domain), analytics_handlers::update_settings)
 		.route("GET /api/deployments/{id}", Project(READ, ProjectOf::Deployment), deployment_handlers::get_deployment)
 		.route("GET /api/deployments/{id}/events", Project(READ, ProjectOf::Deployment), deployment_handlers::deployment_events)
 		.route("POST /api/deployments/{id}/cancel", Project(WRITE, ProjectOf::Deployment), deployment_handlers::cancel_deployment)

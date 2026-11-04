@@ -251,7 +251,9 @@ Site analytics events and payments live in the same database, one row per hit,
 and are pruned after the retention [api.md](api.md#analytics) gives. A report
 is computed from the raw rows on each request rather than from rollups: a
 single server's sites stay small enough, and every breakdown and the revenue
-attribution stay exact.
+attribution stay exact. The six-hourly scheduler also refreshes the DB-IP
+database, sends each site's weekly digest and polls X and Reddit for mentions;
+a payment's notification goes out from the request that recorded it.
 
 ## Scheduled tasks
 
