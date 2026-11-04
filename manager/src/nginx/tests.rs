@@ -49,6 +49,16 @@ fn render_https_without_redirect() {
 }
 
 #[test]
+fn render_routes_the_analytics_beacon_without_the_sites_cookies() {
+	let conf = render(&upstream(true, true));
+	assert_eq!(conf.matches("location = /_vx/event {").count(), 1, "only the block that proxies serves the beacon");
+	must_contain(&conf, "proxy_pass http://manager:8080/api/analytics/event;");
+	must_contain(&conf, "proxy_pass http://manager:8080/api/analytics/script.js;");
+	must_contain(&conf, "proxy_set_header Cookie \"\";");
+	must_contain(&conf, "proxy_set_header Authorization \"\";");
+}
+
+#[test]
 fn alias_is_stable_and_safe() {
 	assert_eq!(alias("01JABCXYZ", "Web App"), "p_01jabcxyz_web-app");
 	assert!(!alias("01J", "we$b/../x").contains(['$', '/', '.']));

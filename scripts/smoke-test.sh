@@ -130,8 +130,8 @@ service_state=$(curl -fsS -b "$COOKIES" "$API/projects/$PROJECT_ID/services" | j
 pass 'service is running'
 
 step 'domain and proxy'
-auth_post -d "{\"project_id\":\"$PROJECT_ID\",\"service\":\"web\",\"hostname\":\"smoke.test\",\"container_port\":80,\"https_enabled\":false,\"redirect_https\":false}" \
-    "$API/domains" >/dev/null
+DOMAIN_ID=$(auth_post -d "{\"project_id\":\"$PROJECT_ID\",\"service\":\"web\",\"hostname\":\"smoke.test\",\"container_port\":80,\"https_enabled\":false,\"redirect_https\":false}" \
+    "$API/domains" | json "d['domain']['id']")
 pass 'domain added'
 
 # `nginx -s reload` returns once signalled, before new workers serve the new server block.
@@ -143,6 +143,18 @@ for _ in $(seq 1 10); do
 done
 [ "$proxy_code" = "200" ] || fail "the proxy returned $proxy_code for the new domain"
 pass 'the application answers through the proxy'
+
+step 'analytics'
+beacon=$(docker run --rm --network vexdock-internal curlimages/curl:latest -s -o /dev/null -w '%{http_code}' \
+    -H 'Host: smoke.test' http://vexdock-nginx/_vx/script.js)
+[ "$beacon" = "200" ] || fail "the domain served the analytics script with $beacon"
+docker run --rm --network vexdock-internal curlimages/curl:latest -s -o /dev/null -H 'Host: smoke.test' \
+    -A 'Mozilla/5.0 (X11; Linux x86_64) Firefox/128.0' \
+    -d '{"kind":"pageview","visitor":"smoke-visitor","session":"smoke-session","path":"/"}' \
+    http://vexdock-nginx/_vx/event
+visitors=$(curl -fsS -b "$COOKIES" "$API/domains/$DOMAIN_ID/analytics?range=24h" | json "d['report']['visitors']")
+[ "$visitors" = "1" ] || fail "the report counts $visitors visitors after one pageview, expected 1"
+pass 'a pageview through the proxy lands in the report'
 
 step 'redeploy'
 # An application with no port or volume starts beside the old container and the

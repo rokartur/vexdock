@@ -57,12 +57,12 @@ reaches every route, as a dashboard session does. With `projects`, a list of
 those projects:
 
 - `read` covers a project's state, services, environments, logs, stats,
-  deployments, domains, redirects, ports and tasks.
+  deployments, domains, redirects, ports, tasks and site analytics.
 - `write` adds everything else inside the project: deploys, rollbacks, exec and
   the terminal, variables (whose values a read token never sees), Studio and the
   database credentials, the services export, and editing or deleting services,
-  environments, domains and tasks. Moving or duplicating a service into another
-  project needs write on both.
+  environments, domains and tasks, and recording payments. Moving or
+  duplicating a service into another project needs write on both.
 - Where a service comes from stays with admin tokens: adding a service other
   than a catalog database (one without a custom `image`), and changing
   `provider`, `repository_url`, `git_provider_id`, `owner`, `repository`, the
@@ -75,9 +75,9 @@ those projects:
   browsers scope to the host and not to the port.
 - Creating or deleting a project, Docker, the system, Git providers, registries
   and tokens stay with admin tokens.
-- `GET /api/projects`, `/api/tasks` and `/api/domains` answer only the granted
-  projects. The catalogs (`/api/templates`, `/api/engines`) and `/api/me` answer
-  any token.
+- `GET /api/projects`, `/api/tasks`, `/api/domains` and `/api/analytics`
+  answer only the granted projects. The catalogs (`/api/templates`,
+  `/api/engines`) and `/api/me` answer any token.
 
 A route outside a token's reach answers `403 FORBIDDEN`, and so does an id that
 does not exist, so a project token cannot probe for ids in other projects.
@@ -878,6 +878,45 @@ after it is created, so `PATCH` rejects those three like any other unknown
 field. Create and update both answer `{"domain"}`, and add a
 `warning` when the mapping was saved but the certificate could not be issued,
 so the domain serves over HTTP and TLS can be retried through `certificate`.
+
+## Analytics
+
+Every domain counts its own visits once the site loads
+`<script defer src="/_vx/script.js"></script>`. Nginx answers `/_vx/*` on each
+domain's hostname, so the beacon is first-party and the site needs no CORS.
+
+| Route | Access | |
+|---|---|---|
+| `GET /api/analytics/script.js` | public | The beacon, served as `/_vx/script.js` |
+| `POST /api/analytics/event` | public | One hit, served as `/_vx/event`; always 204 |
+| `GET /api/analytics` | signed in | `[{"domain", "visitors", "hourly"}]` for each domain the caller may read: visitors over the last 24 hours and per hour, oldest first |
+| `GET /api/domains/{id}/analytics?range=&tz_offset=` | project read | `{"domain", "report"}` |
+| `POST /api/domains/{id}/payments` | project write | Attribute a payment to a visitor |
+
+The hit names its domain by the `Host` it arrived on. It is dropped without an
+error when the host is no domain, the body is over 4 KiB, the user agent is a
+bot, or a field does not parse, so a prober learns nothing from the answer.
+
+`range` is `24h` (hourly points, the default `7d`, `30d` or `90d` are daily)
+and `tz_offset` is the browser's minutes east of UTC, which aligns the days.
+The report carries `visitors`, `pageviews`, `sessions`, `bounce_rate` (0 to 1),
+`session_seconds`, `online` (visitors seen in the last 3 minutes), `revenue`,
+`currency`, `customers`, a `series` of `{at, visitors, pageviews, revenue}` and
+ranked rows of `{name, visitors, revenue}`, at most 50 each: `channels`,
+`referrers`, `campaigns`, `pages`, `entry_pages`, `exit_pages`, `locations`,
+`devices`, `browsers`, `systems` and `goals`. A visitor in two rows counts in
+both. Revenue is in minor units of the most-used `currency` in the window;
+payments in another currency are left out, and `currency` is `""` before the
+first payment.
+
+A payment is `{"payment_id", "amount", "currency", "visitor_id"}`: `amount` a
+positive integer in minor units (`4900` for 49.00), `currency` a three-letter
+code, `visitor_id` the `vx_vid` cookie the script set, or `""` for revenue no
+visit explains. Send it from the site's backend, typically its payment
+provider's webhook, with a token that may write the project. The first post of
+a `payment_id` answers 201 `{"recorded": true}`, a repeat 200
+`{"recorded": false}`, so a retried webhook does not count twice. Events and
+payments older than 90 days are pruned.
 
 ## Webhooks
 

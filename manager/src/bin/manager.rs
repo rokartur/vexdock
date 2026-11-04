@@ -20,7 +20,7 @@ use vexdock_manager::database::Db;
 use vexdock_manager::docker::Docker;
 use vexdock_manager::events::Reconciler;
 use vexdock_manager::security::{self, Cipher};
-use vexdock_manager::{certificates, database, metrics};
+use vexdock_manager::{analytics, certificates, database, metrics};
 
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(20);
 
@@ -151,9 +151,11 @@ async fn scheduler(server: Arc<Server>) {
 		ticker.tick().await;
 		server.domains.renew_expiring().await;
 		let metrics_cutoff = chrono::Utc::now().timestamp() - metrics::RETENTION.as_secs() as i64;
+		let analytics_cutoff = chrono::Utc::now().timestamp() - analytics::RETENTION_DAYS * 86_400;
 		let retention = [
 			("audit retention", server.db.prune_audit(5000)),
 			("metrics retention", server.db.prune_metrics(metrics_cutoff)),
+			("analytics retention", server.db.prune_analytics(analytics_cutoff)),
 			("task run retention", server.db.prune_task_runs(20)),
 			// Deployment steps hold the whole build log, the largest table on a
 			// box that deploys often.

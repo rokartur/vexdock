@@ -72,6 +72,7 @@ Options, restoring a backup and uninstalling: [docs/install.md](docs/install.md)
 **Operate**
 
 - **Logs, metrics and a terminal** for every container, in the browser.
+- **Site analytics.** One script tag counts visitors, sources, pages, devices and goals for every domain, served first-party from the site's own hostname; payments posted through the API put revenue on the channel that brought the buyer.
 - **Scheduled tasks.** A cron expression, a timezone and a command, run inside the service's container. Every run keeps its exit code and output.
 - **The whole Docker host.** Containers, images, volumes and networks, including stacks Vexdock did not create, with a previewed cleanup.
 - **Backups and self-update.** A backup comes first, and an update that never turns healthy rolls back on its own.

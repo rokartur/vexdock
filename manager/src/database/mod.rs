@@ -1,6 +1,7 @@
 //! The SQLite connection, schema migrations and every query in the management
 //! plane. Business modules depend on it; it depends on nothing but the driver.
 
+mod analytics;
 mod audit;
 mod deployments;
 mod environments;
@@ -13,6 +14,7 @@ mod service_routing;
 mod tasks;
 mod tokens;
 
+pub use analytics::*;
 pub use audit::*;
 pub use metrics::*;
 pub use models::*;
@@ -73,6 +75,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
 	("0027_service_output_dir.sql", include_str!("../../migrations/0027_service_output_dir.sql")),
 	("0028_token_scopes.sql", include_str!("../../migrations/0028_token_scopes.sql")),
 	("0029_oauth.sql", include_str!("../../migrations/0029_oauth.sql")),
+	("0030_site_analytics.sql", include_str!("../../migrations/0030_site_analytics.sql")),
 ];
 
 // Opts a migration out of foreign key enforcement while it runs. A table

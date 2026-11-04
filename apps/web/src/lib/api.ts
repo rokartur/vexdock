@@ -56,6 +56,44 @@ export type Domain = {
 	updated_at: string
 }
 
+export type AnalyticsSite = {
+	domain: Domain
+	/** Unique visitors in the last 24 hours. */
+	visitors: number
+	/** Visitors per hour, oldest first, 24 slots. */
+	hourly: number[]
+}
+
+export type AnalyticsRange = '24h' | '7d' | '30d' | '90d'
+
+/** `revenue` is in minor units of the report's `currency`. */
+export type AnalyticsRow = { name: string; visitors: number; revenue: number }
+
+export type AnalyticsReport = {
+	visitors: number
+	pageviews: number
+	sessions: number
+	bounce_rate: number
+	session_seconds: number
+	online: number
+	revenue: number
+	/** Empty until a payment is recorded. */
+	currency: string
+	customers: number
+	series: { at: number; visitors: number; pageviews: number; revenue: number }[]
+	channels: AnalyticsRow[]
+	referrers: AnalyticsRow[]
+	campaigns: AnalyticsRow[]
+	pages: AnalyticsRow[]
+	entry_pages: AnalyticsRow[]
+	exit_pages: AnalyticsRow[]
+	locations: AnalyticsRow[]
+	devices: AnalyticsRow[]
+	browsers: AnalyticsRow[]
+	systems: AnalyticsRow[]
+	goals: AnalyticsRow[]
+}
+
 export type Project = {
 	id: string
 	name: string
@@ -846,6 +884,11 @@ export const api = {
 		request<Deployment[]>(`/api/projects/${id}/deployments${environmentQuery(environmentId)}`),
 	projectDomains: (id: string) => request<Domain[]>(`/api/projects/${id}/domains`),
 	domains: () => request<Domain[]>('/api/domains'),
+	analyticsSites: () => request<AnalyticsSite[]>('/api/analytics'),
+	analyticsReport: (domainId: string, range: AnalyticsRange) =>
+		request<{ domain: Domain; report: AnalyticsReport }>(
+			`/api/domains/${domainId}/analytics?range=${range}&tz_offset=${-new Date().getTimezoneOffset()}`,
+		),
 
 	service: (id: string) => request<Service>(`/api/services/${id}`),
 	updateService: (

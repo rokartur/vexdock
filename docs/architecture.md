@@ -247,6 +247,12 @@ row per running container a minute, and the scheduler prunes anything older than
 seven days, so both tables stay bounded without operator attention. Deployment
 records are bounded the same way, at the newest fifty per service.
 
+Site analytics events and payments live in the same database, one row per hit,
+and are pruned after the retention [api.md](api.md#analytics) gives. A report
+is computed from the raw rows on each request rather than from rollups: a
+single server's sites stay small enough, and every breakdown and the revenue
+attribution stay exact.
+
 ## Scheduled tasks
 
 A service can carry cron jobs that run inside its own container. They live in

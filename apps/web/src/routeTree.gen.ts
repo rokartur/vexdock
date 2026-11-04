@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as AnalyticsIndexRouteImport } from './routes/analytics.index'
+import { Route as AnalyticsDomainIdRouteImport } from './routes/analytics.$domainId'
 import { Route as DockerContainersRouteImport } from './routes/docker.containers'
 import { Route as DockerImagesRouteImport } from './routes/docker.images'
 import { Route as DockerNetworksRouteImport } from './routes/docker.networks'
@@ -65,6 +67,16 @@ const SetupRoute = SetupRouteImport.update({
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsIndexRoute = AnalyticsIndexRouteImport.update({
+  id: '/analytics/',
+  path: '/analytics/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsDomainIdRoute = AnalyticsDomainIdRouteImport.update({
+  id: '/analytics/$domainId',
+  path: '/analytics/$domainId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DockerContainersRoute = DockerContainersRouteImport.update({
@@ -254,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/analytics/$domainId': typeof AnalyticsDomainIdRoute
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
@@ -264,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
   '/system/settings': typeof SystemSettingsRouteWithChildren
+  '/analytics/': typeof AnalyticsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
@@ -293,6 +307,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/analytics/$domainId': typeof AnalyticsDomainIdRoute
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
@@ -301,6 +316,7 @@ export interface FileRoutesByTo {
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
+  '/analytics': typeof AnalyticsIndexRoute
   '/projects': typeof ProjectsIndexRoute
   '/system': typeof SystemIndexRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
@@ -329,6 +345,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/analytics/$domainId': typeof AnalyticsDomainIdRoute
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
@@ -339,6 +356,7 @@ export interface FileRoutesById {
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
   '/system/settings': typeof SystemSettingsRouteWithChildren
+  '/analytics/': typeof AnalyticsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
@@ -370,6 +388,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/tasks'
+    | '/analytics/$domainId'
     | '/docker/containers'
     | '/docker/images'
     | '/docker/networks'
@@ -380,6 +399,7 @@ export interface FileRouteTypes {
     | '/system/certificates'
     | '/system/docker'
     | '/system/settings'
+    | '/analytics/'
     | '/projects/'
     | '/system/'
     | '/projects/$projectId/environment'
@@ -409,6 +429,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/tasks'
+    | '/analytics/$domainId'
     | '/docker/containers'
     | '/docker/images'
     | '/docker/networks'
@@ -417,6 +438,7 @@ export interface FileRouteTypes {
     | '/system/backups'
     | '/system/certificates'
     | '/system/docker'
+    | '/analytics'
     | '/projects'
     | '/system'
     | '/projects/$projectId/environment'
@@ -444,6 +466,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/tasks'
+    | '/analytics/$domainId'
     | '/docker/containers'
     | '/docker/images'
     | '/docker/networks'
@@ -454,6 +477,7 @@ export interface FileRouteTypes {
     | '/system/certificates'
     | '/system/docker'
     | '/system/settings'
+    | '/analytics/'
     | '/projects/'
     | '/system/'
     | '/projects/$projectId/environment'
@@ -484,6 +508,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
   TasksRoute: typeof TasksRoute
+  AnalyticsDomainIdRoute: typeof AnalyticsDomainIdRoute
   DockerContainersRoute: typeof DockerContainersRoute
   DockerImagesRoute: typeof DockerImagesRoute
   DockerNetworksRoute: typeof DockerNetworksRoute
@@ -494,6 +519,7 @@ export interface RootRouteChildren {
   SystemCertificatesRoute: typeof SystemCertificatesRoute
   SystemDockerRoute: typeof SystemDockerRoute
   SystemSettingsRoute: typeof SystemSettingsRouteWithChildren
+  AnalyticsIndexRoute: typeof AnalyticsIndexRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
   SystemIndexRoute: typeof SystemIndexRoute
   ProjectsProjectIdServicesServiceIdRoute: typeof ProjectsProjectIdServicesServiceIdRouteWithChildren
@@ -527,6 +553,20 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/analytics/': {
+      id: '/analytics/'
+      path: '/analytics'
+      fullPath: '/analytics/'
+      preLoaderRoute: typeof AnalyticsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/analytics/$domainId': {
+      id: '/analytics/$domainId'
+      path: '/analytics/$domainId'
+      fullPath: '/analytics/$domainId'
+      preLoaderRoute: typeof AnalyticsDomainIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docker/containers': {
@@ -863,6 +903,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
   TasksRoute: TasksRoute,
+  AnalyticsDomainIdRoute: AnalyticsDomainIdRoute,
   DockerContainersRoute: DockerContainersRoute,
   DockerImagesRoute: DockerImagesRoute,
   DockerNetworksRoute: DockerNetworksRoute,
@@ -873,6 +914,7 @@ const rootRouteChildren: RootRouteChildren = {
   SystemCertificatesRoute: SystemCertificatesRoute,
   SystemDockerRoute: SystemDockerRoute,
   SystemSettingsRoute: SystemSettingsRouteWithChildren,
+  AnalyticsIndexRoute: AnalyticsIndexRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   SystemIndexRoute: SystemIndexRoute,
   ProjectsProjectIdServicesServiceIdRoute:

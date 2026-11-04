@@ -7,6 +7,7 @@ import {
 	IconArchive,
 	IconBox,
 	IconCertificate,
+	IconChartBar,
 	IconChevronRight,
 	IconClock,
 	IconDatabase,
@@ -41,6 +42,7 @@ type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
 const home: NavItem[] = [
 	{ to: '/', label: 'Dashboard', icon: IconHome, exact: true },
+	{ to: '/analytics', label: 'Analytics', icon: IconChartBar },
 	{ to: '/tasks', label: 'Tasks', icon: IconClock },
 ]
 
