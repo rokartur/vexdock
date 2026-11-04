@@ -253,18 +253,27 @@ export function Page({
 		document.title = title
 	}, [title])
 
+	const parents = trail.slice(0, -1)
 	const head = (
 		<>
-			{/* A labeled segment renders its own picker, never wrapped in a link that would navigate on the click
-			    that opens it. Only a plain segment links. */}
-			<Breadcrumb
-				className='min-w-0 flex-1'
-				items={trail.map(({ segment, to, linkable }) => ({
-					label: labelOf(segment),
-					href: linkable && labels?.[segment] === undefined ? to : undefined,
-					node: labels?.[segment],
-				}))}
-			/>
+			<div className='grid min-w-0 flex-1 gap-0.5'>
+				{/* A labeled segment renders its own picker, never wrapped in a link that would navigate on the click
+				    that opens it. Only a plain segment links. */}
+				{parents.length > 0 ? (
+					<Breadcrumb
+						items={parents.map(({ segment, to, linkable }) => ({
+							label: labelOf(segment),
+							href: linkable && labels?.[segment] === undefined ? to : undefined,
+							node: labels?.[segment],
+						}))}
+					/>
+				) : null}
+				{tail ? (
+					<h1 className='flex min-w-0 items-center gap-2 truncate font-display text-2xl/[1.2] font-medium max-sm:text-xl/[1.2]'>
+						{labels?.[tail.segment] ?? labelOf(tail.segment)}
+					</h1>
+				) : null}
+			</div>
 			{/* Buttons carry their own shrink-0, so this only squeezes text actions. */}
 			{actions ? <div className='flex min-w-0 items-center gap-2'>{actions}</div> : null}
 		</>

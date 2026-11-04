@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { IconCertificate, IconFolder, IconPlayerPlay, IconServer, IconStack2, IconTag } from '@tabler/icons-react'
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { Alert } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
 import { HostMetrics, WINDOWS } from '../components/host-metrics'
@@ -174,22 +175,25 @@ function DashboardPage() {
 	return (
 		<Page fill>
 			{concerns.length > 0 ? (
-				<Section title='Needs attention' total={concerns.length}>
-					<ul className='divide-y divide-border-subtle rounded-surface border bg-surface'>
+				<Alert
+					tone={concerns.some(concern => concern.state === 'failed') ? 'danger' : 'warning'}
+					title={`${concerns.length} need${concerns.length === 1 ? 's' : ''} attention`}
+					className='mb-6 shrink-0'
+				>
+					<ul className='grid gap-1'>
 						{concerns.map(concern => (
 							<li key={concern.id}>
-								<Link
-									to={concern.to}
-									className='flex items-center gap-3 px-4 py-2.5 hover:bg-surface-muted'
-								>
+								<Link to={concern.to} className='group/concern inline-flex min-w-0 items-center gap-2'>
 									<Status dot value={concern.state} />
-									<span className='font-mono text-sm'>{concern.subject}</span>
-									<span className='truncate text-xs text-muted'>{concern.detail}</span>
+									<span className='font-medium text-foreground group-hover/concern:underline'>
+										{concern.subject}
+									</span>
+									<span className='truncate'>{concern.detail}</span>
 								</Link>
 							</li>
 						))}
 					</ul>
-				</Section>
+				</Alert>
 			) : null}
 
 			<HostMetrics history={history} window={window} onWindowChange={setWindow} load={stats?.load_average} />
