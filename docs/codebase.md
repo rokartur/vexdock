@@ -413,7 +413,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/auth-client.ts` | better-auth client: `signIn`, `signUp`, `signOut`, `useSession` |
 | `src/lib/sse.ts` | `useEventSource` for one stream, `useSystemEvents` for cache invalidation |
 | `src/lib/format.ts`, `dotenv.ts`, `breadcrumb.ts` | Pure helpers, each with a test beside it |
-| `src/router.tsx` | The TanStack router built from `routeTree.gen.ts`, owning the `QueryClient` it hands every loader as context; links preload on hover |
+| `src/router.tsx` | The TanStack router built from `routeTree.gen.ts`, owning the `QueryClient` it hands every loader as context; links preload on hover, and a route still loading after 300 ms shows a skeleton page |
 | `src/lib/queries.ts` | `queryOptions` for data more than one file reads, and `preload`, the loader's non-throwing prefetch |
 | `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |

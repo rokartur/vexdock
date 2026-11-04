@@ -123,7 +123,8 @@ function AlertBox({
 		<div
 			{...props}
 			role={tone === 'danger' ? 'alert' : 'status'}
-			className={cn('flex items-start gap-2.5 rounded-control border bg-surface p-3 shadow-resting', className)}
+			// vexdock: rounded-panel, not Arc's rounded-control, so an alert's corner matches the cards around it.
+			className={cn('flex items-start gap-2.5 rounded-panel border bg-surface p-3 shadow-resting', className)}
 		>
 			{/* A new tone morphs its icon in place; a newly shown alert gives the icon a small settle. */}
 			<motion.span

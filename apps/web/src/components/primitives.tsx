@@ -269,7 +269,7 @@ export function Page({
 					/>
 				) : null}
 				{tail ? (
-					<h1 className='flex min-w-0 items-center gap-2 truncate font-display text-2xl/[1.2] font-medium max-sm:text-xl/[1.2]'>
+					<h1 className='flex min-w-0 items-center gap-2 truncate font-display text-2xl font-medium max-sm:text-xl'>
 						{labels?.[tail.segment] ?? labelOf(tail.segment)}
 					</h1>
 				) : null}
@@ -627,7 +627,7 @@ export function Cell({
 				<div
 					title={typeof value === 'string' ? value : undefined}
 					// A RelativeTime is muted beside a row's text, but as the reading itself it is the figure.
-					className='mt-4 truncate font-display text-3xl font-medium [&_time]:text-current'
+					className='mt-4 truncate font-display text-3xl/[1.3] font-medium [&_time]:text-current'
 				>
 					{value}
 				</div>
@@ -730,7 +730,7 @@ export function Meter({
 }) {
 	return (
 		<div className={cn('flex min-w-24 items-center gap-2', className)}>
-			{label === '' ? null : <div className='shrink-0 font-mono text-xs leading-none tabular-nums'>{label}</div>}
+			{label === '' ? null : <div className='shrink-0 font-mono text-xs tabular-nums'>{label}</div>}
 			{max > 0 ? (
 				<Progress
 					value={value}

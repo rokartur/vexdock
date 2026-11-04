@@ -466,7 +466,8 @@ export function ButtonGroup({
 											{action.icon}
 										</span>
 									)}
-									<span className='min-w-0 truncate'>{action.label}</span>
+									{/* vexdock: leading-normal, the segment's leading-none clips descenders under truncate. */}
+									<span className='min-w-0 truncate leading-normal'>{action.label}</span>
 								</>
 							)
 							return action.href ? (

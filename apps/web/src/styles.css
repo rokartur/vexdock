@@ -59,10 +59,10 @@
 	--text-5xl--line-height: 1.1;
 	--text-5xl--letter-spacing: -0.03em;
 
-	/* Arc's 18/26/34 one step smaller: operator's call. */
-	--radius-control: 0.875rem;
-	--radius-panel: 1.25rem;
-	--radius-surface: 1.625rem;
+	/* Arc's 18/26/34 cut to 12/16/16, so a card, an alert and a popup share one corner: operator's call. */
+	--radius-control: 0.75rem;
+	--radius-panel: 1rem;
+	--radius-surface: 1rem;
 	--radius-pill: 9999px;
 
 	--spacing-control-sm: 2.25rem;
@@ -241,28 +241,29 @@
 
 :root[data-theme='dark'] {
 	color-scheme: dark;
-	--background: oklch(19% 0 0);
-	--surface: oklch(21.5% 0 0);
-	--surface-raised: oklch(24% 0 0);
-	--surface-muted: oklch(26% 0 0);
+	/* Arc's dark grays 4 points darker (background 19% there): operator's call. */
+	--background: oklch(15% 0 0);
+	--surface: oklch(17.5% 0 0);
+	--surface-raised: oklch(20% 0 0);
+	--surface-muted: oklch(22% 0 0);
 	--surface-pressed: color-mix(in oklab, var(--foreground) 11%, transparent);
 	--surface-thumb: color-mix(in oklab, var(--foreground) 18%, var(--surface-raised));
 	--foreground: oklch(96% 0 0);
 	--text-secondary: oklch(77% 0 0);
 	--text-muted: oklch(64% 0 0);
-	--border: oklch(29% 0 0);
-	--border-subtle: oklch(25% 0 0);
-	--border-strong: oklch(40% 0 0);
+	--border: oklch(25% 0 0);
+	--border-subtle: oklch(21% 0 0);
+	--border-strong: oklch(35% 0 0);
 	--accent: oklch(80% 0 0);
 	--accent-strong: oklch(91% 0 0);
 	--accent-subtle: oklch(80% 0 0 / 0.13);
 	/* Neutral dark inverts: near-white track, dark thumb, so on and off never read alike */
 	--control-on: oklch(93% 0 0);
-	--control-glyph: oklch(19% 0 0);
-	--control-track: oklch(33% 0 0);
-	--control-track-hover: oklch(37% 0 0);
+	--control-glyph: oklch(15% 0 0);
+	--control-track: oklch(29% 0 0);
+	--control-track-hover: oklch(33% 0 0);
 	--control-thumb: oklch(97% 0 0);
-	--control-thumb-on: oklch(19% 0 0);
+	--control-thumb-on: oklch(15% 0 0);
 	--control-fill: oklch(62% 0 0);
 	--control-thumb-shadow:
 		0 0 0 0.5px oklch(0% 0 0 / 0.3), 0 1px 2px oklch(0% 0 0 / 0.35), 0 2px 6px oklch(0% 0 0 / 0.2);

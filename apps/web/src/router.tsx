@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { createRouter, Link } from '@tanstack/react-router'
-import { Button, EmptyState } from './components/primitives'
+import { Button, EmptyState, Page } from './components/primitives'
+import { Skeleton } from './components/ui/skeleton'
 import { preload, projectsQuery } from './lib/queries'
 import { routeTree } from './routeTree.gen'
 
@@ -33,7 +34,20 @@ export function getRouter() {
 		// The query cache decides freshness; the router's own loader cache would only skip preloads.
 		defaultPreloadStaleTime: 0,
 		defaultNotFoundComponent: NotFound,
+		// A route whose chunk or loader takes longer than this shows PagePending, held at least pendingMinMs (500).
+		defaultPendingMs: 300,
+		defaultPendingComponent: PagePending,
 	})
+}
+
+function PagePending() {
+	return (
+		<Page>
+			<div className='rounded-surface border bg-surface p-5'>
+				<Skeleton label='Loading page' lines={4} />
+			</div>
+		</Page>
+	)
 }
 
 function NotFound() {
