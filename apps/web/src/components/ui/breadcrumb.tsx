@@ -66,7 +66,8 @@ export function Breadcrumb({ items, ariaLabel = 'Breadcrumb', className }: Bread
 									size={16}
 									stroke={1.75}
 									aria-hidden='true'
-									className='flex-none text-border-strong'
+									// vexdock: phone widths show one crumb, so no chevron leads it.
+									className='flex-none text-border-strong max-sm:hidden'
 								/>
 							)}
 							<Crumb item={item} current={index === items.length - 1} />

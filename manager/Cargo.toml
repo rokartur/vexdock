@@ -21,10 +21,12 @@ base64 = "0.22"
 bollard = "0.19"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 chrono-tz = "0.10"
+flate2 = "1"
 futures = "0.3"
 hex = "0.4"
 hmac = "0.12"
 libc = "0.2"
+maxminddb = { version = "0.32", features = ["mmap"] }
 mongodb = "3.9"
 mysql_async = { version = "0.37", default-features = false, features = ["minimal"] }
 instant-acme = { version = "0.8", default-features = false, features = ["ring", "hyper-rustls", "rcgen"] }

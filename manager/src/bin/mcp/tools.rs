@@ -71,6 +71,21 @@ fn variables_ref() -> Vec<Field> {
 	]
 }
 
+fn analytics_ref() -> Vec<Field> {
+	vec![
+		("domain_id", string(), "the domain id from list_sites or get_project", true),
+		("range", string(), "today, yesterday, 24h, 7d, 30d, 90d, 12m or all; 7d when omitted", false),
+		("from", string(), "with to: a custom span's first day, YYYY-MM-DD in UTC; overrides range", false),
+		("to", string(), "with from: a custom span's last day, YYYY-MM-DD in UTC", false),
+		(
+			"filters",
+			json!({"type": ["null", "array"], "items": {"type": "array", "items": {"type": "string"}}}),
+			"[dimension, value] pairs that every kept session must match, such as [[\"referrer\", \"news.ycombinator.com\"]]; dimensions: channel, referrer, campaign, page, entry_page, exit_page, location, region, city, device, browser, os, goal",
+			false,
+		),
+	]
+}
+
 fn catalog() -> Vec<Tool> {
 	let read = |name, description, input| Tool { name, description, changes: None, input };
 	let change = |name, description, destructive, input| Tool { name, description, changes: Some(destructive), input };
@@ -226,6 +241,31 @@ fn catalog() -> Vec<Tool> {
 				("schema", string(), "the schema or database to run it in, for engines that have several", false),
 			],
 		),
+		read("list_sites", "Every domain this token can read, with its visitors over the last 24 hours.", vec![]),
+		read(
+			"site_report",
+			"A domain's analytics for a span: visitors, pageviews, sessions, bounce rate, revenue, the chart series and every breakdown (channels, referrers, campaigns, pages, locations, devices, goals), the same span before it for comparison, and the chart's annotations. Amounts are in minor units.",
+			analytics_ref(),
+		),
+		read(
+			"site_visitors",
+			"The visitors of a span, most recently seen first: `total` counts them all, `visitors` lists at most 200 with where each came from, what they did and what they paid.",
+			analytics_ref(),
+		),
+		read(
+			"site_visitor",
+			"One visitor's journey: their last pageviews and goals, oldest first, and every payment they made.",
+			vec![
+				("domain_id", string(), "the domain id from list_sites or get_project", true),
+				("visitor", string(), "a visitor id from site_visitors or site_live", true),
+			],
+		),
+		read(
+			"site_live",
+			"Who is on a domain right now and the last fifty pageviews, goals and payments.",
+			vec![("domain_id", string(), "the domain id from list_sites or get_project", true)],
+		),
+		read("site_funnels", "A domain's funnels with how many visitors of the span reached each step.", analytics_ref()),
 		change(
 			"docker_cleanup",
 			"Remove what no container uses: stopped containers, dangling images, unused networks or the build cache. Admin tokens only. Volumes are never pruned here; that is data.",
@@ -428,8 +468,61 @@ pub async fn run(name: &str, args: Value, m: &Manager, progress: &Progress) -> a
 			}
 			m.call(Method::POST, &format!("/api/docker/cleanup/{kind}"), &[], None).await
 		}
+		"list_sites" => m.call(Method::GET, "/api/analytics", &[], None).await,
+		"site_report" => site_analytics(m, "", parse(args)?).await,
+		"site_visitors" => site_analytics(m, "/visitors", parse(args)?).await,
+		"site_funnels" => site_analytics(m, "/funnels", parse(args)?).await,
+		"site_visitor" => {
+			#[derive(Deserialize)]
+			#[serde(deny_unknown_fields)]
+			struct Input {
+				domain_id: String,
+				visitor: String,
+			}
+			let Input { domain_id, visitor } = parse(args)?;
+			let path = format!("/api/domains/{}/analytics/visitors/{}", path_escape(&domain_id), path_escape(&visitor));
+			m.call(Method::GET, &path, &[], None).await
+		}
+		"site_live" => {
+			#[derive(Deserialize)]
+			#[serde(deny_unknown_fields)]
+			struct Input {
+				domain_id: String,
+			}
+			let Input { domain_id } = parse(args)?;
+			m.call(Method::GET, &format!("/api/domains/{}/analytics/live", path_escape(&domain_id)), &[], None).await
+		}
 		_ => bail!("unknown tool {name:?}"),
 	}
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AnalyticsRef {
+	domain_id: String,
+	#[serde(default)]
+	range: String,
+	#[serde(default)]
+	from: String,
+	#[serde(default)]
+	to: String,
+	#[serde(default, deserialize_with = "null_as_empty")]
+	filters: Vec<Vec<String>>,
+}
+
+/// The report (`view` empty), visitors or funnels of one span, compared with the span before for the report.
+async fn site_analytics(m: &Manager, view: &str, input: AnalyticsRef) -> anyhow::Result<Value> {
+	let mut query = vec![("compare", "true".to_string())];
+	for (name, value) in [("range", input.range), ("from", input.from), ("to", input.to)] {
+		if !value.is_empty() {
+			query.push((name, value));
+		}
+	}
+	if !input.filters.is_empty() {
+		query.push(("filters", serde_json::to_string(&input.filters)?));
+	}
+	let path = format!("/api/domains/{}/analytics{view}", path_escape(&input.domain_id));
+	m.call(Method::GET, &path, &query, None).await
 }
 
 /// Decodes a tool's arguments; a missing one is null, which an argument-free
@@ -578,8 +671,8 @@ struct SetVariables {
 	remove: Vec<String>,
 }
 
-fn null_as_empty<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
-	Ok(Option::<Vec<String>>::deserialize(d)?.unwrap_or_default())
+fn null_as_empty<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Vec<T>, D::Error> {
+	Ok(Option::<Vec<T>>::deserialize(d)?.unwrap_or_default())
 }
 
 /// Turns a partial edit into the whole set the manager's PUT replaces, so keys

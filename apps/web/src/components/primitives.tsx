@@ -24,7 +24,7 @@ import {
 	IconTrash,
 	type Icon as TablerIcon,
 } from '@tabler/icons-react'
-import { type useBlocker, useRouter, useRouterState } from '@tanstack/react-router'
+import { type useBlocker, useMatch, useRouter, useRouterState } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { motion } from 'motion/react'
 import { createPortal } from 'react-dom'
@@ -130,6 +130,7 @@ const stateTones: Record<string, BadgeTone> = {
 	issued: 'success',
 	connected: 'success',
 	open: 'success',
+	customer: 'success',
 	'opens on deploy': 'warning',
 	'closes on deploy': 'warning',
 	starting: 'warning',
@@ -217,6 +218,7 @@ export function PageChrome({ value, children }: { value: HTMLElement | null; chi
 export function Page({
 	labels,
 	name,
+	index,
 	actions,
 	toolbar,
 	filters,
@@ -226,6 +228,8 @@ export function Page({
 	labels?: Record<string, ReactNode>
 	/** What this page is about, for the tab, when the URL only has an id. */
 	name?: string
+	/** The h1 on the layout's own URL (its first tab), where the last segment joins the trail instead. */
+	index?: string
 	actions?: ReactNode
 	/** Sub-navigation, on the left of the page's own first row. */
 	toolbar?: ReactNode
@@ -239,6 +243,8 @@ export function Page({
 	const router = useRouter()
 	const pathname = useRouterState({ select: state => state.location.pathname })
 	const header = useContext(ChromeContext)
+	// The route that renders this Page; its own URL is the layout's index, the first tab.
+	const layoutPath = useMatch({ strict: false, select: match => match.pathname })
 	const trail = trailOf(pathname, Object.keys(router.routesByPath)).filter(
 		({ segment }) => labels?.[segment] !== null,
 	)
@@ -247,13 +253,14 @@ export function Page({
 	// is inside of: Logs · storefront-web · Vexdock. A segment standing in for an
 	// id says nothing, so `name` speaks for it.
 	const tail = trail.at(-1)
-	const leaf = tail && labels?.[tail.segment] === undefined ? labelOf(tail.segment) : undefined
+	const indexed = index !== undefined && pathname.replace(/\/$/u, '') === layoutPath.replace(/\/$/u, '')
+	const leaf = indexed ? index : tail && labels?.[tail.segment] === undefined && labelOf(tail.segment)
 	const title = [leaf, name, 'Vexdock'].filter(Boolean).join(' · ')
 	useEffect(() => {
 		document.title = title
 	}, [title])
 
-	const parents = trail.slice(0, -1)
+	const parents = indexed ? trail : trail.slice(0, -1)
 	const head = (
 		<>
 			<div className='grid min-w-0 flex-1 gap-0.5'>
@@ -270,7 +277,7 @@ export function Page({
 				) : null}
 				{tail ? (
 					<h1 className='flex min-w-0 items-center gap-2 truncate font-display text-2xl font-medium max-sm:text-xl'>
-						{labels?.[tail.segment] ?? labelOf(tail.segment)}
+						{indexed ? index : (labels?.[tail.segment] ?? labelOf(tail.segment))}
 					</h1>
 				) : null}
 			</div>
@@ -285,7 +292,7 @@ export function Page({
 		<>
 			{header ? createPortal(head, header) : null}
 			{toolbar || filters ? (
-				<div className='flex h-12 shrink-0 items-center gap-4 border-b px-6'>
+				<div className='flex min-h-12 shrink-0 items-center gap-4 border-b px-6 py-3'>
 					{toolbar}
 					{filters ? <div className='ml-auto flex items-center gap-2'>{filters}</div> : null}
 				</div>

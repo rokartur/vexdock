@@ -64,7 +64,28 @@ export type AnalyticsSite = {
 	hourly: number[]
 }
 
-export type AnalyticsRange = '24h' | '7d' | '30d' | '90d'
+export type AnalyticsRange = 'today' | 'yesterday' | '24h' | '7d' | '30d' | '90d' | '12m' | 'all'
+
+/** What a report covers: a named range, or `from`/`to` days (`YYYY-MM-DD`) that replace it. */
+export type AnalyticsSpan = {
+	range: AnalyticsRange
+	from?: string
+	to?: string
+	/** `[dimension, value]` pairs a session must all match. */
+	filters?: [string, string][]
+	compare?: boolean
+}
+
+function spanQuery(span: AnalyticsSpan) {
+	const query = new URLSearchParams({ range: span.range, tz_offset: String(-new Date().getTimezoneOffset()) })
+	if (span.from && span.to) {
+		query.set('from', span.from)
+		query.set('to', span.to)
+	}
+	if (span.filters?.length) query.set('filters', JSON.stringify(span.filters))
+	if (span.compare) query.set('compare', 'true')
+	return query.toString()
+}
 
 /** `revenue` is in minor units of the report's `currency`. */
 export type AnalyticsRow = { name: string; visitors: number; revenue: number }
@@ -88,11 +109,131 @@ export type AnalyticsReport = {
 	entry_pages: AnalyticsRow[]
 	exit_pages: AnalyticsRow[]
 	locations: AnalyticsRow[]
+	regions: AnalyticsRow[]
+	cities: AnalyticsRow[]
 	devices: AnalyticsRow[]
 	browsers: AnalyticsRow[]
 	systems: AnalyticsRow[]
 	goals: AnalyticsRow[]
 }
+
+export type Annotation = {
+	id: string
+	at: number
+	/** `note`, `x` or `reddit`. */
+	source: string
+	text: string
+	url: string
+	author: string
+	/** The t.co links an X post carries, which its visits arrive from. */
+	links: string[]
+}
+
+export type AnalyticsReportBody = {
+	report: AnalyticsReport
+	/** The same span just before, when `compare` was asked for. */
+	previous: AnalyticsReport | null
+	annotations: Annotation[]
+	since: number
+	until: number
+}
+
+export type AnalyticsVisitor = {
+	visitor: string
+	first_seen: number
+	last_seen: number
+	sessions: number
+	pageviews: number
+	goals: number
+	channel: string
+	referrer: string
+	location: string
+	city: string
+	device: string
+	browser: string
+	os: string
+	revenue: number
+	currency: string
+}
+
+export type AnalyticsEvent = {
+	at: number
+	session: string
+	/** `pageview` or `goal`. */
+	kind: string
+	name: string
+	path: string
+	referrer: string
+	utm_source: string
+	utm_medium: string
+	utm_campaign: string
+	location: string
+	region: string
+	city: string
+	device: string
+	browser: string
+	os: string
+	/** A goal's parameters as a JSON object, or empty. */
+	props: string
+}
+
+export type AnalyticsPayment = { payment_id: string; at: number; amount: number; currency: string }
+
+export type AnalyticsLive = {
+	online: {
+		visitor: string
+		path: string
+		channel: string
+		referrer: string
+		location: string
+		city: string
+		device: string
+		browser: string
+		os: string
+		last_seen: number
+		pageviews: number
+		customer: boolean
+	}[]
+	/** Newest first; `detail` is the path, the goal's name, or a payment's amount in minor units. */
+	feed: { at: number; kind: string; visitor: string; detail: string; currency: string; location: string }[]
+}
+
+export type FunnelStep = { kind: 'page' | 'goal' | 'payment'; value: string }
+
+export type AnalyticsFunnel = { id: string; name: string; steps: FunnelStep[]; reached: number[] }
+
+export type ShortLink = {
+	slug: string
+	target: string
+	utm_source: string
+	utm_medium: string
+	utm_campaign: string
+	created_at: number
+}
+
+export type AnalyticsSettings = {
+	webhook_origin: string
+	share_token: string
+	notify_url: string
+	excluded_ips: string
+	reddit: boolean
+	/** Whether a token is saved; the token never comes back. */
+	x_token: boolean
+	providers: Record<'stripe' | 'lemonsqueezy' | 'paddle' | 'polar', boolean>
+}
+
+/** A field left out keeps its value; `''` clears it. */
+export type AnalyticsSettingsUpdate = Partial<{
+	share: boolean
+	notify_url: string
+	excluded_ips: string
+	reddit: boolean
+	x_token: string
+	stripe_secret: string
+	lemonsqueezy_secret: string
+	paddle_secret: string
+	polar_secret: string
+}>
 
 export type Project = {
 	id: string
@@ -885,10 +1026,39 @@ export const api = {
 	projectDomains: (id: string) => request<Domain[]>(`/api/projects/${id}/domains`),
 	domains: () => request<Domain[]>('/api/domains'),
 	analyticsSites: () => request<AnalyticsSite[]>('/api/analytics'),
-	analyticsReport: (domainId: string, range: AnalyticsRange) =>
-		request<{ domain: Domain; report: AnalyticsReport }>(
-			`/api/domains/${domainId}/analytics?range=${range}&tz_offset=${-new Date().getTimezoneOffset()}`,
+	analyticsReport: (domainId: string, span: AnalyticsSpan) =>
+		request<{ domain: Domain } & AnalyticsReportBody>(`/api/domains/${domainId}/analytics?${spanQuery(span)}`),
+	sharedReport: (token: string, span: AnalyticsSpan) =>
+		request<{ domain: { hostname: string } } & AnalyticsReportBody>(
+			`/api/analytics/shared/${encodeURIComponent(token)}?${spanQuery(span)}`,
 		),
+	analyticsVisitors: (domainId: string, span: AnalyticsSpan) =>
+		request<{ total: number; visitors: AnalyticsVisitor[] }>(
+			`/api/domains/${domainId}/analytics/visitors?${spanQuery(span)}`,
+		),
+	analyticsJourney: (domainId: string, visitor: string) =>
+		request<{ visitor: string; events: AnalyticsEvent[]; payments: AnalyticsPayment[] }>(
+			`/api/domains/${domainId}/analytics/visitors/${encodeURIComponent(visitor)}`,
+		),
+	analyticsLive: (domainId: string) => request<AnalyticsLive>(`/api/domains/${domainId}/analytics/live`),
+	analyticsFunnels: (domainId: string, span: AnalyticsSpan) =>
+		request<AnalyticsFunnel[]>(`/api/domains/${domainId}/analytics/funnels?${spanQuery(span)}`),
+	createFunnel: (domainId: string, funnel: { name: string; steps: FunnelStep[] }) =>
+		request(`/api/domains/${domainId}/analytics/funnels`, { method: 'POST', body: funnel }),
+	deleteFunnel: (domainId: string, funnelId: string) =>
+		request(`/api/domains/${domainId}/analytics/funnels/${funnelId}`, { method: 'DELETE' }),
+	createAnnotation: (domainId: string, text: string) =>
+		request<Annotation>(`/api/domains/${domainId}/analytics/annotations`, { method: 'POST', body: { text } }),
+	deleteAnnotation: (domainId: string, annotationId: string) =>
+		request(`/api/domains/${domainId}/analytics/annotations/${annotationId}`, { method: 'DELETE' }),
+	shortLinks: (domainId: string) => request<ShortLink[]>(`/api/domains/${domainId}/analytics/links`),
+	createShortLink: (domainId: string, link: Omit<ShortLink, 'created_at'>) =>
+		request<ShortLink>(`/api/domains/${domainId}/analytics/links`, { method: 'POST', body: link }),
+	deleteShortLink: (domainId: string, slug: string) =>
+		request(`/api/domains/${domainId}/analytics/links/${encodeURIComponent(slug)}`, { method: 'DELETE' }),
+	analyticsSettings: (domainId: string) => request<AnalyticsSettings>(`/api/domains/${domainId}/analytics/settings`),
+	updateAnalyticsSettings: (domainId: string, changes: AnalyticsSettingsUpdate) =>
+		request<AnalyticsSettings>(`/api/domains/${domainId}/analytics/settings`, { method: 'PUT', body: changes }),
 
 	service: (id: string) => request<Service>(`/api/services/${id}`),
 	updateService: (

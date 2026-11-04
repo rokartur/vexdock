@@ -29,7 +29,7 @@ const publicRoutes = new Set(['/login', '/setup', '/oauth/authorize'])
 
 function RootComponent() {
 	const pathname = useRouterState({ select: state => state.location.pathname })
-	const isPublic = publicRoutes.has(pathname)
+	const isPublic = publicRoutes.has(pathname) || pathname.startsWith('/shared/')
 	const { queryClient } = Route.useRouteContext()
 
 	return (

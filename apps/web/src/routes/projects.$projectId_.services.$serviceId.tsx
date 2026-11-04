@@ -1,7 +1,7 @@
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router'
 import { AnimatedNumber } from '../components/animated-number'
-import { EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
+import { CrumbSeparator, EnvironmentCrumb, ProjectCrumb, ServiceCrumb } from '../components/crumb-picker'
 import { ErrorText, FactBar, Page, RelativeTime, Status, Tabs } from '../components/primitives'
 import { environmentSearch } from '../lib/environment'
 import { bytes, percent } from '../lib/format'
@@ -67,12 +67,13 @@ function ServiceLayout() {
 		<Page
 			fill={studio !== undefined}
 			name={service.data?.compose_service_name}
+			index='General'
 			// The name and its state live in the trail's service picker.
 			labels={{
 				[projectId]: (
 					<>
 						<ProjectCrumb projectId={projectId} />
-						<span className='text-muted/30'>/</span>
+						<CrumbSeparator />
 						<EnvironmentCrumb projectId={projectId} />
 					</>
 				),

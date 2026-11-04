@@ -87,6 +87,12 @@ project's default environment (production).
 | `list_deployments` | read | Last fifty deployments of an environment |
 | `get_deployment` | read | A deployment and its steps, each step's output cut to its last fifty lines |
 | `list_templates` | read | Application templates: the services each adds and the one its domain reaches |
+| `list_sites` | read | Every domain this token reads, with its visitors over the last 24 hours |
+| `site_report` | read | A domain's analytics for `range` (`today`, `yesterday`, `24h`, `7d`, `30d`, `90d`, `12m`, `all`) or `from`/`to` days: totals, chart series, breakdowns, the span before for comparison, annotations. `filters` is `[[dimension, value], ...]`; amounts are minor units |
+| `site_visitors` | read | The span's visitors, newest first: `total`, and at most 200 in `visitors` with source, location, device, pageviews, goals, revenue |
+| `site_visitor` | read | One visitor's journey: pageviews and goals oldest first, and their payments |
+| `site_live` | read | Who is on a domain now and the last fifty pageviews, goals and payments |
+| `site_funnels` | read | A domain's funnels and how many visitors of the span reached each step |
 | `deploy` | write | Deploys a project's environment (`project_id`) or one service (`service_id`), waits up to 15 minutes, answers each deployment's status, the deciding step and its log tail |
 | `cancel_deployment` | write | Stops a queued or running deployment |
 | `rollback` | write | Redeploys the image a past successful deployment built, and waits |

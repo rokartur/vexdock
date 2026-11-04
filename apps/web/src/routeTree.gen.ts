@@ -22,11 +22,17 @@ import { Route as DockerVolumesRouteImport } from './routes/docker.volumes'
 import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
+import { Route as SharedTokenRouteImport } from './routes/shared.$token'
 import { Route as SystemIndexRouteImport } from './routes/system.index'
 import { Route as SystemBackupsRouteImport } from './routes/system.backups'
 import { Route as SystemCertificatesRouteImport } from './routes/system.certificates'
 import { Route as SystemDockerRouteImport } from './routes/system.docker'
 import { Route as SystemSettingsRouteImport } from './routes/system.settings'
+import { Route as AnalyticsDomainIdIndexRouteImport } from './routes/analytics.$domainId.index'
+import { Route as AnalyticsDomainIdFunnelsRouteImport } from './routes/analytics.$domainId.funnels'
+import { Route as AnalyticsDomainIdLiveRouteImport } from './routes/analytics.$domainId.live'
+import { Route as AnalyticsDomainIdSettingsRouteImport } from './routes/analytics.$domainId.settings'
+import { Route as AnalyticsDomainIdVisitorsRouteImport } from './routes/analytics.$domainId.visitors'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects.$projectId.index'
 import { Route as ProjectsProjectIdEnvironmentRouteImport } from './routes/projects.$projectId.environment'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects.$projectId.settings'
@@ -114,6 +120,11 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   path: '/projects/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SharedTokenRoute = SharedTokenRouteImport.update({
+  id: '/shared/$token',
+  path: '/shared/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SystemIndexRoute = SystemIndexRouteImport.update({
   id: '/system/',
   path: '/system/',
@@ -139,6 +150,34 @@ const SystemSettingsRoute = SystemSettingsRouteImport.update({
   path: '/system/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnalyticsDomainIdIndexRoute = AnalyticsDomainIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AnalyticsDomainIdRoute,
+} as any)
+const AnalyticsDomainIdFunnelsRoute =
+  AnalyticsDomainIdFunnelsRouteImport.update({
+    id: '/funnels',
+    path: '/funnels',
+    getParentRoute: () => AnalyticsDomainIdRoute,
+  } as any)
+const AnalyticsDomainIdLiveRoute = AnalyticsDomainIdLiveRouteImport.update({
+  id: '/live',
+  path: '/live',
+  getParentRoute: () => AnalyticsDomainIdRoute,
+} as any)
+const AnalyticsDomainIdSettingsRoute =
+  AnalyticsDomainIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AnalyticsDomainIdRoute,
+  } as any)
+const AnalyticsDomainIdVisitorsRoute =
+  AnalyticsDomainIdVisitorsRouteImport.update({
+    id: '/visitors',
+    path: '/visitors',
+    getParentRoute: () => AnalyticsDomainIdRoute,
+  } as any)
 const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -266,13 +305,14 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
-  '/analytics/$domainId': typeof AnalyticsDomainIdRoute
+  '/analytics/$domainId': typeof AnalyticsDomainIdRouteWithChildren
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/shared/$token': typeof SharedTokenRoute
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
@@ -280,12 +320,17 @@ export interface FileRoutesByFullPath {
   '/analytics/': typeof AnalyticsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
+  '/analytics/$domainId/funnels': typeof AnalyticsDomainIdFunnelsRoute
+  '/analytics/$domainId/live': typeof AnalyticsDomainIdLiveRoute
+  '/analytics/$domainId/settings': typeof AnalyticsDomainIdSettingsRoute
+  '/analytics/$domainId/visitors': typeof AnalyticsDomainIdVisitorsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
   '/system/settings/git': typeof SystemSettingsGitRoute
   '/system/settings/registries': typeof SystemSettingsRegistriesRoute
   '/system/settings/tokens': typeof SystemSettingsTokensRoute
+  '/analytics/$domainId/': typeof AnalyticsDomainIdIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/system/settings/': typeof SystemSettingsIndexRoute
   '/projects/$projectId/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRouteWithChildren
@@ -307,24 +352,29 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
-  '/analytics/$domainId': typeof AnalyticsDomainIdRoute
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/shared/$token': typeof SharedTokenRoute
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
   '/analytics': typeof AnalyticsIndexRoute
   '/projects': typeof ProjectsIndexRoute
   '/system': typeof SystemIndexRoute
+  '/analytics/$domainId/funnels': typeof AnalyticsDomainIdFunnelsRoute
+  '/analytics/$domainId/live': typeof AnalyticsDomainIdLiveRoute
+  '/analytics/$domainId/settings': typeof AnalyticsDomainIdSettingsRoute
+  '/analytics/$domainId/visitors': typeof AnalyticsDomainIdVisitorsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
   '/system/settings/git': typeof SystemSettingsGitRoute
   '/system/settings/registries': typeof SystemSettingsRegistriesRoute
   '/system/settings/tokens': typeof SystemSettingsTokensRoute
+  '/analytics/$domainId': typeof AnalyticsDomainIdIndexRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/system/settings': typeof SystemSettingsIndexRoute
   '/projects/$projectId/services/$serviceId/advanced': typeof ProjectsProjectIdServicesServiceIdAdvancedRoute
@@ -345,13 +395,14 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
-  '/analytics/$domainId': typeof AnalyticsDomainIdRoute
+  '/analytics/$domainId': typeof AnalyticsDomainIdRouteWithChildren
   '/docker/containers': typeof DockerContainersRoute
   '/docker/images': typeof DockerImagesRoute
   '/docker/networks': typeof DockerNetworksRoute
   '/docker/volumes': typeof DockerVolumesRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/shared/$token': typeof SharedTokenRoute
   '/system/backups': typeof SystemBackupsRoute
   '/system/certificates': typeof SystemCertificatesRoute
   '/system/docker': typeof SystemDockerRoute
@@ -359,12 +410,17 @@ export interface FileRoutesById {
   '/analytics/': typeof AnalyticsIndexRoute
   '/projects/': typeof ProjectsIndexRoute
   '/system/': typeof SystemIndexRoute
+  '/analytics/$domainId/funnels': typeof AnalyticsDomainIdFunnelsRoute
+  '/analytics/$domainId/live': typeof AnalyticsDomainIdLiveRoute
+  '/analytics/$domainId/settings': typeof AnalyticsDomainIdSettingsRoute
+  '/analytics/$domainId/visitors': typeof AnalyticsDomainIdVisitorsRoute
   '/projects/$projectId/environment': typeof ProjectsProjectIdEnvironmentRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/system/settings/about': typeof SystemSettingsAboutRoute
   '/system/settings/git': typeof SystemSettingsGitRoute
   '/system/settings/registries': typeof SystemSettingsRegistriesRoute
   '/system/settings/tokens': typeof SystemSettingsTokensRoute
+  '/analytics/$domainId/': typeof AnalyticsDomainIdIndexRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/system/settings/': typeof SystemSettingsIndexRoute
   '/projects/$projectId_/services/$serviceId': typeof ProjectsProjectIdServicesServiceIdRouteWithChildren
@@ -395,6 +451,7 @@ export interface FileRouteTypes {
     | '/docker/volumes'
     | '/oauth/authorize'
     | '/projects/$projectId'
+    | '/shared/$token'
     | '/system/backups'
     | '/system/certificates'
     | '/system/docker'
@@ -402,12 +459,17 @@ export interface FileRouteTypes {
     | '/analytics/'
     | '/projects/'
     | '/system/'
+    | '/analytics/$domainId/funnels'
+    | '/analytics/$domainId/live'
+    | '/analytics/$domainId/settings'
+    | '/analytics/$domainId/visitors'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
     | '/system/settings/git'
     | '/system/settings/registries'
     | '/system/settings/tokens'
+    | '/analytics/$domainId/'
     | '/projects/$projectId/'
     | '/system/settings/'
     | '/projects/$projectId/services/$serviceId'
@@ -429,24 +491,29 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/tasks'
-    | '/analytics/$domainId'
     | '/docker/containers'
     | '/docker/images'
     | '/docker/networks'
     | '/docker/volumes'
     | '/oauth/authorize'
+    | '/shared/$token'
     | '/system/backups'
     | '/system/certificates'
     | '/system/docker'
     | '/analytics'
     | '/projects'
     | '/system'
+    | '/analytics/$domainId/funnels'
+    | '/analytics/$domainId/live'
+    | '/analytics/$domainId/settings'
+    | '/analytics/$domainId/visitors'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
     | '/system/settings/git'
     | '/system/settings/registries'
     | '/system/settings/tokens'
+    | '/analytics/$domainId'
     | '/projects/$projectId'
     | '/system/settings'
     | '/projects/$projectId/services/$serviceId/advanced'
@@ -473,6 +540,7 @@ export interface FileRouteTypes {
     | '/docker/volumes'
     | '/oauth/authorize'
     | '/projects/$projectId'
+    | '/shared/$token'
     | '/system/backups'
     | '/system/certificates'
     | '/system/docker'
@@ -480,12 +548,17 @@ export interface FileRouteTypes {
     | '/analytics/'
     | '/projects/'
     | '/system/'
+    | '/analytics/$domainId/funnels'
+    | '/analytics/$domainId/live'
+    | '/analytics/$domainId/settings'
+    | '/analytics/$domainId/visitors'
     | '/projects/$projectId/environment'
     | '/projects/$projectId/settings'
     | '/system/settings/about'
     | '/system/settings/git'
     | '/system/settings/registries'
     | '/system/settings/tokens'
+    | '/analytics/$domainId/'
     | '/projects/$projectId/'
     | '/system/settings/'
     | '/projects/$projectId_/services/$serviceId'
@@ -508,13 +581,14 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
   TasksRoute: typeof TasksRoute
-  AnalyticsDomainIdRoute: typeof AnalyticsDomainIdRoute
+  AnalyticsDomainIdRoute: typeof AnalyticsDomainIdRouteWithChildren
   DockerContainersRoute: typeof DockerContainersRoute
   DockerImagesRoute: typeof DockerImagesRoute
   DockerNetworksRoute: typeof DockerNetworksRoute
   DockerVolumesRoute: typeof DockerVolumesRoute
   OauthAuthorizeRoute: typeof OauthAuthorizeRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
+  SharedTokenRoute: typeof SharedTokenRoute
   SystemBackupsRoute: typeof SystemBackupsRoute
   SystemCertificatesRoute: typeof SystemCertificatesRoute
   SystemDockerRoute: typeof SystemDockerRoute
@@ -618,6 +692,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shared/$token': {
+      id: '/shared/$token'
+      path: '/shared/$token'
+      fullPath: '/shared/$token'
+      preLoaderRoute: typeof SharedTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/system/': {
       id: '/system/'
       path: '/system'
@@ -652,6 +733,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/system/settings'
       preLoaderRoute: typeof SystemSettingsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/analytics/$domainId/': {
+      id: '/analytics/$domainId/'
+      path: '/'
+      fullPath: '/analytics/$domainId/'
+      preLoaderRoute: typeof AnalyticsDomainIdIndexRouteImport
+      parentRoute: typeof AnalyticsDomainIdRoute
+    }
+    '/analytics/$domainId/funnels': {
+      id: '/analytics/$domainId/funnels'
+      path: '/funnels'
+      fullPath: '/analytics/$domainId/funnels'
+      preLoaderRoute: typeof AnalyticsDomainIdFunnelsRouteImport
+      parentRoute: typeof AnalyticsDomainIdRoute
+    }
+    '/analytics/$domainId/live': {
+      id: '/analytics/$domainId/live'
+      path: '/live'
+      fullPath: '/analytics/$domainId/live'
+      preLoaderRoute: typeof AnalyticsDomainIdLiveRouteImport
+      parentRoute: typeof AnalyticsDomainIdRoute
+    }
+    '/analytics/$domainId/settings': {
+      id: '/analytics/$domainId/settings'
+      path: '/settings'
+      fullPath: '/analytics/$domainId/settings'
+      preLoaderRoute: typeof AnalyticsDomainIdSettingsRouteImport
+      parentRoute: typeof AnalyticsDomainIdRoute
+    }
+    '/analytics/$domainId/visitors': {
+      id: '/analytics/$domainId/visitors'
+      path: '/visitors'
+      fullPath: '/analytics/$domainId/visitors'
+      preLoaderRoute: typeof AnalyticsDomainIdVisitorsRouteImport
+      parentRoute: typeof AnalyticsDomainIdRoute
     }
     '/projects/$projectId/': {
       id: '/projects/$projectId/'
@@ -803,6 +919,25 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AnalyticsDomainIdRouteChildren {
+  AnalyticsDomainIdFunnelsRoute: typeof AnalyticsDomainIdFunnelsRoute
+  AnalyticsDomainIdLiveRoute: typeof AnalyticsDomainIdLiveRoute
+  AnalyticsDomainIdSettingsRoute: typeof AnalyticsDomainIdSettingsRoute
+  AnalyticsDomainIdVisitorsRoute: typeof AnalyticsDomainIdVisitorsRoute
+  AnalyticsDomainIdIndexRoute: typeof AnalyticsDomainIdIndexRoute
+}
+
+const AnalyticsDomainIdRouteChildren: AnalyticsDomainIdRouteChildren = {
+  AnalyticsDomainIdFunnelsRoute: AnalyticsDomainIdFunnelsRoute,
+  AnalyticsDomainIdLiveRoute: AnalyticsDomainIdLiveRoute,
+  AnalyticsDomainIdSettingsRoute: AnalyticsDomainIdSettingsRoute,
+  AnalyticsDomainIdVisitorsRoute: AnalyticsDomainIdVisitorsRoute,
+  AnalyticsDomainIdIndexRoute: AnalyticsDomainIdIndexRoute,
+}
+
+const AnalyticsDomainIdRouteWithChildren =
+  AnalyticsDomainIdRoute._addFileChildren(AnalyticsDomainIdRouteChildren)
+
 interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdEnvironmentRoute: typeof ProjectsProjectIdEnvironmentRoute
   ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
@@ -903,13 +1038,14 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
   TasksRoute: TasksRoute,
-  AnalyticsDomainIdRoute: AnalyticsDomainIdRoute,
+  AnalyticsDomainIdRoute: AnalyticsDomainIdRouteWithChildren,
   DockerContainersRoute: DockerContainersRoute,
   DockerImagesRoute: DockerImagesRoute,
   DockerNetworksRoute: DockerNetworksRoute,
   DockerVolumesRoute: DockerVolumesRoute,
   OauthAuthorizeRoute: OauthAuthorizeRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
+  SharedTokenRoute: SharedTokenRoute,
   SystemBackupsRoute: SystemBackupsRoute,
   SystemCertificatesRoute: SystemCertificatesRoute,
   SystemDockerRoute: SystemDockerRoute,

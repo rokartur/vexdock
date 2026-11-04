@@ -337,7 +337,7 @@ async fn site_analytics_flow() {
 		let (status, _, _) = h.send("POST", "/api/analytics/event", &[("host", host), ("user-agent", chrome)], &hit).await;
 		assert_eq!(status, StatusCode::NO_CONTENT, "{host}");
 	}
-	assert_eq!(h.server.db.analytics_events("d-p1", 0).unwrap().len(), 1, "the known host's hit, and only that one");
+	assert_eq!(h.server.db.analytics_events("d-p1", 0, i64::MAX).unwrap().len(), 1, "the known host's hit, and only that one");
 
 	let payment = json!({"payment_id": "pi_1", "amount": 4900, "currency": "usd", "visitor_id": "visitor-0001"}).to_string();
 	let as_reader = [("authorization", reader.as_str()), ("content-type", "application/json")];
@@ -362,4 +362,102 @@ async fn site_analytics_flow() {
 	assert_eq!(sites.len(), 1, "a project token lists its own sites only: {body}");
 	assert_eq!((sites[0]["domain"]["id"].as_str(), sites[0]["visitors"].as_u64()), (Some("d-p1"), Some(1)));
 	assert_eq!(sites[0]["hourly"].as_array().unwrap().len(), 24);
+
+	let (_, _, body) = h.send("GET", "/api/domains/d-p1/analytics/visitors?range=24h", &[("authorization", &reader)], "").await;
+	let listed: Value = serde_json::from_str(&body).unwrap();
+	assert_eq!((listed["total"].as_u64(), &listed["visitors"][0]["revenue"]), (Some(1), &json!(4900)), "{body}");
+	let (status, _, body) = h.send("GET", "/api/domains/d-p1/analytics/visitors/visitor-0001", &[("authorization", &reader)], "").await;
+	assert_eq!(status, StatusCode::OK, "{body}");
+	assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["events"][0]["path"], "/pricing");
+	let (status, _, body) = h.send("GET", "/api/domains/d-p1/analytics/live", &[("authorization", &reader)], "").await;
+	assert_eq!(status, StatusCode::OK);
+	assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["online"][0]["customer"], true, "{body}");
+}
+
+/// Settings, the share link, cookieless hits, excluded addresses, a signed
+/// Stripe webhook and a short link, through the real router.
+#[tokio::test]
+async fn site_analytics_settings_flow() {
+	let h = harness("");
+	let reader = format!("Bearer {}", h.mint(&[grant("p1", database::ACCESS_READ)]));
+	let writer = format!("Bearer {}", h.mint(&[grant("p1", database::ACCESS_WRITE)]));
+	let as_writer = [("authorization", writer.as_str()), ("content-type", "application/json")];
+	let chrome = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36";
+
+	assert_eq!(h.call(&reader[7..], "GET", "/api/domains/d-p1/analytics/settings").await, StatusCode::FORBIDDEN, "settings hold secrets");
+	let update = json!({"share": true, "excluded_ips": "203.0.113.9", "stripe_secret": "whsec_test"}).to_string();
+	let (status, _, body) = h.send("PUT", "/api/domains/d-p1/analytics/settings", &as_writer, &update).await;
+	assert_eq!(status, StatusCode::OK, "{body}");
+	let settings: Value = serde_json::from_str(&body).unwrap();
+	assert_eq!(settings["providers"]["stripe"], true);
+	assert!(!body.contains("whsec_test"), "a provider secret never comes back");
+	h.server.db.set_setting(crate::domains::SETTING_DASHBOARD_DOMAIN, "panel.example.com").unwrap();
+	let (_, _, body) = h.send("GET", "/api/domains/d-p1/analytics/settings", &as_writer, "").await;
+	let origin = serde_json::from_str::<Value>(&body).unwrap()["webhook_origin"].clone();
+	assert_eq!(origin, "http://panel.example.com", "providers are pointed at the panel's domain, not the tunnel the owner used");
+	let bad = json!({"notify_url": "https://10.0.0.1/hook"}).to_string();
+	assert_eq!(h.send("PUT", "/api/domains/d-p1/analytics/settings", &as_writer, &bad).await.0, StatusCode::BAD_REQUEST);
+
+	let cookieless = json!({"kind": "pageview", "path": "/"}).to_string();
+	for ip in ["198.51.100.1", "198.51.100.1", "203.0.113.9"] {
+		let headers = [("host", "p1.example.com"), ("user-agent", chrome), ("x-real-ip", ip)];
+		assert_eq!(h.send("POST", "/api/analytics/event", &headers, &cookieless).await.0, StatusCode::NO_CONTENT);
+	}
+	let events = h.server.db.analytics_events("d-p1", 0, i64::MAX).unwrap();
+	assert_eq!(events.len(), 2, "the excluded address is dropped");
+	assert_eq!(
+		(events[0].visitor == events[1].visitor, events[0].session == events[1].session),
+		(true, true),
+		"one cookieless visitor, one session"
+	);
+
+	let token = settings["share_token"].as_str().unwrap();
+	let (status, _, body) = h.send("GET", &format!("/api/analytics/shared/{token}?range=24h"), &[], "").await;
+	assert_eq!(status, StatusCode::OK, "{body}");
+	let shared: Value = serde_json::from_str(&body).unwrap();
+	assert_eq!((shared["report"]["visitors"].as_u64(), shared["domain"]["project_id"].is_null()), (Some(1), true), "{body}");
+	assert_eq!(h.send("GET", "/api/analytics/shared/wrong", &[], "").await.0, StatusCode::NOT_FOUND);
+	for wide in ["range=all", "from=2020-01-01&to=2022-12-31"] {
+		let status = h.send("GET", &format!("/api/analytics/shared/{token}?{wide}"), &[], "").await.0;
+		assert_eq!(status, StatusCode::BAD_REQUEST, "a public link reads at most a year: {wide}");
+	}
+
+	let stripe = json!({"type": "checkout.session.completed", "data": {"object": {"id": "cs_1", "payment_status": "paid",
+		"amount_total": 1900, "currency": "eur", "metadata": {"vx_visitor_id": events[0].visitor}}}})
+	.to_string();
+	let now = chrono::Utc::now().timestamp().to_string();
+	let mut mac = <hmac::Hmac<sha2::Sha256> as hmac::Mac>::new_from_slice(b"whsec_test").unwrap();
+	hmac::Mac::update(&mut mac, format!("{now}.{stripe}").as_bytes());
+	let signature = format!("t={now},v1={}", hex::encode(hmac::Mac::finalize(mac).into_bytes()));
+	let webhook = "/api/analytics/webhooks/stripe/d-p1";
+	let (status, _, body) = h.send("POST", webhook, &[("stripe-signature", "t=1,v1=00")], &stripe).await;
+	assert_eq!(status, StatusCode::UNAUTHORIZED);
+	assert!(body.contains("SIGNATURE_INVALID"), "the code docs/api.md lists: {body}");
+	let (status, _, body) = h.send("POST", webhook, &[("stripe-signature", &signature)], &stripe).await;
+	assert_eq!(status, StatusCode::OK, "{body}");
+	assert_eq!(
+		h.send("POST", "/api/analytics/webhooks/paddle/d-p1", &[], &stripe).await.0,
+		StatusCode::NOT_FOUND,
+		"no paddle secret saved"
+	);
+	let payments = h.server.db.analytics_payments("d-p1", 0, i64::MAX).unwrap();
+	assert_eq!((payments.len(), payments[0].amount, payments[0].visitor == events[0].visitor), (1, 1900, true));
+
+	let link = json!({"slug": "launch", "target": "https://p1.example.com/pricing?ref=1&utm_source=old", "utm_source": "x"}).to_string();
+	assert_eq!(h.send("POST", "/api/domains/d-p1/analytics/links", &as_writer, &link).await.0, StatusCode::CREATED);
+	assert_eq!(h.send("POST", "/api/domains/d-p1/analytics/links", &as_writer, &link).await.0, StatusCode::CONFLICT);
+	let (status, headers, _) = h.send("GET", "/api/analytics/l/launch", &[("host", "p1.example.com")], "").await;
+	assert_eq!(status, StatusCode::FOUND);
+	assert_eq!(headers["location"], "https://p1.example.com/pricing?ref=1&utm_source=x");
+	assert_eq!(h.send("GET", "/api/analytics/l/launch", &[("host", "p2.example.com")], "").await.0, StatusCode::NOT_FOUND);
+
+	let funnel = json!({"name": "Checkout", "steps": [{"kind": "page", "value": "/"}, {"kind": "payment"}]}).to_string();
+	assert_eq!(h.send("POST", "/api/domains/d-p1/analytics/funnels", &as_writer, &funnel).await.0, StatusCode::CREATED);
+	let (_, _, body) = h.send("GET", "/api/domains/d-p1/analytics/funnels?range=24h", &[("authorization", &reader)], "").await;
+	assert_eq!(serde_json::from_str::<Value>(&body).unwrap()[0]["reached"], json!([1, 1]), "{body}");
+
+	let goal = json!({"name": "activated", "visitor_id": events[0].visitor, "props": {"plan": "pro"}}).to_string();
+	assert_eq!(h.send("POST", "/api/domains/d-p1/goals", &as_writer, &goal).await.0, StatusCode::CREATED);
+	let last = h.server.db.analytics_events("d-p1", 0, i64::MAX).unwrap().pop().unwrap();
+	assert_eq!((last.name.as_str(), last.session == events[0].session), ("activated", true), "joins the live session");
 }

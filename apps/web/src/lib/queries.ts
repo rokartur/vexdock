@@ -9,6 +9,7 @@ export const versionQuery = queryOptions({ queryKey: ['version'], queryFn: api.v
 export const healthQuery = queryOptions({ queryKey: ['health'], queryFn: api.health })
 export const gitProvidersQuery = queryOptions({ queryKey: ['git-providers'], queryFn: api.gitProviders })
 export const updateStateQuery = queryOptions({ queryKey: ['update-state'], queryFn: api.updateState, retry: false })
+export const analyticsSitesQuery = queryOptions({ queryKey: ['analytics'], queryFn: api.analyticsSites })
 export const projectQuery = (projectId: string) =>
 	queryOptions({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
 /** Without a service, every task on the server. */

@@ -7,7 +7,9 @@
 - amd64. The published images are amd64 only and the installer stops on anything
   else rather than failing later on a missing manifest.
 - 1 GB RAM minimum. Building images on the server needs 2 GB.
-- 2 GB free disk space.
+- 2 GB free disk space. Site analytics keeps every event for three years
+  ([api.md](api.md#analytics)), so a busy site's database and every backup of
+  it grow with its traffic; older releases kept 90 days.
 - Ports 80, 443 and 3000 free. The installer refuses to continue otherwise and
   names the process holding the port.
 
