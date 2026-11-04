@@ -1,19 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { IconFolder, IconSearch, type Icon as TablerIcon } from '@tabler/icons-react'
+import { IconFolder, type Icon as TablerIcon } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { CommandPalette, type CommandItem } from '@/components/ui/command-palette'
 import { projectsQuery } from '../lib/queries'
-import { IconButton, mod } from './primitives'
 
-/** Arc's command-palette in a dialog on Cmd/Ctrl+K: every sidebar destination, then every project. */
+/** Arc's command-palette in a dialog on Cmd/Ctrl+K: every sidebar destination, then every project. The sidebar's
+ * search row opens it too, so the caller owns `open`. */
 export function CommandMenu({
 	groups,
+	open,
+	onOpenChange: setOpen,
 }: {
 	groups: { label: string; pages: { to: string; label: string; icon: TablerIcon }[] }[]
+	open: boolean
+	onOpenChange: (open: boolean) => void
 }) {
-	const [open, setOpen] = useState(false)
 	const navigate = useNavigate()
 	const projects = useQuery({ ...projectsQuery, enabled: open })
 
@@ -21,11 +24,11 @@ export function CommandMenu({
 		const onKey = (event: KeyboardEvent) => {
 			if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
 			event.preventDefault()
-			setOpen(current => !current)
+			setOpen(!open)
 		}
 		document.addEventListener('keydown', onKey)
 		return () => document.removeEventListener('keydown', onKey)
-	}, [])
+	}, [open, setOpen])
 
 	const items: CommandItem[] = groups.flatMap(group =>
 		group.pages.map(page => ({
@@ -48,16 +51,6 @@ export function CommandMenu({
 
 	return (
 		<Dialog.Root open={open} onOpenChange={setOpen}>
-			<Dialog.Trigger
-				render={
-					<IconButton
-						icon={IconSearch}
-						label={`Search (${mod} K)`}
-						size='default'
-						aria-keyshortcuts='Meta+K'
-					/>
-				}
-			/>
 			<Dialog.Portal>
 				<Dialog.Backdrop className='fixed inset-0 z-50 bg-background/46 backdrop-blur-[7px] transition-opacity duration-170 ease-standard data-ending-style:opacity-0 data-starting-style:opacity-0' />
 				<Dialog.Popup

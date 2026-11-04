@@ -15,6 +15,7 @@ import {
 	IconHome,
 	IconInfoCircle,
 	IconLogout,
+	IconSearch,
 	IconSettings,
 	IconStack2,
 	IconTrash,
@@ -36,7 +37,7 @@ import { useSystemEvents } from '../lib/sse'
 import { CommandMenu } from './command-menu'
 import { DeploymentInbox } from './deployment-inbox'
 import { Logo } from './logo'
-import { ActivePill, PageChrome } from './primitives'
+import { ActivePill, Keys, mod, PageChrome } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
@@ -85,6 +86,10 @@ function railMarkTransition(collapsed: boolean, instant: boolean): Transition {
 const iconButton =
 	'inline-grid size-control-md flex-none place-items-center rounded-control text-secondary transition-colors duration-110 ease-standard [-webkit-tap-highlight-color:transparent] hover:bg-surface-muted hover:text-foreground active:bg-[color-mix(in_oklab,var(--foreground)_9%,transparent)] active:text-foreground pointer-coarse:size-10 motion-reduce:transition-none'
 
+// workspace-sidebar's toggleClass, pinned to the search row's right edge so the 64 wide rail keeps it centred.
+const railToggle =
+	'absolute top-1/2 right-1 -mt-4 grid size-8 place-items-center rounded-[8px] text-secondary [-webkit-tap-highlight-color:transparent] hover:bg-(--row-hover) hover:text-foreground active:bg-(--row-active) active:text-foreground pointer-coarse:-mt-5 pointer-coarse:size-10'
+
 const scrim =
 	'absolute inset-0 bg-[color-mix(in_oklab,var(--foreground)_30%,transparent)] [-webkit-tap-highlight-color:transparent] dark:bg-background/50'
 
@@ -98,6 +103,7 @@ export function Shell({ children }: { children: ReactNode }) {
 	const [tablet, setTablet] = useState(false)
 	const [projectsOpen, setProjectsOpen] = useState(true)
 	const [sheetOpen, setSheetOpen] = useState(false)
+	const [searchOpen, setSearchOpen] = useState(false)
 	const [shell, setShell] = useState<HTMLElement | null>(null)
 	const [announcement, setAnnouncement] = useState('')
 	// Set from the ref during commit, so the page's breadcrumb lands in the bar
@@ -245,6 +251,31 @@ export function Shell({ children }: { children: ReactNode }) {
 						data-floating={floating || undefined}
 					>
 						<Brand collapsed={collapsed} instant={instant} />
+						<SearchRow collapsed={collapsed} instant={instant} onSearch={() => setSearchOpen(true)}>
+							<Tooltip
+								side={collapsed ? 'right' : 'bottom'}
+								content={
+									<span className='inline-flex items-center gap-2.5 whitespace-nowrap'>
+										{collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+										<kbd className='inline-grid h-5 min-w-5 place-items-center rounded-[6px] border border-[color-mix(in_oklab,var(--background)_30%,var(--foreground))] px-[5px] font-sans text-xs/none'>
+											[
+										</kbd>
+									</span>
+								}
+							>
+								<button
+									type='button'
+									className={railToggle}
+									aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+									aria-expanded={!collapsed}
+									aria-controls={sidebarId}
+									aria-keyshortcuts='['
+									onClick={toggleRail}
+								>
+									<PaneIcon collapsed={collapsed} instant={instant} />
+								</button>
+							</Tooltip>
+						</SearchRow>
 						<SidebarNav
 							variant='side'
 							baseId={baseId}
@@ -274,30 +305,7 @@ export function Shell({ children }: { children: ReactNode }) {
 					)}
 				</AnimatePresence>
 				<div className='relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
-					<header className='flex h-13 flex-none items-center gap-2 border-b border-border-subtle pr-4 pl-3 @max-[480px]/shell:gap-1 @max-[480px]/shell:pr-3 @max-[480px]/shell:pl-2 pointer-coarse:pl-2'>
-						<Tooltip
-							side='bottom'
-							content={
-								<span className='inline-flex items-center gap-2.5 whitespace-nowrap'>
-									{collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-									<kbd className='inline-grid h-5 min-w-5 place-items-center rounded-[6px] border border-[color-mix(in_oklab,var(--background)_30%,var(--foreground))] px-[5px] font-sans text-xs/none'>
-										[
-									</kbd>
-								</span>
-							}
-						>
-							<button
-								type='button'
-								className={cn(iconButton, '@max-[480px]/shell:hidden')}
-								aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-								aria-expanded={!collapsed}
-								aria-controls={sidebarId}
-								aria-keyshortcuts='['
-								onClick={toggleRail}
-							>
-								<PaneIcon collapsed={collapsed} instant={instant} />
-							</button>
-						</Tooltip>
+					<header className='flex min-h-13 flex-none items-center gap-3 px-6 pt-6 @max-[480px]/shell:gap-1 @max-[480px]/shell:px-3 @max-[480px]/shell:pt-3'>
 						<button
 							ref={menuButtonRef}
 							type='button'
@@ -310,23 +318,9 @@ export function Shell({ children }: { children: ReactNode }) {
 						>
 							<PaneIcon collapsed={false} instant={instant} />
 						</button>
-						{/* The page's breadcrumb and actions land here, so a page owns what it
+						{/* The page's breadcrumb, title and actions land here, so a page owns what it
 						    is called without owning a bar of its own. */}
 						<div ref={setHeader} className='flex min-w-0 flex-1 items-center gap-3 overflow-hidden' />
-						<CommandMenu
-							groups={[
-								{
-									label: 'Go to',
-									pages: [
-										...home,
-										{ to: '/projects', label: 'Projects', icon: IconFolder },
-										settings,
-									],
-								},
-								{ label: 'Docker', pages: docker },
-								{ label: 'System', pages: system },
-							]}
-						/>
 						<DeploymentInbox />
 					</header>
 					<PageChrome value={header}>{children}</PageChrome>
@@ -413,6 +407,14 @@ export function Shell({ children }: { children: ReactNode }) {
 											<IconX size={18} stroke={1.75} aria-hidden='true' />
 										</Dialog.Close>
 									</div>
+									<SearchRow
+										collapsed={false}
+										instant={instant}
+										onSearch={() => {
+											sheetActions.current?.close()
+											setSearchOpen(true)
+										}}
+									/>
 									<SidebarNav
 										variant='sheet'
 										baseId={baseId}
@@ -432,8 +434,56 @@ export function Shell({ children }: { children: ReactNode }) {
 						)}
 					</AnimatePresence>
 				</Dialog.Root>
+				<CommandMenu
+					open={searchOpen}
+					onOpenChange={setSearchOpen}
+					groups={[
+						{
+							label: 'Go to',
+							pages: [...home, { to: '/projects', label: 'Projects', icon: IconFolder }, settings],
+						},
+						{ label: 'Docker', pages: docker },
+						{ label: 'System', pages: system },
+					]}
+				/>
 			</div>
 		</BaseTooltip.Provider>
+	)
+}
+
+/** workspace-sidebar's search row: a field-shaped button that opens the command menu, faded out in the rail. */
+function SearchRow({
+	collapsed,
+	instant,
+	onSearch,
+	children,
+}: {
+	collapsed: boolean
+	instant: boolean
+	onSearch: () => void
+	children?: ReactNode
+}) {
+	return (
+		<div className='relative mx-3 mb-2 flex h-10 flex-none items-center'>
+			<motion.button
+				type='button'
+				inert={collapsed}
+				aria-keyshortcuts='Meta+K'
+				className={cn(
+					'flex h-8 w-full min-w-0 items-center gap-2 rounded-[8px] border border-border bg-surface pr-1.5 pl-2.5 text-left text-[13px] whitespace-nowrap text-muted transition-colors duration-110 ease-standard hover:border-border-strong hover:text-secondary motion-reduce:transition-none pointer-coarse:h-10',
+					children && 'mr-10',
+				)}
+				initial={false}
+				animate={{ opacity: collapsed ? 0 : 1 }}
+				transition={labelTransition(collapsed, instant)}
+				onClick={onSearch}
+			>
+				<IconSearch size={16} stroke={1.75} aria-hidden='true' className='flex-none' />
+				<span className='flex-1'>Search</span>
+				<Keys keys={[mod, 'K']} />
+			</motion.button>
+			{children}
+		</div>
 	)
 }
 

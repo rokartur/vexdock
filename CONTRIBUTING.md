@@ -72,20 +72,21 @@ Pages go through the vocabulary first:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
 IconButton, Status, Confirm, EmptyState), so a design change happens in one
-file. The shell is Arc's sidebar rail, the same on every page, carrying every
-destination and the project list, and a header over the page; tables are `DataTable` in
+file. The shell is Arc's workspace sidebar, the same on every page, carrying every
+destination, the project list and the search that opens the command menu, and a page header beside it; tables are `DataTable` in
 `components/data-table.tsx`, its own primitive that pages import directly. A
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).
 The visual language is the ui skill's Arc system with its default tokens (`src/styles.css`
-copies the skill's file unchanged above the marked line, the only palette there is): a
-black canvas, cards a shade lighter, hover and pressed as tints of the text color, the
+copies the skill's file above the marked line, the only palette there is, with three
+calls of our own that its comments name: durations at 0.7x, shadows at half offset and
+blur, radii one step smaller): a near-black canvas, cards a shade lighter, hover and pressed as tints of the text color, the
 foreground color for the one primary action, sentence case everywhere, a neutral gray ramp.
 The panel is monochrome throughout, charts included. Dense tables, and no continuously repainting animation: the panel
 is often left open.
 
-Every page is a `Page`: the breadcrumb and that page's actions go into the
-shell's header through `PageChrome`, its sub-navigation and its filters
+Every page is a `Page`: the breadcrumb of its parents, its title as the `h1` and
+that page's actions go into the shell's page header through `PageChrome`, its sub-navigation and its filters
 into a row the page draws under it, content below. `Page` also names the browser tab
 from the URL; a route whose last segment is an id passes `name` for it.
 `Tabs` are Arc's tabs and move through the URL; `Segmented` is Arc's segmented control,

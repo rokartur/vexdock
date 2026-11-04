@@ -96,8 +96,8 @@ dashboard's vocabulary. `components/ui/*` is Arc copied 1:1 (Base UI,
 `motion/react`), each added prop marked `// vexdock:`, so a design change lands in
 `primitives.tsx` or the tokens and a `ui/*` file only diverges from Arc on purpose; a bare `<input>` or a hand-styled button is a
 bug. Sub-navigation and page filters belong in `Page`'s `toolbar` and
-`filters`, actions in its `actions`; the breadcrumb and actions ride up into the
-shell's header and the rest becomes the page's own first row, so a page never
+`filters`, actions in its `actions`; the parents' breadcrumb, the title (`h1`) and
+the actions ride up into the shell's page header and the rest becomes the page's own first row, so a page never
 draws chrome of its own. `Tabs` moves through the URL, `Segmented` moves a value; never
 hand-roll a third switch. Both slide their own selection; a selected sidebar row
 draws its background with `ActivePill` for the same reason. Every action has
