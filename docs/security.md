@@ -254,6 +254,18 @@ characters; a replacement may use `$N` and nothing else with a `$`, so no rule
 can inject a directive or read an nginx variable. nginx answers a matching
 redirect before it checks basic auth, which reveals only the target URL.
 
+Every vhost also answers `/_vx/script.js` and `/_vx/event` from the manager,
+for [site analytics](api.md#analytics). Nginx strips the visitor's `Cookie`
+and `Authorization` before proxying them, so a site's session never reaches the
+manager and a dashboard session never rides along. The ingest is public and
+answers 204 to everything; it stores no IP address, keeps only browser, OS and
+device class of the user agent, and takes the country from Cloudflare's
+`CF-IPCountry` or else the browser's timezone. Its visitor and session ids are
+random cookies the script sets on the site's own hostname, not derived from the
+visitor, and old events are pruned. A hit can only be forged into
+the counts, never into another table: recording a payment needs a token that
+may write the domain's project.
+
 Basic-auth passwords are stored as salted SHA-1 (`{SSHA}`) in
 `nginx/generated/<host>.htpasswd`, mode 0644 so the nginx container can read
 them. bcrypt would cost a full hash on every request, so a leaked file is only

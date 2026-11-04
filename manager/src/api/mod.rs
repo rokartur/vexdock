@@ -2,6 +2,7 @@
 //! never listens on a public interface.
 
 mod access;
+mod analytics_handlers;
 mod auth_handlers;
 mod deployment_handlers;
 mod docker_handlers;
@@ -140,6 +141,9 @@ pub fn router(s: Arc<Server>) -> Router {
 		.route("GET /api/health", Public, system_handlers::health)
 		.route("GET /api/system/version", Public, system_handlers::version)
 		.route("POST /api/deploy/{provider}", Public, webhook_handlers::provider_webhook)
+		.route("GET /api/analytics/script.js", Public, analytics_handlers::script)
+		.route("POST /api/analytics/event", Public, analytics_handlers::collect)
+		.route("GET /api/analytics", SignedIn, analytics_handlers::list_sites)
 		.route("GET /api/oauth/authorize", Admin, oauth_handlers::oauth_authorize_check)
 		.route("POST /api/oauth/authorize", Admin, oauth_handlers::oauth_authorize)
 		.route("GET /api/me", SignedIn, auth_handlers::me)
@@ -224,6 +228,8 @@ pub fn router(s: Arc<Server>) -> Router {
 		.route("PATCH /api/domains/{id}", Project(WRITE, ProjectOf::Domain), domain_handlers::update_domain)
 		.route("DELETE /api/domains/{id}", Project(WRITE, ProjectOf::Domain), domain_handlers::delete_domain)
 		.route("POST /api/domains/{id}/certificate", Project(WRITE, ProjectOf::Domain), domain_handlers::issue_certificate)
+		.route("GET /api/domains/{id}/analytics", Project(READ, ProjectOf::Domain), analytics_handlers::site_report)
+		.route("POST /api/domains/{id}/payments", Project(WRITE, ProjectOf::Domain), analytics_handlers::record_payment)
 		.route("GET /api/deployments/{id}", Project(READ, ProjectOf::Deployment), deployment_handlers::get_deployment)
 		.route("GET /api/deployments/{id}/events", Project(READ, ProjectOf::Deployment), deployment_handlers::deployment_events)
 		.route("POST /api/deployments/{id}/cancel", Project(WRITE, ProjectOf::Deployment), deployment_handlers::cancel_deployment)

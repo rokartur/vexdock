@@ -137,7 +137,7 @@ const FORWARDED_HEADERS: &str = concat!(
 );
 
 fn proxy_location(u: &Upstream) -> String {
-	let mut b = String::new();
+	let mut b = analytics_locations();
 	b.push_str("    location / {\n");
 	b.push_str(&access_rules(u));
 	b.push_str("        resolver 127.0.0.11 valid=1s ipv6=off;\n");
@@ -154,6 +154,24 @@ fn proxy_location(u: &Upstream) -> String {
 	b.push_str("        proxy_read_timeout 3600s;\n");
 	b.push_str("        proxy_send_timeout 3600s;\n");
 	b.push_str("    }\n");
+	b
+}
+
+/// The analytics beacon on the site's own hostname: first-party, so no CORS and
+/// no third-party domain for a blocker to match. The site's cookies and basic
+/// auth credentials stay out of the manager.
+fn analytics_locations() -> String {
+	let mut b = String::new();
+	for (path, target) in [("/_vx/script.js", "/api/analytics/script.js"), ("/_vx/event", "/api/analytics/event")] {
+		let _ = writeln!(b, "    location = {path} {{");
+		b.push_str("        limit_req zone=api_limit burst=60 nodelay;\n");
+		let _ = writeln!(b, "        proxy_pass http://{MANAGER_UPSTREAM}{target};");
+		b.push_str("        proxy_http_version 1.1;\n");
+		b.push_str(FORWARDED_HEADERS);
+		b.push_str("        proxy_set_header Cookie \"\";\n");
+		b.push_str("        proxy_set_header Authorization \"\";\n");
+		b.push_str("    }\n\n");
+	}
 	b
 }
 

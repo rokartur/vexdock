@@ -59,6 +59,10 @@ impl Db {
 		self.one(&format!("SELECT {DOMAIN_COLUMNS} FROM domains WHERE id = ?"), [id], scan_domain)
 	}
 
+	pub fn domain_by_hostname(&self, hostname: &str) -> Result<Domain> {
+		self.one(&format!("SELECT {DOMAIN_COLUMNS} FROM domains WHERE hostname = ?"), [hostname], scan_domain)
+	}
+
 	pub fn list_domains(&self) -> Result<Vec<Domain>> {
 		self.all(&format!("SELECT {DOMAIN_COLUMNS} FROM domains ORDER BY hostname"), [], scan_domain)
 	}

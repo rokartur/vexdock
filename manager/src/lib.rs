@@ -5,6 +5,7 @@
 //! Licensed under the GNU Affero General Public License v3.0 or later; see the
 //! LICENSE file at the repository root.
 
+pub mod analytics;
 pub mod api;
 pub mod auth;
 pub mod backup;

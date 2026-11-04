@@ -315,3 +315,51 @@ async fn git_callbacks_refuse_a_bare_connection_id() {
 	let provider = h.server.db.git_provider_by_id(id).unwrap();
 	assert_eq!(provider.github.unwrap().installation_id, "42");
 }
+
+/// The beacon through the real router, then the payment a backend reports and
+/// the report and sites list that read both back, each under a project token.
+#[tokio::test]
+async fn site_analytics_flow() {
+	let h = harness("");
+	let reader = format!("Bearer {}", h.mint(&[grant("p1", database::ACCESS_READ)]));
+	let writer = format!("Bearer {}", h.mint(&[grant("p1", database::ACCESS_WRITE)]));
+	let chrome = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36";
+	let hit = json!({"kind": "pageview", "visitor": "visitor-0001", "session": "session-0001", "path": "/pricing",
+		"referrer": "https://news.ycombinator.com/item"})
+	.to_string();
+
+	let (status, headers, script) = h.send("GET", "/api/analytics/script.js", &[], "").await;
+	assert_eq!(status, StatusCode::OK);
+	assert!(headers["content-type"].to_str().unwrap().starts_with("text/javascript"));
+	assert!(script.contains("/_vx/event"));
+
+	for host in ["p1.example.com:443", "unknown.example.com"] {
+		let (status, _, _) = h.send("POST", "/api/analytics/event", &[("host", host), ("user-agent", chrome)], &hit).await;
+		assert_eq!(status, StatusCode::NO_CONTENT, "{host}");
+	}
+	assert_eq!(h.server.db.analytics_events("d-p1", 0).unwrap().len(), 1, "the known host's hit, and only that one");
+
+	let payment = json!({"payment_id": "pi_1", "amount": 4900, "currency": "usd", "visitor_id": "visitor-0001"}).to_string();
+	let as_reader = [("authorization", reader.as_str()), ("content-type", "application/json")];
+	let as_writer = [("authorization", writer.as_str()), ("content-type", "application/json")];
+	assert_eq!(h.send("POST", "/api/domains/d-p1/payments", &as_reader, &payment).await.0, StatusCode::FORBIDDEN);
+	assert_eq!(h.send("POST", "/api/domains/d-p2/payments", &as_writer, &payment).await.0, StatusCode::FORBIDDEN);
+	assert_eq!(h.send("POST", "/api/domains/d-p1/payments", &as_writer, &payment).await.0, StatusCode::CREATED);
+	let (status, _, body) = h.send("POST", "/api/domains/d-p1/payments", &as_writer, &payment).await;
+	assert_eq!((status, body.trim()), (StatusCode::OK, r#"{"recorded":false}"#), "a retried webhook records once");
+
+	let (status, _, body) = h.send("GET", "/api/domains/d-p1/analytics?range=24h", &[("authorization", &reader)], "").await;
+	assert_eq!(status, StatusCode::OK, "{body}");
+	let report = &serde_json::from_str::<Value>(&body).unwrap()["report"];
+	assert_eq!((report["visitors"].as_u64(), report["revenue"].as_i64()), (Some(1), Some(4900)), "{report}");
+	assert_eq!(report["currency"], "USD");
+	assert_eq!(report["channels"][0], json!({"name": "Social", "visitors": 1, "revenue": 4900}));
+	assert_eq!(h.call(&reader[7..], "GET", "/api/domains/d-p2/analytics").await, StatusCode::FORBIDDEN);
+	assert_eq!(h.call(&reader[7..], "GET", "/api/domains/d-p1/analytics?range=1y").await, StatusCode::BAD_REQUEST);
+
+	let (_, _, body) = h.send("GET", "/api/analytics", &[("authorization", &reader)], "").await;
+	let sites: Vec<Value> = serde_json::from_str(&body).unwrap();
+	assert_eq!(sites.len(), 1, "a project token lists its own sites only: {body}");
+	assert_eq!((sites[0]["domain"]["id"].as_str(), sites[0]["visitors"].as_u64()), (Some("d-p1"), Some(1)));
+	assert_eq!(sites[0]["hourly"].as_array().unwrap().len(), 24);
+}
