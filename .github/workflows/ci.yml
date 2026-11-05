@@ -13,20 +13,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The Studio (runner-up-studio, arm64 container) while its heartbeat is fresh,
+  # ubuntu-latest otherwise; a fork's pull request never reaches the Studio.
+  pick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runner: ${{ steps.pick.outputs.runner }}
+    steps:
+      - id: pick
+        env:
+          BEAT: ${{ vars.STUDIO_HEARTBEAT }}
+          FORK: ${{ github.event.pull_request.head.repo.fork || false }}
+        run: |
+          runner=ubuntu-latest
+          if [ "$FORK" != true ] && [ $(( $(date +%s) - ${BEAT:-0} )) -lt 180 ]; then runner=runner-up-studio; fi
+          echo "runner=$runner" | tee -a "$GITHUB_OUTPUT"
+
   manager:
     name: Manager (Rust)
-    runs-on: ubuntu-latest
+    needs: pick
+    runs-on: ${{ needs.pick.outputs.runner }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
+      # The Studio's runner image ships neither a C compiler (ring, bundled
+      # SQLite) nor rustup; ubuntu-latest has both and skips this.
+      - name: Toolchain
+        working-directory: manager
+        run: |
+          if ! command -v cc >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq gcc
+          fi
+          if ! command -v rustup >/dev/null; then
+            curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install
+
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: manager
 
-      # rustup on the runner installs the toolchain manager/rust-toolchain.toml pins.
       - name: Format check
         working-directory: manager
         run: cargo fmt --check
@@ -41,7 +73,8 @@ jobs:
 
   web:
     name: Dashboard and auth (TypeScript)
-    runs-on: ubuntu-latest
+    needs: pick
+    runs-on: ${{ needs.pick.outputs.runner }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -67,7 +100,8 @@ jobs:
 
   shell:
     name: Installer (shellcheck)
-    runs-on: ubuntu-latest
+    needs: pick
+    runs-on: ${{ needs.pick.outputs.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -76,6 +110,9 @@ jobs:
 
       - name: Lint shell scripts
         run: |
+          if ! command -v shellcheck >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          fi
           shellcheck -s sh installer/*.sh
           shellcheck -s sh manager/src/updater/update.sh
           shellcheck scripts/smoke-test.sh scripts/release-beta.sh
