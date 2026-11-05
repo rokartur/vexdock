@@ -16,13 +16,6 @@ that installs and deploys against real
 Docker, so a green `make check` is necessary but not sufficient when you touch
 either.
 
-The Rust, TypeScript and shellcheck jobs run on the maintainer's Mac Studio
-(`runner-up-studio`, a Linux arm64 container) while its `STUDIO_HEARTBEAT`
-repository variable is under 180 s old, and on `ubuntu-latest` otherwise; the
-`pick` job in `ci.yml` decides. A routed job installs its own toolchain, so a
-new step never relies on what `ubuntu-latest` ships. A pull request from a fork
-always runs on `ubuntu-latest`.
-
 ## Running the whole thing locally
 
 ```sh

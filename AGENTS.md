@@ -23,7 +23,7 @@ Read the one that matches the change before making it.
 `make check` is the gate ([CONTRIBUTING.md](CONTRIBUTING.md#getting-set-up) says
 what it runs). Run it before reporting done. `make help` lists everything else.
 
-CI (`.github/workflows/ci.yml`) skips the Bun tests but adds the dashboard
+CI (`.github/workflows/ci.yml`) runs the same checks and adds the dashboard
 build, `shellcheck` over the scripts it lists, and an integration job that runs
 the real installer against images in a local registry, then
 `./scripts/smoke-test.sh`.
