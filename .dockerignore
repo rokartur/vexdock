@@ -10,3 +10,5 @@ apps/web/.output
 apps/web/.tanstack
 apps/web/.vite
 **/target
+# Pins `1.99` while rust:1.99 ships `1.99.1`, so rustup would download a second toolchain per build.
+manager/rust-toolchain.toml

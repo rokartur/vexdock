@@ -117,7 +117,7 @@ jobs:
           path: |
             ${{ runner.temp }}/cargo-registry
             ${{ runner.temp }}/cargo-target
-          key: cargo-image-ci-${{ hashFiles('manager/Cargo.lock', 'manager/rust-toolchain.toml', 'docker/manager.Dockerfile') }}
+          key: cargo-image-ci-${{ hashFiles('manager/Cargo.lock', 'manager/rust-toolchain.toml', 'docker/manager.Dockerfile', '.dockerignore') }}
           restore-keys: cargo-image-ci-
 
       - uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
