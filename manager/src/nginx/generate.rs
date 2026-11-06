@@ -254,8 +254,14 @@ fn dashboard_body(manager_addr: &str, web_root: &str) -> String {
 	b.push_str("        proxy_http_version 1.1;\n");
 	b.push_str(FORWARDED_HEADERS);
 	b.push_str("    }\n\n");
+	// Same caching as the :3000 vhost: an installed dashboard opens offline from these assets.
+	b.push_str("    location /assets/ {\n");
+	b.push_str("        expires 1y;\n");
+	b.push_str("        add_header Cache-Control \"public, immutable\";\n");
+	b.push_str("    }\n\n");
 	// The OAuth consent screen is one click from a grant, so no page may frame it.
 	b.push_str("    location / {\n");
+	b.push_str("        add_header Cache-Control \"no-cache\";\n");
 	b.push_str("        add_header X-Frame-Options \"DENY\" always;\n");
 	b.push_str("        add_header Content-Security-Policy \"frame-ancestors 'none'\" always;\n");
 	b.push_str("        try_files $uri $uri/ /index.html;\n    }\n");

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts, useRouterState } from '@tanstack/react-router'
 import { MotionConfig } from 'motion/react'
@@ -16,10 +16,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 			{ name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
 			{ name: 'color-scheme', content: 'dark' },
 			{ name: 'theme-color', content: '#0b0b0b' },
+			{ name: 'apple-mobile-web-app-title', content: 'Vexdock' },
+			{ name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
 			// Pages replace this from their breadcrumb; it stands for login and setup.
 			{ title: 'Vexdock' },
 		],
-		links: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+		links: [
+			{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+			{ rel: 'manifest', href: '/manifest.webmanifest' },
+			{ rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+		],
 	}),
 	component: RootComponent,
 })
@@ -31,6 +37,11 @@ function RootComponent() {
 	const pathname = useRouterState({ select: state => state.location.pathname })
 	const isPublic = publicRoutes.has(pathname) || pathname.startsWith('/shared/')
 	const { queryClient } = Route.useRouteContext()
+
+	useEffect(() => {
+		// The dev server's HMR would fight a cached shell; browsers only allow it on HTTPS or localhost anyway.
+		if (import.meta.env.PROD && 'serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js')
+	}, [])
 
 	return (
 		<RootDocument>

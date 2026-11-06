@@ -84,6 +84,8 @@ fn render_dashboard_routes() {
 	must_contain(&conf, &format!("proxy_pass http://{MCP_UPSTREAM};"));
 	must_contain(&conf, "try_files $uri $uri/ /index.html;");
 	must_contain(&conf, "root /usr/share/nginx/html;");
+	must_contain(&conf, "add_header Cache-Control \"public, immutable\";");
+	must_contain(&conf, "add_header Cache-Control \"no-cache\";");
 	let secure = render_dashboard("panel.example.com", "manager:8080", "/usr/share/nginx/html", true, "/certificates/panel.example.com");
 	must_contain(&secure, "listen 443 ssl;");
 	must_contain(&secure, "return 301 https://$host$request_uri;");

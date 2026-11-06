@@ -216,6 +216,10 @@ row every mutation gets.
 - A backup snapshot contains `master.key`, because without it the encrypted
   values in the snapshot cannot be read back. Treat a snapshot as being as
   sensitive as the server.
+- The dashboard's service worker (`apps/web/public/sw.js`) caches the last
+  `index.html` and the hashed files under `/assets/`, so an installed dashboard
+  opens offline. It never touches `/api/`, `/mcp` or `/.well-known/`, so no API response, and
+  no secret in one, lands in the browser's cache storage.
 
 ## Destructive actions
 
