@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
-import { IconCertificate, IconFolder, IconPlayerPlay, IconServer, IconStack2, IconTag } from '@tabler/icons-react'
+import { IconPlus } from '@tabler/icons-react'
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Alert } from '@/components/ui/alert'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
 import { HostMetrics, WINDOWS } from '../components/host-metrics'
 import { useHistory } from '../components/metric-chart'
-import { Cell, Cells, Page, Refresh, RelativeTime, Section, Status } from '../components/primitives'
+import { NewProjectDialog } from '../components/new-project'
+import { Button, Page, Refresh, RelativeTime, Section, Segmented, Status } from '../components/primitives'
 import {
 	api,
 	type Certificate,
@@ -72,32 +73,107 @@ const renderDeploymentDetail = ({ deployment }: RecentDeployment) => <Deployment
 const deploymentDetailTitle = ({ deployment, project_name }: RecentDeployment) =>
 	`${project_name || deployment.project_id} / ${deployment.service_name} #${deployment.number}`
 
-// One machine runs everything, so the server column is the Docker host's name.
-function recentDeploymentColumns(server: string): Columns<RecentDeployment> {
+const recentDeploymentColumns: Columns<RecentDeployment> = (() => {
 	const cell = columnsFor<RecentDeployment>()
 	return [
-		cell.accessor(({ deployment }) => deployment.status, {
-			id: 'status',
-			header: 'Status',
-			cell: ({ row }) => <Status value={row.original.deployment.status} />,
+		cell.accessor(({ deployment }) => `${deployment.service_name} #${deployment.number}`, {
+			id: 'deployment',
+			header: 'Deployment',
+			cell: ({ row: { original } }) => (
+				<span className='flex min-w-0 items-center gap-2.5'>
+					<Status dot value={original.deployment.status} />
+					<span className='truncate'>
+						<span className='font-mono'>
+							{original.deployment.service_name} #{original.deployment.number}
+						</span>{' '}
+						<span className='text-muted'>
+							{original.project_name || original.deployment.project_id} · {original.environment_name}
+						</span>
+					</span>
+				</span>
+			),
 		}),
-		cell.accessor(({ deployment }) => deployment.service_name, {
-			id: 'service',
-			header: 'Service',
-			meta: { mono: true },
-		}),
-		cell.accessor(({ deployment, project_name }) => project_name || deployment.project_id, {
-			id: 'project',
-			header: 'Project',
-		}),
-		cell.accessor(({ environment_name }) => environment_name, { id: 'environment', header: 'Environment' }),
-		cell.display({ id: 'server', header: 'Server', meta: { mono: true }, cell: () => server }),
 		cell.accessor(({ deployment }) => deployment.created_at, {
 			id: 'when',
 			header: 'When',
 			cell: ({ row }) => <RelativeTime at={row.original.deployment.created_at} />,
 		}),
 	]
+})()
+
+const projectColumns: Columns<Project> = (() => {
+	const cell = columnsFor<Project>()
+	return [
+		cell.accessor(project => project.name, {
+			id: 'name',
+			header: 'Project',
+			cell: ({ row }) => <span className='font-medium'>{row.original.name}</span>,
+		}),
+		cell.accessor(project => project.running_count, {
+			id: 'services',
+			header: 'Services',
+			cell: ({ row }) => <ServiceSquares project={row.original} />,
+		}),
+		cell.accessor(project => project.domains[0]?.hostname ?? '', {
+			id: 'domains',
+			header: 'Domains',
+			meta: { mono: true },
+			cell: ({ row: { original } }) => {
+				const [first, ...rest] = original.domains
+				if (!first) return <span className='text-muted'>-</span>
+				return (
+					<span className='text-secondary'>
+						{first.hostname}
+						{rest.length > 0 ? ` +${rest.length}` : ''}
+					</span>
+				)
+			},
+		}),
+		cell.accessor(project => project.latest_deployment?.status ?? '', {
+			id: 'latest',
+			header: 'Latest deployment',
+			cell: ({ row: { original } }) => {
+				const latest = original.latest_deployment
+				if (!latest) return <span className='text-muted'>never</span>
+				return (
+					<span className='flex items-center gap-2'>
+						<Status value={latest.status} />
+						<span className='font-mono'>
+							{latest.service_name} #{latest.number}
+						</span>
+					</span>
+				)
+			},
+		}),
+		cell.accessor(project => project.latest_deployment?.created_at ?? '', {
+			id: 'when',
+			header: 'When',
+			cell: ({ row }) => <RelativeTime at={row.original.latest_deployment?.created_at} />,
+		}),
+	]
+})()
+
+/** One square per service: running, errored, then idle, so a project's health reads without counting. */
+function ServiceSquares({ project }: { project: Project }) {
+	const idle = Math.max(project.service_count - project.running_count - project.errored_count, 0)
+	const squares = [
+		...Array.from({ length: project.running_count }, () => 'bg-success'),
+		...Array.from({ length: project.errored_count }, () => 'bg-danger'),
+		...Array.from({ length: idle }, () => 'bg-surface-pressed'),
+	]
+	if (squares.length === 0) return <span className='text-muted'>-</span>
+	return (
+		<span
+			role='img'
+			aria-label={`${project.running_count} running, ${project.errored_count} errored, ${idle} idle`}
+			className='flex flex-wrap gap-0.75'
+		>
+			{squares.map((tone, index) => (
+				// oxlint-disable-next-line react/no-array-index-key -- squares carry no identity, only a count
+				<span key={index} className={`size-2.5 rounded-[3px] ${tone}`} />
+			))}
+		</span>
+	)
 }
 
 const metricsQuery = (window: MetricWindow) =>
@@ -119,6 +195,7 @@ export const Route = createFileRoute('/')({
 })
 
 function DashboardPage() {
+	const navigate = useNavigate()
 	const info = useQuery(systemInfoQuery)
 	const [window, setWindow] = useState<MetricWindow>('30m')
 	const recorded = useQuery(metricsQuery(window))
@@ -127,6 +204,7 @@ function DashboardPage() {
 	const certificates = useQuery(certificatesQuery)
 	const [stats, setStats] = useState<HostSample | null>(null)
 	const [openDeployment, setOpenDeployment] = useState<string | null>(null)
+	const [creating, setCreating] = useState(false)
 
 	useEventSource('/api/system/stats', {
 		stats: data => setStats({ ...(data as HostStats), at: Date.now() }),
@@ -139,41 +217,34 @@ function DashboardPage() {
 	)
 	const host = info.data?.host
 
-	// Every card already carries its own counts, so the fleet totals are a sum.
-	const services = useMemo(() => {
-		const totals = { total: 0, running: 0, errored: 0, db: 0, compose: 0 }
-		for (const project of projects.data ?? []) {
-			totals.total += project.service_count
-			totals.running += project.running_count
-			totals.errored += project.errored_count
-			totals.db += project.database_count
-			totals.compose += project.compose_count
-		}
-		return {
-			...totals,
-			// What Docker is neither running nor failing on is idle: stopped,
-			// paused, or never deployed. What is neither a database nor declared by
-			// a compose file is an application.
-			idle: Math.max(totals.total - totals.running - totals.errored, 0),
-			apps: Math.max(totals.total - totals.db - totals.compose, 0),
-		}
-	}, [projects.data])
-
 	// The API already returns these newest-first, capped.
 	const deployments = info.data?.recent_deployments ?? []
-	const deploymentColumns = useMemo(() => recentDeploymentColumns(host?.name ?? ''), [host?.name])
 	const concerns = useMemo(
 		() => concernsOf(projects.data ?? [], certificates.data ?? []),
 		[projects.data, certificates.data],
 	)
-	const nextExpiry = (certificates.data ?? [])
-		.map(certificate => certificate.expires_at)
-		.toSorted()
-		.at(0)
 
-	// The page fits the window and the deployments take what is left, so only that list scrolls.
+	// The page fits the window and the two lists take what is left, so only they scroll.
 	return (
-		<Page fill>
+		<Page
+			fill
+			toolbar={
+				<p className='min-w-0 truncate text-sm text-secondary'>
+					{host ? `${host.name} · Docker ${host.docker_version} · ` : null}
+					Vexdock{' '}
+					{version.data?.update_available ? (
+						<Link to='/system/settings/about' className='text-warning underline-offset-4 hover:underline'>
+							{info.data?.version}, update available
+						</Link>
+					) : (
+						info.data?.version
+					)}
+				</p>
+			}
+			filters={<Segmented label='Window' value={window} options={WINDOWS} onChange={setWindow} />}
+		>
+			<NewProjectDialog open={creating} onOpenChange={setCreating} />
+
 			{concerns.length > 0 ? (
 				<Alert
 					tone={concerns.some(concern => concern.state === 'failed') ? 'danger' : 'warning'}
@@ -196,78 +267,54 @@ function DashboardPage() {
 				</Alert>
 			) : null}
 
-			<HostMetrics history={history} window={window} onWindowChange={setWindow} load={stats?.load_average} />
+			<HostMetrics history={history} window={window} load={stats?.load_average} cpus={host?.cpus} />
 
-			<Section title='Fleet'>
-				<Cells className='grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]'>
-					<Cell
-						label='Certificates'
-						icon={IconCertificate}
-						value={certificates.data?.length ?? 0}
-						hint={nextExpiry ? `next renewal ${until(nextExpiry)}` : 'none issued'}
-					/>
-					<Cell label='Projects' icon={IconFolder} value={projects.data?.length ?? 0} hint='on this host' />
-					<Cell
-						label='Services'
-						icon={IconServer}
-						value={services.total}
-						hint={
-							[
-								`${services.apps} app${services.apps === 1 ? '' : 's'}`,
-								`${services.compose} compose`,
-								`${services.db} db`,
-							]
-								.filter(part => !part.startsWith('0 '))
-								.join(' · ') || 'none yet'
+			<div className='grid flex-1 gap-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]'>
+				<Section
+					title='Projects'
+					total={projects.data?.length}
+					fill
+					actions={
+						<Button variant='primary' onClick={() => setCreating(true)}>
+							<IconPlus size={16} stroke={1.75} />
+							New project
+						</Button>
+					}
+				>
+					<DataTable
+						data={projects.data ?? []}
+						columns={projectColumns}
+						loading={projects.isLoading}
+						error={projects.error}
+						getRowId={project => project.id}
+						onRowClick={project =>
+							navigate({ to: '/projects/$projectId', params: { projectId: project.id } })
 						}
+						empty='No projects yet. Create one, then add services to it.'
 					/>
-					<Cell
-						label='Running'
-						icon={IconPlayerPlay}
-						value={`${services.running} / ${services.total}`}
-						hint={`${services.errored} errored · ${services.idle} idle`}
-					/>
-					<Cell label='Images' icon={IconStack2} value={info.data?.images ?? 0} hint='on this host' />
-					<Cell
-						label='Version'
-						icon={IconTag}
-						value={
-							version.data?.update_available ? (
-								<Link
-									to='/system/settings/about'
-									className='text-warning underline-offset-4 hover:underline'
-								>
-									{info.data?.version}
-								</Link>
-							) : (
-								(info.data?.version ?? '-')
-							)
-						}
-						hint={version.data?.update_available ? 'update available' : 'up to date'}
-					/>
-				</Cells>
-			</Section>
+				</Section>
 
-			<Section
-				title='Deployments'
-				fill
-				actions={<Refresh onClick={() => info.refetch()} busy={info.isFetching} />}
-			>
-				<DataTable
-					data={deployments}
-					columns={deploymentColumns}
-					loading={info.isLoading}
-					error={info.error}
-					getRowId={({ deployment }) => deployment.id}
-					detail={{
-						openId: openDeployment,
-						onOpenChange: setOpenDeployment,
-						title: deploymentDetailTitle,
-						render: renderDeploymentDetail,
-					}}
-					empty='No deployments yet'
-				/>
-			</Section>
+				<Section
+					title='Deployments'
+					fill
+					actions={<Refresh onClick={() => info.refetch()} busy={info.isFetching} />}
+				>
+					<DataTable
+						data={deployments}
+						columns={recentDeploymentColumns}
+						loading={info.isLoading}
+						error={info.error}
+						getRowId={({ deployment }) => deployment.id}
+						detail={{
+							openId: openDeployment,
+							onOpenChange: setOpenDeployment,
+							title: deploymentDetailTitle,
+							render: renderDeploymentDetail,
+						}}
+						empty='No deployments yet'
+					/>
+				</Section>
+			</div>
 		</Page>
 	)
 }
