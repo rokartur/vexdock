@@ -80,13 +80,13 @@ const recentDeploymentColumns: Columns<RecentDeployment> = (() => {
 			id: 'deployment',
 			header: 'Deployment',
 			cell: ({ row: { original } }) => (
-				<span className='flex min-w-0 items-center gap-2.5'>
+				<span className='flex items-center gap-2.5'>
 					<Status dot value={original.deployment.status} />
-					<span className='truncate'>
-						<span className='font-mono'>
+					<span className='grid max-w-60 min-w-0'>
+						<span className='truncate font-mono'>
 							{original.deployment.service_name} #{original.deployment.number}
-						</span>{' '}
-						<span className='text-muted'>
+						</span>
+						<span className='truncate text-xs text-muted'>
 							{original.project_name || original.deployment.project_id} · {original.environment_name}
 						</span>
 					</span>
@@ -107,7 +107,11 @@ const projectColumns: Columns<Project> = (() => {
 		cell.accessor(project => project.name, {
 			id: 'name',
 			header: 'Project',
-			cell: ({ row }) => <span className='font-medium'>{row.original.name}</span>,
+			cell: ({ row }) => (
+				<span title={row.original.name} className='block max-w-56 truncate font-medium'>
+					{row.original.name}
+				</span>
+			),
 		}),
 		cell.accessor(project => project.running_count, {
 			id: 'services',
@@ -122,7 +126,7 @@ const projectColumns: Columns<Project> = (() => {
 				const [first, ...rest] = original.domains
 				if (!first) return <span className='text-muted'>-</span>
 				return (
-					<span className='text-secondary'>
+					<span className='whitespace-nowrap text-secondary'>
 						{first.hostname}
 						{rest.length > 0 ? ` +${rest.length}` : ''}
 					</span>
@@ -136,7 +140,7 @@ const projectColumns: Columns<Project> = (() => {
 				const latest = original.latest_deployment
 				if (!latest) return <span className='text-muted'>never</span>
 				return (
-					<span className='flex items-center gap-2'>
+					<span className='flex items-center gap-2 whitespace-nowrap'>
 						<Status value={latest.status} />
 						<span className='font-mono'>
 							{latest.service_name} #{latest.number}
@@ -269,7 +273,7 @@ function DashboardPage() {
 
 			<HostMetrics history={history} window={window} load={stats?.load_average} cpus={host?.cpus} />
 
-			<div className='grid flex-1 gap-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]'>
+			<div className='grid flex-1 grid-cols-[minmax(0,1fr)] gap-6 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_24rem] xl:grid-rows-[minmax(0,1fr)]'>
 				<Section
 					title='Projects'
 					total={projects.data?.length}

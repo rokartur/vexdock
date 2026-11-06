@@ -42,6 +42,7 @@ export function HostMetrics({
 				max={100}
 				windowLabel={range.long}
 				height={48}
+				inline
 			/>
 			<MetricCard
 				label='Memory'
@@ -53,6 +54,7 @@ export function HostMetrics({
 				max={current?.memory_total}
 				windowLabel={range.long}
 				height={48}
+				inline
 			/>
 			<MetricCard
 				label='Disk'
@@ -64,6 +66,7 @@ export function HostMetrics({
 				max={current?.disk_total}
 				windowLabel={range.long}
 				height={48}
+				inline
 			/>
 		</Cells>
 	)
