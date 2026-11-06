@@ -21,6 +21,14 @@ it there; a hand-edited one has to as well.
 When the log says too little, add `LOG_LEVEL=debug` to `/opt/vexdock/.env` and
 run `docker compose up -d` in `/opt/vexdock`; remove it again afterwards.
 
+## The dashboard cannot be installed as an app
+
+Browsers offer "Install" only on HTTPS or `localhost`, so a panel reached as
+`http://<server-ip>:3000` stays a tab. Put the dashboard on its own domain
+(System > Settings, Dashboard domain) so it gets a certificate. An installed app that
+shows "You are offline" opened from its cached shell and will load once the
+server answers again.
+
 ## A deployment fails
 
 Open the deployment and read the step that failed. The step name says where:

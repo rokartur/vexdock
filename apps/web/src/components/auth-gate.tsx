@@ -92,6 +92,9 @@ function useBootScreenPhase() {
 }
 
 function BootScreen({ stalled = false }: { stalled?: boolean }) {
+	let message = 'Connecting to the manager'
+	// An installed dashboard opens from its cached shell without a network.
+	if (stalled) message = navigator.onLine ? 'The manager is not responding' : 'You are offline'
 	return (
 		<div className='flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center'>
 			{/* Static on purpose: a spinning loader repaints for the whole boot wait. */}
@@ -100,9 +103,7 @@ function BootScreen({ stalled = false }: { stalled?: boolean }) {
 			) : (
 				<IconLoader2 stroke={1.75} className='size-5 text-muted' />
 			)}
-			<p className='text-sm text-muted'>
-				{stalled ? 'The manager is not responding' : 'Connecting to the manager'}
-			</p>
+			<p className='text-sm text-muted'>{message}</p>
 			{stalled ? (
 				<Button
 					onClick={() => {

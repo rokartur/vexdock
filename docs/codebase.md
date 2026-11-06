@@ -420,6 +420,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
 | `src/components/logo.tsx`, `public/favicon.svg` | Vexdock's own mark, six squares in a 3×3 grid: `Logo` in the sidebar, login and setup, the same geometry as the tab icon |
+| `public/manifest.webmanifest`, `public/sw.js`, `public/icon*`, `public/apple-touch-icon.png` | The installable app: the manifest, the same mark on a `#0b0b0b` tile with room for a maskable crop, and a service worker that keeps the last app shell and the hashed assets it names for offline start; `__root.tsx` registers it in production builds |
 | `src/styles.css` | The ui skill's `styles.css` unchanged (tokens, base layer, `page`/`press`/`popup`/`scrim`), then vexdock's additions: the console colors, `enter-children` |
 
 A page is: a `queryOptions` (from `lib/queries.ts`, or a local `const` when
