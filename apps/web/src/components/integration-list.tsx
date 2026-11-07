@@ -19,18 +19,14 @@ export function IntegrationRow({
 	children?: ReactNode
 }) {
 	return (
-		<li className='grid min-h-15 min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 px-5 py-2.5 transition-colors duration-110 not-first:border-t not-first:border-border-subtle hover:bg-surface-muted/55 max-sm:px-4'>
+		<li className='grid min-h-15 min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 px-5 py-2.5 not-first:border-t not-first:border-border-subtle max-sm:px-4'>
 			<Icon className='size-5 text-foreground' stroke={1.75} />
-			<div className='grid min-w-0 gap-px'>
-				<div className='flex min-w-0 items-baseline gap-2'>
-					<h3 className='min-w-0 truncate font-display text-[13px] leading-[1.3] font-medium tracking-[-0.03em]'>
-						{name}
-					</h3>
-					{kind ? <span className='flex-none text-xs text-muted max-sm:hidden'>{kind}</span> : null}
+			<div className='grid min-w-0 gap-0.5'>
+				<div className='flex min-w-0 flex-wrap items-baseline gap-x-2'>
+					<h3 className='min-w-0 text-sm font-medium wrap-anywhere'>{name}</h3>
+					{kind ? <span className='min-w-0 text-xs wrap-anywhere text-muted'>{kind}</span> : null}
 				</div>
-				<p className='min-w-0 truncate text-xs text-secondary max-sm:line-clamp-2 max-sm:whitespace-normal'>
-					{description}
-				</p>
+				<p className='min-w-0 text-xs wrap-anywhere text-secondary'>{description}</p>
 			</div>
 			<div className='flex min-w-0 items-center justify-end gap-1'>{children}</div>
 		</li>

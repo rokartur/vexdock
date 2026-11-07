@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { IconBrandDocker, IconPlus, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Skeleton } from '@/components/ui/skeleton'
 import { IntegrationList, IntegrationRow } from '../components/integration-list'
 import {
 	Button,
 	Confirm,
 	EmptyState,
 	ErrorText,
+	ListPlaceholder,
 	Field,
 	FormDialog,
 	IconButton,
@@ -27,7 +27,15 @@ export const Route = createFileRoute('/system/settings/registries')({
 	component: Registries,
 })
 
-function RegistryRow({ registry, remove }: { registry: Registry; remove: (id: string) => void }) {
+function RegistryRow({
+	registry,
+	remove,
+	removing,
+}: {
+	registry: Registry
+	remove: (id: string) => void
+	removing: string | undefined
+}) {
 	return (
 		<IntegrationRow
 			icon={IconBrandDocker}
@@ -42,10 +50,15 @@ function RegistryRow({ registry, remove }: { registry: Registry; remove: (id: st
 			<Confirm
 				title={`Remove ${registry.name}?`}
 				description='Services pulling from it with these credentials will fail on their next deploy.'
-				action='Remove'
+				action='Remove registry'
 				onConfirm={() => remove(registry.id)}
 			>
-				<IconButton icon={IconTrash} label='Remove' />
+				<IconButton
+					icon={IconTrash}
+					label={`Remove ${registry.name}`}
+					loading={removing === registry.id}
+					disabled={removing !== undefined}
+				/>
 			</Confirm>
 		</IntegrationRow>
 	)
@@ -80,44 +93,50 @@ function Registries() {
 		<div className='max-w-3xl'>
 			<Section
 				title='Private registries'
+				total={registries.data?.length}
 				actions={
 					<>
-						<Refresh onClick={() => registries.refetch()} busy={registries.isFetching} />
-						<Button variant='primary' onClick={() => setAdding(true)}>
+						<Refresh onClick={() => registries.refetch()} />
+						<Button variant='primary' size='sm' onClick={() => setAdding(true)}>
 							<IconPlus size={16} stroke={1.75} />
 							Add registry
 						</Button>
 					</>
 				}
 			>
-				<ErrorText error={remove.error ?? registries.error} />
-				{listed.length === 0 ? (
-					<div className='rounded-surface border bg-surface'>
-						{registries.isLoading ? (
-							<Skeleton label='Loading registries' className='p-5' />
-						) : (
-							<EmptyState
-								icon={IconBrandDocker}
-								title='No registries configured'
-								description='Public images work without one.'
-							/>
-						)}
-					</div>
-				) : (
+				<ErrorText error={remove.error} />
+				<ErrorText error={registries.error} />
+				{listed.length > 0 ? (
 					<IntegrationList>
 						{listed.map(registry => (
-							<RegistryRow key={registry.id} registry={registry} remove={removeRegistry} />
+							<RegistryRow
+								key={registry.id}
+								registry={registry}
+								remove={removeRegistry}
+								removing={remove.isPending ? remove.variables : undefined}
+							/>
 						))}
 					</IntegrationList>
+				) : registries.error ? null : (
+					<ListPlaceholder loading={registries.isLoading} label='Loading registries'>
+						<EmptyState
+							icon={IconBrandDocker}
+							title='No registries configured'
+							description='Public images work without one. Add registry signs in to a private one.'
+						/>
+					</ListPlaceholder>
 				)}
 			</Section>
 
 			<FormDialog
 				open={adding}
-				onOpenChange={setAdding}
+				onOpenChange={open => {
+					setAdding(open)
+					if (!open) setForm(emptyForm)
+				}}
 				title='Add a registry'
 				description='A token or password with pull access. The login is verified before it is stored.'
-				action={create.isPending ? 'Verifying…' : 'Add registry'}
+				action='Add registry'
 				icon={IconPlus}
 				mutation={create}
 				onSubmit={() => create.mutate()}
@@ -132,6 +151,7 @@ function Registries() {
 					</Field>
 					<Field label='Registry URL'>
 						<Input
+							mono
 							required
 							placeholder='ghcr.io'
 							value={form.url}
@@ -140,15 +160,19 @@ function Registries() {
 					</Field>
 					<Field label='Username'>
 						<Input
+							mono
 							required
+							autoComplete='off'
 							value={form.username}
 							onChange={event => setForm({ ...form, username: event.target.value })}
 						/>
 					</Field>
 					<Field label='Token'>
 						<Input
+							mono
 							required
 							type='password'
+							autoComplete='new-password'
 							value={form.password}
 							onChange={event => setForm({ ...form, password: event.target.value })}
 						/>

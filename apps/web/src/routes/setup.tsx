@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { IconUserPlus } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
@@ -20,6 +20,9 @@ function SetupPage() {
 	const [token, setToken] = useState('')
 
 	const mismatch = confirm.length > 0 && confirm !== password
+	// Checked once the reader leaves the field or submits, not while the second copy is still being typed.
+	const [checked, setChecked] = useState(false)
+	const mismatchId = useId()
 
 	const setup = useMutation({
 		mutationFn: async () => {
@@ -48,13 +51,15 @@ function SetupPage() {
 				className='grid'
 				onSubmit={event => {
 					event.preventDefault()
+					setChecked(true)
 					if (!mismatch) setup.mutate()
 				}}
 			>
 				<Field label='Setup token' hint='Printed by the installer. Also in /opt/vexdock/.env.'>
 					<Input
+						mono
 						type='password'
-						autoComplete='off'
+						autoComplete='one-time-code'
 						required
 						value={token}
 						onChange={event => setToken(event.target.value)}
@@ -85,14 +90,21 @@ function SetupPage() {
 						autoComplete='new-password'
 						required
 						value={confirm}
+						onBlur={() => setChecked(confirm.length > 0)}
+						aria-invalid={checked && mismatch}
+						aria-describedby={checked && mismatch ? mismatchId : undefined}
 						onChange={event => setConfirm(event.target.value)}
 					/>
 				</Field>
-				{mismatch ? <ErrorText error='Passwords do not match.' /> : null}
+				{checked && mismatch ? (
+					<div id={mismatchId}>
+						<ErrorText error='Type the same password in both fields.' />
+					</div>
+				) : null}
 				<ErrorText error={setup.error} />
-				<Button type='submit' variant='primary' loading={setup.isPending} disabled={mismatch}>
+				<Button type='submit' variant='primary' loading={setup.isPending}>
 					<IconUserPlus size={16} stroke={1.75} />
-					Create account
+					Create administrator
 				</Button>
 			</form>
 		</AuthScreen>

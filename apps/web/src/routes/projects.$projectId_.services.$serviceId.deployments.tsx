@@ -1,12 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { DeploymentsPanel, deploymentSearch } from '../components/deployments-panel'
-import { deploymentsQuery, preload } from '../lib/queries'
+import { preloadServiceDeployments } from '../lib/queries'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/deployments')({
-	loaderDeps: ({ search }) => ({ env: search.env }),
-	loader: ({ context: { queryClient }, params: { projectId }, deps: { env } }) =>
-		preload(queryClient, deploymentsQuery(projectId, env)),
+	loader: ({ context: { queryClient }, params: { projectId, serviceId } }) =>
+		preloadServiceDeployments(queryClient, projectId, serviceId),
 	component: ServiceDeployments,
 	...deploymentSearch,
 })

@@ -59,7 +59,8 @@
 	--text-5xl--line-height: 1.1;
 	--text-5xl--letter-spacing: -0.03em;
 
-	/* Arc's 18/26/34 cut to 12/16/16, so a card, an alert and a popup share one corner: operator's call. */
+	/* The skill's 14/20/26 (Arc's 18/26/34 one step smaller) cut to 12/16/16, so a card, an alert and a popup share one
+	   corner: operator's call. */
 	--radius-control: 0.75rem;
 	--radius-panel: 1rem;
 	--radius-surface: 1rem;
@@ -75,41 +76,41 @@
 	--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 	--ease-spring: linear(
 		0,
-		0.0258,
-		0.09,
-		0.1763,
-		0.2732,
-		0.3724,
-		0.4683,
-		0.5573,
-		0.6376,
-		0.7082,
-		0.7689,
-		0.8202,
-		0.8628,
-		0.8976,
-		0.9256,
-		0.9476,
-		0.9648,
-		0.9778,
-		0.9875,
-		0.9945,
-		0.9994,
-		1.0026,
-		1.0047,
-		1.0058,
-		1.0062,
-		1.0062,
-		1.0059,
-		1.0055,
-		1.0049,
-		1.0043,
-		1.0036,
-		1.0031,
-		1.0025,
-		1.002,
-		1.0016,
-		1.0013,
+		0.0213,
+		0.0739,
+		0.1443,
+		0.2235,
+		0.305,
+		0.3849,
+		0.4606,
+		0.5305,
+		0.594,
+		0.6508,
+		0.7011,
+		0.7452,
+		0.7836,
+		0.8168,
+		0.8454,
+		0.8699,
+		0.8907,
+		0.9084,
+		0.9234,
+		0.9361,
+		0.9467,
+		0.9557,
+		0.9632,
+		0.9694,
+		0.9747,
+		0.979,
+		0.9826,
+		0.9857,
+		0.9882,
+		0.9902,
+		0.992,
+		0.9934,
+		0.9946,
+		0.9955,
+		0.9963,
 		1
 	);
 	--default-transition-timing-function: var(--ease-standard);
@@ -239,7 +240,7 @@
 	--duration-spring: 400ms;
 }
 
-/* The phone tab bar's height, for the shell and anything fixed to the window's bottom (the save bar portals to body). Same 480px as the shell's container query. */
+/* vexdock: the phone tab bar's height, for the shell and anything fixed to the window's bottom (the save bar portals to body). Same 480px as the shell's container query. */
 @media (width < 480px) {
 	:root {
 		--tab-bar: calc(3.5rem + env(safe-area-inset-bottom, 0px));
@@ -247,7 +248,8 @@
 }
 :root[data-theme='dark'] {
 	color-scheme: dark;
-	/* Arc's dark grays 4 points darker (background 19% there): operator's call. */
+	/* Arc's dark neutrals (grays, borders, control tracks and glyphs) 4 points darker, border-strong 5 (background
+	   19% there): operator's call. */
 	--background: oklch(15% 0 0);
 	--surface: oklch(17.5% 0 0);
 	--surface-raised: oklch(20% 0 0);
@@ -317,7 +319,9 @@
 	):not(:disabled, [aria-disabled='true'], [data-disabled]) {
 		cursor: pointer;
 	}
+	/* vexdock: `a` joins the disabled and busy rules, since Button's render path draws an inert <a data-disabled>. */
 	:is(
+		a,
 		button,
 		[role='button'],
 		[role='menuitem'],
@@ -327,7 +331,7 @@
 	):is(:disabled, [data-disabled]) {
 		cursor: not-allowed;
 	}
-	:is(button, [role='button'])[aria-busy='true'] {
+	:is(a, button, [role='button'])[aria-busy='true'] {
 		cursor: progress;
 	}
 	/* A press or a double tap never highlights the label: controls and links are not text to copy. */
@@ -521,19 +525,21 @@
 }
 
 /* Recede (the Recede recipe): the page under a blocking layer steps back while the layer is up. Only a `scrim`
-   (dialog, drawer, sheet) triggers it; menus and popovers float over a page that stays put. */
+   (dialog, drawer, sheet) triggers it; menus and popovers float over a page that stays put. vexdock: `[data-scrim]`
+   marks a backdrop that draws its own fade (Arc's Dialog and the More sheet through motion, the floating rail in CSS),
+   where the scrim utility's transition would fight it. */
 [data-recede] {
 	transition:
 		scale 340ms var(--ease-enter),
 		filter 340ms var(--ease-enter);
 	transform-origin: 50% 40%;
 }
-body:has(.scrim[data-open]:not([data-ending-style])) [data-recede] {
+body:has(:is(.scrim, [data-scrim])[data-open]:not([data-ending-style])) [data-recede] {
 	scale: 0.98;
 	filter: blur(2px);
 }
 @media (prefers-reduced-motion: reduce) {
-	body:has(.scrim[data-open]:not([data-ending-style])) [data-recede] {
+	body:has(:is(.scrim, [data-scrim])[data-open]:not([data-ending-style])) [data-recede] {
 		scale: 1;
 		filter: none;
 	}
@@ -653,8 +659,9 @@ body:has(.scrim[data-open]:not([data-ending-style])) [data-recede] {
 	animation-duration: 340ms;
 	animation-timing-function: var(--ease-enter);
 }
-/* The one target is always named; a source is one row of many, named only while the pointer or focus is on it. */
-:root:active-view-transition-type(morph) :is([data-morph], [data-morph-from]:is(:hover, :focus-visible)) {
+/* vexdock: the source is named inline by morph() in lib/motion.ts, not by [data-morph-from]:is(:hover, :focus-visible):
+   a tap on a touch screen leaves no :hover, so the tapped row's title would not carry over. */
+:root:active-view-transition-type(morph) [data-morph] {
 	view-transition-name: var(--morph);
 }
 :root:active-view-transition-type(morph)::view-transition-old(root) {
@@ -664,21 +671,22 @@ body:has(.scrim[data-open]:not([data-ending-style])) [data-recede] {
 	animation: 170ms var(--ease-enter) both fade-in;
 }
 
-/* Everything above is the ui skill's styles.css unchanged but for the xterm import; below are vexdock's own additions. */
+/* Everything above is the ui skill's styles.css but for the xterm import, --tab-bar, [data-scrim], the morph source,
+   `a` in the disabled and busy cursor rules (each but the import marked vexdock:) and the values marked operator's call (radii, dark
+   neutrals); below are vexdock's own additions. */
+
+/* No page region carries data-swap: a named region leaves main's scroll clip for the swap, so a page scrolled down
+   would draw its old top blocks over the header. The page swaps as one piece. */
 
 /* The console (log tail, container shell, .env editor) stays a black terminal in either theme. */
 :root {
 	--console: oklch(0% 0 0);
 	--console-foreground: oklch(87% 0 0);
-	--code-key: oklch(71.7% 0.152 251);
-	--code-value: oklch(83.2% 0.156 147);
 }
 
 @theme inline {
 	--color-console: var(--console);
 	--color-console-foreground: var(--console-foreground);
-	--color-code-key: var(--code-key);
-	--color-code-value: var(--code-value);
 }
 
 @layer base {
@@ -691,11 +699,11 @@ body:has(.scrim[data-open]:not([data-ending-style])) [data-recede] {
 
 	/* Scrollbar thumbs are the text color at low opacity and wake up while the element is hovered. */
 	* {
-		scrollbar-color: color-mix(in oklch, currentColor 35%, transparent) transparent;
+		scrollbar-color: color-mix(in oklab, currentColor 35%, transparent) transparent;
 	}
 
 	:hover {
-		scrollbar-color: color-mix(in oklch, currentColor 60%, transparent) transparent;
+		scrollbar-color: color-mix(in oklab, currentColor 60%, transparent) transparent;
 	}
 }
 
@@ -709,12 +717,14 @@ body,
 	padding: 8px;
 }
 
-/* Blocks rise 70ms apart, the fifth and later together; a lone wrapper hands the stagger to its children. */
+/* The sign-in screen's blocks arrive with the Page swap recipe's swap-in, 25ms apart; the fifth and later arrive
+   together, and a lone wrapper hands the stagger to its children. */
 @utility enter-children {
+	--swap-in: 0 5px;
 	& > :not(:only-child),
 	& > :only-child > * {
-		animation: enter 240ms var(--ease-enter) backwards;
-		animation-delay: calc(var(--enter-step, 0) * 70ms);
+		animation: swap-in 170ms var(--ease-enter) backwards;
+		animation-delay: calc(var(--enter-step, 0) * 25ms);
 	}
 	& > :nth-child(2),
 	& > :only-child > :nth-child(2) {
@@ -731,12 +741,5 @@ body,
 	& > :nth-child(n + 5),
 	& > :only-child > :nth-child(n + 5) {
 		--enter-step: 4;
-	}
-}
-
-@keyframes enter {
-	from {
-		opacity: 0;
-		translate: 0 12px;
 	}
 }

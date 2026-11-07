@@ -58,11 +58,14 @@ impl Db {
 
 	/// One environment's history, newest first. Numbers run per service, so only
 	/// time orders rows that span services.
-	pub fn list_deployments(&self, environment_id: &str, limit: i64) -> Result<Vec<Deployment>> {
+	/// An empty `service_name` lists every service of the environment.
+	pub fn list_deployments(&self, environment_id: &str, service_name: &str, limit: i64) -> Result<Vec<Deployment>> {
 		let limit = if limit <= 0 { 50 } else { limit };
 		self.all(
-			&format!("SELECT {DEPLOYMENT_COLUMNS} FROM deployments WHERE environment_id = ? ORDER BY created_at DESC, id DESC LIMIT ?"),
-			params![environment_id, limit],
+			&format!(
+				"SELECT {DEPLOYMENT_COLUMNS} FROM deployments WHERE environment_id = ?1 AND (?2 = '' OR service_name = ?2) ORDER BY created_at DESC, id DESC LIMIT ?3"
+			),
+			params![environment_id, service_name, limit],
 			scan_deployment,
 		)
 	}

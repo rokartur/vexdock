@@ -18,6 +18,8 @@ export type CommandItem = {
 	description?: string
 	group?: string
 	keywords?: string[]
+	// vexdock: a status row (loading, failed) that every query keeps, so a typed name does not read as "no match".
+	pinned?: boolean
 	icon?: ReactNode
 	shortcut?: string
 }
@@ -66,12 +68,14 @@ export function CommandPalette({
 	const filtered = useMemo(() => {
 		const normalized = query.trim().toLowerCase()
 		if (!normalized) return items
-		return items.filter(item =>
-			[item.label, item.description, item.group, ...(item.keywords ?? [])]
-				.filter(Boolean)
-				.join(' ')
-				.toLowerCase()
-				.includes(normalized),
+		return items.filter(
+			item =>
+				item.pinned ||
+				[item.label, item.description, item.group, ...(item.keywords ?? [])]
+					.filter(Boolean)
+					.join(' ')
+					.toLowerCase()
+					.includes(normalized),
 		)
 	}, [items, query])
 
@@ -113,7 +117,7 @@ export function CommandPalette({
 	useLayoutEffect(() => {
 		const list = listRef.current
 		if (!list) return
-		const observer = new ResizeObserver(() => setListHeight(list.offsetHeight))
+		const observer = new ResizeObserver(([entry]) => setListHeight(Math.round(entry!.borderBoxSize[0]!.blockSize)))
 		observer.observe(list)
 		return () => observer.disconnect()
 	}, [])

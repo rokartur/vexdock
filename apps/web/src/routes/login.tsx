@@ -35,7 +35,7 @@ function LoginPage() {
 	return (
 		<AuthScreen
 			label='Sign in'
-			title='Sign in to vexdock'
+			title='Sign in to Vexdock'
 			lead='The administrator account this server was set up with.'
 		>
 			<form

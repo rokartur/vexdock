@@ -256,6 +256,7 @@ impl<'a> Pipeline<'a> {
 		deployment.started_at = database::now();
 		self.e.db.update_deployment(&deployment)?;
 		self.publish("deployment.started", &deployment);
+		self.e.bus.publish(events::TOPIC_SYSTEM, "deployment.started", &deployment);
 		self.deployment = Some(deployment);
 
 		// The checkout has to exist before compose resolves the build context.
@@ -557,12 +558,13 @@ impl<'a> Pipeline<'a> {
 	/// even when the pipeline never read it, which is what a cancel while
 	/// queued looks like.
 	fn finish(&mut self, outcome: Result<()>) {
-		// A cancel or a timeout drops the pipeline mid-step; that step failed.
+		// A cancel or a timeout drops the pipeline mid-step; the step ends the way the deployment does.
 		if let Err(err) = &outcome
 			&& self.current.is_some()
 		{
 			self.printf(&format!("ERROR: {err:#}"));
-			self.close_step(database::DEPLOYMENT_FAILED);
+			let status = if err.is::<Cancelled>() { database::DEPLOYMENT_CANCELLED } else { database::DEPLOYMENT_FAILED };
+			self.close_step(status);
 		}
 		let mut deployment = match self.deployment.take() {
 			Some(d) => d,

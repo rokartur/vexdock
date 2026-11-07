@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ReactElement, ReactNode } from 'react'
+import type { PointerEvent, ReactElement, ReactNode } from 'react'
 import { Menu } from '@base-ui/react/menu'
 import { IconChevronDown } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
@@ -9,26 +9,29 @@ import { motionTokens } from '../../lib/motion'
 
 export type DropdownItem = {
 	label: string
-	onSelect?: () => void
-	// vexdock: makes the item a router link.
-	href?: string
-	disabled?: boolean
 	icon?: ReactNode
 	destructive?: boolean
 	separatorBefore?: boolean
-}
+} & (
+	| { onSelect?: () => void; disabled?: boolean; href?: undefined }
+	// vexdock: makes the item a router link, without the page swap, which would freeze the menu's exit. Base UI's
+	// LinkItem has no disabled state; onSelect runs beside the navigation.
+	| { href: string; onSelect?: () => void; disabled?: undefined }
+)
 
 type DropdownMenuProps = {
 	items: DropdownItem[]
 	icon?: ReactNode
-	// vexdock: the dashboard opens menus from its own buttons (a primary action, an icon button, the user row).
-	// A trigger replaces Arc's labeled trigger; one of label or trigger is required.
-	label?: string
-	trigger?: ReactElement
+	// vexdock: the user row at the foot of the rail opens its menu upward, from its own left edge.
 	side?: 'top' | 'bottom'
 	align?: 'start' | 'end'
+	// vexdock: widens the popup past its content, for the user row's menu.
 	menuClassName?: string
-}
+} & (
+	| { label: string; trigger?: undefined }
+	// vexdock: the dashboard opens menus from its own buttons (a primary action, an icon button, the user row).
+	| { label?: undefined; trigger: ReactElement }
+)
 
 type Highlight = { top: number; height: number; danger: boolean; glide: boolean }
 
@@ -49,6 +52,14 @@ export function DropdownMenu({
 	const reduced = useReducedMotion()
 	const [highlight, setHighlight] = useState<Highlight | null>(null)
 	const [held, setHeld] = useState(false)
+	// Base UI's modal backdrop clears :active once the menu opens on pointerdown, so the press color tracks the held pointer.
+	const hold = (event: PointerEvent<HTMLElement>) => {
+		setHeld(true)
+		const release = () => setHeld(false)
+		const doc = event.currentTarget.ownerDocument
+		doc.addEventListener('pointerup', release, { once: true })
+		doc.addEventListener('pointercancel', release, { once: true })
+	}
 	const clearTimer = useRef(0)
 	useEffect(() => () => window.clearTimeout(clearTimer.current), [])
 
@@ -77,19 +88,13 @@ export function DropdownMenu({
 
 	return (
 		<Menu.Root onOpenChange={onOpenChange} onItemHighlighted={onItemHighlighted}>
-			{/* Base UI's modal backdrop clears :active once the menu opens on pointerdown, so the press color tracks the held pointer. */}
+			{/* vexdock: a caller's `trigger` replaces Arc's labeled trigger below; Button's variants read `data-held`. */}
 			{trigger ? (
-				<Menu.Trigger render={trigger} />
+				<Menu.Trigger render={trigger} data-held={held || undefined} onPointerDown={hold} />
 			) : (
 				<Menu.Trigger
 					data-held={held || undefined}
-					onPointerDown={event => {
-						setHeld(true)
-						const release = () => setHeld(false)
-						const doc = event.currentTarget.ownerDocument
-						doc.addEventListener('pointerup', release, { once: true })
-						doc.addEventListener('pointercancel', release, { once: true })
-					}}
+					onPointerDown={hold}
 					className='group/trigger inline-flex min-h-control-sm max-w-full items-center gap-1.5 rounded-control border bg-surface px-2.5 text-sm font-medium text-foreground [transition:background-color_85ms_var(--ease-standard),border-color_110ms_var(--ease-standard),box-shadow_110ms_var(--ease-standard)] hover:border-border-strong hover:bg-surface-muted hover:shadow-resting active:border-border-strong active:bg-[color-mix(in_oklab,var(--surface-muted),var(--border)_55%)] active:shadow-none data-held:bg-[color-mix(in_oklab,var(--surface-muted),var(--border)_55%)] data-popup-open:border-border-strong data-popup-open:shadow-none data-popup-open:not-data-held:bg-surface-muted'
 				>
 					{icon && (
@@ -131,21 +136,17 @@ export function DropdownMenu({
 							}}
 							className='pointer-events-none absolute inset-x-1 top-0 rounded-[calc(var(--radius-panel)-6px)] bg-surface-muted opacity-0 transition-[background-color] data-[tone=danger]:bg-[color-mix(in_oklab,var(--danger)_8%,var(--surface))]'
 						/>
-						{items.map((item, index) => (
-							<Fragment key={item.label}>
-								{item.separatorBefore && (
-									<Menu.Separator className='-mx-1 my-1 h-px bg-border-subtle' />
-								)}
-								<Menu.Item
-									data-tone={item.destructive ? 'danger' : undefined}
-									disabled={item.disabled}
-									onClick={item.onSelect}
-									render={item.href === undefined ? undefined : <Link to={item.href} />}
-									style={{
-										transitionDelay: `0s, ${Math.min(index, 4) * stagger.item}s, ${Math.min(index, 4) * stagger.item}s`,
-									}}
-									className='relative flex min-h-control-md items-center gap-2.5 rounded-[calc(var(--radius-panel)-6px)] px-2.5 text-sm text-foreground [transition:color_110ms_var(--ease-standard),opacity_170ms_var(--ease-enter),translate_170ms_var(--ease-enter)] in-data-starting-style:[translate:calc(var(--menu-x)*0.4)_calc(var(--menu-y)*0.4)] in-data-starting-style:opacity-0 data-disabled:opacity-45 data-[tone=danger]:text-danger'
-								>
+						{items.map((item, index) => {
+							const itemProps = {
+								'data-tone': item.destructive ? 'danger' : undefined,
+								style: {
+									transitionDelay: `0s, ${Math.min(index, 4) * stagger.item}s, ${Math.min(index, 4) * stagger.item}s`,
+								},
+								className:
+									'relative flex min-h-control-md items-center gap-2.5 rounded-[calc(var(--radius-panel)-6px)] px-2.5 text-sm text-foreground [transition:color_110ms_var(--ease-standard),opacity_170ms_var(--ease-enter),translate_170ms_var(--ease-enter)] in-data-starting-style:[translate:calc(var(--menu-x)*0.4)_calc(var(--menu-y)*0.4)] in-data-starting-style:opacity-0 data-disabled:opacity-45 data-[tone=danger]:text-danger',
+							}
+							const content = (
+								<>
 									{item.icon && (
 										<span
 											aria-hidden='true'
@@ -155,9 +156,31 @@ export function DropdownMenu({
 										</span>
 									)}
 									{item.label}
-								</Menu.Item>
-							</Fragment>
-						))}
+								</>
+							)
+							return (
+								<Fragment key={item.label}>
+									{item.separatorBefore && (
+										<Menu.Separator className='-mx-1 my-1 h-px bg-border-subtle' />
+									)}
+									{/* vexdock: an href item is Base UI's LinkItem, as button-group.tsx does it. */}
+									{item.href === undefined ? (
+										<Menu.Item {...itemProps} disabled={item.disabled} onClick={item.onSelect}>
+											{content}
+										</Menu.Item>
+									) : (
+										<Menu.LinkItem
+											{...itemProps}
+											closeOnClick
+											onClick={item.onSelect}
+											render={<Link to={item.href} viewTransition={false} />}
+										>
+											{content}
+										</Menu.LinkItem>
+									)}
+								</Fragment>
+							)
+						})}
 					</Menu.Popup>
 				</Menu.Positioner>
 			</Menu.Portal>

@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { IconDatabaseOff, IconEye, IconPlayerPlay, IconRocket, IconTable, IconTerminal } from '@tabler/icons-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { IconDatabaseOff, IconEye, IconTable, IconTerminal, IconTerminal2 } from '@tabler/icons-react'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { ActivePill, Button, EmptyState, ErrorText, Select } from '../components/primitives'
 import { SearchField } from '../components/ui/search-field'
+import { Skeleton } from '../components/ui/skeleton'
 import { api } from '../lib/api'
-import { useService } from './projects.$projectId_.services.$serviceId'
+import { NotRunning, useService } from './projects.$projectId_.services.$serviceId'
 
 type StudioSearch = { schema?: string; table?: string }
 
@@ -41,37 +42,16 @@ function Studio() {
 	const { serviceId } = Route.useParams()
 	const service = useService(serviceId)
 	if (!service.data) return null
-	if (service.data.state !== 'running') return <NotRunning serviceId={serviceId} />
+	if (service.data.state !== 'running') {
+		return (
+			<NotRunning
+				service={service.data}
+				title='The database is not running'
+				description='Studio talks to the running container.'
+			/>
+		)
+	}
 	return <StudioPane />
-}
-
-function NotRunning({ serviceId }: { serviceId: string }) {
-	const queryClient = useQueryClient()
-	const onSuccess = () => queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
-	const start = useMutation({ mutationFn: () => api.serviceAction(serviceId, 'start'), onSuccess })
-	const deploy = useMutation({ mutationFn: () => api.deployService(serviceId), onSuccess })
-	const busy = start.isPending || deploy.isPending
-	return (
-		<div className='rounded-surface border bg-surface'>
-			<EmptyState
-				scene='offline'
-				title='The database is not running.'
-				description='Studio talks to the running container. Start it, or deploy it if it never ran.'
-			>
-				<ErrorText error={start.error ?? deploy.error} />
-				<div className='flex gap-2'>
-					<Button onClick={() => start.mutate()} disabled={busy}>
-						<IconPlayerPlay size={16} stroke={1.75} />
-						Start
-					</Button>
-					<Button variant='primary' onClick={() => deploy.mutate()} disabled={busy}>
-						<IconRocket size={16} stroke={1.75} />
-						Deploy
-					</Button>
-				</div>
-			</EmptyState>
-		</div>
-	)
 }
 
 function StudioPane() {
@@ -82,12 +62,42 @@ function StudioPane() {
 	const [filter, setFilter] = useState('')
 
 	if (schemas.error) return <ErrorText error={schemas.error} />
-	if (!schemas.data) return null
-	if (!schema) return <EmptyState icon={IconDatabaseOff} title='This database has no schemas.' />
+	if (!schemas.data) {
+		return (
+			<div className='flex min-h-96 flex-1 flex-col rounded-surface border bg-surface p-5'>
+				<Skeleton label='Loading the schema' lines={4} />
+			</div>
+		)
+	}
+	if (!schema) {
+		return (
+			<div className='rounded-surface border bg-surface'>
+				<EmptyState
+					heading='h2'
+					icon={IconDatabaseOff}
+					title='This database has no schemas'
+					description="The Terminal tab opens a shell in the container, where the engine's client creates one."
+				>
+					<Button
+						render={
+							<Link
+								to='/projects/$projectId/services/$serviceId/terminal'
+								params={{ projectId, serviceId }}
+							/>
+						}
+					>
+						<IconTerminal2 size={16} stroke={1.75} />
+						Open terminal
+					</Button>
+				</EmptyState>
+			</div>
+		)
+	}
 
 	const params = { projectId, serviceId }
 	const onConsole = Boolean(matchRoute({ to: '/projects/$projectId/services/$serviceId/studio/console' }))
 	const needle = filter.trim().toLowerCase()
+	const listed = tables.filter(t => t.name.toLowerCase().includes(needle))
 
 	return (
 		<div className='flex min-h-96 flex-1 flex-col overflow-hidden rounded-surface border bg-surface sm:flex-row'>
@@ -113,39 +123,43 @@ function StudioPane() {
 					value={filter}
 					onValueChange={setFilter}
 				/>
-				<nav className='-mx-2 flex min-h-0 flex-1 flex-col overflow-y-auto px-2'>
+				<nav aria-label='Tables' className='-mx-2 flex min-h-0 flex-1 flex-col overflow-y-auto px-2'>
 					<Link
 						to='/projects/$projectId/services/$serviceId/studio/console'
 						params={params}
 						search={{ schema: schema.name }}
+						aria-current={onConsole ? 'page' : undefined}
 						className={cn(entryClass, onConsole && activeClass)}
 					>
 						{onConsole ? <ActivePill layoutId='studio' /> : null}
 						<IconTerminal stroke={1.75} className='size-4 shrink-0' />
 						Console
 					</Link>
-					{tables
-						.filter(t => t.name.toLowerCase().includes(needle))
-						.map(t => {
-							const active = !onConsole && table?.name === t.name
-							return (
-								<Link
-									key={t.name}
-									to='/projects/$projectId/services/$serviceId/studio'
-									params={params}
-									search={{ schema: schema.name, table: t.name }}
-									className={cn(entryClass, active && activeClass)}
-								>
-									{active ? <ActivePill layoutId='studio' /> : null}
-									{t.view ? (
-										<IconEye stroke={1.75} aria-label='View' className='size-4 shrink-0' />
-									) : (
-										<IconTable stroke={1.75} className='size-4 shrink-0' />
-									)}
-									<span className='truncate'>{t.name}</span>
-								</Link>
-							)
-						})}
+					{listed.map(t => {
+						const active = !onConsole && table?.name === t.name
+						return (
+							<Link
+								key={t.name}
+								to='/projects/$projectId/services/$serviceId/studio'
+								params={params}
+								search={{ schema: schema.name, table: t.name }}
+								aria-current={active ? 'page' : undefined}
+								className={cn(entryClass, active && activeClass)}
+							>
+								{active ? <ActivePill layoutId='studio' /> : null}
+								{t.view ? (
+									<IconEye stroke={1.75} role='img' aria-label='View' className='size-4 shrink-0' />
+								) : (
+									<IconTable stroke={1.75} className='size-4 shrink-0' />
+								)}
+								<span className='min-w-0 wrap-anywhere'>{t.name}</span>
+							</Link>
+						)
+					})}
+					{/* Stays mounted while empty (no padding, no height) so the message lands in a live region. */}
+					<p role='status' className='px-2 py-1.5 text-xs text-muted empty:py-0'>
+						{needle && listed.length === 0 ? 'No tables match' : ''}
+					</p>
 				</nav>
 			</aside>
 			<div className='relative flex min-h-0 min-w-0 flex-1 flex-col'>
@@ -156,5 +170,5 @@ function StudioPane() {
 }
 
 const entryClass =
-	'relative isolate flex h-7 shrink-0 items-center gap-2 rounded-control px-2 text-sm text-muted transition-colors hover:bg-surface-muted hover:text-foreground'
+	'relative isolate flex min-h-8 shrink-0 items-center gap-2 rounded-control px-2 py-1.5 text-sm text-muted transition-colors duration-110 ease-standard hover:bg-surface-muted hover:text-foreground motion-reduce:transition-none pointer-coarse:min-h-11'
 const activeClass = 'text-foreground'

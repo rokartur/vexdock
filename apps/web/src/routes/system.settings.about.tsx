@@ -5,10 +5,23 @@ import { createFileRoute } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
 import { CodeBlock } from '@/components/ui/code-block'
-import { Stepper } from '@/components/ui/stepper'
-import { Button, Cell, Cells, ErrorText, Field, FormSection, Segmented, Switch } from '../components/primitives'
-import { api, updateActive, type UpdatePhase, type VersionSettings } from '../lib/api'
-import { since } from '../lib/format'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+	Button,
+	Cell,
+	Cells,
+	ErrorText,
+	Field,
+	FormSection,
+	PendingReading,
+	RelativeTime,
+	Segmented,
+	Status,
+	Switch,
+	Timeline,
+	textLink,
+} from '../components/primitives'
+import { api, updateActive, type UpdatePhase, type VersionSettings, type VersionStatus } from '../lib/api'
 import { healthQuery, preload, updateStateQuery, versionQuery } from '../lib/queries'
 
 export const Route = createFileRoute('/system/settings/about')({
@@ -26,10 +39,10 @@ export const Route = createFileRoute('/system/settings/about')({
  * the restart gap (manager down, fetch failing) renders as the restart step.
  */
 const steps = [
-	{ phase: 'backup', label: 'Backup', hint: 'platform state, kept for rollback' },
-	{ phase: 'pulling', label: 'Pull images', hint: 'the panel stays up for this part' },
-	{ phase: 'restarting', label: 'Restart', hint: 'panel unreachable for ~15 s' },
-	{ phase: 'done', label: 'Health check', hint: 'rolls back on failure' },
+	{ phase: 'backup', label: 'Backup', hint: 'Platform state, kept for rollback' },
+	{ phase: 'pulling', label: 'Pull images', hint: 'The panel stays up for this part' },
+	{ phase: 'restarting', label: 'Restart', hint: 'Panel unreachable for ~15 s' },
+	{ phase: 'done', label: 'Health check', hint: 'Rolls back on failure' },
 ] as const
 
 /** A finished update stays in the state file forever; only show the outcome banner this long. */
@@ -96,31 +109,33 @@ function Version() {
 	})
 
 	// The endpoint takes the whole preference set, so a toggle carries the
-	// other one along.
+	// other one along. While a save is in flight its values are the ones shown.
+	const prefs = setSettings.isPending ? setSettings.variables : version.data
 	const save = (patch: Partial<VersionSettings>) => {
-		if (!version.data) return
-		const { beta, cleanup_old_images } = version.data
+		if (!prefs) return
+		const { beta, cleanup_old_images } = prefs
 		setSettings.mutate({ beta, cleanup_old_images, ...patch })
 	}
 
-	const healthy = health.data?.status === 'healthy'
+	const healthy = !health.isError && health.data?.status === 'healthy'
 	const checks = Object.entries(health.data?.checks ?? {}).toSorted(([a], [b]) => a.localeCompare(b))
 	const canUpdate = (version.data?.update_available ?? false) && healthy && !active && !update.isPending
 	const busy = active || update.isPending
 
 	return (
 		<div className='max-w-3xl'>
+			<ErrorText error={version.error} />
 			<ErrorText error={update.error ?? setSettings.error ?? check.error} />
 			<ErrorText
 				error={version.data?.check_error && `Could not check for updates: ${version.data.check_error}`}
 			/>
 			{showResult && state.data && phase === 'done' ? (
-				<Alert tone='success' title={`Updated to ${state.data.target}.`} className='mb-4' />
+				<Alert tone='success' title={`Updated to ${state.data.target}`} className='mb-4' />
 			) : null}
 			{showResult && state.data && phase === 'rolled-back' ? (
 				<Alert
 					tone='danger'
-					title={`Update to ${state.data.target} rolled back${state.data.error ? `: ${state.data.error}` : ''}. Still on ${state.data.previous}.`}
+					title={`Update to ${state.data.target} rolled back, still on ${state.data.previous}${state.data.error ? `: ${state.data.error}` : ''}`}
 					className='mb-4'
 				>
 					{state.data.log ? (
@@ -134,15 +149,21 @@ function Version() {
 				icon={IconTag}
 				hint={
 					<span className='flex items-center gap-3'>
-						{check.isPending ? 'checking…' : `checked ${since(version.data?.checked_at)}`}
+						{check.isPending ? (
+							'Checking…'
+						) : version.data ? (
+							<span>
+								Checked <RelativeTime at={version.data.checked_at} />
+							</span>
+						) : null}
 						{version.data?.release_url ? (
 							<a
 								href={version.data.release_url}
 								target='_blank'
 								rel='noopener noreferrer'
-								className='inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline'
+								className={cn(textLink, 'inline-flex items-center gap-1 hover:text-foreground')}
 							>
-								release notes
+								Release notes
 								<IconExternalLink stroke={1.75} className='size-3' />
 							</a>
 						) : null}
@@ -150,29 +171,48 @@ function Version() {
 				}
 				actions={
 					<>
-						<Button onClick={() => check.mutate()} disabled={check.isPending || busy}>
+						<Button onClick={() => check.mutate()} loading={check.isPending} disabled={busy}>
 							<IconRefresh size={16} stroke={1.75} />
 							Check for updates
 						</Button>
-						<Button variant='primary' onClick={() => update.mutate()} disabled={!canUpdate}>
-							<IconDownload size={16} stroke={1.75} />
-							{busy && 'Updating…'}
-							{!busy &&
-								(version.data?.update_available ? `Update to ${version.data.latest}` : 'Up to date')}
-						</Button>
+						{version.data?.update_available || busy ? (
+							<Button
+								variant='primary'
+								onClick={() => update.mutate()}
+								loading={update.isPending}
+								disabled={!canUpdate}
+							>
+								<IconDownload size={16} stroke={1.75} />
+								{busy ? 'Updating…' : `Update to ${version.data?.latest}`}
+							</Button>
+						) : null}
 					</>
 				}
 			>
-				<Cells className='grid-cols-2'>
-					<Cell label='Installed' value={<span className='font-mono'>{version.data?.current ?? '-'}</span>} />
+				{/* A beta tag (v0.1.3-beta.11) is 14 characters: the cells stack before it would truncate. */}
+				<Cells className='grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]'>
+					<Cell
+						label='Installed'
+						value={
+							<span className='font-mono text-2xl'>
+								{version.data?.current ?? <PendingReading label='version' failed={version.isError} />}
+							</span>
+						}
+					/>
 					<Cell
 						label='Latest'
 						value={
-							<span className={cn('font-mono', version.data?.update_available && 'text-success')}>
-								{version.data?.latest || 'unknown'}
+							<span
+								className={cn('font-mono text-2xl', version.data?.update_available && 'text-warning')}
+							>
+								{version.data ? (
+									version.data.latest || '-'
+								) : (
+									<PendingReading label='latest version' failed={version.isError} />
+								)}
 							</span>
 						}
-						hint={version.data?.update_available ? 'update available' : 'up to date'}
+						hint={latestHint(version.data)}
 					/>
 				</Cells>
 
@@ -182,27 +222,27 @@ function Version() {
 					) : (
 						<div className='flex flex-col gap-1.5'>
 							<span className='text-xs text-muted'>Preflight</span>
-							{checks.length === 0 ? (
-								<span className='text-sm text-muted'>
-									{health.isError ? 'health check unreachable' : 'checking…'}
-								</span>
-							) : (
-								checks.map(([name, result]) => (
-									<div key={name} className='flex items-baseline gap-2 text-sm'>
-										<span
-											className={cn(
-												'size-1.5 shrink-0 self-center rounded-full',
-												result === 'ok' ? 'bg-success' : 'bg-danger',
-											)}
-										/>
-										<span className='w-20 font-mono text-xs text-muted'>{name}</span>
-										<span className={result === 'ok' ? 'text-muted' : 'text-danger'}>{result}</span>
-									</div>
-								))
-							)}
+							{health.isLoading ? <Skeleton label='Checking health' lines={4} /> : null}
+							<ErrorText error={health.error} className='mb-0' />
+							{/* A failed refetch keeps the last checks in the cache; showing them would pass old results as current. */}
+							{health.isError
+								? null
+								: checks.map(([name, result]) => (
+										<div key={name} className='flex items-baseline gap-2 text-sm'>
+											<span className='self-center'>
+												<Status value={result === 'ok' ? 'healthy' : 'unhealthy'} dot />
+											</span>
+											<span className='w-20 font-mono text-xs text-muted'>{name}</span>
+											<span className={result === 'ok' ? 'text-muted' : 'text-danger'}>
+												{result}
+											</span>
+										</div>
+									))}
 							{healthy || health.isLoading ? null : (
 								<p className='text-sm text-danger'>
-									Updates are blocked until the failing checks recover; the server refuses them too.
+									{health.isError
+										? 'Updates wait until the health checks answer.'
+										: 'Updates are blocked until the failing checks recover; the server refuses them too.'}
 								</p>
 							)}
 						</div>
@@ -210,23 +250,39 @@ function Version() {
 				</div>
 			</FormSection>
 
-			<FormSection title='Update preferences' icon={IconDownload}>
-				<div className='flex flex-col gap-4'>
-					<Field label='Release channel' hint='Pre-release offers only betas, stable only final releases.'>
-						<Segmented
+			<FormSection
+				title='Update preferences'
+				icon={IconDownload}
+				hint='Each change saves on its own. A new channel looks up the latest release on its track.'
+			>
+				{version.isLoading ? <Skeleton label='Loading update preferences' lines={2} /> : null}
+				{version.isError ? (
+					<p className='text-sm text-muted'>
+						Could not load the preferences. Try again at the top of the page.
+					</p>
+				) : null}
+				{prefs ? (
+					<div className='flex flex-col gap-4'>
+						<Field
 							label='Release channel'
-							value={version.data?.beta ? 'prerelease' : 'stable'}
-							options={channels}
-							onChange={channel => save({ beta: channel === 'prerelease' })}
+							hint='Pre-release offers only betas, stable only final releases.'
+						>
+							<Segmented
+								label='Channel'
+								value={prefs.beta ? 'prerelease' : 'stable'}
+								options={channels}
+								onChange={channel => save({ beta: channel === 'prerelease' })}
+								disabled={setSettings.isPending || busy}
+							/>
+						</Field>
+						<Switch
+							label='Remove previous version images after a successful update'
+							checked={prefs.cleanup_old_images}
+							disabled={setSettings.isPending || busy}
+							onChange={cleanup_old_images => save({ cleanup_old_images })}
 						/>
-					</Field>
-					<Switch
-						label='Remove previous version images after a successful update'
-						checked={version.data?.cleanup_old_images ?? false}
-						disabled={setSettings.isPending || version.isLoading || busy}
-						onChange={cleanup_old_images => save({ cleanup_old_images })}
-					/>
-				</div>
+					</div>
+				) : null}
 			</FormSection>
 		</div>
 	)
@@ -240,15 +296,30 @@ function UpdateTimeline({ phase, target }: { phase: UpdatePhase; target: string 
 	return (
 		<div className='flex flex-col'>
 			<span className='pb-2 font-mono text-sm'>
-				{phase === 'done' ? `updated to ${target}` : `updating to ${target}`}
+				{phase === 'done' ? `Updated to ${target}` : `Updating to ${target}`}
 			</span>
-			<Stepper
+			<Timeline
 				label='Update progress'
-				orientation='vertical'
-				details='current'
-				current={currentIndex}
-				steps={steps.map(step => ({ id: step.phase, label: step.label, description: step.hint }))}
+				steps={steps.map((step, index) => ({
+					id: step.phase,
+					name: step.label,
+					status: stepStatus(index, currentIndex),
+					// Only the step in progress explains itself.
+					detail: index === currentIndex ? step.hint : undefined,
+				}))}
 			/>
 		</div>
 	)
+}
+
+// An empty `latest` means no release was found, so the page cannot claim it is current.
+function latestHint(version: VersionStatus | undefined) {
+	if (!version) return
+	if (version.update_available) return 'update available'
+	return version.latest ? 'up to date' : 'no release found'
+}
+
+function stepStatus(index: number, current: number) {
+	if (index < current) return 'success'
+	return index === current ? 'running' : 'queued'
 }

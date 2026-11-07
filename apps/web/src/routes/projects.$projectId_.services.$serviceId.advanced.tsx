@@ -16,42 +16,43 @@ function ServiceAdvanced() {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const service = useService(serviceId)
-	const name = service.data?.compose_service_name ?? 'service'
 
 	const remove = useMutation({
 		mutationFn: () => api.deleteService(serviceId),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ['services', projectId] })
 			await queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+			await queryClient.invalidateQueries({ queryKey: ['projects'] })
 			await navigate({ to: '/projects/$projectId', params: { projectId } })
 		},
 	})
 
+	// The layout above shows a failed or pending read of the service; Delete needs the real name to type.
+	if (!service.data) return null
+	const name = service.data.compose_service_name
 	return (
 		<div className='max-w-3xl'>
-			{service.data ? (
-				<ServiceRouting key={service.data.id} projectId={projectId} service={service.data} />
-			) : null}
+			<ServiceRouting projectId={projectId} service={service.data} />
 			<FormSection
 				title='Delete service'
 				icon={IconTrash}
-				hint='The data volume stays, so recreating the service under the same name picks it back up.'
+				hint='Its named volumes stay, so a service recreated under the same name picks them back up.'
 				actions={
 					<Confirm
 						title={`Delete ${name}?`}
-						description='Its container is removed and its environment dropped. The data volume stays.'
+						description='Its container, environment variables, domains, scheduled tasks and routing rules are removed. Its named volumes stay.'
+						action='Delete service'
 						type={name}
 						onConfirm={() => remove.mutate()}
 					>
-						<Button variant='danger' disabled={remove.isPending}>
+						<Button variant='danger' loading={remove.isPending}>
 							<IconTrash size={16} stroke={1.75} />
-							{remove.isPending ? 'Deleting…' : 'Delete service'}
+							Delete service
 						</Button>
 					</Confirm>
 				}
 			>
 				<ErrorText error={remove.error} />
-				<p className='text-sm text-muted'>Deleting {name} cannot be undone from the panel.</p>
 			</FormSection>
 		</div>
 	)

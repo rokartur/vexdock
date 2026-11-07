@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
-import { IconBox, IconFileText, IconPlayerPlay, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react'
+import { IconBox, IconPlayerPause, IconPlayerPlay, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Sparkline } from '@/components/ui/sparkline'
-import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { type Columns, DataTable, RowTitle, columnsFor } from '../components/data-table'
 import { LogViewer } from '../components/log-viewer'
 import {
 	Confirm,
-	DetailDialog,
+	EmptyState,
 	ErrorText,
 	IconButton,
 	Meter,
@@ -36,12 +36,13 @@ function sampled(container: ContainerSummary) {
 }
 
 type ContainerActions = {
-	showLogs: (id: string) => void
 	act: (id: string, action: ContainerAction) => void
+	/** The action in flight. One at a time: a second click anywhere waits for the first to land. */
+	pending: { id: string; action: ContainerAction } | undefined
 	projectLabel: (composeProject: string) => string
 }
 
-function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions): Columns<ContainerSummary> {
+function containerTableColumns({ act, pending, projectLabel }: ContainerActions): Columns<ContainerSummary> {
 	const cell = columnsFor<ContainerSummary>()
 	return [
 		cell.accessor(containerName, {
@@ -50,10 +51,8 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			cell: ({ row }) => (
 				<span className='inline-flex items-center gap-2'>
 					<IconBox stroke={1.75} className='size-4 shrink-0 text-muted' />
-					<span title={containerName(row.original)} className='max-w-32 truncate font-mono text-xs'>
-						{containerName(row.original)}
-					</span>
-					{row.original.managed ? null : <Badge>external</Badge>}
+					<RowTitle className='max-w-32 truncate font-mono text-xs'>{containerName(row.original)}</RowTitle>
+					{row.original.managed ? null : <Badge>External</Badge>}
 				</span>
 			),
 		}),
@@ -79,8 +78,29 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 		cell.accessor(container => (sampled(container) ? container.cpu_percent : -1), {
 			id: 'cpu',
 			header: 'CPU',
+			// The reading and its last 30 minutes share one column; a meter beside the sparkline drew the same number twice.
 			cell: ({ row: { original } }) =>
-				sampled(original) ? <Meter label={percent(original.cpu_percent)} value={original.cpu_percent} /> : '-',
+				sampled(original) ? (
+					<div className='flex items-center gap-2'>
+						<span className='w-10 text-right font-mono text-xs tabular-nums'>
+							{percent(original.cpu_percent)}
+						</span>
+						<div title='Last 30 minutes' className='w-14'>
+							<Sparkline
+								data={original.cpu_series ?? []}
+								label={`${containerName(original)} CPU, last 30 minutes`}
+								width={56}
+								height={16}
+								area={false}
+								interactive={false}
+								caption={false}
+								max={100}
+							/>
+						</div>
+					</div>
+				) : (
+					'-'
+				),
 		}),
 		cell.accessor(container => (sampled(container) ? container.memory_usage : -1), {
 			id: 'memory',
@@ -100,27 +120,6 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 					'-'
 				),
 		}),
-		cell.display({
-			id: 'trend',
-			header: '30m',
-			cell: ({ row: { original } }) =>
-				sampled(original) ? (
-					<div className='w-14'>
-						<Sparkline
-							data={original.cpu_series ?? []}
-							label={`${containerName(original)} cpu, last 30 minutes`}
-							width={56}
-							height={16}
-							area={false}
-							interactive={false}
-							caption={false}
-							max={100}
-						/>
-					</div>
-				) : (
-					'-'
-				),
-		}),
 		cell.accessor(container => container.created, {
 			id: 'created',
 			header: 'Created',
@@ -132,24 +131,59 @@ function containerTableColumns({ showLogs, act, projectLabel }: ContainerActions
 			meta: { align: 'right' },
 			cell: ({ row }) => {
 				const container = row.original
-				const running = container.state === 'running' || container.state === 'restarting'
+				const name = containerName(container)
+				// Docker refuses Start and a plain remove on a paused container but stops it, so paused reads as running here.
+				const running = ['running', 'restarting', 'paused'].includes(container.state)
+				const busy = pending !== undefined
+				const loading = (action: ContainerAction) => pending?.id === container.id && pending.action === action
 				return (
 					<span className='flex justify-end gap-0.5'>
-						<IconButton icon={IconFileText} label='Logs' onClick={() => showLogs(container.id)} />
-						<IconButton icon={IconRefresh} label='Restart' onClick={() => act(container.id, 'restart')} />
 						<IconButton
-							icon={running ? IconPlayerStop : IconPlayerPlay}
-							label={running ? 'Stop' : 'Start'}
-							onClick={() => act(container.id, running ? 'stop' : 'start')}
+							icon={IconRefresh}
+							label={`Restart ${name}`}
+							loading={loading('restart')}
+							disabled={busy}
+							onClick={() => act(container.id, 'restart')}
 						/>
+						{/* This list holds the panel's own manager and Nginx too: a restart comes back on its own, a stopped manager cannot start itself. */}
+						{running ? (
+							<Confirm
+								title={`Stop ${name}?`}
+								description='Anything it serves is offline until it starts again.'
+								action='Stop container'
+								icon={IconPlayerStop}
+								onConfirm={() => act(container.id, 'stop')}
+							>
+								<IconButton
+									icon={IconPlayerStop}
+									label={`Stop ${name}`}
+									loading={loading('stop')}
+									disabled={busy}
+								/>
+							</Confirm>
+						) : (
+							<IconButton
+								icon={IconPlayerPlay}
+								label={`Start ${name}`}
+								loading={loading('start')}
+								disabled={busy}
+								onClick={() => act(container.id, 'start')}
+							/>
+						)}
 						{/* A running container is stopped first: no force flag, no service killed by a mis-click. */}
 						{running ? null : (
 							<Confirm
-								title={`Delete ${containerName(container)}?`}
+								title={`Delete ${name}?`}
 								description='The container is removed. Its image and volumes stay.'
+								action='Delete container'
 								onConfirm={() => act(container.id, 'remove')}
 							>
-								<IconButton icon={IconTrash} label='Delete' />
+								<IconButton
+									icon={IconTrash}
+									label={`Delete ${name}`}
+									loading={loading('remove')}
+									disabled={busy}
+								/>
 							</Confirm>
 						)}
 					</span>
@@ -163,7 +197,8 @@ export const Route = createFileRoute('/docker/containers')({
 	validateSearch: (search: Record<string, unknown>) => ({
 		q: typeof search.q === 'string' ? search.q : undefined,
 	}),
-	loader: ({ context: { queryClient } }) => preload(queryClient, containersQuery),
+	loader: ({ context: { queryClient } }) =>
+		Promise.all([preload(queryClient, containersQuery), preload(queryClient, projectsQuery)]),
 	component: ContainersPage,
 })
 
@@ -176,7 +211,12 @@ function ContainersPage() {
 	const { q } = Route.useSearch()
 	const [logsFor, setLogsFor] = useState<string | null>(null)
 
-	const containers = useQuery({ ...containersQuery, refetchInterval: USAGE_TICK_MS })
+	const [paused, setPaused] = useState(false)
+	const containers = useQuery({
+		...containersQuery,
+		refetchInterval: paused ? false : USAGE_TICK_MS,
+		refetchOnWindowFocus: !paused,
+	})
 
 	const projects = useQuery(projectsQuery)
 
@@ -186,26 +226,37 @@ function ContainersPage() {
 	})
 
 	const data = containers.data ?? []
-	const logsContainer = data.find(container => container.id === logsFor)
 	const { mutate: runAction } = act
+	const pending = act.isPending ? act.variables : undefined
 	const columns = useMemo(() => {
 		const byName = composeProjects(projects.data ?? [])
 		return containerTableColumns({
-			showLogs: setLogsFor,
 			act: (id, action) => runAction({ id, action }),
+			pending,
 			projectLabel: composeProject => byName.get(composeProject)?.label ?? composeProject,
 		})
-	}, [runAction, projects.data])
+	}, [runAction, pending, projects.data])
 
 	return (
 		<Page fill>
 			<Section
 				title='All containers'
 				fill
-				total={data.length}
-				actions={<Refresh onClick={() => containers.refetch()} busy={containers.isFetching} />}
+				total={containers.data?.length}
+				actions={
+					<>
+						{/* WCAG 2.2.2: the usage columns refresh every minute beside the rest of the row. */}
+						<IconButton
+							icon={paused ? IconPlayerPlay : IconPlayerPause}
+							label={paused ? 'Resume usage updates' : 'Pause usage updates'}
+							onClick={() => setPaused(!paused)}
+						/>
+						<Refresh onClick={() => containers.refetch()} />
+					</>
+				}
 			>
 				<ErrorText error={act.error} />
+				<ErrorText error={projects.error} />
 				<DataTable
 					// Arriving from another page with a different term has to re-seed the filter box.
 					key={q}
@@ -216,19 +267,23 @@ function ContainersPage() {
 					error={containers.error}
 					getRowId={container => container.id}
 					filter='Filter containers'
-					empty='No containers'
+					empty={<EmptyState title='No containers' description='Deploy a service to start one.' />}
+					detail={{
+						openId: logsFor,
+						onOpenChange: setLogsFor,
+						title: containerName,
+						description: container => `Logs · ${container.image}`,
+						render: container => (
+							<LogViewer
+								key={container.id}
+								url={`/api/docker/containers/${container.id}/logs`}
+								inset
+								className='h-[65dvh]'
+							/>
+						),
+					}}
 				/>
 			</Section>
-
-			<DetailDialog
-				open={logsFor !== null}
-				onOpenChange={open => open || setLogsFor(null)}
-				title={logsContainer ? `Logs of ${containerName(logsContainer)}` : 'Logs'}
-			>
-				{logsFor ? (
-					<LogViewer key={logsFor} url={`/api/docker/containers/${logsFor}/logs`} className='h-[65dvh]' />
-				) : null}
-			</DetailDialog>
 		</Page>
 	)
 }

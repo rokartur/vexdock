@@ -15,7 +15,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const LIVE_LIMIT = 1200
 
 /** A sample carries its own clock: recorded and live readings arrive at different rates. */
-export type Stamped = { at: number }
+type Stamped = { at: number }
 
 /** One plotted reading. */
 export type Point = { at: number; value: number }
@@ -27,23 +27,28 @@ export function useHistory<TSample extends Stamped>(
 	windowMs = WINDOW_MS,
 ) {
 	const [live, setLive] = useState<TSample[]>([])
-
+	const [seen, setSeen] = useState<TSample | null>(null)
+	// Stored during render, not in an effect: the chart draws the new sample in the render it arrives in.
+	if (sample !== seen) {
+		setSeen(sample)
+		if (sample !== null) setLive([...live, sample].slice(-LIVE_LIMIT))
+	}
+	// A stream that goes quiet sends no sample to move the window, so the clock moves it: 1/60 of a window per step.
+	const [now, setNow] = useState(Date.now)
 	useEffect(() => {
-		if (sample === null) {
-			return
-		}
-		setLive(previous => [...previous, sample].slice(-LIVE_LIMIT))
-	}, [sample])
+		const timer = setInterval(() => setNow(Date.now()), windowMs / 60)
+		return () => clearInterval(timer)
+	}, [windowMs])
 
 	return useMemo(() => {
-		const cutoff = Date.now() - windowMs
+		const cutoff = Math.max(now, live.at(-1)?.at ?? 0) - windowMs
 		const liveStart = live.at(0)?.at ?? Number.POSITIVE_INFINITY
 		// A recorded bucket that the live stream already covers would draw twice.
 		return [
 			...seed.filter(point => point.at >= cutoff && point.at < liveStart),
 			...live.filter(point => point.at >= cutoff),
 		]
-	}, [seed, live, windowMs])
+	}, [seed, live, windowMs, now])
 }
 
 /**
@@ -98,15 +103,19 @@ type MetricCardProps = {
 	/** What the reading is measured against: a total, a load average, a peak. */
 	hint?: ReactNode
 	/** How much history the series covers, for the chart's accessible name. */
-	windowLabel?: string
+	windowLabel: string
 	/** Drawn height in px. */
-	height?: number
+	height: number
 	/** The chart beside the reading instead of under it, for a card wide enough to spare the row. */
 	inline?: boolean
 	/** Arc's line chart with axes and a legend, for a chart tall enough to read a level off; without it, Arc's sparkline. */
 	axis?: boolean
 	/** Lowest ceiling for the scale, from zero: 100 for a percent, the total for memory, 1024 for an idle byte rate. */
 	max?: number
+	/** An axis tick, when it needs more decimals than a reading: 0.25% stays 0.25%. */
+	formatTick?: (value: number) => string
+	/** A byte series: the axis steps in KiB, MiB or GiB. */
+	binary?: boolean
 	cursor?: number | null
 	onCursor?: (at: number | null) => void
 }
@@ -119,11 +128,13 @@ export function MetricCard({
 	series,
 	format,
 	hint,
-	windowLabel = 'last 30 minutes',
-	height = 32,
+	windowLabel,
+	height,
 	inline = false,
 	axis = false,
 	max,
+	formatTick,
+	binary,
 	cursor,
 	onCursor,
 }: MetricCardProps) {
@@ -132,27 +143,32 @@ export function MetricCard({
 
 	return (
 		<Cell label={label} icon={icon} hint={hint} value={value} inline={inline}>
-			<div className={cn('min-w-0 flex-1', !inline && 'mt-3')}>
+			<div className={cn('min-w-0 flex-1', !inline && 'mt-3')} style={{ minHeight: height }}>
 				{axis ? (
 					<HistoryChart
 						label={name}
 						height={height}
 						series={series}
 						format={format}
+						formatTick={formatTick}
+						binary={binary}
 						max={max}
 						cursor={cursor}
 						onCursor={onCursor}
 					/>
 				) : (
-					<Sparkline
-						label={name}
-						data={samples.map(sample => sample.value)}
-						height={height}
-						width={320}
-						interactive={false}
-						caption={false}
-						max={max}
-					/>
+					// Arc's sparkline draws an empty series as a flat line at zero, a reading nobody took.
+					samples.length > 0 && (
+						<Sparkline
+							label={name}
+							data={samples.map(sample => sample.value)}
+							height={height}
+							width={320}
+							interactive={false}
+							caption={false}
+							max={max}
+						/>
+					)
 				)}
 			</div>
 		</Cell>
@@ -160,10 +176,12 @@ export function MetricCard({
 }
 
 /** Arc's line chart with axes over named series that share their samples' clock. */
-export function HistoryChart({
+function HistoryChart({
 	label,
 	series,
 	format,
+	formatTick = format,
+	binary,
 	height,
 	max,
 	cursor,
@@ -172,6 +190,8 @@ export function HistoryChart({
 	label: string
 	series: Record<string, Point[]>
 	format: (value: number) => string
+	formatTick?: (value: number) => string
+	binary?: boolean
 	height: number
 	max?: number
 	/** Hovered moment in ms, shared across charts; rate series run one sample short, so the clock lines them up, not the index. */
@@ -194,8 +214,9 @@ export function HistoryChart({
 			height={height}
 			categoryLabel='Time'
 			max={max}
+			binary={binary}
 			formatValue={format}
-			formatTick={format}
+			formatTick={formatTick}
 			series={names.map(key => ({ key, label: key, area: names.length === 1 }))}
 			data={samples.map((sample, index) => ({
 				key: String(sample.at),
@@ -207,7 +228,7 @@ export function HistoryChart({
 	)
 }
 
-const hourStamp = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const hourStamp = (at: number) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 const clockStamp = (at: number) => new Date(at).toLocaleTimeString()
 const dayStamp = (at: number) =>
-	new Date(at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+	new Date(at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })

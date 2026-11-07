@@ -38,6 +38,11 @@ describe('decodeExport', () => {
 		expect((decoded as Error).message).toContain('version 2')
 	})
 
+	test('an export of an empty environment says so instead of offering nothing to import', () => {
+		const decoded = decodeExport(encode({ version: 2, project: 'empty', services: [] }))
+		expect((decoded as Error).message).toContain('no services')
+	})
+
 	test('anything that is not an export is one error, not a crash', () => {
 		expect(decodeExport('hello')).toBeInstanceOf(Error)
 		expect(decodeExport(btoa('{}'))).toBeInstanceOf(Error)

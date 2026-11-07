@@ -1,6 +1,7 @@
 import {
 	type ComponentProps,
 	isValidElement,
+	type MouseEvent,
 	type ReactElement,
 	type ReactNode,
 	type Ref,
@@ -10,6 +11,7 @@ import {
 	useRef,
 } from 'react'
 import { Button as BaseButton } from '@base-ui/react/button'
+import { useRender } from '@base-ui/react/use-render'
 import { cn } from 'cn'
 import {
 	AnimatePresence,
@@ -24,14 +26,23 @@ import {
 } from 'motion/react'
 import { motionTokens } from '../../lib/motion'
 
+// vexdock: `data-held:` repeats each `active:` for a button that opens a DropdownMenu, whose backdrop clears :active.
 const variants = {
 	primary:
-		'border-foreground bg-foreground text-background hover:opacity-91 hover:shadow-resting active:opacity-84 disabled:opacity-52',
+		'border-foreground bg-foreground text-background hover:opacity-91 hover:shadow-resting active:opacity-84 data-held:opacity-84 disabled:opacity-52',
 	secondary:
-		'border-border bg-surface text-foreground hover:bg-surface-muted hover:shadow-resting active:bg-surface-pressed disabled:bg-surface-muted disabled:text-muted',
-	ghost: 'border-transparent text-secondary hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:text-foreground disabled:text-muted',
-	danger: 'border-border bg-surface text-danger hover:border-danger hover:bg-surface-muted active:border-danger active:bg-surface-pressed disabled:bg-surface-muted disabled:text-[color-mix(in_oklab,var(--danger)_55%,var(--surface-muted))]',
+		'border-border bg-surface text-foreground hover:bg-surface-muted hover:shadow-resting active:bg-surface-pressed data-held:bg-surface-pressed disabled:bg-surface-muted disabled:text-muted',
+	ghost: 'border-transparent text-secondary hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:text-foreground data-held:bg-surface-pressed data-held:text-foreground disabled:text-muted',
+	danger: 'border-border bg-surface text-danger hover:border-danger hover:bg-surface-muted active:border-danger active:bg-surface-pressed data-held:border-danger data-held:bg-surface-pressed disabled:bg-surface-muted disabled:text-[color-mix(in_oklab,var(--danger)_55%,var(--surface-muted))]',
 } satisfies Record<string, string>
+
+// vexdock: a link has no :disabled to match, so the render path's inert look repeats each variant's disabled: classes.
+const inertLink = {
+	primary: 'opacity-52',
+	secondary: 'bg-surface-muted text-muted',
+	ghost: 'text-muted',
+	danger: 'bg-surface-muted text-[color-mix(in_oklab,var(--danger)_55%,var(--surface-muted))]',
+} satisfies Record<keyof typeof variants, string>
 
 const sizes = {
 	sm: 'min-h-control-sm px-2.5',
@@ -39,14 +50,12 @@ const sizes = {
 	lg: 'min-h-control-lg px-4',
 } satisfies Record<string, string>
 
-export type ButtonVariant = keyof typeof variants
-
 // The drag and animation handlers would reach motion.button as gestures, so they are not forwarded.
 export type ButtonProps = Omit<
 	ComponentProps<'button'>,
 	'onDrag' | 'onDragEnd' | 'onDragStart' | 'onAnimationStart'
 > & {
-	variant?: ButtonVariant
+	variant?: keyof typeof variants
 	size?: keyof typeof sizes
 	loading?: boolean
 	// vexdock: square, for a lone icon.
@@ -114,7 +123,7 @@ export function Button({
 	const buttonRef = useRef<HTMLButtonElement>(null)
 	const contentRef = useRef<HTMLSpanElement>(null)
 	const key = labelKey(children)
-	let phase = /\S/.test(key.replaceAll(/<[^>]*>/g, '')) ? textPhase : iconPhase
+	let phase = /\S/.test(key.replace(/<[^>]*>/g, '')) ? textPhase : iconPhase
 	if (reduceMotion) phase = fadePhase
 
 	// A popup, menu or dialog trigger keeps its rect still while pressed, so the layer never measures a scaled anchor.
@@ -157,28 +166,47 @@ export function Button({
 		return () => observer.disconnect()
 	}, [reduceMotion, width])
 
+	const classes = cn(
+		'relative inline-flex items-center justify-center gap-1.5 rounded-control border text-sm font-medium whitespace-nowrap',
+		variants[variant],
+		sizes[size],
+		icon && 'aspect-square px-0',
+		className,
+	)
+
+	// vexdock: a link styled as the button stays a link, where Base UI's Button would give it role="button". It has no
+	// motion.button to press, so it takes the CSS press; inert, it keeps focus and stops navigating, as loading does below.
+	const link = useRender({
+		render,
+		enabled: render !== undefined,
+		props: {
+			...props,
+			type: undefined,
+			disabled: undefined,
+			'aria-disabled': inert || undefined,
+			'aria-busy': loading || undefined,
+			// The hover and active variants (styles.css) skip [data-disabled], so an inert link takes no fill.
+			'data-disabled': inert ? '' : undefined,
+			onClick: inert ? (event: MouseEvent) => event.preventDefault() : onClick,
+			className: cn(classes, inert ? inertLink[variant] : 'press'),
+			children,
+		},
+	})
+	if (link) return link
+
 	return (
 		<BaseButton
 			tabIndex={0}
-			nativeButton={!render}
 			render={
-				render ?? (
-					<motion.button
-						ref={buttonRef}
-						custom={buttonRef}
-						variants={pressVariants}
-						whileTap={reduceMotion || anchorsLayer || inert ? undefined : 'pressed'}
-						transition={spring.snappy}
-					/>
-				)
+				<motion.button
+					ref={buttonRef}
+					custom={buttonRef}
+					variants={pressVariants}
+					whileTap={reduceMotion || anchorsLayer || inert ? undefined : 'pressed'}
+					transition={spring.snappy}
+				/>
 			}
-			className={cn(
-				'relative inline-flex items-center justify-center gap-1.5 rounded-control border text-sm font-medium whitespace-nowrap',
-				variants[variant],
-				sizes[size],
-				icon && 'aspect-square px-0',
-				className,
-			)}
+			className={classes}
 			{...props}
 			aria-busy={loading || undefined}
 			// Loading keeps the button focusable, so keyboard focus survives the action, and swallows presses instead.

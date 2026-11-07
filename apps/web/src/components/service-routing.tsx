@@ -15,6 +15,7 @@ import { type Columns, DataTable, columnsFor } from './data-table'
 import {
 	Button,
 	Confirm,
+	EmptyState,
 	ErrorText,
 	Field,
 	FormDialog,
@@ -35,7 +36,11 @@ export function ServiceRouting({ projectId, service }: { projectId: string; serv
 			<Redirects serviceId={service.id} />
 			<BasicAuth serviceId={service.id} />
 			{service.provider === 'raw' ? null : (
-				<Ports projectId={projectId} serviceId={service.id} live={service.published_ports} />
+				<Ports
+					projectId={projectId}
+					serviceId={service.id}
+					live={service.state === 'running' ? service.published_ports : undefined}
+				/>
 			)}
 		</>
 	)
@@ -64,16 +69,19 @@ function useServiceList<T>(serviceId: string, name: string, fetch: (id: string) 
 
 function Redirects({ serviceId }: { serviceId: string }) {
 	const [adding, setAdding] = useState(false)
-	const [preset, setPreset] = useState<Preset>('custom')
 	const [regex, setRegex] = useState('')
 	const [replacement, setReplacement] = useState('')
+	// Read from the fields, so editing a preset's regex turns the Select back to Custom.
+	const preset =
+		presetOptions.find(
+			option => presets[option.value].regex === regex && presets[option.value].replacement === replacement,
+		)?.value ?? 'custom'
 	const [permanent, setPermanent] = useState(false)
 	const { list, refresh } = useServiceList(serviceId, 'redirects', api.serviceRedirects)
 
 	const create = useMutation({
 		mutationFn: () => api.createServiceRedirect(serviceId, { regex, replacement, permanent }),
 		onSuccess: async () => {
-			setPreset('custom')
 			setRegex('')
 			setReplacement('')
 			setPermanent(false)
@@ -86,15 +94,17 @@ function Redirects({ serviceId }: { serviceId: string }) {
 		onSuccess: refresh,
 	})
 
-	const { mutate: removeRedirect, isPending: removing } = remove
-	const columns = useMemo(() => redirectColumns(removeRedirect, removing), [removeRedirect, removing])
+	const removingId = remove.isPending ? remove.variables : undefined
+	const { mutate: removeRedirect } = remove
+	const columns = useMemo(() => redirectColumns(removeRedirect, removingId), [removeRedirect, removingId])
 
 	return (
 		<FormSection
 			title='Redirects'
 			icon={IconArrowForwardUp}
+			hint='Nginx answers a matching URL before the request reaches the service.'
 			actions={
-				<Button variant='primary' onClick={() => setAdding(true)}>
+				<Button onClick={() => setAdding(true)}>
 					<IconPlus size={16} stroke={1.75} />
 					Add redirect
 				</Button>
@@ -107,24 +117,27 @@ function Redirects({ serviceId }: { serviceId: string }) {
 				loading={list.isLoading}
 				error={list.error}
 				getRowId={redirect => redirect.id}
-				empty='No redirects configured.'
+				empty={
+					<EmptyState
+						title='No redirects'
+						description='Add redirect sends a URL elsewhere before it reaches the service.'
+					/>
+				}
 			/>
 			<FormDialog
 				open={adding}
 				onOpenChange={setAdding}
 				title='Add redirect'
-				action={create.isPending ? 'Adding…' : 'Add redirect'}
+				action='Add redirect'
 				icon={IconPlus}
 				mutation={create}
 				onSubmit={() => create.mutate()}
 			>
 				<Field label='Preset'>
 					<Select
-						label='Preset'
 						value={preset}
 						options={presetOptions}
 						onChange={next => {
-							setPreset(next)
 							setRegex(presets[next].regex)
 							setReplacement(presets[next].replacement)
 						}}
@@ -154,7 +167,7 @@ function Redirects({ serviceId }: { serviceId: string }) {
 	)
 }
 
-function redirectColumns(remove: (id: string) => void, removing: boolean): Columns<ServiceRedirect> {
+function redirectColumns(remove: (id: string) => void, removingId: string | undefined): Columns<ServiceRedirect> {
 	const cell = columnsFor<ServiceRedirect>()
 	return [
 		cell.accessor(redirect => redirect.regex, { id: 'regex', header: 'Regex', meta: { mono: true } }),
@@ -175,10 +188,15 @@ function redirectColumns(remove: (id: string) => void, removing: boolean): Colum
 				<Confirm
 					title='Remove this redirect?'
 					description={`${row.original.regex} stops redirecting.`}
-					action='Remove'
+					action='Remove redirect'
 					onConfirm={() => remove(row.original.id)}
 				>
-					<IconButton icon={IconTrash} label='Remove' disabled={removing} />
+					<IconButton
+						icon={IconTrash}
+						label={`Remove the redirect from ${row.original.regex}`}
+						loading={removingId === row.original.id}
+						disabled={removingId !== undefined}
+					/>
 				</Confirm>
 			),
 		}),
@@ -205,8 +223,9 @@ function BasicAuth({ serviceId }: { serviceId: string }) {
 		onSuccess: refresh,
 	})
 
-	const { mutate: removeUser, isPending: removing } = remove
-	const columns = useMemo(() => basicAuthColumns(removeUser, removing), [removeUser, removing])
+	const removingId = remove.isPending ? remove.variables : undefined
+	const { mutate: removeUser } = remove
+	const columns = useMemo(() => basicAuthColumns(removeUser, removingId), [removeUser, removingId])
 
 	return (
 		<FormSection
@@ -214,7 +233,7 @@ function BasicAuth({ serviceId }: { serviceId: string }) {
 			icon={IconLock}
 			hint='With no users the service is open.'
 			actions={
-				<Button variant='primary' onClick={() => setAdding(true)}>
+				<Button onClick={() => setAdding(true)}>
 					<IconPlus size={16} stroke={1.75} />
 					Add user
 				</Button>
@@ -227,13 +246,18 @@ function BasicAuth({ serviceId }: { serviceId: string }) {
 				loading={list.isLoading}
 				error={list.error}
 				getRowId={user => user.id}
-				empty='No users. Anyone can reach this service.'
+				empty={
+					<EmptyState
+						title='No users'
+						description='Anyone can reach this service. Add user puts it behind a password.'
+					/>
+				}
 			/>
 			<FormDialog
 				open={adding}
 				onOpenChange={setAdding}
 				title='Add user'
-				action={create.isPending ? 'Adding…' : 'Add user'}
+				action='Add user'
 				icon={IconPlus}
 				mutation={create}
 				onSubmit={() => create.mutate()}
@@ -241,6 +265,7 @@ function BasicAuth({ serviceId }: { serviceId: string }) {
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Username'>
 						<Input
+							mono
 							required
 							autoComplete='off'
 							value={username}
@@ -262,7 +287,7 @@ function BasicAuth({ serviceId }: { serviceId: string }) {
 	)
 }
 
-function basicAuthColumns(remove: (id: string) => void, removing: boolean): Columns<ServiceBasicAuthUser> {
+function basicAuthColumns(remove: (id: string) => void, removingId: string | undefined): Columns<ServiceBasicAuthUser> {
 	const cell = columnsFor<ServiceBasicAuthUser>()
 	return [
 		cell.accessor(user => user.username, { id: 'username', header: 'Username' }),
@@ -280,10 +305,15 @@ function basicAuthColumns(remove: (id: string) => void, removing: boolean): Colu
 				<Confirm
 					title={`Remove ${row.original.username}?`}
 					description='Their password stops working right away.'
-					action='Remove'
+					action='Remove user'
 					onConfirm={() => remove(row.original.id)}
 				>
-					<IconButton icon={IconTrash} label='Remove' disabled={removing} />
+					<IconButton
+						icon={IconTrash}
+						label={`Remove ${row.original.username}`}
+						loading={removingId === row.original.id}
+						disabled={removingId !== undefined}
+					/>
 				</Confirm>
 			),
 		}),
@@ -296,9 +326,9 @@ const protocolOptions = [
 ] as const satisfies readonly { value: PortProtocol; label: string }[]
 
 /** What a port row says about the host: open, or waiting on a deploy to open or close. */
-export type PortState = 'open' | 'opens on deploy' | 'closes on deploy'
+type PortState = 'open' | 'closed' | 'opens on deploy' | 'closes on deploy'
 
-export type PortRow = {
+type PortRow = {
 	id: string
 	published: number
 	target: number
@@ -312,22 +342,27 @@ export type PortRow = {
  * The stored ports and the ones the container holds open, as one list. A port lands in the container on the next
  * deploy, so the two drift between an edit and that deploy: a stored port the container does not publish opens on
  * deploy, and a port the container still publishes after its row was removed closes on deploy. Without the second
- * kind the card would say "no ports" over a host port that is plainly open.
+ * kind the card would say "no ports" over a host port that is plainly open. A stopped container (`live` undefined)
+ * publishes nothing, so its stored ports read closed instead of drifting.
  */
-export function portRows(stored: ServicePort[], live: HostPort[]): PortRow[] {
+export function portRows(stored: ServicePort[], live: HostPort[] | undefined): PortRow[] {
 	// Docker lists a public port once per address family.
-	const open = new Set(live.map(portKey))
-	const rows: PortRow[] = stored.map(port => ({
-		id: port.id,
-		published: port.published,
-		target: port.target,
-		protocol: port.protocol,
-		state: open.has(portKey(port)) ? 'open' : 'opens on deploy',
-		storedId: port.id,
-	}))
+	const open = new Set((live ?? []).map(portKey))
+	const rows: PortRow[] = stored.map(port => {
+		let state: PortState = 'closed'
+		if (live) state = open.has(portKey(port)) ? 'open' : 'opens on deploy'
+		return {
+			id: port.id,
+			published: port.published,
+			target: port.target,
+			protocol: port.protocol,
+			state,
+			storedId: port.id,
+		}
+	})
 	const known = new Set(stored.map(portKey))
 	const seen = new Set<string>()
-	for (const port of live) {
+	for (const port of live ?? []) {
 		const key = portKey(port)
 		if (known.has(key) || seen.has(key)) continue
 		seen.add(key)
@@ -345,7 +380,7 @@ export function portRows(stored: ServicePort[], live: HostPort[]): PortRow[] {
 const portKey = (port: { published: number; target: number; protocol: string }) =>
 	`${port.published}:${port.target}/${port.protocol}`
 
-function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: string; live: HostPort[] }) {
+function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: string; live: HostPort[] | undefined }) {
 	const [adding, setAdding] = useState(false)
 	const [published, setPublished] = useState(8080)
 	const [target, setTarget] = useState(80)
@@ -373,22 +408,25 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 		mutationFn: () => api.deployService(serviceId),
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
+			await queryClient.invalidateQueries({ queryKey: ['deployments', projectId] })
 			await navigate({
 				to: '/projects/$projectId/services/$serviceId/deployments',
 				params: { projectId, serviceId },
-				search: previous => ({ ...previous, deployment: deployment.id }),
+				search: { deployment: deployment.id },
 			})
 		},
 	})
 
-	const { mutate: removePort, isPending: removing } = remove
+	const removingId = remove.isPending ? remove.variables : undefined
+	const { mutate: removePort } = remove
 	const { mutate: startDeploy, isPending: deploying } = deploy
 	const columns = useMemo(
-		() => portColumns({ remove: removePort, removing, deploy: startDeploy, deploying }),
-		[removePort, removing, startDeploy, deploying],
+		() => portColumns({ remove: removePort, removingId, deploy: startDeploy, deploying }),
+		[removePort, removingId, startDeploy, deploying],
 	)
-	const rows = useMemo(() => portRows(list.data ?? [], live), [list.data, live])
-	const pending = rows.some(row => row.state !== 'open')
+	// A failed read must not list every live port as closing on deploy.
+	const rows = useMemo(() => (list.data ? portRows(list.data, live) : []), [list.data, live])
+	const pending = rows.some(row => row.state === 'opens on deploy' || row.state === 'closes on deploy')
 
 	return (
 		<FormSection
@@ -402,32 +440,38 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 			actions={
 				<>
 					{pending ? (
-						<Button onClick={() => startDeploy()} disabled={deploying}>
+						<Button onClick={() => startDeploy()} loading={deploying}>
 							<IconRocket size={16} stroke={1.75} />
-							{deploying ? 'Starting…' : 'Deploy'}
+							Deploy service
 						</Button>
 					) : null}
-					<Button variant='primary' onClick={() => setAdding(true)}>
+					<Button onClick={() => setAdding(true)}>
 						<IconPlus size={16} stroke={1.75} />
 						Add port
 					</Button>
 				</>
 			}
 		>
-			<ErrorText error={remove.error ?? deploy.error} />
+			<ErrorText error={remove.error} />
+			<ErrorText error={deploy.error} />
 			<DataTable
 				data={rows}
 				columns={columns}
 				loading={list.isLoading}
 				error={list.error}
 				getRowId={port => port.id}
-				empty='No ports published.'
+				empty={
+					<EmptyState
+						title='No ports published'
+						description='Add port opens the service on a port of the host.'
+					/>
+				}
 			/>
 			<FormDialog
 				open={adding}
 				onOpenChange={setAdding}
-				title='Publish a port'
-				action={create.isPending ? 'Adding…' : 'Add port'}
+				title='Add port'
+				action='Add port'
 				icon={IconPlus}
 				mutation={create}
 				onSubmit={() => create.mutate()}
@@ -440,7 +484,7 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 						<NumberField min={1} max={65_535} value={target} onValueChange={setTarget} />
 					</Field>
 					<Field label='Protocol'>
-						<Select label='Protocol' value={protocol} options={protocolOptions} onChange={setProtocol} />
+						<Select value={protocol} options={protocolOptions} onChange={setProtocol} />
 					</Field>
 				</div>
 			</FormDialog>
@@ -451,12 +495,12 @@ function Ports({ projectId, serviceId, live }: { projectId: string; serviceId: s
 /** The row actions of the Ports card: a stored port is removed, a port only the container holds is closed by a deploy. */
 type PortActions = {
 	remove: (id: string) => void
-	removing: boolean
+	removingId: string | undefined
 	deploy: () => void
 	deploying: boolean
 }
 
-function portColumns({ remove, removing, deploy, deploying }: PortActions): Columns<PortRow> {
+function portColumns({ remove, removingId, deploy, deploying }: PortActions): Columns<PortRow> {
 	const cell = columnsFor<PortRow>()
 	return [
 		cell.accessor(port => port.published, { id: 'published', header: 'Published', meta: { mono: true } }),
@@ -472,29 +516,39 @@ function portColumns({ remove, removing, deploy, deploying }: PortActions): Colu
 			header: '',
 			meta: { align: 'right' },
 			cell: ({ row }) => {
-				const { storedId, published } = row.original
+				const { storedId, published, protocol } = row.original
 				// A port only the container holds has no row to drop; the only thing that closes it is the deploy that
 				// recreates the container without it, so that is what its Remove does.
 				if (storedId === undefined) {
 					return (
 						<Confirm
-							title={`Close port ${published}?`}
+							title={`Close port ${published}/${protocol.toUpperCase()}?`}
 							description='The port is no longer stored, but the container still holds it open. Deploying recreates the container without it.'
-							action='Deploy'
+							action='Deploy service'
+							icon={IconRocket}
 							onConfirm={deploy}
 						>
-							<IconButton icon={IconTrash} label='Close' disabled={deploying} />
+							<IconButton
+								icon={IconTrash}
+								label={`Close port ${published}/${protocol.toUpperCase()}`}
+								disabled={deploying}
+							/>
 						</Confirm>
 					)
 				}
 				return (
 					<Confirm
-						title={`Unpublish port ${published}?`}
+						title={`Unpublish port ${published}/${protocol.toUpperCase()}?`}
 						description='The host port closes on the next deploy.'
-						action='Remove'
+						action='Unpublish port'
 						onConfirm={() => remove(storedId)}
 					>
-						<IconButton icon={IconTrash} label='Remove' disabled={removing} />
+						<IconButton
+							icon={IconTrash}
+							label={`Unpublish port ${published}/${protocol.toUpperCase()}`}
+							loading={removingId === storedId}
+							disabled={removingId !== undefined}
+						/>
 					</Confirm>
 				)
 			},

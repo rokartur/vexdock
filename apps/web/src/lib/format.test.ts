@@ -1,5 +1,16 @@
 import { expect, test } from 'bun:test'
-import { ansiSegments, parseAccessLine, parseBuildLine, parseBuildResult, parseLogLine, until } from './format'
+import {
+	ansiSegments,
+	bytes,
+	duration,
+	maskUrlPassword,
+	parseAccessLine,
+	parseBuildLine,
+	parseBuildResult,
+	parseLogLine,
+	percent,
+	until,
+} from './format'
 
 const esc = String.fromCodePoint(27)
 
@@ -95,4 +106,31 @@ test('counts down to a stamp given as an ISO string or as unix seconds', () => {
 	expect(until(new Date(target).toISOString())).toBe('in 2h')
 	expect(until(Math.floor(target / 1000))).toBe('in 2h')
 	expect(until(Math.floor(Date.now() / 1000) - 60)).toBe('in 0s')
+})
+
+test('a reading not known yet is a dash, a real zero stays zero', () => {
+	expect(bytes(undefined)).toBe('-')
+	expect(bytes(-1)).toBe('-')
+	expect(bytes(0)).toBe('0 B')
+	expect(bytes(1536)).toBe('1.5 KB')
+	expect(bytes(1_048_500)).toBe('1.0 MB')
+	expect(bytes(10_199)).toBe('10 KB')
+	expect(percent(9.97)).toBe('10%')
+	expect(percent(null)).toBe('-')
+	expect(percent(0)).toBe('0.0%')
+})
+
+test('a connection URL hides its password even when it repeats the user or holds an @', () => {
+	expect(maskUrlPassword('postgres://postgres:postgres@db:5432/postgres', 'postgres', 'db')).toBe(
+		'postgres://postgres:•••@db:5432/postgres',
+	)
+	expect(maskUrlPassword('redis://s3cr@t:x@cache:6379/0', '', 'cache')).toBe('redis://•••@cache:6379/0')
+	expect(maskUrlPassword('mysql://app:a@db:b@db:3306/app', 'app', 'db')).toBe('mysql://app:•••@db:3306/app')
+})
+
+test('a duration past an hour reads in hours and minutes', () => {
+	const start = '2026-01-01T00:00:00Z'
+	expect(duration(start, '2026-01-01T00:00:42Z')).toBe('42s')
+	expect(duration(start, '2026-01-01T00:59:59Z')).toBe('59m 59s')
+	expect(duration(start, '2026-01-01T01:15:03Z')).toBe('1h 15m')
 })

@@ -61,13 +61,17 @@ state belongs to TanStack Query; component state is local.
 `behavior`, `canceled`, `catalog`, not the British forms. The exception is a value
 already on the wire: the deployment status `cancelled` and the `deployment.cancelled`
 event keep their spelling because renaming them breaks stored rows and clients.
+Arc's own lines in `src/components/ui` keep Arc's spelling too (see UI).
 
 **UI.** Arc UI's components (uiarc.dev) copied 1:1 into `src/components/ui`,
 one flat file each, nothing installed from the Arc registry: `@base-ui/react`
 primitives, Tailwind token classes and `motion/react` with the timings in
 `src/lib/motion.ts`, as Arc ships them. A prop Arc lacks is added in place and
 marked with a `// vexdock:` comment, so a diff against Arc shows every
-departure. `table.tsx` is the one file with no Arc original.
+departure. Nothing else differs: the `components/ui/**` override in
+`vite.config.ts` turns off each lint rule Arc's own code trips, so a lint fix
+never forks a copy, and the one unmarked change is a `!` where this repo's
+`noUncheckedIndexedAccess` needs it. `table.tsx` is the one file with no Arc original.
 Pages go through the vocabulary first:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
@@ -78,9 +82,9 @@ destination, the project list and the search that opens the command menu, and a 
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).
 The visual language is the ui skill's Arc system with its default tokens (`src/styles.css`
-copies the skill's file above the marked line, the only palette there is, with four
-calls of our own that its comments name: durations at 0.7x, shadows at half offset and
-blur, radii 12 for controls and 16 for every box, dark grays 4 points darker): a near-black canvas, cards a shade lighter, hover and pressed as tints of the text color, the
+copies the skill's file above the marked line, the only palette there is, with two
+calls of our own that its comments name: radii 12 for controls and 16 for every box, dark
+grays 4 points darker): a near-black canvas, cards a shade lighter, hover and pressed as tints of the text color, the
 foreground color for the one primary action, sentence case everywhere, a neutral gray ramp.
 The panel is monochrome throughout, charts included. Dense tables, and no continuously repainting animation: the panel
 is often left open.
@@ -107,15 +111,15 @@ deployment's pipeline, a container's log) is a `DetailDialog`, never a row
 unfolded under the one clicked: `DataTable`'s `detail` does that for you.
 
 The look is carried by tokens, not by classes on pages: `src/styles.css` is
-the ui skill's `styles.css` unchanged, then vexdock's own additions under it
+the ui skill's `styles.css` with the two calls above, then vexdock's own additions under it
 (the console colors, the base
 layer, `enter-children`). It resets every Tailwind default it does not define,
 so an off-system class (`rounded-lg`, `font-semibold`, `bg-zinc-800`,
 `text-6xl`) produces no CSS at all. Text is
 `text-xs` to `text-5xl` in Inter, Geist (`font-display`) from `text-3xl` up,
 `font-mono` for machine output (console, code, ids); weights are
-`font-normal` and `font-medium`. Controls are `h-control-sm|md|lg` (28/36/44px)
-and corners `rounded-control|panel|surface` (10/14/18px), so no component writes
+`font-normal` and `font-medium`. Controls are `h-control-sm|md|lg` (36/44/50px)
+and corners `rounded-control|panel|surface` (12/16/16px), so no component writes
 a size of its own. Classes merge with `import { cn } from 'cn'`.
 A card is `rounded-surface border bg-surface` and floats nothing: only menus,
 popovers and dialogs get `shadow-floating`.
@@ -137,8 +141,9 @@ reducedMotion='user'` and each Arc component's `useReducedMotion` drop the
 blocks enter staggered (`enter-children` on `Page`), a selection slides
 (`ActivePill`), a panel's height follows `--collapsible-panel-height` on a
 Base UI `Collapsible`, and a live reading rolls its digits (`AnimatedNumber`,
-over Arc's `RollingNumber`). Nothing loops: a busy button shows a static
-glyph, not a spinner.
+over Arc's `RollingNumber`). Nothing loops on a page left open: a spinner turns
+only inside a button whose own request is in flight (`loading`), and a state that
+lasts (a running deployment, a certificate being issued) is a static glyph.
 
 ## Tests
 

@@ -318,6 +318,10 @@ pub async fn cleanup_preview(State(s): State<Arc<Server>>) -> ApiResult {
 		}
 	}
 	for v in usage.volumes.unwrap_or_default() {
+		// Since API 1.42 a prune without `all` removes only anonymous volumes, so a named one would never be reclaimed.
+		if !v.labels.contains_key("com.docker.volume.anonymous") {
+			continue;
+		}
 		if let Some(u) = v.usage_data.filter(|u| u.ref_count == 0) {
 			unused_volumes += u.size;
 		}

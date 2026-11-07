@@ -22,7 +22,7 @@ test('the root reads as the dashboard', () => {
 	expect(trailOf('/', routes)).toEqual([{ segment: 'dashboard', to: '/', linkable: false }])
 })
 
-test('labels are title-cased', () => {
+test('labels are sentence-cased', () => {
 	expect(labelOf('backups')).toBe('Backups')
 	expect(labelOf('docker-hub')).toBe('Docker hub')
 })

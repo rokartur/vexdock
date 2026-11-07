@@ -85,9 +85,12 @@ fn deployment_numbering_and_recovery() {
 	assert_eq!(db.count_deployments_by_status(DEPLOYMENT_SUCCESS).unwrap(), 1);
 
 	let env = db.default_environment(&project.id).unwrap();
-	let list = db.list_deployments(&env.id, 10).unwrap();
+	let list = db.list_deployments(&env.id, "", 10).unwrap();
 	assert_eq!(list.len(), 5);
 	assert_eq!(list[0].id, running.id, "history is not newest-first");
+	let web = db.list_deployments(&env.id, "web", 3).unwrap();
+	assert!(web.len() == 3 && web.iter().all(|d| d.service_name == "web"), "a service's history leaks its siblings");
+	assert_eq!(db.list_deployments(&env.id, "db", 10).unwrap().len(), 1);
 }
 
 #[test]

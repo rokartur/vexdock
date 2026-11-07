@@ -1,23 +1,35 @@
 import type { ContainerSummary } from './api'
 
+/** A size not known yet, or Docker's -1 for one never measured, reads as a dash, not as an empty disk. */
 export function bytes(value: number | undefined | null): string {
-	if (!value || value < 0) return '0 B'
+	if (value === undefined || value === null || value < 0) return '-'
 	const units = ['B', 'KB', 'MB', 'GB', 'TB']
 	let size = value
 	let unit = 0
-	while (size >= 1024 && unit < units.length - 1) {
+	// 1023.95 rounds to 1024, so step up from what would print, not from the raw value.
+	while (Math.round(size) >= 1024 && unit < units.length - 1) {
 		size /= 1024
 		unit += 1
 	}
-	return `${size < 10 && unit > 0 ? size.toFixed(1) : Math.round(size)} ${units[unit]}`
+	return `${Number(size.toFixed(1)) < 10 && unit > 0 ? size.toFixed(1) : Math.round(size)} ${units[unit]}`
 }
 
 export function percent(value: number | undefined | null): string {
-	if (value === undefined || value === null) return '0%'
-	return `${value < 10 ? value.toFixed(1) : Math.round(value)}%`
+	if (value === undefined || value === null) return '-'
+	return `${Number(value.toFixed(1)) < 10 ? value.toFixed(1) : Math.round(value)}%`
 }
 
-/** Compact relative time: 12s, 4m, 3h, 2d. */
+/** A chart's axis tick: a round step printed exactly, so a 0.25% step does not read 0.3%. */
+export function percentTick(value: number): string {
+	return `${Number(value.toFixed(2))}%`
+}
+
+/** A byte axis tick without the padding zero, so 5 MB sits beside 10 MB rather than 5.0 MB. */
+export function bytesTick(value: number): string {
+	return bytes(value).replace('.0 ', ' ')
+}
+
+/** Compact relative time: 12s ago, 4m ago, 3h ago, 2d ago. */
 export function since(iso: string | number | undefined | null): string {
 	if (!iso) return '-'
 	const then = typeof iso === 'number' ? iso * 1000 : Date.parse(iso)
@@ -45,6 +57,14 @@ export function until(iso: string | number | undefined | null): string {
 	return `in ${Math.floor(hours / 24)}d`
 }
 
+// The manager writes `scheme://user:password@host:port/db` unencoded (engines/mod.rs), so the password may
+// hold `@` or `:` or repeat the user: cut at the last `@host:` rather than search for the value.
+export function maskUrlPassword(url: string, user: string, host: string): string {
+	const scheme = url.slice(0, url.indexOf('://') + 3)
+	const tail = url.slice(url.lastIndexOf(`@${host}:`))
+	return `${scheme}${user ? `${user}:` : ''}•••${tail}`
+}
+
 export function duration(start: string, end: string): string {
 	if (!start) return '-'
 	const from = Date.parse(start)
@@ -52,7 +72,8 @@ export function duration(start: string, end: string): string {
 	if (Number.isNaN(from) || Number.isNaN(to)) return '-'
 	const seconds = Math.max(0, Math.round((to - from) / 1000))
 	if (seconds < 60) return `${seconds}s`
-	return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+	if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+	return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
 }
 
 export function shortSha(sha: string | undefined): string {
@@ -105,7 +126,7 @@ export function parseLogLine(text: string) {
 	}
 }
 
-export type AnsiSegment = { text: string; color?: string; bold: boolean }
+type AnsiSegment = { text: string; color?: string; bold: boolean }
 
 // The 16 terminal colors, tuned to read on the console's black background.
 const ANSI_COLORS = [

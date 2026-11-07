@@ -1,10 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { IconCloud, IconTrash, IconWorld } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useBlocker } from '@tanstack/react-router'
-import { Button, Confirm, ErrorText, Field, FormSection, Input, RelativeTime, Switch } from '../components/primitives'
+import {
+	Button,
+	Confirm,
+	ErrorText,
+	Field,
+	FormSection,
+	FormSkeleton,
+	Input,
+	PendingReading,
+	RelativeTime,
+	Status,
+	Switch,
+} from '../components/primitives'
 import { IslandBar, useIslandBar } from '../components/ui/save-bar'
-import { api, type Certificate } from '../lib/api'
+import { api, type Certificate, certificateStatus, type Settings } from '../lib/api'
 import { certificatesQuery, preload } from '../lib/queries'
 
 const settingsQuery = queryOptions({ queryKey: ['settings'], queryFn: api.settings })
@@ -15,35 +27,35 @@ export const Route = createFileRoute('/system/settings/')({
 	component: GeneralSettings,
 })
 
+function GeneralSettings() {
+	const settings = useQuery(settingsQuery)
+	if (!settings.data) {
+		return settings.error ? (
+			<ErrorText error={settings.error} />
+		) : (
+			<FormSkeleton label='Loading settings' cards={2} />
+		)
+	}
+	return <SettingsForm loaded={settings.data} />
+}
+
 // The API writes settings as one object, so the page has one draft and one save bar, not a Save per card.
 // acme_email has no field yet and is replayed as it was read.
-function GeneralSettings() {
+function SettingsForm({ loaded }: { loaded: Settings }) {
 	const queryClient = useQueryClient()
-	const settings = useQuery(settingsQuery)
 	const certificates = useQuery(certificatesQuery)
-	const [draft, setDraft] = useState({ domain: '', https: true, token: '' })
-
-	useEffect(() => {
-		const loaded = settings.data
-		if (!loaded) return
-		setDraft({
-			domain: loaded.dashboard_domain,
-			https: loaded.dashboard_https,
-			token: '',
-		})
-	}, [settings.data])
+	const saved = { domain: loaded.dashboard_domain, https: loaded.dashboard_https, token: '' }
+	const [draft, setDraft] = useState(saved)
 
 	// The Cloudflare token is write-only: undefined keeps the stored one (the key
 	// is dropped on serialization), '' clears it.
 	const write = (fields: { token: string | undefined; domain: string; https: boolean }) =>
-		settings.data
-			? api.saveSettings({
-					acme_email: settings.data.acme_email,
-					dashboard_domain: fields.domain,
-					dashboard_https: fields.https,
-					cloudflare_api_token: fields.token,
-				})
-			: Promise.reject(new Error('settings not loaded yet'))
+		api.saveSettings({
+			acme_email: loaded.acme_email,
+			dashboard_domain: fields.domain,
+			dashboard_https: fields.https,
+			cloudflare_api_token: fields.token,
+		})
 	const refresh = () => queryClient.invalidateQueries({ queryKey: ['settings'] })
 
 	const save = useMutation({
@@ -56,29 +68,23 @@ function GeneralSettings() {
 
 	// Removing the token replays the saved domain, never an unsaved edit in the draft.
 	const removeToken = useMutation({
-		mutationFn: () => {
-			const loaded = settings.data
-			return write({ token: '', domain: loaded?.dashboard_domain ?? '', https: loaded?.dashboard_https ?? true })
-		},
+		mutationFn: () => write({ token: '', domain: saved.domain, https: saved.https }),
 		onSuccess: refresh,
 	})
 
-	const loaded = settings.data
-	const dirty =
-		loaded !== undefined &&
-		(draft.domain !== loaded.dashboard_domain || draft.https !== loaded.dashboard_https || draft.token !== '')
+	const dirty = draft.domain !== saved.domain || draft.https !== saved.https || draft.token !== ''
 	const bar = useIslandBar({
 		dirty,
 		value: draft,
 		onSave: () => save.mutateAsync(),
-		onDiscard: () =>
-			loaded && setDraft({ domain: loaded.dashboard_domain, https: loaded.dashboard_https, token: '' }),
+		onDiscard: () => setDraft(saved),
 	})
 	useBlocker({ shouldBlockFn: () => bar.guard({ kind: 'shake', focus: true }), enableBeforeUnload: false })
 
-	const tokenStored = loaded?.cloudflare_token_set ?? false
-	const certificate = certificates.data?.find(cert => cert.hostname === loaded?.dashboard_domain)
-	const wildcards = certificates.data?.filter(cert => cert.hostname.startsWith('*.')).length ?? 0
+	const tokenStored = loaded.cloudflare_token_set
+	const certificate = certificates.data?.find(cert => cert.hostname === loaded.dashboard_domain)
+	const wildcards = certificates.data?.filter(cert => cert.hostname.startsWith('*.')).length
+	const certificatesPending = <PendingReading label='certificates' failed={certificates.isError} />
 
 	return (
 		<form
@@ -90,21 +96,26 @@ function GeneralSettings() {
 			}}
 		>
 			<ErrorText error={removeToken.error} />
+			<ErrorText error={certificates.error} />
 			<FormSection
 				title='Dashboard domain'
 				icon={IconWorld}
-				hint='Leave empty to keep using the server IP on port 3000.'
+				hint='Leave empty to keep using the server IP on the dashboard port the installer set (3000 by default).'
 				aside={[
 					{
 						label: 'Reached at',
 						value: <span className='font-mono text-xs'>{window.location.host}</span>,
 					},
-					{ label: 'Certificate', value: <CertificateFact certificate={certificate} /> },
+					{
+						label: 'Certificate',
+						value: certificates.data ? <CertificateFact certificate={certificate} /> : certificatesPending,
+					},
 				]}
 			>
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Hostname'>
 						<Input
+							mono
 							value={draft.domain}
 							placeholder='panel.example.com'
 							onChange={event => setDraft({ ...draft, domain: event.target.value })}
@@ -126,7 +137,7 @@ function GeneralSettings() {
 				hint='Scoped to Zone:Read and DNS:Edit. Without it only HTTP-01 is used and *.example.com cannot be issued.'
 				aside={[
 					{ label: 'Token', value: tokenStored ? 'stored' : 'not set' },
-					{ label: 'Wildcard certificates', value: wildcards },
+					{ label: 'Wildcard certificates', value: wildcards ?? certificatesPending },
 				]}
 				actions={
 					tokenStored ? (
@@ -136,7 +147,7 @@ function GeneralSettings() {
 							action='Remove token'
 							onConfirm={() => removeToken.mutate()}
 						>
-							<Button variant='ghost' disabled={removeToken.isPending}>
+							<Button variant='ghost' loading={removeToken.isPending}>
 								<IconTrash size={16} stroke={1.75} />
 								Remove token
 							</Button>
@@ -146,12 +157,13 @@ function GeneralSettings() {
 			>
 				<Field
 					label='Cloudflare API token'
-					hint={tokenStored ? 'Entering one replaces the stored token.' : undefined}
+					hint={tokenStored ? 'One is saved; typing replaces it.' : undefined}
 				>
 					<Input
+						mono
 						type='password'
+						autoComplete='new-password'
 						value={draft.token}
-						placeholder={tokenStored ? '••••••••' : ''}
 						onChange={event => setDraft({ ...draft, token: event.target.value })}
 					/>
 				</Field>
@@ -167,10 +179,17 @@ function GeneralSettings() {
 
 function CertificateFact({ certificate }: { certificate: Certificate | undefined }) {
 	if (!certificate) return <span className='text-muted'>none issued</span>
-	if (certificate.status !== 'issued') return <span>{certificate.status}</span>
+	const status = certificateStatus(certificate)
+	if (status === 'expired')
+		return (
+			<span className='inline-flex items-center gap-1.5'>
+				<Status value='expired' /> <RelativeTime at={certificate.expires_at} />
+			</span>
+		)
+	if (status !== 'issued') return <Status value={status} />
 	return (
 		<span>
-			expires <RelativeTime at={certificate.expires_at} />
+			expires <RelativeTime at={certificate.expires_at} future />
 		</span>
 	)
 }

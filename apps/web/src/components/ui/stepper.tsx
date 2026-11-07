@@ -86,7 +86,7 @@ export function Stepper({
 	// Remember where progress came from, so a jump across several steps fills or drains its connectors one after another.
 	const [travel, setTravel] = useState({ to: active, from: active })
 	if (travel.to !== active) setTravel({ to: active, from: travel.to })
-	const { from } = travel
+	const from = travel.from
 	const delayAt = (index: number) => {
 		if (reduced) return 0
 		if (active > from) return index >= from && index < active ? (index - from) * stagger.line : 0
@@ -102,9 +102,9 @@ export function Stepper({
 		const back = ['ArrowUp', rtl ? 'ArrowRight' : 'ArrowLeft']
 		const ahead = ['ArrowDown', rtl ? 'ArrowLeft' : 'ArrowRight']
 		if (![...back, ...ahead, 'Home', 'End'].includes(event.key)) return
-		const targets = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[data-reachable]')]
+		const targets = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[data-reachable]'))
 		const at = targets.findIndex(target => target === event.target)
-		if (at === -1) return
+		if (at < 0) return
 		event.preventDefault()
 		let next = back.includes(event.key) ? Math.max(0, at - 1) : Math.min(targets.length - 1, at + 1)
 		if (event.key === 'Home') next = 0

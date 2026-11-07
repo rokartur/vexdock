@@ -31,6 +31,7 @@ type ComboboxProps = Omit<ComponentProps<'input'>, 'value' | 'defaultValue' | 'o
 	emptyMessage?: string
 	// vexdock: offers typed text as a value of its own when no option matches, for a field whose options are suggestions.
 	onCustomValue?: (value: string) => void
+	// vexdock: keeps the label for assistive tech only, for a control in a table row or a toolbar.
 	hideLabel?: boolean
 }
 
@@ -99,7 +100,10 @@ export function Combobox({
 			)
 		: options
 	const typed = query.trim()
-	const offersTyped = onCustomValue !== undefined && typed !== '' && !options.some(option => option.label === typed)
+	const offersTyped =
+		onCustomValue !== undefined &&
+		typed !== '' &&
+		!options.some(option => option.label === typed || option.value === typed)
 	const filteredOptions = offersTyped ? [{ value: typed, label: `Use "${typed}"` }, ...matches] : matches
 	const enabledIndices = filteredOptions.flatMap((option, index) => (option.disabled ? [] : [index]))
 	const activeOption = activeIndex >= 0 ? filteredOptions[activeIndex] : undefined

@@ -81,7 +81,7 @@ export function PasswordField({
 // One eye that a slash draws across, cutting the eye stroke beneath it, instead of swapping two icons.
 function EyeMorph({ slashed }: { slashed: boolean }) {
 	const reduced = useReducedMotion()
-	const maskId = `eye-${useId().replaceAll(/[^a-zA-Z0-9_-]/g, '')}`
+	const maskId = `eye-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
 	const slash = { pathLength: slashed ? 1 : 0, opacity: slashed ? 1 : 0 }
 	const transition = reduced
 		? { duration: 0 }

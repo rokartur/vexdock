@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
 	IconBrandBitbucket,
 	IconBrandGithub,
@@ -11,13 +11,14 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Skeleton } from '@/components/ui/skeleton'
+import { CopyButton } from '@/components/ui/copy-button'
 import { IntegrationList, IntegrationRow } from '../components/integration-list'
 import {
 	Button,
 	Confirm,
 	EmptyState,
 	ErrorText,
+	ListPlaceholder,
 	Field,
 	FormDialog,
 	IconButton,
@@ -58,10 +59,13 @@ function ProviderRow({
 	provider,
 	edit,
 	remove,
+	removing,
 }: {
 	provider: GitProvider
 	edit: (provider: GitProvider) => void
 	remove: (id: string) => void
+	/** The connection a remove is in flight for, if any. */
+	removing: string | undefined
 }) {
 	const kind = kinds.find(each => each.value === provider.provider_type)
 	return (
@@ -82,19 +86,24 @@ function ProviderRow({
 					// oxlint-disable-next-line jsx-a11y/control-has-associated-label -- Button renders its children into the link
 					<Button variant='ghost' render={<a href={provider.install_url} />}>
 						<IconSettings size={16} stroke={1.75} />
-						{provider.github.github_installation_id ? 'Repositories' : 'Finish install'}
+						{provider.github.github_installation_id ? 'Choose repositories' : 'Finish install'}
 					</Button>
 				)
 			) : (
-				<IconButton icon={IconPencil} label='Edit' onClick={() => edit(provider)} />
+				<IconButton icon={IconPencil} label={`Edit ${provider.name}`} onClick={() => edit(provider)} />
 			)}
 			<Confirm
 				title={`Remove ${provider.name}?`}
 				description='Services cloning through it have to be pointed somewhere else first.'
-				action='Remove'
+				action='Remove connection'
 				onConfirm={() => remove(provider.git_provider_id)}
 			>
-				<IconButton icon={IconTrash} label='Remove' />
+				<IconButton
+					icon={IconTrash}
+					label={`Remove ${provider.name}`}
+					loading={removing === provider.git_provider_id}
+					disabled={removing !== undefined}
+				/>
 			</Confirm>
 		</IntegrationRow>
 	)
@@ -138,7 +147,7 @@ function postManifest(url: string, manifest: unknown) {
 function leaveFor(url: string) {
 	const target = new URL(url)
 	if (target.protocol !== 'https:' && target.protocol !== 'http:') {
-		throw new Error(`refusing to open ${url}`)
+		throw new Error(`The host sent back ${url}, which is not an http or https address. Check the Host field.`)
 	}
 	window.location.assign(target.href)
 }
@@ -146,6 +155,10 @@ function leaveFor(url: string) {
 /** GitHub, GitLab and Gitea end by leaving the panel. Bitbucket is the only one done when the request answers. */
 async function saveProvider(form: Form) {
 	const id = form.id || undefined
+	// The per-host save ignores the name of an existing connection, so an edit renames after it, once the credentials took.
+	const rename = async () => {
+		if (id) await api.renameGitProvider(id, form.name)
+	}
 	if (form.kind === 'bitbucket') {
 		await api.saveBitbucketProvider(id, {
 			name: form.name,
@@ -155,6 +168,7 @@ async function saveProvider(form: Form) {
 			api_token: form.apiToken,
 			bitbucket_workspace_name: form.workspace,
 		})
+		await rename()
 		return true
 	}
 	if (form.kind === 'github') {
@@ -182,6 +196,7 @@ async function saveProvider(form: Form) {
 					client_secret: form.clientSecret,
 					organization_name: form.organization,
 				})
+	await rename()
 	leaveFor(authorize_url)
 	return false
 }
@@ -193,7 +208,7 @@ async function saveProvider(form: Form) {
 function hintFor(kind: GitProviderType, origin: string) {
 	switch (kind) {
 		case 'github': {
-			return 'GitHub creates the App from this form, then asks which repositories it may read. The panel has to be reachable over https.'
+			return 'GitHub creates the App from this form, then asks which repositories it may read. The panel has to be reachable over HTTPS.'
 		}
 		case 'gitlab': {
 			return `Create an application under User settings, Applications with the api and read_repository scopes and the redirect URI ${origin}/api/providers/gitlab/callback, then paste its id and secret.`
@@ -207,47 +222,39 @@ function hintFor(kind: GitProviderType, origin: string) {
 	}
 }
 
-/** The origin the browser is on, which the server is not allowed to guess at render time. */
-function useOrigin() {
-	const [origin, setOrigin] = useState('')
-	useEffect(() => setOrigin(window.location.origin), [])
-	return origin
-}
-
-function saveLabel(pending: boolean, editing: boolean) {
-	if (pending) return 'Connecting…'
-	return editing ? 'Save' : 'Connect'
-}
-
 function GitProviders() {
 	const queryClient = useQueryClient()
 	const { error: redirectError } = Route.useSearch()
+	const navigate = Route.useNavigate()
+	// A later change that lands answers the failed callback, so its message leaves the URL.
+	const dropRedirectError = () => navigate({ search: { error: undefined }, replace: true })
 	const providers = useQuery(gitProvidersQuery)
-	const origin = useOrigin()
+	const { origin } = window.location
 	const [open, setOpen] = useState(false)
 	const [form, setForm] = useState(emptyForm)
+	const [copyFailed, setCopyFailed] = useState(false)
 	const set = <TKey extends keyof Form>(key: TKey, value: Form[TKey]) =>
 		setForm(current => ({ ...current, [key]: value }))
 
 	const save = useMutation({
-		mutationFn: async () => {
-			// Editing renames too: the per-host save only re-registers credentials.
-			if (form.id) await api.renameGitProvider(form.id, form.name)
-			return saveProvider(form)
-		},
+		mutationFn: () => saveProvider(form),
 		onSuccess: async finished => {
 			// A flow that leaves for the host is not done, so the form stays put
 			// until the browser navigates away.
 			if (!finished) return
 			setForm(emptyForm)
 			setOpen(false)
+			await dropRedirectError()
 			await queryClient.invalidateQueries({ queryKey: ['git-providers'] })
 		},
 	})
 
 	const remove = useMutation({
 		mutationFn: api.deleteGitProvider,
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['git-providers'] }),
+		onSuccess: async () => {
+			await dropRedirectError()
+			await queryClient.invalidateQueries({ queryKey: ['git-providers'] })
+		},
 	})
 
 	const { mutate: removeProvider } = remove
@@ -269,6 +276,7 @@ function GitProviders() {
 	}
 
 	const listed = providers.data ?? []
+	const editing = listed.find(provider => provider.git_provider_id === form.id)
 	const connected = listed.filter(provider => provider.connected).length
 	// A GitHub App that was created but never pointed at a repository can clone nothing.
 	const unfinished = listed.filter(provider => provider.github && !provider.github.github_installation_id).length
@@ -281,7 +289,6 @@ function GitProviders() {
 				<StatStrip
 					className='mb-4'
 					items={[
-						{ label: 'Connections', value: listed.length },
 						{ label: 'Connected', value: connected },
 						{ label: 'Pending', value: listed.length - connected },
 						{ label: 'Install unfinished', value: unfinished },
@@ -291,32 +298,20 @@ function GitProviders() {
 			) : null}
 			<Section
 				title='Git connections'
+				total={providers.data?.length}
 				actions={
 					<>
-						<Refresh onClick={() => providers.refetch()} busy={providers.isFetching} />
-						<Button variant='primary' onClick={() => setOpen(true)}>
+						<Refresh onClick={() => providers.refetch()} />
+						<Button variant='primary' size='sm' onClick={() => setOpen(true)}>
 							<IconPlug size={16} stroke={1.75} />
 							Connect a provider
 						</Button>
 					</>
 				}
 			>
-				<ErrorText
-					error={remove.error ?? providers.error ?? (redirectError ? new Error(redirectError) : null)}
-				/>
-				{listed.length === 0 ? (
-					<div className='rounded-surface border bg-surface'>
-						{providers.isLoading ? (
-							<Skeleton label='Loading connections' className='p-5' />
-						) : (
-							<EmptyState
-								icon={IconPlug}
-								title='No connections'
-								description='A service can still clone from a git URL.'
-							/>
-						)}
-					</div>
-				) : (
+				<ErrorText error={remove.error ?? (redirectError ? new Error(redirectError) : null)} />
+				<ErrorText error={providers.error} />
+				{listed.length > 0 ? (
 					<IntegrationList>
 						{listed.map(provider => (
 							<ProviderRow
@@ -324,9 +319,18 @@ function GitProviders() {
 								provider={provider}
 								edit={edit}
 								remove={removeProvider}
+								removing={remove.isPending ? remove.variables : undefined}
 							/>
 						))}
 					</IntegrationList>
+				) : providers.error ? null : (
+					<ListPlaceholder loading={providers.isLoading} label='Loading connections'>
+						<EmptyState
+							icon={IconPlug}
+							title='No connections'
+							description='Connect a provider to pick repositories from a list. A service can still clone from a git URL without one.'
+						/>
+					</ListPlaceholder>
 				)}
 			</Section>
 
@@ -334,25 +338,30 @@ function GitProviders() {
 				open={open}
 				onOpenChange={next => {
 					setOpen(next)
-					if (!next) setForm(emptyForm)
+					if (next) return
+					setForm(emptyForm)
+					setCopyFailed(false)
 				}}
-				title={form.id ? `Edit ${form.name}` : 'Connect a provider'}
+				title={form.id ? `Edit ${editing?.name ?? 'connection'}` : 'Connect a provider'}
 				description={hintFor(form.kind, origin)}
-				action={saveLabel(save.isPending, form.id !== '')}
+				action={form.id ? 'Save connection' : 'Connect provider'}
 				icon={IconPlug}
 				mutation={save}
 				wide
 				onSubmit={() => save.mutate()}
 			>
-				<div className='mb-4'>
-					<Segmented
-						value={form.kind}
-						options={kinds}
-						// Switching host mid-edit would save the wrong shape, so it drops
-						// whatever was typed.
-						onChange={kind => setForm({ ...emptyForm, kind })}
-					/>
-				</div>
+				{/* An edit keeps its host: a switch would reset the form and save a new connection. */}
+				{form.id ? null : (
+					<div className='mb-4'>
+						<Segmented
+							label='Git host'
+							value={form.kind}
+							options={kinds}
+							// Switching host before saving would send the wrong shape, so it drops whatever was typed.
+							onChange={kind => setForm({ ...emptyForm, kind })}
+						/>
+					</div>
+				)}
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Name'>
 						<Input
@@ -368,6 +377,7 @@ function GitProviders() {
 							hint={form.kind === 'github' ? 'A GitHub Enterprise origin.' : 'A self-hosted origin.'}
 						>
 							<Input
+								mono
 								placeholder={`https://${form.kind}.com`}
 								value={form.host}
 								onChange={event => set('host', event.target.value)}
@@ -377,6 +387,7 @@ function GitProviders() {
 					{form.kind === 'github' ? (
 						<Field label='Organization' hint='Empty installs the App on your own account.'>
 							<Input
+								mono
 								placeholder='acme'
 								value={form.organization}
 								onChange={event => set('organization', event.target.value)}
@@ -387,21 +398,32 @@ function GitProviders() {
 						<>
 							<Field label={form.kind === 'gitlab' ? 'Application ID' : 'Client ID'}>
 								<Input
+									mono
 									required
 									value={form.clientId}
 									onChange={event => set('clientId', event.target.value)}
 								/>
 							</Field>
-							<Field label='Secret'>
+							<Field
+								label='Secret'
+								hint={
+									form.id
+										? 'The stored secret is never sent back; paste it again, since saving reconnects.'
+										: undefined
+								}
+							>
 								<Input
+									mono
 									required
 									type='password'
+									autoComplete='new-password'
 									value={form.clientSecret}
 									onChange={event => set('clientSecret', event.target.value)}
 								/>
 							</Field>
 							<Field label={form.kind === 'gitlab' ? 'Group' : 'Organization'}>
 								<Input
+									mono
 									placeholder='acme'
 									value={form.organization}
 									onChange={event => set('organization', event.target.value)}
@@ -412,11 +434,25 @@ function GitProviders() {
 					{form.kind === 'bitbucket' ? (
 						<>
 							<Field label='Username'>
-								<Input value={form.username} onChange={event => set('username', event.target.value)} />
-							</Field>
-							<Field label='App password'>
 								<Input
+									mono
+									autoComplete='off'
+									value={form.username}
+									onChange={event => set('username', event.target.value)}
+								/>
+							</Field>
+							<Field
+								label='App password'
+								hint={
+									form.id
+										? 'Stored secrets are never sent back. Saving replaces both, so paste the pair you sign in with again.'
+										: undefined
+								}
+							>
+								<Input
+									mono
 									type='password'
+									autoComplete='new-password'
 									value={form.appPassword}
 									onChange={event => set('appPassword', event.target.value)}
 								/>
@@ -424,19 +460,23 @@ function GitProviders() {
 							<Field label='Email'>
 								<Input
 									type='email'
+									autoComplete='off'
 									value={form.email}
 									onChange={event => set('email', event.target.value)}
 								/>
 							</Field>
 							<Field label='API token'>
 								<Input
+									mono
 									type='password'
+									autoComplete='new-password'
 									value={form.apiToken}
 									onChange={event => set('apiToken', event.target.value)}
 								/>
 							</Field>
 							<Field label='Workspace'>
 								<Input
+									mono
 									placeholder='acme'
 									value={form.workspace}
 									onChange={event => set('workspace', event.target.value)}
@@ -449,7 +489,23 @@ function GitProviders() {
 							label='Push hook'
 							hint='Add this URL as a push webhook on the host. Its token is what tells the deliveries apart from anyone else’s.'
 						>
-							<Input readOnly value={form.webhookUrl} onFocus={event => event.target.select()} />
+							<div className='flex items-center gap-1'>
+								<Input readOnly mono value={form.webhookUrl} onFocus={event => event.target.select()} />
+								<CopyButton
+									value={form.webhookUrl}
+									label='Copy the push hook URL'
+									iconOnly
+									variant='plain'
+									onCopied={() => setCopyFailed(false)}
+									onError={() => setCopyFailed(true)}
+								/>
+							</div>
+							<ErrorText
+								error={
+									copyFailed ? 'Copying needs HTTPS. Select the address and copy it by hand.' : null
+								}
+								className='mt-2 mb-0'
+							/>
 						</Field>
 					) : null}
 				</div>

@@ -15,6 +15,7 @@ use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -152,6 +153,10 @@ pub struct CallbackQuery {
 /// ten minutes; exchanging it yields the private key the manager signs with
 /// from then on.
 pub async fn github_callback(State(s): State<Arc<Server>>, Query(q): Query<CallbackQuery>) -> ApiResult {
+	back_to_settings(create_github_app(&s, q).await)
+}
+
+async fn create_github_app(s: &Server, q: CallbackQuery) -> ApiResult {
 	if q.code.is_empty() || q.state.is_empty() {
 		return Err(bad_request("github returned no code"));
 	}
@@ -175,6 +180,10 @@ pub async fn github_callback(State(s): State<Arc<Server>>, Query(q): Query<Callb
 /// Records which installation the App became. Without it there is nothing to
 /// mint a token against.
 pub async fn github_installed(State(s): State<Arc<Server>>, Query(q): Query<CallbackQuery>) -> ApiResult {
+	back_to_settings(record_github_installation(&s, q))
+}
+
+fn record_github_installation(s: &Server, q: CallbackQuery) -> ApiResult {
 	if q.installation_id.is_empty() || q.state.is_empty() {
 		return Err(bad_request("github returned no installation"));
 	}
@@ -327,6 +336,10 @@ pub async fn oauth_callback(
 	Path(provider_type): Path<String>,
 	Query(q): Query<OAuthCallbackQuery>,
 ) -> ApiResult {
+	back_to_settings(finish_oauth(&s, provider_type, q).await)
+}
+
+async fn finish_oauth(s: &Server, provider_type: String, q: OAuthCallbackQuery) -> ApiResult {
 	if q.code.is_empty() || q.state.is_empty() {
 		return Err(bad_request(format!("{provider_type} returned no authorization code")));
 	}
@@ -466,9 +479,29 @@ fn redirect_to_settings() -> Response {
 	found("/system/settings/git")
 }
 
+/// A refused or failed handshake lands on the same page, its message in `?error=`, which the page shows.
+fn back_to_settings(result: ApiResult) -> ApiResult {
+	result.or_else(|err| {
+		let message = utf8_percent_encode(&err.message, NON_ALPHANUMERIC);
+		Ok(found(&format!("/system/settings/git?error={message}")))
+	})
+}
+
 fn host_or_default(raw: &str, fallback: &str) -> String {
 	match raw.trim().trim_end_matches('/') {
 		"" => fallback.to_string(),
 		host => host.to_string(),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn a_failed_callback_lands_on_the_settings_page_with_its_message() {
+		let resp = back_to_settings(Err(bad_request("gitlab said: no & go"))).unwrap();
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers()[header::LOCATION], "/system/settings/git?error=gitlab%20said%3A%20no%20%26%20go");
 	}
 }

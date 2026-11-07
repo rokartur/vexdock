@@ -61,6 +61,8 @@ type LineChartProps = {
 	className?: string
 	// vexdock: lowest ceiling for the scale, so an idle byte rate gets 0..1 KiB ticks instead of 0..1 B, which bytes() rounds to duplicates.
 	max?: number
+	// vexdock: steps a byte axis in KiB, MiB or GiB, so bytes() prints 5 MB where a decimal step would print 4.8 MB.
+	binary?: boolean
 	// vexdock: a crosshair shared across small multiples; this chart still reports its own through onActiveChange.
 	activeIndex?: number | null
 }
@@ -118,6 +120,7 @@ export function LineChart({
 	ref,
 	className,
 	max = 0,
+	binary = false,
 	activeIndex,
 }: LineChartProps) {
 	const reduced = useReducedMotion() ?? false
@@ -131,7 +134,7 @@ export function LineChart({
 	const dots = useRef(new Map<string, SVGCircleElement>())
 	const groups = useRef(new Map<string, SVGGElement>())
 	const inView = useInView(chart, { once: true, amount: 0.3 })
-	const clipId = `line${useId().replaceAll(/[^\w-]/g, '')}`
+	const clipId = `line${useId().replace(/[^\w-]/g, '')}`
 	const last = data.length - 1
 	const empty = data.length === 0
 
@@ -150,7 +153,7 @@ export function LineChart({
 			high = Math.max(high, value)
 		}
 	}
-	const range = Number.isFinite(low) ? niceScale(low, Math.max(high, max)) : null
+	const range = Number.isFinite(low) ? (binary ? binaryScale : niceScale)(low, Math.max(high, max)) : null
 	const [steady, setSteady] = useState(() => range ?? niceScale(0, 100))
 	if (range && (range.min !== steady.min || range.max !== steady.max)) setSteady(range)
 	const scale = { min: useMotionValue(steady.min), max: useMotionValue(steady.max) }
@@ -793,6 +796,18 @@ function niceScale(low: number, high: number) {
 	return { min: lo, max: hi, ticks: [lo, hi] }
 }
 
+// vexdock: niceScale counted in B, KiB, MiB or GiB, the first whose rounded top stays under 1000, scaled back to bytes.
+// The top, not the data: 999 KiB rounds up to a 1000 KiB tick, which would print as "1000 KB".
+export function binaryScale(low: number, high: number) {
+	let unit = 1
+	let range = niceScale(low, high)
+	while (range.max >= 1000) {
+		unit *= 1024
+		range = niceScale(low / unit, high / unit)
+	}
+	return { min: range.min * unit, max: range.max * unit, ticks: range.ticks.map(tick => tick * unit) }
+}
+
 // The line through every value, sampled on x from 0 to 1. Monotone cubic tangents keep a smooth curve from swinging past the data.
 function curveFor(values: number[], smooth: boolean): Point[] {
 	if (values.length === 0) return []
@@ -871,27 +886,21 @@ function stepTo(key: string, index: number | null, last: number, page: number) {
 	const from = index ?? last + 1
 	switch (key) {
 		case 'ArrowLeft':
-		case 'ArrowDown': {
+		case 'ArrowDown':
 			return from - 1
-		}
 		case 'ArrowRight':
-		case 'ArrowUp': {
+		case 'ArrowUp':
 			return index === null ? last : from + 1
-		}
-		case 'PageDown': {
+		case 'PageDown':
 			return from - page
-		}
-		case 'PageUp': {
+		case 'PageUp':
 			return from + page
-		}
-		case 'Home': {
+		case 'Home':
 			return 0
-		}
-		case 'End': {
+		case 'End':
 			return last
-		}
 	}
-	return
+	return undefined
 }
 
 // Time-defined springs written as stiffness and damping, so they keep inherited velocity.

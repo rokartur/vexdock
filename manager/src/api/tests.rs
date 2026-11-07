@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
-use axum::http::{HeaderMap, Request, StatusCode};
+use axum::http::{HeaderMap, Request, StatusCode, header};
 use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use http_body_util::BodyExt;
@@ -306,7 +306,10 @@ async fn git_callbacks_refuse_a_bare_connection_id() {
 	let state = manifest_url.split_once("state=").unwrap().1;
 
 	let forged = format!("/api/providers/github/installed?installation_id=42&state={id}");
-	assert_eq!(h.call(&admin, "GET", &forged).await, StatusCode::BAD_REQUEST, "a project token can read the bare id");
+	// A project token can read the bare id; the refusal goes back to the settings page, not to JSON.
+	let (status, headers, _) = h.send("GET", &forged, &[("authorization", &bearer)], "").await;
+	assert_eq!(status, StatusCode::FOUND);
+	assert!(headers[header::LOCATION].to_str().unwrap().starts_with("/system/settings/git?error="));
 	let provider = h.server.db.git_provider_by_id(id).unwrap();
 	assert_eq!(provider.github.unwrap().installation_id, "");
 

@@ -20,14 +20,18 @@ export function useEnvironmentId(): string | undefined {
 	return useSearch({ strict: false }).env
 }
 
-/** The environment the page is acting on, and the list it came from. One query key, so every caller shares the fetch. */
-export function useCurrentEnvironment(projectId: string) {
-	const selected = useEnvironmentId()
+/**
+ * The environment the page is acting on, and the list it came from. One query key, so every caller shares the fetch.
+ * `pinned` wins over the URL: a service page passes its service's own environment.
+ */
+export function useCurrentEnvironment(projectId: string, pinned?: string) {
+	const fromUrl = useEnvironmentId()
+	const selected = pinned ?? fromUrl
 	const environments = useQuery(environmentsQuery(projectId))
 	return { environments, current: environments.data?.find(env => (selected ? env.id === selected : env.is_default)) }
 }
 
-/** Compose project name to the environment behind it, labelled by the project plus the environment when it is not the default. */
+/** Compose project name to the environment behind it, labeled by the project plus the environment when it is not the default. */
 export function composeProjects(projects: Project[]) {
 	const byName = new Map<string, { label: string; projectId: string; environmentId: string }>()
 	for (const project of projects) {

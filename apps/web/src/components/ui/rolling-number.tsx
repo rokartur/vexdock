@@ -15,7 +15,7 @@ export function RollingNumber({ text }: { text: string }) {
 				// Keyed from the right, so a new leading digit enters on the left and the rest keep their wheels.
 				const key = chars.length - index
 				const digit = '0123456789'.indexOf(char)
-				if (digit === -1) {
+				if (digit < 0) {
 					return (
 						<span key={key} className='inline-block whitespace-pre'>
 							{char}
@@ -76,5 +76,5 @@ function glyphStyle(glyph: number, position: number) {
 }
 
 function numericValue(text: string) {
-	return Number(text.replaceAll(/[^\d.-]/g, '')) || 0
+	return Number(text.replace(/[^\d.-]/g, '')) || 0
 }

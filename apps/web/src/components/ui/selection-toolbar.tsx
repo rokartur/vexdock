@@ -154,8 +154,7 @@ function Count({ count, noun, reduced }: { count: number; noun: string; reduced:
 		if (!element) return
 		let measured = false
 		const observer = new ResizeObserver(([entry]) => {
-			if (!entry) return
-			const next = entry.contentRect.width
+			const next = entry!.contentRect.width
 			if (!next || !measured || reduced || performance.now() > springUntil.current) {
 				measured = next > 0
 				width.jump(next || 'auto')

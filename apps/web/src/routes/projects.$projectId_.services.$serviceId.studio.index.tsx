@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import { IconFilter, IconPlus, IconTable, IconTrash, IconX } from '@tabler/icons-react'
+import {
+	IconArrowBackUp,
+	IconChevronsLeft,
+	IconDeviceFloppy,
+	IconFilter,
+	IconFilterOff,
+	IconFilterPlus,
+	IconPlus,
+	IconTable,
+	IconTrash,
+} from '@tabler/icons-react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useBlocker, useNavigate } from '@tanstack/react-router'
 import {
@@ -8,6 +18,7 @@ import {
 	ConfirmLeave,
 	EmptyState,
 	ErrorText,
+	FilterChip,
 	IconButton,
 	Input,
 	Refresh,
@@ -16,6 +27,7 @@ import {
 import { type GridRow, StudioGrid } from '../components/studio-grid'
 import { Pagination } from '../components/ui/pagination'
 import { SelectionToolbar } from '../components/ui/selection-toolbar'
+import { Skeleton } from '../components/ui/skeleton'
 import {
 	api,
 	type StudioCell,
@@ -75,7 +87,15 @@ function isFilter(value: unknown): value is StudioFilter {
 function StudioTable() {
 	const { schema, table } = useStudio()
 	if (!schema) return null
-	if (!table) return <EmptyState icon={IconTable} title={`${schema.name} has no tables.`} />
+	if (!table)
+		return (
+			<EmptyState
+				heading='h2'
+				icon={IconTable}
+				title={`${schema.name} has no tables`}
+				description='Create one from the Console.'
+			/>
+		)
 	// Keyed so unsaved changes and the selection never follow the reader to another table.
 	return (
 		<TableView
@@ -185,6 +205,7 @@ function TableView({
 				setInserts(previous => previous.with(index, { ...previous[index], [column]: value })),
 			selected: selected.has(id),
 			select: on => setSelected(toggle(selected, id, on)),
+			name: `new row ${index + 1}`,
 		}
 	})
 	for (const [index, cells] of (data?.rows ?? []).entries()) {
@@ -214,6 +235,7 @@ function TableView({
 				})),
 			selected: selected.has(id),
 			select: on => setSelected(toggle(selected, id, on)),
+			name: Object.values(key).join(', '),
 		})
 	}
 
@@ -245,23 +267,22 @@ function TableView({
 			<div className='flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1.5'>
 				<IconButton
 					icon={IconFilter}
-					label='Filter'
+					label='Filter rows'
 					aria-pressed={filtering}
 					disabled={columns.length === 0}
 					onClick={() => setFiltering(!filtering)}
 				/>
 				{where.map((filter, index) => (
-					<span
+					<FilterChip
 						key={`${filter.column}-${filter.op}-${filter.value}`}
-						className='flex h-7 items-center gap-1 rounded-control border pl-2 font-mono text-xs'
+						label={`${filter.column} ${operators.find(operator => operator.value === filter.op)?.label} ${filter.value}`}
+						onRemove={() => setWhere(where.toSpliced(index, 1))}
 					>
-						{filter.column} {operators.find(operator => operator.value === filter.op)?.label} {filter.value}
-						<IconButton
-							icon={IconX}
-							label='Remove filter'
-							onClick={() => setWhere(where.toSpliced(index, 1))}
-						/>
-					</span>
+						<span className='font-mono text-xs'>
+							{filter.column} {operators.find(operator => operator.value === filter.op)?.label}{' '}
+							{filter.value}
+						</span>
+					</FilterChip>
 				))}
 				<div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
 					{readOnly ? <span className='text-xs text-muted'>{readOnly}</span> : null}
@@ -269,7 +290,7 @@ function TableView({
 						<IconPlus size={16} stroke={1.75} />
 						Add row
 					</Button>
-					<Refresh onClick={() => rows.refetch()} busy={rows.isFetching} />
+					<Refresh onClick={() => rows.refetch()} />
 					<span className='text-xs whitespace-nowrap text-muted tabular-nums'>
 						{data ? pagerText(offset, data) : null}
 					</span>
@@ -283,13 +304,25 @@ function TableView({
 				</div>
 			</div>
 			{filtering && columns.length > 0 ? (
-				<FilterForm columns={columns} onAdd={filter => setWhere([...where, filter])} />
+				<FilterForm
+					columns={columns}
+					onAdd={filter => {
+						const repeated = where.some(
+							there =>
+								there.column === filter.column &&
+								there.op === filter.op &&
+								there.value === filter.value,
+						)
+						if (!repeated) setWhere([...where, filter])
+					}}
+				/>
 			) : null}
 			{rows.error ? (
 				<div className='p-3'>
 					<ErrorText error={rows.error} />
 				</div>
 			) : null}
+			{rows.isPending ? <Skeleton label='Loading rows' lines={4} className='p-5' /> : null}
 			{data ? (
 				<StudioGrid
 					columns={columns}
@@ -302,27 +335,48 @@ function TableView({
 					}
 				/>
 			) : null}
-			<div className='pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 *:pointer-events-auto'>
-				<SelectionToolbar
-					count={selected.size}
-					noun='row'
-					onClear={() => setSelected(new Set())}
-					actions={[
-						{
-							label: 'Delete',
-							icon: <IconTrash size={16} stroke={1.75} />,
-							onClick: deleteSelected,
-							destructive: true,
-						},
-					]}
-				/>
-			</div>
-			{data && gridRows.length === 0 ? (
+			{data && data.total === 0 && inserts.length === 0 && where.length > 0 ? (
+				<EmptyState heading='h2' scene='search' title='No rows match these filters'>
+					<Button onClick={() => setWhere([])}>
+						<IconFilterOff size={16} stroke={1.75} />
+						Clear filters
+					</Button>
+				</EmptyState>
+			) : null}
+			{data && gridRows.length === 0 && data.total > 0 ? (
+				// A page past the end: rows were deleted elsewhere, or the URL was typed.
+				<EmptyState heading='h2' title='No rows on this page'>
+					<Button onClick={() => navigate({ search: previous => ({ ...previous, page: undefined }) })}>
+						<IconChevronsLeft size={16} stroke={1.75} />
+						Go to page 1
+					</Button>
+				</EmptyState>
+			) : null}
+			{data && data.total === 0 && inserts.length === 0 && where.length === 0 ? (
 				<EmptyState
-					scene={where.length > 0 ? 'search' : undefined}
-					title={where.length > 0 ? 'No rows match these filters.' : 'This table is empty.'}
+					heading='h2'
+					title='This table is empty'
+					description={editable ? 'Add row above inserts the first one.' : undefined}
 				/>
 			) : null}
+			{/* A zero-height anchor above the save bar, so the floating toolbar never covers it. */}
+			<div className='relative shrink-0'>
+				<div className='pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 *:pointer-events-auto'>
+					<SelectionToolbar
+						count={selected.size}
+						noun='row'
+						onClear={() => setSelected(new Set())}
+						actions={[
+							{
+								label: 'Delete rows',
+								icon: <IconTrash size={16} stroke={1.75} />,
+								onClick: deleteSelected,
+								destructive: true,
+							},
+						]}
+					/>
+				</div>
+			</div>
 			{pending > 0 || save.error ? (
 				<div className='shrink-0 border-t px-3 py-2'>
 					<ErrorText error={save.error} />
@@ -330,16 +384,19 @@ function TableView({
 						<span className='text-sm text-muted tabular-nums'>{pendingText(counts)}</span>
 						<div className='ml-auto flex gap-2'>
 							<Button variant='ghost' onClick={discard} disabled={save.isPending}>
-								Discard
+								<IconArrowBackUp size={16} stroke={1.75} />
+								Discard changes
 							</Button>
 							{counts.deletes > 0 ? (
 								<Confirm
 									title={`Delete ${counts.deletes} ${counts.deletes === 1 ? 'row' : 'rows'} from ${table}?`}
 									description='The deletes are saved with the other changes, in one transaction.'
-									action='Save'
+									action='Save changes'
+									icon={IconDeviceFloppy}
 									onConfirm={() => save.mutate()}
 								>
-									<Button variant='primary' disabled={save.isPending}>
+									<Button variant='primary' loading={save.isPending}>
+										<IconDeviceFloppy size={16} stroke={1.75} />
 										Save {pending} {pending === 1 ? 'change' : 'changes'}
 									</Button>
 								</Confirm>
@@ -347,8 +404,10 @@ function TableView({
 								<Button
 									variant='primary'
 									onClick={() => save.mutate()}
-									disabled={save.isPending || pending === 0}
+									disabled={pending === 0}
+									loading={save.isPending}
 								>
+									<IconDeviceFloppy size={16} stroke={1.75} />
 									Save {pending} {pending === 1 ? 'change' : 'changes'}
 								</Button>
 							)}
@@ -367,7 +426,7 @@ function FilterForm({ columns, onAdd }: { columns: StudioColumn[]; onAdd: (filte
 	const needsValue = op !== 'is_null' && op !== 'is_not_null'
 	return (
 		<form
-			className='flex shrink-0 items-center gap-2 border-b px-2 py-2'
+			className='flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-2'
 			onSubmit={event => {
 				event.preventDefault()
 				onAdd({ column, op, value: needsValue ? value : '' })
@@ -376,29 +435,34 @@ function FilterForm({ columns, onAdd }: { columns: StudioColumn[]; onAdd: (filte
 		>
 			<Select
 				label='Column'
-				className='w-48'
+				className='w-full sm:w-48'
 				value={column}
 				options={columns.map(c => ({ value: c.name, label: c.name }))}
 				onChange={setColumn}
 			/>
-			<Select label='Operator' className='w-36' value={op} options={operators} onChange={setOp} />
+			<Select label='Operator' className='w-full sm:w-36' value={op} options={operators} onChange={setOp} />
 			{needsValue ? (
-				<Input
-					mono
-					aria-label='Value'
-					placeholder='Value'
-					value={value}
-					onChange={event => setValue(event.target.value)}
-				/>
+				<div className='min-w-40 flex-1'>
+					<Input
+						mono
+						aria-label='Value'
+						placeholder='Value'
+						value={value}
+						onChange={event => setValue(event.target.value)}
+					/>
+				</div>
 			) : null}
-			<Button type='submit'>Add filter</Button>
+			<Button type='submit'>
+				<IconFilterPlus size={16} stroke={1.75} />
+				Add filter
+			</Button>
 		</form>
 	)
 }
 
-/** The table a location shows. The blocker's locations are typed for every route in the app, hence the `in`. */
-const place = ({ routeId, search }: { routeId: string; search: object }) =>
-	JSON.stringify([routeId, 'schema' in search && search.schema, 'table' in search && search.table])
+/** The table a location shows; the path names the service. The blocker's locations are typed for every route, hence the `in`. */
+const place = ({ pathname, search }: { pathname: string; search: object }) =>
+	JSON.stringify([pathname, 'schema' in search && search.schema, 'table' in search && search.table])
 
 /** The key that tells this row apart, or nothing when a key column is NULL and the row cannot be addressed. */
 function keyOf(data: StudioRows, cells: StudioCell[]) {

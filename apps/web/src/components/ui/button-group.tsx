@@ -195,8 +195,7 @@ export function ButtonGroup({
 		const parent = group.parentElement!
 		const check = () => {
 			const box = getComputedStyle(parent)
-			const available =
-				parent.clientWidth - Number.parseFloat(box.paddingLeft) - Number.parseFloat(box.paddingRight)
+			const available = parent.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight)
 			if (group.dataset.compact === undefined) {
 				if (group.scrollWidth <= group.clientWidth + 1) return
 				fullWidth.current = group.scrollWidth + 2
@@ -274,7 +273,7 @@ export function ButtonGroup({
 
 	// Keyboard focus shows the highlight; a mouse click focuses without it, so nothing stays lit after the pointer leaves.
 	function onFocus(event: FocusEvent<HTMLDivElement>) {
-		const { key } = event.target.dataset
+		const key = event.target.dataset.key
 		if (key === undefined) return
 		setFocused(event.target.matches(':focus-visible') ? key : null)
 	}
@@ -288,7 +287,7 @@ export function ButtonGroup({
 		if (event.defaultPrevented) return
 		const list = segmentsIn(root.current!).filter(node => !node.matches(':disabled'))
 		const index = list.findIndex(node => node === document.activeElement)
-		if (index === -1) return
+		if (index < 0) return
 		const rtl = !vertical && getComputedStyle(root.current!).direction === 'rtl'
 		const forward = vertical ? 'ArrowDown' : rtl ? 'ArrowLeft' : 'ArrowRight'
 		const backward = vertical ? 'ArrowUp' : rtl ? 'ArrowRight' : 'ArrowLeft'
@@ -332,8 +331,10 @@ export function ButtonGroup({
 			<motion.span
 				aria-hidden='true'
 				data-pressed={pressed !== null && pressed === active ? '' : undefined}
+				// vexdock: over a held toggle the highlight takes the held fill, or hovering it would read as off.
+				data-held={items.some(item => item.id === active && item.pressed) ? '' : undefined}
 				style={{ x, y, width, height, opacity }}
-				className="pointer-events-none absolute top-0 left-0 z-0 before:absolute before:inset-[3px] before:rounded-[calc(var(--radius-control)-4px)] before:bg-(--highlight) before:transition-colors before:duration-110 before:ease-standard before:content-[''] data-pressed:before:bg-(--highlight-pressed) data-pressed:before:duration-85"
+				className="pointer-events-none absolute top-0 left-0 z-0 before:absolute before:inset-[3px] before:rounded-[calc(var(--radius-control)-4px)] before:bg-(--highlight) before:transition-colors before:duration-110 before:ease-standard before:content-[''] data-held:before:bg-(--highlight-pressed) data-pressed:before:bg-(--highlight-pressed) data-pressed:before:duration-85"
 			/>
 			{items.map((item, index) => {
 				const off = item.disabled && !disabled
@@ -387,7 +388,9 @@ export function ButtonGroup({
 						{...segment}
 						className={cn(
 							segment.className,
-							"aria-pressed:after:pointer-events-none aria-pressed:after:absolute aria-pressed:after:inset-[3px] aria-pressed:after:-z-1 aria-pressed:after:rounded-[calc(var(--radius-control)-4px)] aria-pressed:after:bg-(--highlight-pressed) aria-pressed:after:content-['']",
+							// vexdock: the held fill is always drawn, so pressing a toggle fades it in and out.
+							item.pressed !== undefined &&
+								"after:pointer-events-none after:absolute after:inset-[3px] after:-z-1 after:rounded-[calc(var(--radius-control)-4px)] after:transition-colors after:content-[''] aria-pressed:after:bg-(--highlight-pressed)",
 						)}
 					>
 						{body}
@@ -492,7 +495,7 @@ export function ButtonGroup({
 function SegmentContent({ item, collapsed, reduced }: { item: ButtonGroupItem; collapsed: boolean; reduced: boolean }) {
 	const contentRef = useRef<HTMLSpanElement>(null)
 	const showsLabel = !item.iconOnly && item.content === undefined
-	const key = `${iconKey(item.icon)}|${item.content === undefined ? (item.iconOnly ? '' : item.label) : 'content'}`
+	const key = `${iconKey(item.icon)}|${item.content !== undefined ? 'content' : item.iconOnly ? '' : item.label}`
 	const width = useMorphWidth(contentRef, key, reduced)
 	const sizers = showsLabel ? [...new Set([item.label, ...(item.reserve ?? [])])] : []
 	const labelClass = cn('inline-block', collapsed && 'hidden')
@@ -534,10 +537,10 @@ function SegmentContent({ item, collapsed, reduced }: { item: ButtonGroupItem; c
 								{item.icon}
 							</span>
 						)}
-						{item.content === undefined ? (
-							showsLabel && <span className={labelClass}>{item.label}</span>
-						) : (
+						{item.content !== undefined ? (
 							<span className='inline-flex items-center tabular-nums'>{item.content}</span>
+						) : (
+							showsLabel && <span className={labelClass}>{item.label}</span>
 						)}
 					</motion.span>
 				</AnimatePresence>
@@ -588,7 +591,9 @@ function useMorphWidth(content: RefObject<HTMLElement | null>, key: string, redu
 
 // Base UI keeps disabled menu items in the arrow-key order; Arc's Radix menu skips them, looping at the ends.
 function moveToEnabledItem(event: BaseUIEvent<KeyboardEvent<HTMLDivElement>>) {
-	const enabled = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([data-disabled])')]
+	const enabled = Array.from(
+		event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([data-disabled])'),
+	)
 	const index = enabled.findIndex(item => item === document.activeElement)
 	const last = enabled.length - 1
 	let target = -1
@@ -606,14 +611,14 @@ function moveToEnabledItem(event: BaseUIEvent<KeyboardEvent<HTMLDivElement>>) {
 // Tabler icons are forwardRef objects, so only their displayName tells them apart.
 function iconKey(icon: ReactNode) {
 	if (!isValidElement(icon)) return icon == null || typeof icon === 'boolean' ? '' : String(icon)
-	const { type } = icon
+	const type = icon.type
 	if (typeof type === 'string') return type
 	const name = 'displayName' in type ? type.displayName : type.name
 	return typeof name === 'string' ? name : 'icon'
 }
 
 function segmentsIn(group: HTMLElement) {
-	return [...group.querySelectorAll<HTMLElement>(':scope > [data-key]')]
+	return Array.from(group.querySelectorAll<HTMLElement>(':scope > [data-key]'))
 }
 
 function segmentIn(group: HTMLElement, key: string | null) {

@@ -77,10 +77,10 @@ export function RadioCards({
 	const rootRef = useRef<HTMLDivElement>(null)
 	useImperativeHandle<HTMLDivElement | null, HTMLDivElement | null>(ref, () => rootRef.current)
 	const [internal, setInternal] = useState(defaultValue)
-	const selected = value === undefined ? internal : value
+	const selected = value !== undefined ? value : internal
 	const selectedIndex = options.findIndex(option => option.value === selected)
 	const usable = (option: RadioCardOption) => !disabled && !option.disabled
-	const tabStop = selectedIndex !== -1 && usable(options[selectedIndex]!) ? selectedIndex : options.findIndex(usable)
+	const tabStop = selectedIndex >= 0 && usable(options[selectedIndex]!) ? selectedIndex : options.findIndex(usable)
 	const variant = layouts[layout]
 	const gridColumns = `repeat(auto-fill, minmax(min(100%, ${minColumnWidth}px), 1fr))`
 
@@ -93,7 +93,7 @@ export function RadioCards({
 
 	// The ring springs to the selected card on a change; a resize only snaps it to the new layout.
 	const placeRing = useEffectEvent((spring: boolean) => {
-		const card = selectedIndex === -1 ? null : cardAt(selectedIndex)
+		const card = selectedIndex < 0 ? null : cardAt(selectedIndex)
 		if (!card) {
 			opacity.set(0)
 			placed.current = false

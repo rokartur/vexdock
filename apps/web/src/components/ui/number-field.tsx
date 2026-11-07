@@ -107,7 +107,7 @@ const kick = {
 }
 
 const decimalsOf = (value: number) => (String(value).split('.')[1] ?? '').length
-const escapeRegExp = (text: string) => text.replaceAll(/[.*+?^${}()|[\]\\-]/g, '\\$&')
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')
 const affixText = (affix: NumberFieldAffix | undefined, value: number) =>
 	typeof affix === 'function' ? affix(value) : (affix ?? '')
 /** iOS style resistance: travel past a limit gives less and less, and never more than `limit` pixels. */
@@ -297,7 +297,7 @@ function AffixText({ text, direction }: { text: string; direction: number }) {
 }
 
 const numberIn = (word?: string) => {
-	const digits = word?.replaceAll(/[^\d.-]/g, '')
+	const digits = word?.replace(/[^\d.-]/g, '')
 	return digits && /\d/.test(digits) && Number.isFinite(Number(digits)) ? Number(digits) : null
 }
 /** A number word rolls down when it shrank and up when it grew; any other changed word rises. */
@@ -668,7 +668,7 @@ export function NumberField({
 			.split(symbols.group)
 			.join('')
 			.replace(symbols.decimal, '.')
-			.replaceAll(/[^\d.-]/g, '')
+			.replace(/[^\d.-]/g, '')
 		if (!/\d/.test(normalized)) return null
 		const parsed = Number(normalized)
 		return Number.isFinite(parsed) ? parsed : null
@@ -794,8 +794,7 @@ export function NumberField({
 		let count = 0
 		const tick = () => {
 			const moved = live.current(toward, steps, source)
-			if (moved) count += 1
-			hold.current = window.setTimeout(tick, moved ? Math.max(HOLD_FASTEST, 150 * 0.86 ** count) : LIMIT_PUSH)
+			hold.current = window.setTimeout(tick, moved ? Math.max(HOLD_FASTEST, 150 * 0.86 ** ++count) : LIMIT_PUSH)
 		}
 		hold.current = window.setTimeout(tick, nudge(toward, steps, source) ? HOLD_DELAY : LIMIT_PUSH + 120)
 	}
@@ -834,7 +833,7 @@ export function NumberField({
 	function onChange(text: string) {
 		const decimal = decimals || maxFraction ? escapeRegExp(symbols.decimal) : ''
 		const allowed = new RegExp(`[^0-9${escapeRegExp(symbols.group)}${decimal}${min < 0 ? '\\-' : ''}]`, 'g')
-		const next = text.replaceAll(allowed, '')
+		const next = text.replace(allowed, '')
 		if (!editing) editStart.current = current
 		captureShift()
 		setDraft(next)
@@ -900,11 +899,11 @@ export function NumberField({
 	const outside: 1 | -1 | 0 = typed === null ? 0 : typed > max ? 1 : typed < min && underWarn ? -1 : 0
 	const noteEdge = limitHint ? outside || pushed : 0
 	const noteLimit = noteEdge > 0 ? max : min
-	const noteText = noteEdge
-		? typeof limitHint === 'function'
+	const noteText = !noteEdge
+		? ''
+		: typeof limitHint === 'function'
 			? limitHint(noteEdge > 0 ? 'max' : 'min', noteLimit)
 			: `${noteEdge > 0 ? 'Max' : 'Min'} ${spoken(noteLimit)}`
-		: ''
 	const describedBy = [hintId, outside && limitHint ? limitId : undefined].filter(Boolean).join(' ') || undefined
 
 	return (
@@ -1012,7 +1011,7 @@ export function NumberField({
 								onChange={event => onChange(event.currentTarget.value)}
 								onKeyDown={onKeyDown}
 								onKeyUp={event => {
-									if (/^(?:Arrow(?:Up|Down)|Page(?:Up|Down))$/.test(event.key)) stopHold()
+									if (/^(Arrow(Up|Down)|Page(Up|Down))$/.test(event.key)) stopHold()
 								}}
 								onBlur={() => {
 									stopHold()

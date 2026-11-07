@@ -1,12 +1,13 @@
 import { Fragment, type ReactNode, useMemo } from 'react'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { cn } from 'cn'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Page, Refresh, Section } from '../components/primitives'
+import { ErrorText, Page, Refresh, Section, textLink } from '../components/primitives'
 import { api, type ContainerSummary, type NetworkSummary } from '../lib/api'
 import { composeProjects } from '../lib/environment'
 import { containerName } from '../lib/format'
-import { containersQuery, preload } from '../lib/queries'
+import { containersQuery, preload, projectsQuery } from '../lib/queries'
 
 type ComposeProjects = ReturnType<typeof composeProjects>
 type ComposeProject = NonNullable<ReturnType<ComposeProjects['get']>>
@@ -210,11 +211,7 @@ function Services({ row }: { row: NetworkRow }) {
 
 function ContainerLink({ name, children }: { name: string; children: ReactNode }) {
 	return (
-		<Link
-			to='/docker/containers'
-			search={{ q: name }}
-			className='underline-offset-2 hover:text-foreground hover:underline'
-		>
+		<Link to='/docker/containers' search={{ q: name }} className={cn(textLink, 'hover:text-foreground')}>
 			{children}
 		</Link>
 	)
@@ -226,7 +223,7 @@ function ProjectLink({ project }: { project: ComposeProject }) {
 			to='/projects/$projectId'
 			params={{ projectId: project.projectId }}
 			search={{ env: project.environmentId }}
-			className='underline-offset-2 hover:underline'
+			className={textLink}
 		>
 			{project.label}
 		</Link>
@@ -237,14 +234,18 @@ const networksQuery = queryOptions({ queryKey: ['networks'], queryFn: api.networ
 
 export const Route = createFileRoute('/docker/networks')({
 	loader: ({ context: { queryClient } }) =>
-		Promise.all([preload(queryClient, networksQuery), preload(queryClient, containersQuery)]),
+		Promise.all([
+			preload(queryClient, networksQuery),
+			preload(queryClient, containersQuery),
+			preload(queryClient, projectsQuery),
+		]),
 	component: NetworksPage,
 })
 
 function NetworksPage() {
 	const networks = useQuery(networksQuery)
 	const containers = useQuery(containersQuery)
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
+	const projects = useQuery(projectsQuery)
 
 	const byName = useMemo(() => composeProjects(projects.data ?? []), [projects.data])
 	const ports = useMemo(() => publishedPorts(containers.data ?? []), [containers.data])
@@ -256,11 +257,12 @@ function NetworksPage() {
 	const columns = useMemo(networkTableColumns, [])
 
 	return (
-		<Page>
+		<Page fill>
+			<ErrorText error={projects.error} />
 			<Section
 				title='Published ports'
-				total={ports.length}
-				actions={<Refresh onClick={() => containers.refetch()} busy={containers.isFetching} />}
+				total={containers.data ? ports.length : undefined}
+				actions={<Refresh label='Refresh published ports' onClick={() => containers.refetch()} />}
 			>
 				<DataTable
 					data={ports}
@@ -274,8 +276,9 @@ function NetworksPage() {
 			</Section>
 			<Section
 				title='Networks'
-				total={rows.length}
-				actions={<Refresh onClick={() => networks.refetch()} busy={networks.isFetching} />}
+				total={networks.data ? rows.length : undefined}
+				actions={<Refresh label='Refresh networks' onClick={() => networks.refetch()} />}
+				fill
 			>
 				<DataTable
 					data={rows}

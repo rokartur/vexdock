@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconCircleOff, IconKey } from '@tabler/icons-react'
 import { cn } from 'cn'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableCell, TableHead, TableRow } from '@/components/ui/table'
 import type { StudioCell } from '../lib/api'
 import { Check, IconButton, Input } from './primitives'
 
 /** A console result only knows its column names; a table's columns say the rest. */
-export type GridColumn = { name: string; type?: string; nullable?: boolean; primary_key?: boolean; read_only?: boolean }
+type GridColumn = { name: string; type?: string; nullable?: boolean; primary_key?: boolean; read_only?: boolean }
 
 export type GridRow = {
 	id: string
@@ -19,9 +19,12 @@ export type GridRow = {
 	edit?: (column: string, value: StudioCell) => void
 	selected?: boolean
 	select?: (selected: boolean) => void
+	/** Names the row's checkbox: its key's values, or "new row 2". */
+	name?: string
 }
 
-/** Studio's grid: every cell is text or NULL, a click edits it in place, and unsaved changes keep their colour. */
+/** Studio's grid: every cell is text or NULL and a button, so a click or the keyboard opens it: an editable column edits in
+ * place, a read-only one shows its whole value. Unsaved changes keep their color. */
 export function StudioGrid({
 	columns,
 	rows,
@@ -33,15 +36,19 @@ export function StudioGrid({
 	sort?: { column?: string; order?: 'asc' | 'desc' }
 	onSort?: (column: string) => void
 }) {
-	const [editing, setEditing] = useState<{ row: string; column: string }>()
+	const [editing, setEditing] = useState<{ row: string; column: string; open: boolean }>()
 	const selectable = rows.some(row => row.select)
 
 	return (
-		<div className='min-h-0 flex-1 overflow-auto [&>div]:overflow-visible'>
+		<div className='min-h-0 flex-1 scroll-pt-12 overflow-auto'>
 			<Table className='w-max min-w-full font-mono text-xs'>
-				<TableHeader>
+				<thead>
 					<TableRow static>
-						{selectable ? <TableHead className={cn(headClass, 'w-8 px-2')} /> : null}
+						{selectable ? (
+							<TableHead className={cn(headClass, 'w-8 px-2')}>
+								<span className='sr-only'>Select</span>
+							</TableHead>
+						) : null}
 						{columns.map(column => {
 							const order = sort?.column === column.name ? sort.order : undefined
 							const label = (
@@ -50,8 +57,9 @@ export function StudioGrid({
 										{column.primary_key ? (
 											<IconKey
 												stroke={1.75}
+												role='img'
 												aria-label='Primary key'
-												className='size-3 text-warning'
+												className='size-3 text-muted'
 											/>
 										) : null}
 										{column.name}
@@ -73,9 +81,7 @@ export function StudioGrid({
 							return (
 								<TableHead
 									key={column.name}
-									aria-sort={
-										order === 'asc' ? 'ascending' : order === 'desc' ? 'descending' : undefined
-									}
+									aria-sort={order ? ariaSort[order] : undefined}
 									className={cn(headClass, 'px-3')}
 								>
 									{onSort ? (
@@ -93,14 +99,17 @@ export function StudioGrid({
 							)
 						})}
 					</TableRow>
-				</TableHeader>
-				<TableBody>
+				</thead>
+				<tbody>
 					{rows.map(({ select, ...row }) => (
 						<TableRow
 							key={row.id}
 							className={cn(
-								row.change === 'insert' && 'bg-success/10 hover:bg-success/15',
-								row.change === 'delete' && 'bg-danger/10 text-muted line-through hover:bg-danger/15',
+								// Each cell paints the tint through --cell-base (ui/table.tsx), so hover mixes in and fades.
+								row.change === 'insert' &&
+									'[--cell-base:color-mix(in_oklab,var(--success)_10%,transparent)]',
+								row.change === 'delete' &&
+									'text-muted line-through [--cell-base:color-mix(in_oklab,var(--danger)_10%,transparent)]',
 							)}
 						>
 							{selectable ? (
@@ -108,7 +117,7 @@ export function StudioGrid({
 									{select ? (
 										<Check
 											label=''
-											name='Select row'
+											name={`Select ${row.name ?? 'row'}`}
 											checked={row.selected ?? false}
 											onChange={select}
 										/>
@@ -118,93 +127,163 @@ export function StudioGrid({
 							{columns.map((column, index) => {
 								const cell = row.cells[index]
 								const edit = row.edit && !column.read_only ? row.edit : undefined
-								const open = editing?.row === row.id && editing.column === column.name
+								const current = editing?.row === row.id && editing.column === column.name
+								const open = current && editing.open
 								return (
 									<TableCell
 										key={column.name}
-										onClick={
-											edit && !open
-												? () => setEditing({ row: row.id, column: column.name })
-												: undefined
-										}
 										className={cn(
-											'max-w-80 truncate px-3',
-											edit && 'cursor-text',
+											'max-w-80 px-0',
+											index === 0 &&
+												row.change === 'insert' &&
+												'shadow-[inset_2px_0_0_0_var(--color-success)]',
 											row.edited?.has(column.name) &&
-												'bg-warning/10 shadow-[inset_2px_0_0_0_var(--color-warning)]',
-											open && 'overflow-visible p-0',
+												'shadow-[inset_2px_0_0_0_var(--color-warning)] [--cell-base:color-mix(in_oklab,var(--warning)_10%,transparent)]',
 										)}
 									>
-										{open && edit ? (
+										{open ? (
 											<CellEditor
+												column={column.name}
 												value={cell}
 												nullable={column.nullable ?? false}
-												onDone={value => {
-													setEditing(undefined)
-													if (value !== undefined && value !== cell) edit(column.name, value)
+												readOnly={!edit}
+												onDone={(value, byKey) => {
+													// Closed by a key, focus returns to the cell; closed by a click, it stays where the click put it.
+													setEditing(
+														byKey
+															? { row: row.id, column: column.name, open: false }
+															: undefined,
+													)
+													if (edit && value !== undefined && value !== cell)
+														edit(column.name, value)
 												}}
 											/>
 										) : (
-											<CellText value={cell} />
+											<button
+												type='button'
+												autoFocus={current}
+												onClick={() =>
+													setEditing({ row: row.id, column: column.name, open: true })
+												}
+												className={cn(
+													'block h-10 w-full max-w-80 truncate px-3 text-left pointer-coarse:h-11',
+													edit && 'cursor-text',
+												)}
+											>
+												{index === 0 && row.change === 'insert' ? (
+													<span className='mr-2 text-xs font-medium text-success'>
+														New<span className='sr-only'> row: </span>
+													</span>
+												) : null}
+												{index === 0 && row.change === 'delete' ? (
+													<span className='sr-only'>Deleted row: </span>
+												) : null}
+												{row.edited?.has(column.name) ? (
+													<span className='mr-2 text-xs font-medium text-warning'>
+														Edited<span className='sr-only'>: </span>
+													</span>
+												) : null}
+												<CellText value={cell} />
+											</button>
 										)}
 									</TableCell>
 								)
 							})}
 						</TableRow>
 					))}
-				</TableBody>
+				</tbody>
 			</Table>
 		</div>
 	)
 }
+
+const ariaSort = { asc: 'ascending', desc: 'descending' } as const
 
 // The hairline is an inset shadow on the th: a collapsed tr border does not travel with a sticky cell.
 const headClass =
 	'sticky top-0 z-10 h-auto border-b-0 bg-surface text-xs text-muted shadow-[inset_0_-1px_0_0_var(--border)]'
 
 function CellText({ value }: { value: StudioCell | undefined }) {
-	if (value === undefined) return <span className='text-muted/60 italic'>default</span>
-	if (value === null) return <span className='text-muted/60'>NULL</span>
+	if (value === undefined) return <span className='text-muted italic'>default</span>
+	if (value === null) return <span className='text-muted'>NULL</span>
+	// Without a mark the cell's button would have no text at all, and no name.
+	if (value === '')
+		return (
+			<span className='text-muted'>
+				<span aria-hidden>&quot;&quot;</span>
+				<span className='sr-only'>empty string</span>
+			</span>
+		)
 	return <span title={value.length > 40 ? value : undefined}>{value}</span>
 }
 
-/** Enter or leaving the cell keeps the text, Escape drops it; `undefined` means nothing changed. */
+function placeholderFor(value: StudioCell | undefined) {
+	if (value === undefined) return 'default'
+	return value === null ? 'NULL' : undefined
+}
+
+/** Enter or leaving the cell keeps the text, Escape drops it; `undefined` means nothing changed, `byKey` that a key
+ * closed it. A read-only cell opens the same input so its whole value can be read and copied. */
 function CellEditor({
+	column,
 	value,
 	nullable,
+	readOnly,
 	onDone,
 }: {
+	column: string
 	value: StudioCell | undefined
 	nullable: boolean
-	onDone: (value: StudioCell | undefined) => void
+	readOnly: boolean
+	onDone: (value: StudioCell | undefined, byKey: boolean) => void
 }) {
-	const [draft, setDraft] = useState(value ?? '')
-	// Escape blurs too, and the blur is what closes the editor, so it needs to know the text was dropped.
+	// The draft starts as the cell itself, so a NULL or default cell typed down to nothing still saves the empty string.
+	const [draft, setDraft] = useState(value)
+	// Enter and Escape blur too, and the blur is what closes the editor, so it needs to know which one it was.
 	const cancelled = useRef(false)
+	const byKey = useRef(false)
 	return (
-		<div className='flex items-center gap-1'>
+		<div
+			className='flex items-center gap-1'
+			onBlur={event => {
+				if (event.currentTarget.contains(event.relatedTarget)) return
+				onDone(cancelled.current || draft === value ? undefined : draft, byKey.current)
+			}}
+			// Here, not on the input, so Escape also cancels from Set to NULL instead of a Tab out saving the draft.
+			onKeyDown={event => {
+				if (event.key !== 'Escape' || !(event.target instanceof HTMLElement)) return
+				event.preventDefault()
+				cancelled.current = true
+				byKey.current = true
+				event.target.blur()
+			}}
+		>
 			<Input
 				mono
 				autoFocus
-				aria-label='Cell value'
-				value={draft}
-				placeholder={value === undefined ? 'default' : value === null ? 'NULL' : undefined}
+				readOnly={readOnly}
+				aria-label={`${column} value`}
+				value={draft ?? ''}
+				placeholder={placeholderFor(value)}
 				onChange={event => setDraft(event.target.value)}
-				onBlur={() => onDone(cancelled.current || draft === (value ?? '') ? undefined : draft)}
 				onKeyDown={event => {
-					if (event.key === 'Escape') cancelled.current = true
-					if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
+					if (event.key !== 'Enter') return
+					// Focus is back on the cell's button before Enter's keypress, which would click it open again.
+					event.preventDefault()
+					byKey.current = true
+					event.currentTarget.blur()
 				}}
 			/>
-			{nullable ? (
+			{nullable && !readOnly ? (
 				<IconButton
 					icon={IconCircleOff}
 					label='Set to NULL'
-					// Keeps the input focused, so its blur does not close the editor before this click lands.
+					// Safari does not focus a clicked button, so the input's blur would close the editor before this click lands.
 					onMouseDown={event => event.preventDefault()}
 					onClick={() => {
 						cancelled.current = true
-						onDone(null)
+						byKey.current = true
+						onDone(null, true)
 					}}
 				/>
 			) : null}

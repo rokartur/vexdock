@@ -1,11 +1,24 @@
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { IconFolder, IconPlus } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { cn } from 'cn'
 import { Badge } from '@/components/ui/badge'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import { NewProjectDialog } from '../components/new-project'
-import { Button, Meter, Page, Refresh, RelativeTime, Section, StatStrip, Status } from '../components/primitives'
+import {
+	Button,
+	EmptyState,
+	Meter,
+	Page,
+	PendingReading,
+	Refresh,
+	RelativeTime,
+	Section,
+	StatStrip,
+	Status,
+	textLink,
+} from '../components/primitives'
 import type { Project } from '../lib/api'
 import { preload, projectsQuery } from '../lib/queries'
 
@@ -16,17 +29,22 @@ const projectTableColumns: Columns<Project> = (() => {
 			id: 'name',
 			header: 'Name',
 			cell: ({ row }) => (
-				<span className='inline-flex items-center gap-2 font-medium'>
+				<Link
+					to='/projects/$projectId'
+					params={{ projectId: row.original.id }}
+					tabIndex={-1}
+					className={cn(textLink, 'inline-flex items-center gap-2 font-medium')}
+				>
 					<IconFolder stroke={1.75} className='size-4 text-muted' />
 					{row.original.name}
-				</span>
+				</Link>
 			),
 		}),
-		cell.accessor(project => tagsOf(project).join(' '), {
+		cell.accessor(project => project.tags.join(' '), {
 			id: 'tags',
 			header: 'Tags',
 			cell: ({ row }) => {
-				const tags = tagsOf(row.original)
+				const { tags } = row.original
 				if (tags.length === 0) return <span className='text-muted'>-</span>
 				return (
 					<span className='flex flex-wrap gap-1'>
@@ -52,7 +70,6 @@ const projectTableColumns: Columns<Project> = (() => {
 			id: 'domains',
 			header: 'Domains',
 			meta: { mono: true },
-			cell: ({ row }) => row.original.domains.length || '-',
 		}),
 		cell.accessor(project => project.latest_deployment?.created_at ?? '', {
 			id: 'last-deploy',
@@ -60,11 +77,11 @@ const projectTableColumns: Columns<Project> = (() => {
 			cell: ({ row: { original } }) =>
 				original.latest_deployment ? (
 					<span className='flex items-center gap-2'>
-						<Status value={original.latest_deployment.status} />
+						<Status run value={original.latest_deployment.status} />
 						<RelativeTime at={original.latest_deployment.created_at} />
 					</span>
 				) : (
-					<span className='text-muted'>never</span>
+					<span className='text-muted'>Never</span>
 				),
 		}),
 	]
@@ -87,9 +104,12 @@ function ProjectsPage() {
 		.filter(at => at !== undefined)
 		.toSorted()
 		.at(-1)
+	const reading = (value: ReactNode) =>
+		projects.data ? value : <PendingReading label='projects' failed={projects.isError} />
 
 	return (
 		<Page
+			fill
 			actions={
 				<Button variant='primary' onClick={() => setCreating(true)}>
 					<IconPlus size={16} stroke={1.75} />
@@ -99,26 +119,42 @@ function ProjectsPage() {
 		>
 			<NewProjectDialog open={creating} onOpenChange={setCreating} />
 
-			{data.length > 0 ? (
+			{projects.data?.length === 0 ? null : (
 				<StatStrip
 					className='mb-4'
 					items={[
-						{ label: 'Projects', value: data.length },
-						{ label: 'Services', value: services },
+						{ label: 'Services', value: reading(services.toLocaleString('en-US')) },
 						{
 							label: 'Running',
-							value: data.reduce((total, project) => total + project.running_count, 0),
+							value: reading(
+								data
+									.reduce((total, project) => total + project.running_count, 0)
+									.toLocaleString('en-US'),
+							),
 						},
-						{ label: 'Domains', value: data.reduce((total, project) => total + project.domains.length, 0) },
-						{ label: 'Last deploy', value: latest ? <RelativeTime at={latest} /> : 'never' },
+						{
+							label: 'Domains',
+							value: reading(
+								data
+									.reduce((total, project) => total + project.domains.length, 0)
+									.toLocaleString('en-US'),
+							),
+						},
+						{
+							label: 'Last deploy',
+							value: reading(
+								latest ? <RelativeTime at={latest} /> : <span className='text-muted'>Never</span>,
+							),
+						},
 					]}
 				/>
-			) : null}
+			)}
 
 			<Section
 				title='All projects'
-				total={data.length}
-				actions={<Refresh onClick={() => projects.refetch()} busy={projects.isFetching} />}
+				total={projects.data?.length}
+				fill
+				actions={<Refresh onClick={() => projects.refetch()} />}
 			>
 				<DataTable
 					data={data}
@@ -128,14 +164,14 @@ function ProjectsPage() {
 					getRowId={project => project.id}
 					onRowClick={project => navigate({ to: '/projects/$projectId', params: { projectId: project.id } })}
 					filter='Filter projects'
-					empty='No projects yet. Create one, then add services to it.'
+					empty={
+						<EmptyState
+							title='No projects yet'
+							description='New project creates one, then add services to it.'
+						/>
+					}
 				/>
 			</Section>
 		</Page>
 	)
-}
-
-/** Managers older than the tags column answer without the field. */
-function tagsOf(project: Project): string[] {
-	return project.tags ?? []
 }
