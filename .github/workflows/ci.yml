@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # main's runs finish, so every merge saves the caches PRs restore.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   manager:
@@ -110,21 +111,19 @@ jobs:
         with:
           persist-credentials: false
 
-      # The cargo cache mounts in docker/*.Dockerfile die with the runner.
+      # The target mount in docker/*.Dockerfile dies with the runner. Registry stays out (fetch 3 s, inject 18 s);
+      # restore-keys stop at the toolchain hash so a new rustc never inherits stale artifacts.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: cargo-image-cache
         with:
-          path: |
-            ${{ runner.temp }}/cargo-registry
-            ${{ runner.temp }}/cargo-target
-          key: cargo-image-ci-${{ hashFiles('manager/Cargo.lock', 'manager/rust-toolchain.toml', 'docker/manager.Dockerfile', '.dockerignore') }}
-          restore-keys: cargo-image-ci-
+          path: ${{ runner.temp }}/cargo-target
+          key: cargo-image-ci-${{ hashFiles('manager/rust-toolchain.toml', 'docker/manager.Dockerfile', '.dockerignore') }}-${{ hashFiles('manager/Cargo.lock') }}
+          restore-keys: cargo-image-ci-${{ hashFiles('manager/rust-toolchain.toml', 'docker/manager.Dockerfile', '.dockerignore') }}-
 
       - uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
         with:
           cache-map: |
             {
-              "${{ runner.temp }}/cargo-registry": "/usr/local/cargo/registry",
               "${{ runner.temp }}/cargo-target": "/src/target"
             }
           scratch-dir: ${{ runner.temp }}/cache-dance-scratch
