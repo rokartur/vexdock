@@ -213,8 +213,8 @@ Realtime data is Server-Sent Events, except the terminal which is a WebSocket.
 | `GET /api/services/{id}/terminal` | WebSocket, `{type:"input"}` / `{type:"resize"}`; `POST .../exec` is the one-shot form for scripts |
 
 `/api/system/events` is what keeps the dashboard current instead of polling, so
-its event names are a contract: `deployment.queued`, `deployment.success`,
-`deployment.failed`, `deployment.cancelled`, `container.start`, `container.die`,
+its event names are a contract: `deployment.queued`, `deployment.started`,
+`deployment.success`, `deployment.failed`, `deployment.cancelled`, `container.start`, `container.die`,
 `container.stop`, `container.destroy` and `container.health_status: healthy` /
 `unhealthy`. `EventSource` has no wildcard, so a new name has to be added to
 `systemEvents` in `apps/web/src/lib/sse.ts` to reach the panel.
@@ -579,8 +579,9 @@ expression never comes round again. A run carries `started_at`, `finished_at`,
 `exit_code` and `output`; output over 64 KB keeps its tail, which is the half
 that says why a command failed. The `last_run` on a task listing carries no
 `output`, which `runs` carries instead, so a list of tasks stays small. Both lists
-carry `service_name`, `project_id` and `project_name` on top, so a row names and
-links its owner without a request per row.
+carry `service_name`, `project_id`, `project_name` and the service's
+`environment_id` on top, so a row names and links its owner without a request
+per row.
 
 `timezone` is an IANA name such as `Europe/Warsaw`, defaulting to `UTC`, and it
 is the wall clock the expression is read against: `0 3 * * *` in Warsaw fires at
@@ -717,7 +718,9 @@ service with `prune_build_cache` on, and previous Vexdock images after a panel
 update when `cleanup_old_images` is on. A cleanup answers
 `{"kind", "removed", "space_reclaimed"}`. `cleanup/volumes` wants `?confirm=true`
 just as the single delete does, because an unused volume is a stopped project's
-data rather than junk; the other kinds can be rebuilt and ask for nothing.
+data rather than junk; the other kinds can be rebuilt and ask for nothing. The
+prune is Docker's default, which removes only anonymous volumes no container
+uses, and the preview's `unused_volumes` counts the same set.
 
 ## Git providers
 
@@ -738,9 +741,9 @@ picked from a list instead of pasted as a URL.
 | `POST \| PUT /api/git-providers[/{id}]/gitlab` | `{"name", "gitlab_url", "application_id", "secret", "group_name"}` → `{"git_provider_id", "authorize_url"}` |
 | `POST \| PUT /api/git-providers[/{id}]/gitea` | `{"name", "gitea_url", "client_id", "client_secret", "organization_name"}` → `{"git_provider_id", "authorize_url"}` |
 | `POST \| PUT /api/git-providers[/{id}]/bitbucket` | `{"name", "bitbucket_username", "app_password", "bitbucket_email", "api_token", "bitbucket_workspace_name"}` |
-| `GET /api/providers/github/callback` | Where GitHub returns once the App exists. Redirects |
-| `GET /api/providers/github/installed` | Where GitHub returns once it is installed. Redirects |
-| `GET /api/providers/{provider}/callback` | Where GitLab and Gitea return with an authorization code. Redirects |
+| `GET /api/providers/github/callback` | Where GitHub returns once the App exists. Redirects, with `?error=` on failure |
+| `GET /api/providers/github/installed` | Where GitHub returns once it is installed. Redirects, with `?error=` on failure |
+| `GET /api/providers/{provider}/callback` | Where GitLab and Gitea return with an authorization code. Redirects, with `?error=` on failure |
 
 Every connection answers `connected`, which is false until the handshake with
 the host finished. Nothing can be listed before then, so the repository picker
@@ -765,7 +768,12 @@ repositories or a few, and returns to `/api/providers/github/installed`, which
 records the installation. Clones use an installation token minted on demand and
 cached until it expires. Every handshake's `state` is the connection id sealed
 with the master key and valid for an hour; a callback with any other state is
-refused with `400`.
+refused.
+
+The three callbacks are reached by browser navigation, so a refused state or a
+failed exchange does not answer JSON: it redirects to `/system/settings/git`
+with the error's message in `?error=`, which the page shows. Success goes on to
+GitHub's install screen or back to that page without it.
 
 ### GitLab and Gitea
 
@@ -830,7 +838,7 @@ login fails is not kept. The token is encrypted before storage and piped to
 | `POST /api/projects/{id}/deploy` | One deployment per service of the environment. `202` with the array, `400` when it has no service |
 | `POST /api/projects/{id}/redeploy` | The same call under the name the dashboard uses |
 | `POST /api/projects/{id}/stop` | `docker compose down` for the environment; volumes stay |
-| `GET /api/projects/{id}/deployments` | The environment's history, newest first, fifty deep |
+| `GET /api/projects/{id}/deployments` | The environment's history, newest first, fifty deep; `?service=` (a compose service name) narrows it to one service's fifty |
 | `GET /api/deployments/{id}` | `{"deployment", "steps"}` |
 | `POST /api/deployments/{id}/cancel` | Withdraws a queued deployment or stops a running one; `400` once it has finished |
 | `POST /api/deployments/{id}/rollback` | Redeploys the commit that deployment recorded, scoped to the same service; `202`, or `400` when it recorded none |

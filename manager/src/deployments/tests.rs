@@ -76,6 +76,24 @@ async fn finish_settles_every_outcome() {
 	}
 }
 
+// The step a cancel interrupts ends as cancelled, so the pipeline does not
+// show a failure beside a canceled deployment; any other error fails it.
+#[tokio::test]
+async fn interrupted_step_ends_like_the_deployment() {
+	let f = fixture();
+	let e = &f.engine;
+	for (outcome, status) in
+		[(Err(Cancelled.into()), database::DEPLOYMENT_CANCELLED), (Err(anyhow!("timed out")), database::DEPLOYMENT_FAILED)]
+	{
+		let d = queued(e, "");
+		let mut pipeline = Pipeline::new(e, &d.id, "");
+		pipeline.begin(STEP_PULL);
+		pipeline.finish(outcome);
+		let steps = e.db.list_steps(&d.id).unwrap();
+		assert_eq!(steps.last().unwrap().status, status);
+	}
+}
+
 // A deployment waiting for a global slot is still cancelable: it leaves as
 // cancelled, never as a row stuck in queued behind a slot it never got.
 #[tokio::test]

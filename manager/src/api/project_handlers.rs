@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Extension;
@@ -32,6 +32,9 @@ pub(super) struct ProjectView {
 	/// Containers that crashed, died or keep restarting. What is neither running
 	/// nor errored is idle: created, paused, stopped or never deployed.
 	errored_count: usize,
+	/// The first environment holding an errored container, so a link to the
+	/// failure opens the environment that failed.
+	errored_environment: Option<String>,
 	/// database_count and compose_count split service_count by what the service
 	/// is; by subtraction the rest are applications vexdock builds or pulls.
 	database_count: usize,
@@ -84,27 +87,33 @@ impl Server {
 			compose_count: services.iter().filter(|s| s.kind != database::SERVICE_DATABASE && s.provider == database::PROVIDER_RAW).count(),
 			running_count: 0,
 			errored_count: 0,
+			errored_environment: None,
 			domains,
 			latest_deployment: None,
 			environments,
 			project,
 		};
-		let owned: HashSet<&str> = view.environments.iter().map(|e| e.compose_project_name.as_str()).collect();
+		let owned: HashMap<&str, &str> = view.environments.iter().map(|e| (e.compose_project_name.as_str(), e.id.as_str())).collect();
 		for c in containers {
-			if !owned.contains(label(c, docker::COMPOSE_PROJECT_LABEL)) {
+			let Some(&environment) = owned.get(label(c, docker::COMPOSE_PROJECT_LABEL)) else {
 				continue;
-			}
-			match container_state(c).as_str() {
-				"running" => view.running_count += 1,
-				"dead" | "restarting" => view.errored_count += 1,
-				"exited" => {
-					if let Ok(info) = self.docker.inspect(c.id.as_deref().unwrap_or_default()).await
-						&& info.state.as_ref().is_some_and(crashed)
-					{
-						view.errored_count += 1;
-					}
+			};
+			let errored = match container_state(c).as_str() {
+				"running" => {
+					view.running_count += 1;
+					false
 				}
-				_ => {}
+				"dead" | "restarting" => true,
+				"exited" => self
+					.docker
+					.inspect(c.id.as_deref().unwrap_or_default())
+					.await
+					.is_ok_and(|info| info.state.as_ref().is_some_and(crashed)),
+				_ => false,
+			};
+			if errored {
+				view.errored_count += 1;
+				view.errored_environment.get_or_insert_with(|| environment.to_string());
 			}
 		}
 		view.latest_deployment = self.db.list_project_deployments(&view.project.id, 1).ok().and_then(|mut d| d.pop());
@@ -379,9 +388,17 @@ impl Server {
 	}
 }
 
-pub async fn list_deployments(State(s): State<Arc<Server>>, Path(id): Path<String>, Query(q): Query<EnvQuery>) -> ApiResult {
-	let (_, env) = s.project_env(&id, &q)?;
-	ok(&s.db.list_deployments(&env.id, 50)?)
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct DeploymentsQuery {
+	environment: String,
+	/// A compose service name: one service's history, so a busy sibling cannot push it past the limit.
+	service: String,
+}
+
+pub async fn list_deployments(State(s): State<Arc<Server>>, Path(id): Path<String>, Query(q): Query<DeploymentsQuery>) -> ApiResult {
+	let (_, env) = s.project_env(&id, &EnvQuery { environment: q.environment })?;
+	ok(&s.db.list_deployments(&env.id, &q.service, 50)?)
 }
 
 pub async fn list_project_domains(State(s): State<Arc<Server>>, Path(id): Path<String>) -> ApiResult {

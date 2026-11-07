@@ -104,6 +104,7 @@ struct TaskWithOwner {
 	service_name: String,
 	project_id: String,
 	project_name: String,
+	environment_id: String,
 }
 
 fn with_owners(tasks: Vec<ScheduledTask>, services: &HashMap<String, Service>, projects: &HashMap<String, Project>) -> Vec<TaskWithOwner> {
@@ -115,6 +116,7 @@ fn with_owners(tasks: Vec<ScheduledTask>, services: &HashMap<String, Service>, p
 		let project_id = service.map(|s| s.project_id.clone()).unwrap_or_default();
 		out.push(TaskWithOwner {
 			service_name: service.map(|s| s.compose_service_name.clone()).unwrap_or_default(),
+			environment_id: service.map(|s| s.environment_id.clone()).unwrap_or_default(),
 			project_name: projects.get(&project_id).map(|p| p.name.clone()).unwrap_or_default(),
 			project_id,
 			task,
