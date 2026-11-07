@@ -62,8 +62,7 @@ image-manager:
 image-auth:
 	docker build -f docker/auth.Dockerfile -t vexdock-auth:$(VERSION) .
 
-# Shares the manager's cargo cache mount; built after it, it only compiles the mcp binary.
-image-mcp: image-manager
+image-mcp:
 	docker build -f docker/mcp.Dockerfile --build-arg CARGO_PROFILE=$(CARGO_PROFILE) -t vexdock-mcp:$(VERSION) .
 
 image-nginx:
