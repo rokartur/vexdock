@@ -1,24 +1,26 @@
 import { useState } from 'react'
-import { IconCertificate, IconUpload } from '@tabler/icons-react'
+import { IconCertificate, IconFolder, IconUpload } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
 import {
 	Button,
+	EmptyState,
+	ErrorText,
 	Field,
 	FormDialog,
 	IconButton,
 	Meter,
 	Page,
 	Refresh,
+	RelativeTime,
 	Section,
 	Select,
 	StatStrip,
 	Status,
 	Textarea,
 } from '../components/primitives'
-import { api, type Certificate, type Domain } from '../lib/api'
-import { until } from '../lib/format'
+import { api, type Certificate, certificateStatus, type Domain } from '../lib/api'
 import { certificatesQuery, preload } from '../lib/queries'
 
 /** Days of validity left, over the horizon the bar drains across. */
@@ -44,21 +46,20 @@ function certificateTableColumns(replace: (hostname: string) => void): Columns<C
 			),
 		}),
 		cell.accessor(row => row.issuer || '-', { id: 'issuer', header: 'Issuer' }),
-		cell.accessor(row => row.status, {
+		cell.accessor(certificateStatus, {
 			id: 'status',
 			header: 'Status',
-			cell: ({ row }) => <Status value={row.original.status} />,
+			cell: ({ getValue }) => <Status value={getValue()} />,
 		}),
 		cell.accessor(row => row.expires_at ?? '', {
 			id: 'expires',
 			header: 'Expires',
 			cell: ({ row }) => {
 				const left = daysLeft(row.original.expires_at)
-				return left === null ? (
-					'-'
-				) : (
-					<Meter label={until(row.original.expires_at)} value={left} max={RUNWAY_DAYS} />
-				)
+				if (left === null) return '-'
+				const stamp = <RelativeTime at={row.original.expires_at} future />
+				const label = certificateStatus(row.original) === 'expired' ? <>expired {stamp}</> : stamp
+				return <Meter label={label} value={left} max={RUNWAY_DAYS} />
 			},
 		}),
 		cell.display({
@@ -67,7 +68,7 @@ function certificateTableColumns(replace: (hostname: string) => void): Columns<C
 			cell: ({ row }) => (
 				<IconButton
 					icon={IconUpload}
-					label='Replace certificate'
+					label={`Replace the certificate for ${row.original.hostname}`}
 					onClick={() => replace(row.original.hostname)}
 				/>
 			),
@@ -117,34 +118,42 @@ function Certificates() {
 	}
 	const columns = certificateTableColumns(openUpload)
 	const rows = (certificates.data ?? []).filter(certificate => certificate.source === 'custom')
+	const replacing = rows.some(row => row.hostname === hostname)
+	const uncovered = options.find(option => !rows.some(row => row.hostname === option.value))
 
 	const soonest = rows
-		.filter(certificate => certificate.expires_at)
+		.filter(certificate => certificateStatus(certificate) === 'issued' && certificate.expires_at)
 		.toSorted((a, b) => a.expires_at.localeCompare(b.expires_at))
 		.at(0)
 
 	return (
-		<Page>
+		<Page fill>
+			<ErrorText error={domains.error} />
 			{rows.length > 0 ? (
 				<StatStrip
 					className='mb-4'
 					items={[
-						{ label: 'Uploaded', value: rows.length },
-						{ label: 'Issued', value: rows.filter(row => row.status === 'issued').length },
+						{ label: 'Issued', value: rows.filter(row => certificateStatus(row) === 'issued').length },
 						{ label: 'Failed', value: rows.filter(row => row.status === 'failed').length },
-						{ label: 'Expires first', value: soonest ? until(soonest.expires_at) : '-' },
+						{ label: 'Expired', value: rows.filter(row => certificateStatus(row) === 'expired').length },
+						{
+							label: 'Expires first',
+							value: soonest ? <RelativeTime at={soonest.expires_at} future /> : '-',
+						},
 					]}
 				/>
 			) : null}
 			<Section
 				title='Certificates'
-				total={rows.length}
+				fill
+				total={certificates.data ? rows.length : undefined}
 				actions={
 					<>
-						<Refresh onClick={() => certificates.refetch()} busy={certificates.isFetching} />
+						<Refresh onClick={() => certificates.refetch()} />
 						<Button
 							variant='primary'
-							onClick={() => openUpload(hostname || (options[0]?.value ?? ''))}
+							size='sm'
+							onClick={() => openUpload(uncovered?.value ?? options[0]?.value ?? '')}
 							disabled={options.length === 0}
 						>
 							<IconUpload size={16} stroke={1.75} />
@@ -160,16 +169,33 @@ function Certificates() {
 					error={certificates.error}
 					getRowId={row => row.id}
 					filter='Filter certificates'
-					empty="No certificates uploaded. Let's Encrypt certificates live on each project's Domains tab."
+					empty={
+						options.length === 0 && !domains.error ? (
+							<EmptyState
+								title='No domains yet'
+								description='A certificate is uploaded for a domain. Add one to a service first.'
+							>
+								<Button render={<Link to='/projects' />}>
+									<IconFolder size={16} stroke={1.75} />
+									Open projects
+								</Button>
+							</EmptyState>
+						) : (
+							<EmptyState
+								title='No certificates uploaded'
+								description="Add certificate uploads your own. Let's Encrypt certificates live on each service's Domains tab."
+							/>
+						)
+					}
 				/>
 			</Section>
 
 			<FormDialog
 				open={uploading}
 				onOpenChange={setUploading}
-				title='Add certificate'
+				title={replacing ? 'Replace certificate' : 'Add certificate'}
 				description='Full chain in PEM: the leaf first, then any intermediates. The private key never leaves this server.'
-				action={install.isPending ? 'Installing…' : 'Install certificate'}
+				action={replacing ? 'Replace certificate' : 'Add certificate'}
 				icon={IconUpload}
 				mutation={install}
 				wide
@@ -179,14 +205,20 @@ function Certificates() {
 				}}
 			>
 				<Field label='Domain' hint='Uploading switches this domain to your certificate and enables HTTPS.'>
-					<Select value={hostname} options={options} onChange={setHostname} required />
+					<Select
+						value={hostname}
+						options={options}
+						onChange={setHostname}
+						placeholder='Pick a domain'
+						required
+					/>
 				</Field>
 				<div className='grid gap-x-6 md:grid-cols-2'>
 					<Field label='Certificate'>
 						<Textarea
 							rows={7}
 							required
-							spellCheck={false}
+							mono
 							placeholder='-----BEGIN CERTIFICATE-----'
 							value={certPem}
 							onChange={event => setCertPem(event.target.value)}
@@ -196,7 +228,7 @@ function Certificates() {
 						<Textarea
 							rows={7}
 							required
-							spellCheck={false}
+							mono
 							placeholder='-----BEGIN PRIVATE KEY-----'
 							value={keyPem}
 							onChange={event => setKeyPem(event.target.value)}

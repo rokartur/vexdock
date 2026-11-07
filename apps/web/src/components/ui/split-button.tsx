@@ -20,8 +20,12 @@ type SplitButtonProps = {
 	actions: SplitButtonAction[]
 	onClick?: () => void
 	disabled?: boolean
+	// vexdock: busy like Button's `loading`: the icon turns into a spinner and the button stays at full strength.
+	loading?: boolean
 	icon?: ReactNode
 	variant?: 'primary' | 'secondary'
+	// vexdock: `sm` lets the primary sit in a section header beside its 36px controls; the secondary is always sm.
+	size?: 'sm' | 'md'
 }
 
 const { blur, duration, ease, spring, stagger } = motionTokens
@@ -54,26 +58,42 @@ const glyphDelayCap = 0.07
 const variants = {
 	primary: {
 		group: 'rounded-control border-foreground bg-foreground',
-		half: 'min-h-control-md bg-foreground text-background hover:not-data-popup-open:bg-[color-mix(in_oklab,var(--foreground)_88%,var(--background))] active:bg-[color-mix(in_oklab,var(--foreground)_80%,var(--background))] data-popup-open:bg-[color-mix(in_oklab,var(--foreground)_80%,var(--background))]',
+		half: 'bg-foreground text-background hover:not-data-popup-open:bg-[color-mix(in_oklab,var(--foreground)_88%,var(--background))] active:bg-[color-mix(in_oklab,var(--foreground)_80%,var(--background))] data-popup-open:bg-[color-mix(in_oklab,var(--foreground)_80%,var(--background))]',
 		main: 'rounded-l-[calc(var(--radius-control)-1px)] px-3 text-sm',
 		trigger:
 			'w-8 rounded-r-[calc(var(--radius-control)-1px)] border-l-[color-mix(in_oklab,var(--background)_18%,var(--foreground))]',
 	},
 	secondary: {
 		group: 'rounded-full border-border bg-surface',
-		half: 'min-h-control-sm bg-surface text-foreground hover:not-data-popup-open:bg-surface-muted active:bg-[color-mix(in_oklab,var(--surface-muted),var(--border)_55%)] data-popup-open:bg-[color-mix(in_oklab,var(--surface-muted),var(--border)_55%)]',
+		half: 'bg-surface text-foreground hover:not-data-popup-open:bg-surface-muted active:bg-[color-mix(in_oklab,var(--surface-muted),var(--border)_55%)] data-popup-open:bg-[color-mix(in_oklab,var(--surface-muted),var(--border)_55%)]',
 		main: 'min-w-[142px] rounded-l-full px-2 text-xs',
 		trigger: 'w-6.5 rounded-r-full border-l-border-subtle',
 	},
 }
 
 // The main action morphs its icon and label in place while its width follows on a spring; the menu half never scales, so the menu opens from a still anchor.
-export function SplitButton({ label, actions, onClick, disabled, icon, variant = 'primary' }: SplitButtonProps) {
+export function SplitButton({
+	label,
+	actions,
+	onClick,
+	disabled,
+	loading = false,
+	icon: restingIcon,
+	variant = 'primary',
+	size = 'md',
+}: SplitButtonProps) {
 	const reduced = useReducedMotion() ?? false
 	const contentRef = useRef<HTMLSpanElement>(null)
+	const icon = loading ? (
+		<span className='size-3.5 rounded-full border-[1.5px] border-current border-r-transparent [animation-duration:700ms] motion-safe:animate-spin' />
+	) : (
+		restingIcon
+	)
 	const glyph = iconKey(icon)
 	const width = useMorphWidth(contentRef, `${glyph}|${label}`, reduced)
 	const styles = variants[variant]
+	// vexdock: the height left Arc's variant classes so `size` can pick it.
+	const height = variant === 'secondary' || size === 'sm' ? 'min-h-control-sm' : 'min-h-control-md'
 
 	return (
 		<Menu.Root>
@@ -85,11 +105,14 @@ export function SplitButton({ label, actions, onClick, disabled, icon, variant =
 			>
 				<button
 					type='button'
-					onClick={onClick}
+					onClick={loading ? undefined : onClick}
 					disabled={disabled}
+					aria-busy={loading || undefined}
+					aria-disabled={loading || undefined}
 					className={cn(
 						'relative inline-grid place-items-center border-0 font-medium disabled:opacity-52',
 						styles.half,
+						height,
 						styles.main,
 					)}
 				>
@@ -124,10 +147,11 @@ export function SplitButton({ label, actions, onClick, disabled, icon, variant =
 				</button>
 				<Menu.Trigger
 					aria-label={`${label} more actions`}
-					disabled={disabled}
+					disabled={disabled || loading}
 					className={cn(
 						'group/trigger grid place-items-center border-0 border-l disabled:opacity-52',
 						styles.half,
+						height,
 						styles.trigger,
 					)}
 				>

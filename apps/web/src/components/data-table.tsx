@@ -1,5 +1,5 @@
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from 'react'
-import { IconArrowNarrowDown, IconArrowNarrowUp } from '@tabler/icons-react'
+import { IconArrowNarrowDown, IconArrowNarrowUp, IconFilterOff } from '@tabler/icons-react'
 import {
 	type ColumnDef,
 	type RowData,
@@ -20,14 +20,20 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { cn } from 'cn'
 import { SearchField } from '@/components/ui/search-field'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DetailDialog, EmptyState, ErrorText, MoreBelow, useFill } from './primitives'
+import { Table, TableCell, TableHead, TableRow } from '@/components/ui/table'
+import { morph } from '@/lib/motion'
+import { Button, DetailDialog, EmptyState, ErrorText, LoadingStatus, MoreBelow, textLink, useFill } from './primitives'
 
 type ColumnMeta = { align?: 'right'; mono?: boolean }
 
 /** An h-11 cell plus the row's hairline. Only a guess for rows not yet on screen; each rendered row is measured. */
 const ROW_HEIGHT = 45
 
+const OWN_CLICK = 'a, button:not([data-morph-from]), input, label, [role="checkbox"]'
+
+// An alert inside the card sits in a p-2 inset, so its radius is the card's minus that inset, like the filter box.
+const insetAlert =
+	'mb-0 rounded-[calc(var(--radius-surface)-0.5rem)] in-data-[slot=form-section]:rounded-[max(4px,calc(var(--radius-surface)-28px))]'
 /** Client-side sorting and filtering only. DataTable renders the rows in view itself. */
 const tableFeatureSet = tableFeatures({
 	rowSortingFeature,
@@ -68,14 +74,17 @@ type DataTableProps<TData extends RowData> = {
 	filter?: string
 	/** Seeds the filter box, for a page reached with a term already in its URL. */
 	initialFilter?: string
-	/** Makes the whole row activatable. A cell with its own handler must stop propagation. */
+	/** Makes the whole row activatable. The cell that names the row renders that name as a `Link` with `tabIndex={-1}`,
+	 * so assistive tech finds where it goes; a link or control inside the row keeps its own click. */
 	onRowClick?: (row: TData) => void
 	/** Clicking a row opens `render` in a dialog titled `title`. The open row belongs to the caller, so it can live in
-	 * the URL. */
+	 * the URL. The cell that names the row wraps that text in `RowTitle`, and it carries over into the title, so the
+	 * title is that same text; the rest of what the row says goes in `description`. */
 	detail?: {
 		openId: string | null
 		onOpenChange: (id: string | null) => void
 		title: (row: TData) => string
+		description?: (row: TData) => string
 		render: (row: TData) => ReactNode
 	}
 }
@@ -124,7 +133,7 @@ function useRowsBelow(ref: RefObject<HTMLDivElement | null>, total: number, last
 /** Scrolls `viewport` to its end, without the glide for anyone who asked for less motion. */
 function revealEnd(viewport: HTMLDivElement | null) {
 	if (!viewport) return
-	// The pill that called this unmounts once the end is in view; the region keeps focus instead of the document.
+	// The pill that called this turns `invisible` once the end is in view and drops focus; the region takes it instead.
 	viewport.focus({ preventScroll: true })
 	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 	viewport.scrollTo({ top: viewport.scrollHeight, behavior: reduce ? 'auto' : 'smooth' })
@@ -191,8 +200,14 @@ export function DataTable<TData extends RowData>({
 		/* The table is a card: hairline border for the outer edge, rows separated by their own hairlines.
 		   overflow-hidden clips the edge-to-edge sticky header background at the rounded corners. */
 		<div
-			className={cn('overflow-hidden rounded-surface border bg-surface', fill && 'flex min-h-0 flex-1 flex-col')}
+			className={cn(
+				// Concentric with the 16 px card around it, 20 px in.
+				'overflow-hidden rounded-surface border bg-surface in-data-[slot=form-section]:rounded-[max(6px,calc(var(--radius-surface)-20px))]',
+				fill && 'flex min-h-0 flex-1 flex-col',
+			)}
 		>
+			{/* Outside the table: its aria-busy holds back announcements from inside it. */}
+			{loading ? <LoadingStatus label='Loading rows' /> : null}
 			{filter ? (
 				// Concentric with the card: its radius minus this p-2; the resting border one step quieter than a form field's.
 				<div className='border-b border-border-subtle p-2 [&_div:has(>input)]:rounded-[calc(var(--radius-surface)-0.5rem)] [&_div:has(>input)]:border-border [&_div:has(>input)]:hover:not-focus-within:border-border-strong'>
@@ -208,27 +223,34 @@ export function DataTable<TData extends RowData>({
 					/>
 				</div>
 			) : null}
+			{/* A failed refetch keeps the last rows, so the error rides above them instead of replacing them. */}
+			{error && rows.length > 0 ? (
+				<div className='border-b border-border-subtle p-2'>
+					<ErrorText error={error} className={insetAlert} />
+				</div>
+			) : null}
 			<div className={cn('relative', fill && 'flex min-h-0 flex-1 flex-col')}>
-				{/* This scrolls both ways, so the table's own overflow-x wrapper is switched off: it would otherwise be the
-				    box the sticky header sticks to, and the header would scroll away with the rows. */}
 				<div
 					ref={viewport}
-					// Focusable only by script, so revealing the end leaves focus here when the pill goes away.
+					// Focusable only by script, so revealing the end leaves focus here when the pill goes away, and a focused row
+					// the virtualizer unmounts hands focus here (lib/focus-rescue.ts), where the arrow keys still scroll.
 					tabIndex={-1}
+					data-focus-fallback
 					className={cn(
 						// Scroll padding keeps a row reached by Tab clear of the sticky header and MoreBelow's band.
-						'scroll-pt-10 scroll-pb-20 overflow-auto outline-none [&>div]:overflow-visible',
+						'@container scroll-pt-10 scroll-pb-20 overflow-auto outline-none',
 						fill ? 'min-h-0 flex-1' : 'max-h-[70vh]',
 					)}
 				>
 					{/* Row separators are the quiet hairline; the card's own edge stays --border. An inline-flex cell that starts
-					    with an icon or dot takes its baseline from that box's bottom, so cell content centres instead. */}
+					    with an icon or dot takes its baseline from that box's bottom, so cell content centers instead. */}
 					<Table
 						// Only the rows in view are in the DOM, so a screen reader is told the full count and each row's place.
 						aria-rowcount={rows.length > 0 ? headerRows + rows.length : undefined}
+						aria-busy={loading || undefined}
 						className='text-sm [&_td>*]:align-middle'
 					>
-						<TableHeader>
+						<thead>
 							{table.getHeaderGroups().map((headerGroup, index) => (
 								<TableRow key={headerGroup.id} aria-rowindex={index + 1} static>
 									{headerGroup.headers.map(header => {
@@ -236,12 +258,19 @@ export function DataTable<TData extends RowData>({
 										return (
 											<TableHead
 												key={header.id}
+												aria-sort={
+													sorted === 'asc'
+														? 'ascending'
+														: sorted === 'desc'
+															? 'descending'
+															: undefined
+												}
 												className={cn(
 													// The hairline lives on the th (inset shadow), not the tr border: collapsed
 													// tr borders do not travel with sticky cells, which reads as a gap when rows
 													// scroll underneath. The sorted column is Arc's tinted strip, mixed toward the
 													// foreground because --surface-muted is translucent and the header is sticky.
-													'sticky top-0 z-10 h-9.5 border-b-0 bg-surface px-3.5 shadow-[inset_0_-1px_0_0_var(--border)]',
+													'sticky top-0 z-10 border-b-0 bg-surface shadow-[inset_0_-1px_0_0_var(--border)]',
 													sorted &&
 														'bg-[color-mix(in_oklab,var(--foreground)_3%,var(--surface))] text-foreground',
 													header.column.columnDef.meta?.align === 'right' && 'text-right',
@@ -251,7 +280,7 @@ export function DataTable<TData extends RowData>({
 													<button
 														type='button'
 														onClick={() => header.column.toggleSorting()}
-														className='inline-flex h-9.5 items-center gap-1.5 transition-colors hover:text-foreground'
+														className='inline-flex h-10 press items-center gap-1.5 hover:text-foreground active:text-foreground'
 													>
 														<table.FlexRender header={header} />
 														{sorted === 'asc' ? (
@@ -268,28 +297,37 @@ export function DataTable<TData extends RowData>({
 									})}
 								</TableRow>
 							))}
-						</TableHeader>
-						<TableBody>
+						</thead>
+						<tbody>
 							{loading ? (
 								<SkeletonRows columns={columnCount} />
 							) : rows.length === 0 ? (
 								<TableRow static>
 									<TableCell colSpan={columnCount} className='p-0'>
-										{error ? (
-											<ErrorText error={error} />
-										) : typeof empty === 'string' ? (
-											globalFilter ? (
+										{/* Held to the box's visible width (its @container), so a table wider than the box does
+										    not center this off screen. */}
+										<div className='sticky left-0 w-[100cqw]'>
+											{error ? (
+												<div className='p-2'>
+													<ErrorText error={error} className={insetAlert} />
+												</div>
+											) : globalFilter ? (
 												<EmptyState
 													scene='search'
 													title='Nothing matches'
 													description={`No row contains “${globalFilter}”.`}
-												/>
-											) : (
+												>
+													<Button onClick={() => setGlobalFilter('')}>
+														<IconFilterOff size={16} stroke={1.75} />
+														Clear filter
+													</Button>
+												</EmptyState>
+											) : typeof empty === 'string' ? (
 												<EmptyState title={empty} />
-											)
-										) : (
-											empty
-										)}
+											) : (
+												empty
+											)}
+										</div>
 									</TableCell>
 								</TableRow>
 							) : (
@@ -299,7 +337,8 @@ export function DataTable<TData extends RowData>({
 										const index = first + offset
 										const open = detail?.openId === row.id
 										const activate = detail
-											? () => detail.onOpenChange(row.id)
+											? (target: HTMLElement) =>
+													morph(target, `detail-${row.id}`, () => detail.onOpenChange(row.id))
 											: onRowClick && (() => onRowClick(row.original))
 										return (
 											// An activatable row is the control: focusable, and Enter or Space does what the click does.
@@ -311,9 +350,22 @@ export function DataTable<TData extends RowData>({
 												data-index={index}
 												aria-rowindex={headerRows + index + 1}
 												data-state={open ? 'selected' : undefined}
-												className={cn(activate && 'cursor-pointer')}
+												// Arc's sortable-data-table marks a clickable row the same way; the Press table gives it a pressed tint.
+												className={cn(activate && '[cursor:pointer] active:bg-surface-pressed')}
 												tabIndex={activate ? 0 : undefined}
-												onClick={activate}
+												onClick={
+													activate &&
+													(event => {
+														const { target } = event
+														if (!(target instanceof Element)) return
+														// React bubbles a click inside a cell's portaled popup (a Confirm) up to this row.
+														if (!event.currentTarget.contains(target)) return
+														// A link or control inside the row keeps its click; RowTitle is a button
+														// for assistive tech only and opens the row like the rest of it.
+														if (target.closest(OWN_CLICK)) return
+														activate(event.currentTarget)
+													})
+												}
 												onKeyDown={
 													activate &&
 													(event => {
@@ -321,15 +373,19 @@ export function DataTable<TData extends RowData>({
 														if (event.target !== event.currentTarget) return
 														if (event.key !== 'Enter' && event.key !== ' ') return
 														event.preventDefault()
-														activate()
+														activate(event.currentTarget)
 													})
 												}
 											>
 												{row.getAllCells().map(cell => (
 													<TableCell
 														key={cell.id}
+														// One line per row, as Arc's tables: a narrow box scrolls sideways instead of
+														// breaking an image name across lines.
 														className={cn(
-															cell.column.getIsSorted() && 'bg-(--surface-muted)/60',
+															'whitespace-nowrap',
+															cell.column.getIsSorted() &&
+																'[--cell-base:color-mix(in_oklab,var(--surface-muted)_60%,transparent)]',
 															cell.column.columnDef.meta?.align === 'right' &&
 																'text-right',
 															cell.column.columnDef.meta?.mono && 'font-mono text-xs',
@@ -344,7 +400,7 @@ export function DataTable<TData extends RowData>({
 									<SpacerRow height={after} columns={columnCount} />
 								</>
 							)}
-						</TableBody>
+						</tbody>
 					</Table>
 				</div>
 				<MoreBelow count={below} onReveal={() => revealEnd(viewport.current)} />
@@ -354,11 +410,30 @@ export function DataTable<TData extends RowData>({
 					open={openRow !== undefined}
 					onOpenChange={next => next || detail.onOpenChange(null)}
 					title={openRow === undefined ? '' : detail.title(openRow)}
+					description={openRow === undefined ? undefined : detail.description?.(openRow)}
+					morph={detail.openId === null ? undefined : `detail-${detail.openId}`}
 				>
 					{openRow === undefined ? null : detail.render(openRow)}
 				</DetailDialog>
 			) : null}
 		</div>
+	)
+}
+
+/** The text that names a row with a `detail`. A button so assistive tech can open the row, out of the tab order
+ * because the row takes focus, and the text that carries over into the dialog's title. `title` shows it whole where
+ * a cell truncates it. */
+export function RowTitle({ children, className }: { children: string; className?: string }) {
+	return (
+		<button
+			type='button'
+			tabIndex={-1}
+			title={children}
+			data-morph-from
+			className={cn(textLink, 'rounded-[4px] text-left whitespace-nowrap', className)}
+		>
+			{children}
+		</button>
 	)
 }
 

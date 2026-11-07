@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, retainSearchParams, useNavigate, useRouterState } from '@tanstack/react-router'
 import { FilterChips } from '../components/analytics-report'
-import { Check, Input, Page, Segmented, Tabs } from '../components/primitives'
+import { Check, Input, Page, PendingReading, Segmented, Select, Tabs } from '../components/primitives'
 import type { AnalyticsRange, AnalyticsSpan } from '../lib/api'
 import { analyticsSitesQuery, preload } from '../lib/queries'
 
@@ -62,8 +62,14 @@ export function useSpan() {
 		filters: search.filters ?? [],
 		compare: search.compare ?? false,
 	}
+	// A filter added from a breakdown row deep in the report keeps the reader where they clicked.
 	const update = (patch: SiteSearch) =>
-		navigate({ to: '.', search: (previous: SiteSearch) => ({ ...previous, ...patch }), replace: true })
+		navigate({
+			to: '.',
+			search: (previous: SiteSearch) => ({ ...previous, ...patch }),
+			replace: true,
+			resetScroll: false,
+		})
 	const addFilter = (dimension: string, value: string) => {
 		const kept = span.filters?.filter(([d]) => d !== dimension) ?? []
 		void update({ filters: [...kept, [dimension, value]] })
@@ -86,36 +92,54 @@ function SiteLayout() {
 	const pathname = useRouterState({ select: state => state.location.pathname })
 	// Live is always the last minutes, and settings have no span.
 	const spanless = pathname.endsWith('/live') || pathname.endsWith('/settings')
+	// Live and Visitors end in one long table that takes the rest of the window.
+	const fill = pathname.endsWith('/live') || pathname.endsWith('/visitors')
 
 	return (
 		<Page
-			labels={{ [domainId]: hostname ?? domainId }}
+			fill={fill}
+			labels={{
+				[domainId]: hostname ?? (
+					<PendingReading label='site' failed={sites.data !== undefined || sites.isError} />
+				),
+			}}
 			name={hostname}
 			index='Overview'
 			toolbar={<Tabs base={`/analytics/${domainId}`} tabs={tabs} />}
-			filters={spanless ? undefined : <SpanPicker />}
+			// Only the overview's report reads `compare`; visitors and funnels ignore it.
+			filters={spanless ? undefined : <SpanPicker compares={pathname === `/analytics/${domainId}`} />}
 		>
 			<Outlet />
 		</Page>
 	)
 }
 
-function SpanPicker() {
+function SpanPicker({ compares }: { compares: boolean }) {
 	const { span, update } = useSpan()
 	const custom = Boolean(span.from && span.to)
 	const today = new Date().toLocaleDateString('en-CA')
+	const range = custom ? 'custom' : span.range
+	const pickRange = (value: typeof range) =>
+		value === 'custom'
+			? update({ from: span.from ?? today, to: span.to ?? today })
+			: update({ range: value, from: undefined, to: undefined })
 
 	return (
 		<div className='flex min-w-0 flex-wrap items-center gap-3'>
+			{/* The nine ranges take 540px, more than a phone or a 768px window beside the open rail has. */}
 			<Segmented
 				label='Range'
-				value={custom ? 'custom' : span.range}
+				value={range}
 				options={rangeOptions}
-				onChange={value =>
-					value === 'custom'
-						? update({ from: span.from ?? today, to: span.to ?? today })
-						: update({ range: value, from: undefined, to: undefined })
-				}
+				onChange={pickRange}
+				className='max-lg:hidden'
+			/>
+			<Select
+				label='Range'
+				value={range}
+				options={rangeOptions}
+				onChange={pickRange}
+				className='w-auto lg:hidden'
 			/>
 			{custom ? (
 				<>
@@ -136,11 +160,13 @@ function SpanPicker() {
 					/>
 				</>
 			) : null}
-			<Check
-				label='Compare'
-				checked={span.compare ?? false}
-				onChange={checked => update({ compare: checked || undefined })}
-			/>
+			{compares ? (
+				<Check
+					label='Compare with the previous period'
+					checked={span.compare ?? false}
+					onChange={checked => update({ compare: checked || undefined })}
+				/>
+			) : null}
 			<FilterChips
 				filters={span.filters ?? []}
 				onRemove={index => update({ filters: span.filters?.filter((_, i) => i !== index) })}

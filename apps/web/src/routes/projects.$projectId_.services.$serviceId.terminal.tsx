@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { EmptyState } from '../components/primitives'
 import { Terminal } from '../components/terminal'
-import { useService } from './projects.$projectId_.services.$serviceId'
+import { NotRunning, useService } from './projects.$projectId_.services.$serviceId'
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/terminal')({
 	component: ServiceTerminal,
@@ -11,11 +10,15 @@ function ServiceTerminal() {
 	const { serviceId } = Route.useParams()
 	const service = useService(serviceId)
 
-	if (service.data?.state !== 'running') {
+	// The layout above shows a failed or pending read of the service.
+	if (!service.data) return null
+	if (service.data.state !== 'running') {
 		return (
-			<div className='rounded-surface border bg-surface'>
-				<EmptyState scene='offline' title='Start the service to open a terminal' />
-			</div>
+			<NotRunning
+				service={service.data}
+				title='The service is not running'
+				description='A terminal opens a shell inside the running container.'
+			/>
 		)
 	}
 	return <Terminal url={terminalUrl(serviceId)} />

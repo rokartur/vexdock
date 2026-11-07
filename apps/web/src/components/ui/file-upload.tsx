@@ -94,8 +94,7 @@ export function FileUpload({
 		onChange?.(next)
 	}
 
-	// vexdock: async/await in place of Arc's then/finally chain, for the promise lint rules.
-	async function startUpload(item: FileUploadItem) {
+	function startUpload(item: FileUploadItem) {
 		if (!onUpload) return
 		controllers.current.get(item.id)?.abort()
 		const controller = new AbortController()
@@ -103,34 +102,35 @@ export function FileUpload({
 		const set = (next: (current?: Upload) => Upload) =>
 			setUploads(current => ({ ...current, [item.id]: next(current[item.id]) }))
 		set(() => ({ status: 'uploading', progress: 0 }))
-		let failed = false
-		try {
-			await onUpload(item.file, {
-				signal: controller.signal,
-				onProgress: percent => {
+		onUpload(item.file, {
+			signal: controller.signal,
+			onProgress: percent => {
+				if (controller.signal.aborted) return
+				set(current => ({
+					status: 'uploading',
+					progress: Math.min(Math.max(percent, current?.progress ?? 0), 100),
+				}))
+			},
+		})
+			.then(
+				() => {
 					if (controller.signal.aborted) return
-					set(current => ({
-						status: 'uploading',
-						progress: Math.min(Math.max(percent, current?.progress ?? 0), 100),
-					}))
+					set(() => ({ status: 'done', progress: 100 }))
+					setStatus(`${item.file.name} uploaded.`)
 				},
+				() => {
+					if (controller.signal.aborted) return
+					set(current => ({ status: 'failed', progress: current?.progress ?? 0 }))
+					setStatus(`${item.file.name} could not be uploaded.`)
+				},
+			)
+			.finally(() => {
+				if (controllers.current.get(item.id) === controller) controllers.current.delete(item.id)
 			})
-		} catch {
-			failed = true
-		}
-		if (controllers.current.get(item.id) === controller) controllers.current.delete(item.id)
-		if (controller.signal.aborted) return
-		if (failed) {
-			set(current => ({ status: 'failed', progress: current?.progress ?? 0 }))
-			setStatus(`${item.file.name} could not be uploaded.`)
-		} else {
-			set(() => ({ status: 'done', progress: 100 }))
-			setStatus(`${item.file.name} uploaded.`)
-		}
 	}
 
 	function addFiles(fileList: FileList) {
-		const incoming = [...fileList].slice(0, multiple ? undefined : 1)
+		const incoming = Array.from(fileList).slice(0, multiple ? undefined : 1)
 		const acceptedTypes = (accept ?? '')
 			.split(',')
 			.map(type => type.trim().toLowerCase())
@@ -138,11 +138,11 @@ export function FileUpload({
 		const added = incoming.map(file => ({
 			id: `${file.name}-${file.lastModified}-${nextId.current++}`,
 			file,
-			error: matchesAccept(file, acceptedTypes)
-				? maxSize && file.size > maxSize
+			error: !matchesAccept(file, acceptedTypes)
+				? 'This file type is not accepted.'
+				: maxSize && file.size > maxSize
 					? `File is larger than ${formatSize(maxSize)}.`
-					: undefined
-				: 'This file type is not accepted.',
+					: undefined,
 		}))
 		if (!multiple) controllers.current.forEach(controller => controller.abort())
 		update(multiple ? [...files, ...added] : added)
@@ -150,11 +150,8 @@ export function FileUpload({
 		const validCount = added.length - invalidCount
 		const addedMessage = `${validCount} file${validCount === 1 ? '' : 's'} added.`
 		const attention = `${invalidCount} file${invalidCount === 1 ? ' needs' : 's need'} attention.`
-		if (invalidCount) {
-			setStatus(validCount ? `${addedMessage} ${attention}` : attention)
-		} else {
-			setStatus(addedMessage)
-		}
+		if (!invalidCount) setStatus(addedMessage)
+		else setStatus(validCount ? `${addedMessage} ${attention}` : attention)
 		added.filter(item => !item.error).forEach(startUpload)
 	}
 

@@ -3,11 +3,12 @@ import { IconCheck, IconX } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useRouterState } from '@tanstack/react-router'
 import { Alert } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AccessPicker } from '../components/access-picker'
 import { AuthScreen } from '../components/auth-screen'
 import { Button, ErrorText } from '../components/primitives'
 import { accessSummary, grantList, noAccess, picksNothing } from '../lib/access'
-import { api, type OAuthAuthorization } from '../lib/api'
+import { ApiError, api, type OAuthAuthorization } from '../lib/api'
 import { projectsQuery } from '../lib/queries'
 
 export const Route = createFileRoute('/oauth/authorize')({
@@ -44,18 +45,37 @@ function Consent() {
 		onSuccess: ({ redirect }) => window.location.assign(redirect),
 	})
 
-	if (check.isPending) return null
+	if (check.isPending) {
+		return (
+			<AuthScreen label='Authorize' title='Checking this request'>
+				<Skeleton label='Checking the request' lines={3} />
+			</AuthScreen>
+		)
+	}
+	// A 4xx means the request itself is bad, except 408 and 429; anything else can pass on a retry.
+	if (
+		check.isError &&
+		!(check.error instanceof ApiError && check.error.status < 500 && ![408, 429].includes(check.error.status))
+	) {
+		return (
+			<AuthScreen label='Authorize' title='Could not check this request'>
+				<ErrorText error={check.error} />
+			</AuthScreen>
+		)
+	}
 	if (check.isError) {
 		return (
 			<AuthScreen label='Authorize' title='This request cannot be approved'>
-				<Alert tone='danger' title={check.error.message} />
+				<Alert tone='danger' title={check.error.message}>
+					Start the connection again from the app that sent you here.
+				</Alert>
 			</AuthScreen>
 		)
 	}
 
 	const client = check.data.client_name
 	const returnTo = new URL(check.data.redirect_uri)
-	const projectName = (id: string) => projects.data?.find(project => project.id === id)?.name ?? id
+	const projectName = (id: string) => projects.data?.find(project => project.id === id)?.name ?? '-'
 	const summary = accessSummary(client, access, projectName)
 
 	const deny = () => {
@@ -75,7 +95,7 @@ function Consent() {
 				</>
 			}
 		>
-			<AccessPicker projects={projects.data ?? []} value={access} onChange={setAccess} />
+			<AccessPicker projects={projects} value={access} onChange={setAccess} />
 			{summary ? (
 				<Alert tone={access.full ? 'warning' : 'info'} title={summary} className='mt-3' />
 			) : (
@@ -85,7 +105,7 @@ function Consent() {
 			)}
 			<ErrorText error={approve.error} />
 			<div className='mt-4 grid grid-cols-2 gap-2'>
-				<Button onClick={deny}>
+				<Button onClick={deny} disabled={approve.isPending}>
 					<IconX size={16} stroke={1.75} />
 					Deny
 				</Button>
@@ -96,7 +116,7 @@ function Consent() {
 					onClick={() => approve.mutate()}
 				>
 					<IconCheck size={16} stroke={1.75} />
-					Allow {client}
+					Allow
 				</Button>
 			</div>
 		</AuthScreen>

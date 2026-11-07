@@ -1,24 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
-/** `handlers` maps event names to callbacks. Unmounting closes the source, which stops the stream server-side too. */
+type StreamState = 'connecting' | 'open' | 'lost'
+
+/** `handlers` maps event names to callbacks. Unmounting closes the source, which stops the stream server-side too.
+ * Returns `lost` after an error until the source opens again; the browser or the timer below keeps retrying. While no
+ * stream is wanted (`url` null or `enabled` false) it reads `connecting`, the state the next one starts in. */
 export function useEventSource(url: string | null, handlers: Record<string, (data: unknown) => void>, enabled = true) {
-	const [connected, setConnected] = useState(false)
+	const [state, setState] = useState<StreamState>('connecting')
+	// A new stream, or the same one switched back on, starts over during render; a retry of the same one keeps `lost`,
+	// so a warning shown for it does not blink every 3s.
+	const [stream, setStream] = useState({ url, enabled })
+	if (stream.url !== url || stream.enabled !== enabled) {
+		setStream({ url, enabled })
+		setState('connecting')
+	}
 	const [attempt, setAttempt] = useState(0)
 	// Handlers change identity every render; a ref keeps the subscription stable.
 	const handlersRef = useRef(handlers)
 	handlersRef.current = handlers
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: attempt is the reconnect trigger
+	// `attempt` is never read inside: bumping it is what reopens a source the browser gave up on.
 	useEffect(() => {
 		if (!url || !enabled) return
 		const source = new EventSource(url, { withCredentials: true })
 		const listeners: [string, EventListener][] = []
 		let retry = 0
 
-		source.onopen = () => setConnected(true)
+		source.onopen = () => setState('open')
 		source.onerror = () => {
-			setConnected(false)
+			setState('lost')
 			// The browser only retries a stream it managed to open. A non-200 (nginx
 			// answering 502 while the manager restarts) closes the source for good,
 			// and the dashboard would stop updating until a manual reload.
@@ -30,11 +41,13 @@ export function useEventSource(url: string | null, handlers: Record<string, (dat
 		for (const name of Object.keys(handlersRef.current)) {
 			const listener: EventListener = event => {
 				const message = event as MessageEvent<string>
+				let payload: unknown = message.data
 				try {
-					handlersRef.current[name]?.(message.data ? JSON.parse(message.data) : null)
+					payload = message.data ? JSON.parse(message.data) : null
 				} catch {
-					handlersRef.current[name]?.(message.data)
+					// A plain-text event (a log line) is handed over as the string it is.
 				}
+				handlersRef.current[name]?.(payload)
 			}
 			source.addEventListener(name, listener)
 			listeners.push([name, listener])
@@ -44,11 +57,10 @@ export function useEventSource(url: string | null, handlers: Record<string, (dat
 			clearTimeout(retry)
 			for (const [name, listener] of listeners) source.removeEventListener(name, listener)
 			source.close()
-			setConnected(false)
 		}
 	}, [url, enabled, attempt])
 
-	return connected
+	return url && enabled ? state : 'connecting'
 }
 
 /**
@@ -57,6 +69,7 @@ export function useEventSource(url: string | null, handlers: Record<string, (dat
  */
 const systemEvents = [
 	'deployment.queued',
+	'deployment.started',
 	'deployment.success',
 	'deployment.failed',
 	'deployment.cancelled',
@@ -92,5 +105,14 @@ export function useSystemEvents() {
 	}
 
 	useEffect(() => () => clearTimeout(timer.current), [])
-	return useEventSource('/api/system/events', Object.fromEntries(systemEvents.map(name => [name, refresh])))
+	// Events published while the stream was down are gone, so every open after the first refetches what they changed.
+	const opened = useRef(false)
+	const reopen = () => {
+		if (opened.current) refresh()
+		opened.current = true
+	}
+	return useEventSource('/api/system/events', {
+		...Object.fromEntries(systemEvents.map(name => [name, refresh])),
+		open: reopen,
+	})
 }

@@ -62,11 +62,19 @@ function ProjectLayout() {
 				project.data ? (
 					<>
 						<DropdownMenu
-							trigger={<IconButton icon={IconDots} label='Project actions' size='default' />}
+							trigger={
+								<IconButton
+									icon={IconDots}
+									label='Project actions'
+									size='default'
+									loading={remove.isPending}
+								/>
+							}
 							items={[
 								project.data.service_count > 0
 									? {
-											label: `Delete its ${project.data.service_count} services first`,
+											// The count spans every environment, while the Services tab lists one.
+											label: `Delete its services first: ${project.data.service_count} across environments`,
 											icon: <IconTrash size={16} stroke={1.75} />,
 											disabled: true,
 										}
@@ -82,7 +90,8 @@ function ProjectLayout() {
 							open={confirmingDelete}
 							onOpenChange={setConfirmingDelete}
 							title='Delete this project?'
-							description='Its environments, variables and domains go with it.'
+							description='Its environments and variables go with it.'
+							action='Delete project'
 							type={project.data.name}
 							onConfirm={() => remove.mutate()}
 						/>
@@ -91,6 +100,7 @@ function ProjectLayout() {
 			}
 			toolbar={<Tabs base={base} tabs={tabs} />}
 		>
+			<ErrorText error={project.error} />
 			<ErrorText error={remove.error} />
 			<Outlet />
 		</Page>

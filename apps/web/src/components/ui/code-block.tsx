@@ -80,9 +80,9 @@ export function CodeBlock({ code, filename, language = 'tsx', maxLines }: CodeBl
 				? Math.min(
 						full,
 						Math.round(
-							maxLines * Number.parseFloat(style.lineHeight) +
-								Number.parseFloat(style.paddingTop) +
-								Number.parseFloat(style.paddingBottom),
+							maxLines * parseFloat(style.lineHeight) +
+								parseFloat(style.paddingTop) +
+								parseFloat(style.paddingBottom),
 						),
 					)
 				: full
@@ -136,7 +136,6 @@ export function CodeBlock({ code, filename, language = 'tsx', maxLines }: CodeBl
 				<pre
 					ref={preRef}
 					id={preId}
-					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a region that scrolls sideways needs focus to scroll by keyboard
 					tabIndex={0}
 					aria-label='Selectable source code'
 					className='relative m-0 overflow-auto p-4 font-mono text-sm leading-[1.7] whitespace-pre [tab-size:2] text-foreground [font-variant-ligatures:none] max-[420px]:p-3 max-[420px]:text-xs'

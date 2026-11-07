@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react'
-import { IconLayersLinked, IconVariable, type Icon as TablerIcon } from '@tabler/icons-react'
-import { type QueryClient, queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { IconLayersLinked, IconVariable } from '@tabler/icons-react'
+import { type QueryClient, queryOptions, type UseQueryResult, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { VariablesEditor } from '../components/env-editor'
-import { ErrorText, FormSection, SaveButton } from '../components/primitives'
-import { api, type EnvVar } from '../lib/api'
-import { fromDotenv, toDotenv } from '../lib/dotenv'
+import { VariablesCard } from '../components/env-editor'
+import { ErrorText, FormSkeleton } from '../components/primitives'
+import { api, type Environment } from '../lib/api'
 import { useCurrentEnvironment } from '../lib/environment'
 import { environmentsQuery, preload } from '../lib/queries'
 
@@ -37,7 +35,7 @@ async function preloadEnvironmentVariables(queryClient: QueryClient, projectId: 
 /** The project's variables reach every environment, the environment's own win on a collision. Edited as .env text. */
 function ProjectEnvironment() {
 	const { projectId } = Route.useParams()
-	const { current } = useCurrentEnvironment(projectId)
+	const { environments, current } = useCurrentEnvironment(projectId)
 
 	// Same query as the card below, so the two share one fetch: the environment card needs the shared
 	// keys to mark the ones it overrides.
@@ -47,6 +45,7 @@ function ProjectEnvironment() {
 	return (
 		<div className='max-w-3xl'>
 			<VariablesCard
+				key={projectId}
 				title='Shared variables'
 				icon={IconVariable}
 				query={sharedQuery}
@@ -61,53 +60,16 @@ function ProjectEnvironment() {
 					save={variables => api.saveEnvironmentVariables(current.id, variables)}
 					shared={shared.data ?? []}
 				/>
-			) : null}
+			) : (
+				<EnvironmentPending environments={environments} />
+			)}
 		</div>
 	)
 }
 
-function VariablesCard({
-	title,
-	icon,
-	query,
-	save,
-	shared,
-}: {
-	title: string
-	icon: TablerIcon
-	query: ReturnType<typeof sharedVariablesQuery>
-	save: (variables: EnvVar[]) => Promise<EnvVar[]>
-	shared?: EnvVar[]
-}) {
-	const queryClient = useQueryClient()
-	const [text, setText] = useState('')
-
-	const variables = useQuery(query)
-
-	useEffect(() => {
-		if (variables.data) setText(toDotenv(variables.data))
-	}, [variables.data])
-
-	const write = useMutation({
-		// The previous values are passed along so an untouched secret keeps its
-		// stored value instead of being overwritten with its own placeholder.
-		mutationFn: () => save(fromDotenv(text, variables.data ?? [])),
-		onSuccess: saved => {
-			setText(toDotenv(saved))
-			void queryClient.invalidateQueries({ queryKey: query.queryKey })
-		},
-	})
-
-	return (
-		<FormSection
-			title={title}
-			icon={icon}
-			hint='Redeploy to apply.'
-			onSave={() => write.mutate()}
-			actions={<SaveButton mutation={write} dirty={text !== toDotenv(variables.data ?? [])} />}
-		>
-			<ErrorText error={write.error} />
-			<VariablesEditor value={text} onChange={setText} stored={variables.data ?? []} shared={shared} />
-		</FormSection>
-	)
+/** Stands in for the environment's card until the environment is known, so its variables never vanish unexplained. */
+function EnvironmentPending({ environments }: { environments: UseQueryResult<Environment[]> }) {
+	if (environments.isPending) return <FormSkeleton label='Loading variables' cards={1} />
+	if (environments.isError) return <ErrorText error={environments.error} />
+	return <ErrorText error='This environment no longer exists. Pick another one from the breadcrumb.' />
 }

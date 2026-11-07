@@ -1,7 +1,7 @@
 import { createContext, type RefObject, useContext, useLayoutEffect, useRef, useState } from 'react'
 import { Tabs as BaseTabs } from '@base-ui/react/tabs'
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { type AnimationPlaybackControls, animate, useReducedMotion } from 'motion/react'
 import { motionTokens } from '../../lib/motion'
@@ -71,6 +71,7 @@ export function Tabs({ value, defaultValue, onValueChange, className, ...props }
 export function TabsList({ className, children, ...props }: TabsListProps) {
 	const { active } = useContext(TabsContext)
 	const reduced = useReducedMotion() ?? false
+	const router = useRouter()
 	const shellRef = useRef<HTMLDivElement>(null)
 	const viewportRef = useRef<HTMLDivElement>(null)
 	const listRef = useRef<HTMLDivElement>(null)
@@ -107,11 +108,17 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
 		}
 	}, [])
 
+	// vexdock: the router's scroll restoration hands the last page's strip offset to the next page when it renders, so
+	// during a navigation the active tab is revealed after that, not when the URL changes.
 	useLayoutEffect(() => {
-		const viewport = viewportRef.current
-		const tab = listRef.current?.querySelector<HTMLElement>('[role="tab"][data-active]')
-		if (viewport && tab) revealTab(viewport, tab, reduced)
-	}, [active, reduced])
+		function reveal() {
+			const viewport = viewportRef.current
+			const tab = listRef.current?.querySelector<HTMLElement>('[role="tab"][data-active]')
+			if (viewport && tab) revealTab(viewport, tab, reduced)
+		}
+		if (router.state.status === 'idle') reveal()
+		return router.subscribe('onRendered', reveal)
+	}, [active, reduced, router])
 
 	function scrollTabs(direction: number) {
 		const viewport = viewportRef.current
@@ -144,7 +151,7 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
 			<div
 				ref={viewportRef}
 				onFocusCapture={event => {
-					const { target } = event
+					const target = event.target
 					if (target instanceof HTMLElement && target.getAttribute('role') === 'tab') {
 						revealTab(event.currentTarget, target, reduced)
 					}

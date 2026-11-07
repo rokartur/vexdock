@@ -25,10 +25,11 @@ export const servicesQuery = (projectId: string, environmentId: string | undefin
 		queryKey: ['services', projectId, environmentId],
 		queryFn: () => api.services(projectId, environmentId),
 	})
-export const deploymentsQuery = (projectId: string, environmentId: string | undefined) =>
+/** Without `serviceName`, every service of the environment; with it, that service's own fifty. */
+export const deploymentsQuery = (projectId: string, environmentId: string | undefined, serviceName?: string) =>
 	queryOptions({
-		queryKey: ['deployments', projectId, environmentId],
-		queryFn: () => api.deployments(projectId, environmentId),
+		queryKey: ['deployments', projectId, environmentId, serviceName],
+		queryFn: () => api.deployments(projectId, environmentId, serviceName),
 	})
 export const projectDomainsQuery = (projectId: string) =>
 	queryOptions({ queryKey: ['domains', projectId], queryFn: () => api.projectDomains(projectId) })
@@ -42,4 +43,12 @@ export const serviceQuery = (serviceId: string) =>
  */
 export function preload<T, K extends QueryKey>(queryClient: QueryClient, query: FetchQueryOptions<T, Error, T, K>) {
 	return queryClient.prefetchQuery({ ...query, staleTime: Number.POSITIVE_INFINITY })
+}
+
+/** A service tab's history is keyed by its environment and compose name, which only the service read knows. */
+export async function preloadServiceDeployments(queryClient: QueryClient, projectId: string, serviceId: string) {
+	await preload(queryClient, serviceQuery(serviceId))
+	const service = queryClient.getQueryData(serviceQuery(serviceId).queryKey)
+	if (!service) return
+	await preload(queryClient, deploymentsQuery(projectId, service.environment_id, service.compose_service_name))
 }

@@ -47,11 +47,8 @@ export function Avatar({ name, src, size = 'md', status, className, ...props }: 
 	useLayoutEffect(() => {
 		const node = image.current
 		if (!node) return
-		if (node.complete) {
-			node.decode().catch(() => setFailedSrc(src))
-		} else {
-			node.dataset.loading = ''
-		}
+		if (!node.complete) node.dataset.loading = ''
+		else node.decode().catch(() => setFailedSrc(src))
 	}, [src])
 	const showImage = src && failedSrc !== src
 

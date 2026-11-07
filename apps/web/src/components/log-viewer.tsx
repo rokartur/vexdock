@@ -1,9 +1,10 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
 	IconArrowDown,
 	IconCheck,
 	IconDownload,
 	IconEraser,
+	IconFilterOff,
 	IconPlayerPause,
 	IconPlayerPlay,
 	IconTextWrap,
@@ -22,9 +23,10 @@ import {
 	parseLogLine,
 } from '../lib/format'
 import { useEventSource } from '../lib/sse'
-import { Segmented, Select } from './primitives'
+import { Button, Segmented, Select } from './primitives'
 
-export type Line = { stream: string; text: string }
+// `seq` is set on streamed lines: the buffer drops its oldest, so a line's position is not its key.
+export type Line = { stream: string; text: string; seq?: number }
 
 /** One number is both the server's `tail` and the buffer's cap, so the view holds exactly the last N lines. */
 const lineLimits = [
@@ -85,15 +87,24 @@ const levelFilters = [
 type LevelFilter = (typeof levelFilters)[number]['value']
 
 /**
- * How loud a line is. A stderr line is an error whatever it says, an access log
- * takes its class from the status code, everything else from its own level word.
+ * How loud a line is. Its own level word decides first (nginx and Postgres log routine notices to stderr), an
+ * access log takes its class from the status code, and any other stderr line is an error.
  */
 function severityFrom(stream: string, level: string | null, status: string | undefined): Severity | undefined {
-	if (stream === 'stderr') return 'error'
 	if (level) return levelSeverity[level]
 	if (status?.startsWith('5')) return 'error'
 	if (status?.startsWith('4')) return 'warn'
+	if (stream === 'stderr' && !status) return 'error'
 	return undefined
+}
+
+/** Recorded output as lines: blank lines are what the command printed, only the final newline's empty tail goes. */
+export function outputLines(output: string): Line[] {
+	if (output === '') return []
+	return output
+		.replace(/\n$/u, '')
+		.split('\n')
+		.map(text => ({ stream: 'stdout', text }))
 }
 
 export function severityOf(line: Line): Severity | undefined {
@@ -110,8 +121,17 @@ export function LogViewer({
 	url,
 	lines: given,
 	build = false,
+	inset = false,
+	waiting = false,
 	className,
-}: { className?: string; build?: boolean } & ({ url: string; lines?: never } | { lines: Line[]; url?: never })) {
+}: {
+	className?: string
+	build?: boolean
+	// Given `lines`, the caller still expects more: an empty log reads as waiting, not as finished.
+	waiting?: boolean
+	// Inside a dialog body (p-4), where the box takes the concentric corner instead of a card's.
+	inset?: boolean
+} & ({ url: string; lines?: never } | { lines: Line[]; url?: never })) {
 	const [streamed, setStreamed] = useState<Line[]>([])
 	const [paused, setPaused] = useState(false)
 	const [filter, setFilter] = useState('')
@@ -119,7 +139,7 @@ export function LogViewer({
 	const [follow, setFollow] = useState(true)
 	const [plain, setPlain] = useState(false)
 	const [limit, setLimit] = useState<LineLimit>('1000')
-	const bottomRef = useRef<HTMLDivElement>(null)
+	const boxRef = useRef<HTMLDivElement>(null)
 	// Lines land in a ref and flush on a timer: a chatty container emits faster
 	// than React can render, and one setState per line re-renders every row.
 	const pending = useRef<Line[]>([])
@@ -127,34 +147,42 @@ export function LogViewer({
 	// A reconnect, or a new limit, replays the server's tail, so the buffer restarts
 	// at the first line of the new stream rather than growing a second copy of it.
 	const restart = useRef(false)
+	// The lines waiting in `pending` open a new stream, so their flush replaces the screen instead of extending it.
+	const fresh = useRef(false)
+	const nextSeq = useRef(0)
+	const cap = Number(limit)
 
-	// Pausing keeps the stream open. Reopening it would replay the server's
+	const flush = () => {
+		clearTimeout(flushTimer.current)
+		flushTimer.current = 0
+		const batch = pending.current
+		const replace = fresh.current
+		pending.current = []
+		fresh.current = false
+		setStreamed(current => (replace ? batch : [...current, ...batch]).slice(-cap))
+	}
+
+	// Pausing keeps the stream open and holds its lines back. Reopening it would replay the server's
 	// tail and duplicate everything already on screen.
-	const connected = useEventSource(url ? `${url}?tail=${limit}` : null, {
+	const stream = useEventSource(url ? `${url}?tail=${limit}` : null, {
+		// EventSource fires `open` on every (re)connect, the browser's own retries included.
+		open: () => {
+			restart.current = true
+		},
 		log: data => {
-			if (paused) return
 			if (restart.current) {
 				restart.current = false
 				pending.current = []
-				setStreamed([])
+				fresh.current = true
 			}
-			pending.current.push(data as Line)
-			if (flushTimer.current) return
-			flushTimer.current = window.setTimeout(() => {
-				flushTimer.current = 0
-				const batch = pending.current
-				pending.current = []
-				setStreamed(current => {
-					const next = [...current, ...batch]
-					return next.slice(-Number(limit))
-				})
-			}, 200)
+			nextSeq.current += 1
+			pending.current.push({ ...(data as Line), seq: nextSeq.current })
+			// A long pause on a chatty container: only the newest `cap` lines could reach the screen anyway.
+			if (pending.current.length > 2 * cap) pending.current = pending.current.slice(-cap)
+			if (paused || flushTimer.current) return
+			flushTimer.current = window.setTimeout(flush, 200)
 		},
 	})
-
-	useEffect(() => {
-		if (!connected) restart.current = true
-	}, [connected])
 
 	useEffect(() => () => clearTimeout(flushTimer.current), [])
 
@@ -173,10 +201,13 @@ export function LogViewer({
 		[lines, needle, level, plain, steps],
 	)
 
-	useEffect(() => {
-		if (follow) bottomRef.current?.scrollIntoView({ block: 'end' })
-	}, [visible.length, follow])
+	// On every batch, not on a new length: a full buffer keeps its length while its lines move.
+	useLayoutEffect(() => {
+		// Only the log box scrolls: scrollIntoView would also drag the page and an open dialog to its bottom edge.
+		if (follow && boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight
+	}, [visible, follow])
 
+	const streamState = paused ? 'paused' : stream
 	return (
 		<div>
 			<div className='mb-2 flex flex-wrap items-center gap-2'>
@@ -189,7 +220,7 @@ export function LogViewer({
 						onValueChange={setFilter}
 					/>
 				</div>
-				<Segmented value={level} options={levelFilters} onChange={setLevel} />
+				<Segmented label='Level' value={level} options={levelFilters} onChange={setLevel} />
 				{url ? (
 					<Select value={limit} options={lineLimits} onChange={setLimit} label='Lines' className='w-auto' />
 				) : null}
@@ -206,11 +237,14 @@ export function LogViewer({
 										) : (
 											<IconPlayerPause size={16} stroke={1.75} />
 										),
-										onSelect: () => setPaused(value => !value),
+										onSelect: () => {
+											if (paused) flush()
+											setPaused(!paused)
+										},
 									},
 									{
 										id: 'follow',
-										label: follow ? 'Stop following' : 'Follow',
+										label: 'Follow',
 										icon: <IconArrowDown size={16} stroke={1.75} />,
 										pressed: follow,
 										onSelect: () => setFollow(value => !value),
@@ -219,7 +253,7 @@ export function LogViewer({
 							: []),
 						{
 							id: 'plain',
-							label: plain ? 'Formatted' : 'Plain text',
+							label: 'Plain text',
 							icon: <IconTextWrap size={16} stroke={1.75} />,
 							pressed: plain,
 							onSelect: () => setPlain(value => !value),
@@ -228,7 +262,7 @@ export function LogViewer({
 							? [
 									{
 										id: 'clear',
-										label: 'Clear',
+										label: 'Clear log',
 										icon: <IconEraser size={16} stroke={1.75} />,
 										onSelect: () => setStreamed([]),
 									},
@@ -236,46 +270,100 @@ export function LogViewer({
 							: []),
 						{
 							id: 'download',
-							label: 'Download',
+							label: 'Download log',
 							icon: <IconDownload size={16} stroke={1.75} />,
-							onSelect: () => download(visible),
+							// The whole buffer: a search or level filter narrows the view, not the file.
+							onSelect: () => download(lines),
 						},
 					]}
 				/>
-				<span className='text-xs text-muted'>
+				<span className='text-xs text-muted tabular-nums'>
 					{url ? (
-						<span
-							className={cn(
-								'mr-1.5 inline-block size-1.5 rounded-full',
-								connected ? 'bg-success' : 'bg-muted',
-							)}
-						/>
+						<>
+							<span
+								className={cn(
+									'mr-1.5 inline-block size-1.5 rounded-full',
+									{
+										connecting: 'bg-warning',
+										open: 'bg-success',
+										lost: 'bg-danger',
+										paused: 'bg-muted',
+									}[streamState],
+								)}
+							/>
+							<span role='status'>
+								{
+									{
+										connecting: 'Connecting',
+										open: 'Streaming',
+										lost: 'Reconnecting',
+										paused: 'Paused',
+									}[streamState]
+								}
+							</span>
+							{' · '}
+						</>
 					) : null}
-					{url ? `${connected ? 'streaming' : 'disconnected'} · ` : ''}
-					{visible.length} lines
+					{visible.length.toLocaleString('en-US')} {visible.length === 1 ? 'line' : 'lines'}
 				</span>
 			</div>
 			<div
+				ref={boxRef}
+				// Keyboard scrolling needs focus, and the box holds only text: Safari would never reach it.
+				tabIndex={0}
+				role='region'
+				aria-label='Log output'
+				// Reading back up the stream lets go of the bottom; returning there follows again.
+				onScroll={event => {
+					const box = event.currentTarget
+					const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24
+					if (atBottom !== follow) setFollow(atBottom)
+				}}
 				className={cn(
-					'h-[60vh] overflow-auto rounded-panel border bg-console p-3 font-mono text-xs leading-[1.5] text-console-foreground',
+					'h-[60dvh] overflow-auto border bg-console p-3 font-mono text-xs leading-[1.5] text-console-foreground',
+					inset ? 'rounded-[max(6px,calc(var(--radius-surface)-16px))]' : 'rounded-surface',
 					className,
 				)}
 			>
 				{visible.length === 0 ? (
-					<p className='text-muted'>{url ? 'Waiting for output…' : 'No output.'}</p>
+					<EmptyLog
+						filtered={lines.length > 0 && (needle !== '' || level !== 'all')}
+						streaming={Boolean(url) || waiting}
+						onClear={() => {
+							setFilter('')
+							setLevel('all')
+						}}
+					/>
 				) : (
 					visible.map((line, index) =>
 						plain ? (
-							<div key={index} className='break-all whitespace-pre-wrap'>
+							<div key={line.seq ?? index} className='wrap-anywhere whitespace-pre-wrap'>
 								{line.text}
 							</div>
 						) : (
-							<LogLine key={index} line={line} build={build} result={steps?.results.get(line)} />
+							<LogLine
+								key={line.seq ?? index}
+								line={line}
+								build={build}
+								result={steps?.results.get(line)}
+							/>
 						),
 					)
 				)}
-				<div ref={bottomRef} />
 			</div>
+		</div>
+	)
+}
+
+function EmptyLog({ filtered, streaming, onClear }: { filtered: boolean; streaming: boolean; onClear: () => void }) {
+	if (!filtered) return <p className='text-muted'>{streaming ? 'Waiting for output…' : 'No output.'}</p>
+	return (
+		<div className='flex flex-wrap items-center gap-3 font-sans'>
+			<p className='text-muted'>No line matches this search and level.</p>
+			<Button size='sm' onClick={onClear}>
+				<IconFilterOff size={16} stroke={1.75} />
+				Clear filters
+			</Button>
 		</div>
 	)
 }
@@ -302,11 +390,14 @@ function buildSteps(lines: Line[]) {
 	return { results, closing }
 }
 
-const LogLine = memo(({ line, build, result }: { line: Line; build: boolean; result?: BuildResult }) => {
+// Every flush re-renders the list; memo keeps the lines already drawn from parsing again.
+const LogLine = memo(LogLineRow)
+
+function LogLineRow({ line, build, result }: { line: Line; build: boolean; result?: BuildResult }) {
 	const { time, timestamp, body, coloredBody, level } = parseLogLine(line.text)
 	const request = parseAccessLine(body)
 	const severity = severityFrom(line.stream, level, request?.status)
-	const tone = line.stream === 'stderr' ? 'text-danger' : level && severity ? severityColor[severity] : undefined
+	const tone = level || line.stream === 'stderr' ? severity && severityColor[severity] : undefined
 	const buildLine = build ? parseBuildLine(coloredBody) : null
 
 	return (
@@ -324,7 +415,7 @@ const LogLine = memo(({ line, build, result }: { line: Line; build: boolean; res
 				<>
 					<span className={cn('w-8 shrink-0', statusColor[request.status[0] ?? ''])}>{request.status}</span>
 					<span className='w-14 shrink-0 text-muted'>{request.method}</span>
-					<span className='min-w-0 flex-1 break-all'>{request.path}</span>
+					<span className='min-w-0 flex-1 wrap-anywhere'>{request.path}</span>
 					<span className='shrink-0 text-muted'>{bytes(request.bytes)}</span>
 					<span className='shrink-0 text-muted'>{request.client}</span>
 				</>
@@ -333,8 +424,7 @@ const LogLine = memo(({ line, build, result }: { line: Line; build: boolean; res
 			)}
 		</div>
 	)
-})
-LogLine.displayName = 'LogLine'
+}
 
 function LineBody({
 	text,
@@ -356,7 +446,7 @@ function LineBody({
 						<StepIcon className={cn('size-3.5', result.failed ? 'text-danger' : 'text-success')} />
 					) : null}
 				</span>
-				<span className='min-w-0 flex-1 break-all whitespace-pre-wrap'>
+				<span className='min-w-0 flex-1 wrap-anywhere whitespace-pre-wrap'>
 					<span className='text-accent'>{buildLine.stage}</span>{' '}
 					<span className='font-medium text-foreground'>{buildLine.command}</span>
 				</span>
@@ -377,7 +467,8 @@ function LineBody({
 
 function Ansi({ text, className }: { text: string; className?: string }) {
 	return (
-		<span className={cn('min-w-0 break-all whitespace-pre-wrap', className)}>
+		<span className={cn('min-w-0 wrap-anywhere whitespace-pre-wrap', className)}>
+			{/* Segments of one fixed line never reorder, so their position is their identity. */}
 			{ansiSegments(text).map((segment, index) =>
 				segment.color || segment.bold ? (
 					<span key={index} className={cn(segment.bold && 'font-medium')} style={{ color: segment.color }}>
@@ -396,7 +487,7 @@ function download(lines: Line[]) {
 	const url = URL.createObjectURL(blob)
 	const anchor = document.createElement('a')
 	anchor.href = url
-	anchor.download = `logs-${new Date().toISOString().slice(0, 19)}.txt`
+	anchor.download = `logs-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.txt`
 	anchor.click()
 	URL.revokeObjectURL(url)
 }

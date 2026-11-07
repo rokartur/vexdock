@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { IconDownload } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type EnvVar, GIT_PROVIDERS, type ServiceProvider } from '../lib/api'
+import { api, type EnvVar, GIT_PROVIDERS, type Service, type ServiceProvider } from '../lib/api'
 import { useEnvironmentId } from '../lib/environment'
 import { Button, Check, DialogFooter, ErrorText, Field, Textarea } from './primitives'
 import { FileUpload, type FileUploadItem } from './ui/file-upload'
@@ -51,11 +51,16 @@ export function decodeExport(pasted: string): Export | Error {
 			throw new Error('no services')
 		}
 		if (candidate.version !== 2) {
-			return new Error(`this export is version ${String(candidate.version)}; this vexdock reads version 2`)
+			return new Error(
+				`This export is version ${String(candidate.version)}, and this server reads version 2. Export it again from a server on the current Vexdock.`,
+			)
+		}
+		if (candidate.services.length === 0) {
+			return new Error('This export has no services. Export a project that has some.')
 		}
 		return { version: 2, project: candidate.project ?? 'unknown', services: candidate.services }
 	} catch {
-		return new Error('That is not a vexdock export. Copy it from a project\u2019s settings, unedited.')
+		return new Error('That is not a Vexdock export. Copy it from a project\u2019s settings, unedited.')
 	}
 }
 
@@ -103,7 +108,7 @@ export function ImportServicesForm({
 	const importable = (parsed?.services ?? []).filter(
 		service => !taken.has(service.name) && !skipped.includes(service.name),
 	)
-	const withheldSecrets = (parsed?.services ?? []).some(service =>
+	const withheldSecrets = importable.some(service =>
 		(service.env ?? []).some(variable => variable.is_secret && variable.value === ''),
 	)
 
@@ -111,11 +116,13 @@ export function ImportServicesForm({
 	// A failure half way leaves the earlier services in place, named in the error.
 	const queryClient = useQueryClient()
 	const run = useMutation({
+		mutationKey: ['add-services', projectId],
 		mutationFn: async () => {
 			/* oxlint-disable no-await-in-loop -- sequential is the point, see above */
 			for (const service of importable) {
+				let created: Service | undefined
 				try {
-					const created = await api.createService(
+					created = await api.createService(
 						projectId,
 						{
 							name: service.name,
@@ -137,16 +144,22 @@ export function ImportServicesForm({
 					const seeded = await api.serviceVariables(created.id)
 					await api.saveServiceVariables(created.id, mergeEnv(seeded, service))
 				} catch (error) {
-					throw new Error(`${service.name}: ${error instanceof Error ? error.message : String(error)}`, {
-						cause: error,
-					})
+					const message = error instanceof Error ? error.message : String(error)
+					// A retry skips the name as taken, so variables that failed after the create would never import.
+					if (created) {
+						throw new Error(
+							`${service.name} was created without its variables: ${message.replace(/\.$/u, '')}. Paste them in its Environment tab.`,
+							{ cause: error },
+						)
+					}
+					throw new Error(`${service.name}: ${message}`, { cause: error })
 				}
 			}
 			/* oxlint-enable no-await-in-loop */
 		},
 		onSuccess: onDone,
 		// The loop stops at the first failure with the services before it already
-		// created, so the list has to refetch even though the sheet stays open to
+		// created, so the list has to refetch even though the dialog stays open to
 		// show which one failed.
 		onError: () => queryClient.invalidateQueries({ queryKey: ['services', projectId] }),
 	})
@@ -175,12 +188,12 @@ export function ImportServicesForm({
 			</div>
 			<Field label='Export' hint='Copied from another project’s settings.'>
 				<Textarea
+					mono
 					required
 					rows={4}
 					value={pasted}
 					onChange={event => setPasted(event.target.value)}
-					spellCheck={false}
-					placeholder='eyJ2ZXJzaW9uIjoxLCJzZXJ2aWNlcyI6W119'
+					placeholder='eyJ2ZXJzaW9uIjoyLCJzZXJ2aWNlcyI6W119'
 				/>
 			</Field>
 
@@ -189,17 +202,19 @@ export function ImportServicesForm({
 			{parsed ? (
 				<div className='mb-3'>
 					<p className='mb-2 text-xs text-muted'>
-						{parsed.services.length} service{parsed.services.length === 1 ? '' : 's'} from {parsed.project}
+						{parsed.services.length.toLocaleString('en-US')} service
+						{parsed.services.length === 1 ? '' : 's'} from {parsed.project}
 					</p>
-					<div className='rounded-panel border px-3'>
+					<div className='rounded-[max(6px,calc(var(--radius-surface)-16px))] border px-3'>
 						{parsed.services.map(service => {
 							const collides = taken.has(service.name)
 							const on = !collides && !skipped.includes(service.name)
 							return (
 								<div
 									key={service.name}
+									// Only the checkbox and the source dim: "name taken" explains the lock, so it keeps full contrast.
 									data-collides={collides || undefined}
-									className='flex items-center gap-3 border-b border-border-subtle py-1.5 text-sm last:border-0 data-collides:opacity-40'
+									className='group/import flex items-center gap-3 border-b border-border-subtle py-1.5 text-sm last:border-0'
 								>
 									<Check
 										label={service.name}
@@ -213,14 +228,16 @@ export function ImportServicesForm({
 											)
 										}
 									/>
-									<span className='truncate font-mono text-xs text-muted'>
+									<span className='min-w-0 font-mono text-xs wrap-anywhere text-muted group-data-collides/import:opacity-40'>
 										{service.image ||
 											(service.repository ? `${service.owner}/${service.repository}` : '') ||
 											service.repository_url ||
 											service.provider}
 									</span>
 									<span className='ml-auto shrink-0 text-xs text-muted'>
-										{collides ? 'name taken' : `${(service.env ?? []).length} vars`}
+										{collides
+											? 'name taken'
+											: `${(service.env ?? []).length.toLocaleString('en-US')} variable${(service.env ?? []).length === 1 ? '' : 's'}`}
 									</span>
 								</div>
 							)
@@ -236,14 +253,19 @@ export function ImportServicesForm({
 
 			<ErrorText error={run.error} />
 			<DialogFooter>
-				<Button variant='ghost' onClick={onCancel}>
+				<Button variant='ghost' onClick={onCancel} disabled={run.isPending}>
 					Cancel
 				</Button>
-				<Button type='submit' variant='primary' disabled={run.isPending || importable.length === 0}>
+				<Button type='submit' variant='primary' disabled={importable.length === 0} loading={run.isPending}>
 					<IconDownload size={16} stroke={1.75} />
-					{run.isPending ? 'Importing…' : `Import ${importable.length || ''}`.trim()}
+					{importButtonLabel(importable.length)}
 				</Button>
 			</DialogFooter>
 		</form>
 	)
+}
+
+function importButtonLabel(count: number) {
+	if (count === 0) return 'Import services'
+	return count === 1 ? 'Import 1 service' : `Import ${count.toLocaleString('en-US')} services`
 }

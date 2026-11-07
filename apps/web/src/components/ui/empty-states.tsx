@@ -7,13 +7,13 @@ const shapeClass =
 	'fill-surface stroke-foreground stroke-[1.5px] transition-[fill,stroke] duration-340 ease-standard [stroke-linecap:round] [stroke-linejoin:round] [vector-effect:non-scaling-stroke] data-[tone=back]:stroke-muted data-[tone=bar]:fill-border-strong data-[tone=bar]:stroke-transparent data-[tone=dot]:fill-foreground data-[tone=dot]:stroke-transparent data-[tone=muted]:stroke-muted data-[tone=query]:fill-muted data-[tone=query]:stroke-transparent data-[tone=shade]:fill-surface-muted data-[tone=slot]:stroke-border-strong data-[tone=subtle]:stroke-border-strong data-[tone=success]:stroke-success data-[tone=tuck]:stroke-border-strong data-[tone=warning]:stroke-warning [&:is([data-kind=stroke],[data-kind=mark])]:fill-none'
 
 export function EmptyScene({ scene, className }: { scene: EmptySceneId; className?: string }) {
-	const { label, paths } = SCENES[scene]
+	const { paths } = SCENES[scene]
 	return (
+		// vexdock: silent, as Arc's icon tile is: the empty state's heading names the state.
 		<svg
 			className={className ?? 'block aspect-[320/216] w-[min(100%,280px)] overflow-visible'}
 			viewBox='0 0 320 216'
-			role='img'
-			aria-label={label}
+			aria-hidden='true'
 		>
 			{paths.map((path, slot) => (
 				<path
@@ -30,8 +30,8 @@ export function EmptyScene({ scene, className }: { scene: EmptySceneId; classNam
 }
 
 const SCENES = {
+	// A magnifying glass over three empty result rows.
 	search: {
-		label: 'A magnifying glass over three empty result rows',
 		paths: [
 			{
 				kind: 'tile',
@@ -80,8 +80,8 @@ const SCENES = {
 			},
 		],
 	},
+	// A cloud joined to a device by a broken line.
 	offline: {
-		label: 'A cloud joined to a device by a broken line',
 		paths: [
 			{
 				kind: 'tile',
@@ -120,8 +120,8 @@ const SCENES = {
 			},
 		],
 	},
+	// A stacked inbox with a check mark.
 	inbox: {
-		label: 'A stacked inbox with a check mark',
 		paths: [
 			{
 				kind: 'tile',
@@ -155,8 +155,8 @@ const SCENES = {
 			},
 		],
 	},
+	// A folded map with a dashed route that ends in an x.
 	map: {
-		label: 'A folded map with a dashed route that ends in an x',
 		paths: [
 			{
 				kind: 'tile',

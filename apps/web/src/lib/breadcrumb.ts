@@ -1,5 +1,5 @@
 /** One path segment of the header trail. */
-export type TrailSegment = {
+type TrailSegment = {
 	/** Raw URL segment, used to look up a nicer label (ids, project names). */
 	segment: string
 	/** Absolute path this segment stands for. */
@@ -38,7 +38,7 @@ export function trailOf(pathname: string, routePatterns: string[]): TrailSegment
 	})
 }
 
-/** Title-cases a URL segment: 'backups' -> 'Backups', 'docker-hub' -> 'Docker hub'. */
+/** Sentence-cases a URL segment: 'backups' -> 'Backups', 'docker-hub' -> 'Docker hub'. */
 export function labelOf(segment: string): string {
 	return segment.replaceAll('-', ' ').replace(/^./u, first => first.toUpperCase())
 }

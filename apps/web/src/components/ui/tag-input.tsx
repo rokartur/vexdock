@@ -11,7 +11,8 @@ type TagInputProps = {
 	placeholder?: string
 	description?: string
 	id?: string
-	// vexdock: tags already in use elsewhere, offered through the browser's own datalist.
+	// vexdock: tags already in use elsewhere, offered through the browser's own datalist: a few short words do not
+	// earn a second listbox beside Combobox, and a pick adds its tag at once.
 	suggestions?: string[]
 }
 
@@ -106,7 +107,7 @@ export function TagInput({
 
 	// A repeated message gets a trailing space, so the live region announces it again.
 	function say(message: string) {
-		setNotice(previous => (previous === message ? `${message}\u00A0` : message))
+		setNotice(previous => (previous === message ? `${message}\u00a0` : message))
 	}
 
 	function update(next: string[]) {
@@ -119,8 +120,8 @@ export function TagInput({
 		if (tag !== null) say(`${tag} selected. Press Backspace to remove it.`)
 	}
 
-	function add() {
-		const tag = draft.trim()
+	function add(text = draft) {
+		const tag = text.trim()
 		if (!tag) return
 		const existing = tags.find(item => item.toLowerCase() === tag.toLowerCase())
 		if (existing) {
@@ -302,7 +303,16 @@ export function TagInput({
 						className='box-border min-h-7 min-w-20 flex-[1_1_100px] border-0 bg-transparent px-[5px] text-sm text-foreground placeholder:text-transparent'
 						value={draft}
 						onChange={event => {
-							setDraft(event.currentTarget.value)
+							const text = event.currentTarget.value
+							// A datalist pick arrives as a plain Event (Chrome) or insertReplacementText (Firefox, Safari).
+							const native = event.nativeEvent
+							const picked =
+								!(native instanceof InputEvent) || native.inputType === 'insertReplacementText'
+							if (picked && suggestions?.includes(text)) {
+								add(text)
+								return
+							}
+							setDraft(text)
 							setPicked(null)
 						}}
 						onKeyDown={onKeyDown}

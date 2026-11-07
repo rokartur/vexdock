@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Breakdowns, NoVisits, Readings, TrafficChart } from '../components/analytics-report'
-import { ErrorText, Segmented } from '../components/primitives'
-import { type AnalyticsRange, api } from '../lib/api'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Breakdowns, NoVisits, Readings, ReportSkeleton, TrafficChart } from '../components/analytics-report'
+import { EmptyState, ErrorText, Segmented } from '../components/primitives'
+import { type AnalyticsRange, ApiError, api } from '../lib/api'
 
 export const Route = createFileRoute('/shared/$token')({
+	validateSearch: (search: Record<string, unknown>): { range?: AnalyticsRange } => ({
+		range: ranges.find(option => option.value === search.range)?.value,
+	}),
 	component: SharedReport,
 	head: () => ({ meta: [{ title: 'Analytics · Vexdock' }, { name: 'robots', content: 'noindex' }] }),
 })
@@ -21,19 +23,43 @@ const ranges = [
 /** The read-only report a site owner shares by link: no session, no visitors, no settings. */
 function SharedReport() {
 	const { token } = Route.useParams()
-	const [range, setRange] = useState<AnalyticsRange>('7d')
+	const range = Route.useSearch().range ?? '7d'
+	const navigate = useNavigate({ from: Route.fullPath })
+	const setRange = (next: AnalyticsRange) => navigate({ search: { range: next }, replace: true })
 	const report = useQuery({
 		queryKey: ['shared', token, range],
 		queryFn: () => api.sharedReport(token, { range, filters: [], compare: true }),
 		placeholderData: keepPreviousData,
 	})
+	const hostname = report.data?.domain.hostname
+	// Two shared reports open side by side would share the head's fixed title.
+	useEffect(() => {
+		if (hostname) document.title = `${hostname} analytics · Vexdock`
+	}, [hostname])
+
+	// The manager answers 404 for a token it no longer knows: sharing was turned off or the link was replaced.
+	if (report.error instanceof ApiError && report.error.status === 404) {
+		return (
+			<main className='mx-auto flex max-w-6xl flex-col gap-4 p-6 max-sm:px-4'>
+				<h1 className='text-2xl font-medium max-sm:text-xl'>Analytics</h1>
+				<EmptyState
+					title='This link no longer works'
+					description='Its owner turned sharing off or made a new link; ask them for the current one.'
+				/>
+			</main>
+		)
+	}
 
 	return (
-		<main className='mx-auto flex max-w-6xl flex-col gap-4 p-6'>
+		<main className='mx-auto flex max-w-6xl flex-col gap-4 p-6 max-sm:px-4'>
 			<header className='flex flex-wrap items-center justify-between gap-3'>
-				<h1 className='text-xl font-medium'>{report.data?.domain.hostname ?? 'Analytics'}</h1>
+				<h1 className='min-w-0 text-2xl font-medium wrap-anywhere max-sm:text-xl'>
+					{report.data?.domain.hostname ?? 'Analytics'}
+				</h1>
 				<Segmented label='Range' value={range} options={ranges} onChange={setRange} />
 			</header>
+			{/* A failed range switch keeps the last report on screen; the error says it is stale. */}
+			<ErrorText error={report.error} />
 			{report.data ? (
 				<>
 					<Readings report={report.data.report} previous={report.data.previous} />
@@ -44,10 +70,8 @@ function SharedReport() {
 					)}
 					<Breakdowns report={report.data.report} />
 				</>
-			) : report.error ? (
-				<ErrorText error={report.error} />
-			) : (
-				<Skeleton label='Loading the report' />
+			) : report.error ? null : (
+				<ReportSkeleton />
 			)}
 		</main>
 	)

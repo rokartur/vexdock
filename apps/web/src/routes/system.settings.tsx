@@ -5,7 +5,7 @@ export const Route = createFileRoute('/system/settings')({ component: SettingsLa
 
 const tabs = [
 	{ suffix: '', label: 'General' },
-	{ suffix: '/git', label: 'Git accounts' },
+	{ suffix: '/git', label: 'Git connections' },
 	{ suffix: '/registries', label: 'Registries' },
 	{ suffix: '/tokens', label: 'API tokens' },
 	{ suffix: '/about', label: 'About' },
@@ -13,7 +13,11 @@ const tabs = [
 
 function SettingsLayout() {
 	return (
-		<Page index='General' toolbar={<Tabs base='/system/settings' tabs={tabs} />}>
+		<Page
+			index='General'
+			labels={{ git: 'Git connections', tokens: 'API tokens' }}
+			toolbar={<Tabs base='/system/settings' tabs={tabs} />}
+		>
 			<Outlet />
 		</Page>
 	)

@@ -12,6 +12,7 @@ import {
 	IconFileCode,
 	IconGitBranch,
 	IconHammer,
+	IconPlayerPlay,
 	IconPlayerStop,
 	IconPlug,
 	IconRefresh,
@@ -23,12 +24,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
 	Button,
+	Confirm,
 	Combo,
 	ErrorText,
 	Fact,
 	Facts,
 	Field,
+	PendingReading,
 	FormSection,
+	FormSkeleton,
 	Input,
 	RelativeTime,
 	SaveButton,
@@ -37,17 +41,16 @@ import {
 	Status,
 	Switch,
 	Textarea,
+	textLink,
 } from '../components/primitives'
 import { api, type BuildType, type CredentialKind, isGitProvider, type Service, type ServiceProvider } from '../lib/api'
-import { useEnvironmentId } from '../lib/environment'
-import { duration } from '../lib/format'
-import { deploymentsQuery, preload } from '../lib/queries'
+import { duration, maskUrlPassword } from '../lib/format'
+import { deploymentsQuery, preloadServiceDeployments } from '../lib/queries'
 import { useService } from './projects.$projectId_.services.$serviceId'
 
 export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/')({
-	loaderDeps: ({ search }) => ({ env: search.env }),
-	loader: ({ context: { queryClient }, params: { projectId }, deps: { env } }) =>
-		preload(queryClient, deploymentsQuery(projectId, env)),
+	loader: ({ context: { queryClient }, params: { projectId, serviceId } }) =>
+		preloadServiceDeployments(queryClient, projectId, serviceId),
 	component: ServiceGeneral,
 })
 
@@ -78,46 +81,50 @@ function ServiceGeneral() {
 	const service = useService(serviceId)
 
 	// The form is seeded from the service, so it waits for the first read
-	// instead of mounting empty and overwriting what it never loaded.
-	if (!service.data) return null
+	// instead of mounting empty and overwriting what it never loaded. A failed read is the layout's ErrorText.
+	if (!service.data) {
+		if (service.error) return null
+		return <FormSkeleton label='Loading the service' cards={2} />
+	}
 	return (
 		<>
 			<DeploySection projectId={projectId} service={service.data} />
 			{service.data.type === 'database' ? <DatabaseSections serviceId={serviceId} /> : null}
-			{/* Remounts on switch, so the fields follow the service the URL names. The keys differ per section:
-			    siblings sharing one key make React lose track of them and leave stale copies behind. */}
-			<SourceSection key={`source:${service.data.id}`} service={service.data} />
-			{isGitProvider(service.data.provider) ? (
-				<BuildSection key={`build:${service.data.id}`} service={service.data} />
-			) : null}
+			<SourceSection service={service.data} />
+			{isGitProvider(service.data.provider) ? <BuildSection service={service.data} /> : null}
 		</>
 	)
 }
 
 function DeploySection({ projectId, service }: { projectId: string; service: Service }) {
-	const environmentId = useEnvironmentId()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const deployments = useQuery(deploymentsQuery(projectId, environmentId))
-	const latest = deployments.data?.find(deployment => deployment.service_name === service.compose_service_name)
+	const deployments = useQuery(deploymentsQuery(projectId, service.environment_id, service.compose_service_name))
+	const latest = deployments.data?.[0]
 	const params = { projectId, serviceId: service.id }
 	const running = service.state === 'running'
-	// docker stop also cancels the restart policy of a crash-looping container.
-	const stoppable = running || service.state === 'restarting'
+	// docker stop also cancels the restart policy of a crash-looping container, and is the one action Docker takes on a
+	// paused one (Start and Restart are refused).
+	const stoppable = running || service.state === 'restarting' || service.state === 'paused'
+	// An empty state means no container yet, which only a deploy creates.
+	const startable = service.state !== '' && !stoppable
 
 	const act = useMutation({
-		mutationFn: (action: 'stop' | 'restart') => api.serviceAction(service.id, action),
+		mutationFn: (action: 'start' | 'stop' | 'restart') => api.serviceAction(service.id, action),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
 	})
+	const acting = act.isPending ? act.variables : undefined
+	const unconfigured = service.provider === 'unconfigured'
 	const deploy = useMutation({
 		mutationFn: () => api.deployService(service.id),
 		onSuccess: async deployment => {
 			await queryClient.invalidateQueries({ queryKey: ['service', service.id] })
+			await queryClient.invalidateQueries({ queryKey: ['deployments', params.projectId] })
 			// The service's own deployments tab, so the log opens without leaving it.
 			await navigate({
 				to: '/projects/$projectId/services/$serviceId/deployments',
 				params,
-				search: previous => ({ ...previous, deployment: deployment.id }),
+				search: { deployment: deployment.id },
 			})
 		},
 	})
@@ -125,12 +132,28 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 		mutationFn: (body: Parameters<typeof api.updateService>[1]) => api.updateService(service.id, body),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', service.id] }),
 	})
+	// A switch shows what it was flipped to until the refetch lands.
+	const switching = switches.isPending ? switches.variables : {}
+	let waiting = ''
+	if (unconfigured) waiting = 'Deploy waits for a source: pick one under Source below. '
+	if (service.state === '') waiting += 'Restart and Stop wait for the first deploy to create a container. '
+	else if (service.state === 'restarting')
+		waiting += 'Restart waits while Docker restarts the container; Stop ends the loop. '
+	else if (service.state === 'paused')
+		waiting += 'It was paused outside Vexdock: Docker refuses Start and Restart, Stop works. '
+	// A webhook deploys only a git source, and only a source with a build context leaves builder cache.
+	const fromGit = isGitProvider(service.provider)
+	const builds = fromGit || service.provider === 'raw'
+	let hint = waiting
+	if (fromGit) hint += 'Auto deploy watches this service’s own repository and branch. '
+	if (builds)
+		hint += 'Prune build cache sweeps the host’s dangling builder cache once this service finishes building.'
 
 	return (
 		<FormSection
 			title='Deploy'
 			icon={IconRocket}
-			hint='Auto deploy watches this service’s own repository and branch. Prune build cache sweeps the host’s dangling builder cache once this service finishes building.'
+			hint={hint.trim() || undefined}
 			aside={[
 				{
 					label: 'Last deploy',
@@ -140,54 +163,87 @@ function DeploySection({ projectId, service }: { projectId: string; service: Ser
 								to='/projects/$projectId/services/$serviceId/deployments'
 								params={params}
 								search={{ deployment: latest.id }}
-								className='underline-offset-4 hover:underline'
+								className={textLink}
 							>
 								#{latest.number}
 							</Link>
-							<Status value={latest.status} />
+							<Status run value={latest.status} />
 							<RelativeTime at={latest.created_at} />
-							<span>{duration(latest.started_at, latest.finished_at)}</span>
+							{latest.started_at && latest.finished_at ? (
+								<span className='whitespace-nowrap'>
+									took {duration(latest.started_at, latest.finished_at)}
+								</span>
+							) : null}
 						</span>
+					) : deployments.isSuccess ? (
+						<span className='text-muted'>Never</span>
 					) : (
-						'never'
+						<PendingReading label='the last deploy' failed={deployments.isError} />
 					),
 				},
 			]}
 		>
 			<ErrorText error={deploy.error ?? act.error ?? switches.error} />
+			<ErrorText error={deployments.error} />
 			<div className='flex flex-wrap items-center gap-2'>
 				<Button
 					variant='primary'
 					onClick={() => deploy.mutate()}
-					disabled={service.provider === 'unconfigured' || deploy.isPending}
+					disabled={unconfigured}
+					loading={deploy.isPending}
 				>
 					<IconRocket size={16} stroke={1.75} />
-					{deploy.isPending ? 'Starting…' : 'Deploy'}
+					Deploy
 				</Button>
-				<Button onClick={() => act.mutate('restart')} disabled={!running || act.isPending}>
-					<IconRefresh size={16} stroke={1.75} />
-					Restart
-				</Button>
-				<Button variant='danger' onClick={() => act.mutate('stop')} disabled={!stoppable || act.isPending}>
-					<IconPlayerStop size={16} stroke={1.75} />
-					Stop
-				</Button>
+				{startable ? (
+					<Button onClick={() => act.mutate('start')} loading={acting === 'start'}>
+						<IconPlayerPlay size={16} stroke={1.75} />
+						Start
+					</Button>
+				) : (
+					<Button
+						onClick={() => act.mutate('restart')}
+						disabled={!running || acting === 'stop'}
+						loading={acting === 'restart'}
+					>
+						<IconRefresh size={16} stroke={1.75} />
+						Restart
+					</Button>
+				)}
+				<Confirm
+					title={`Stop ${service.compose_service_name}?`}
+					description='Anything it serves is offline until it starts again.'
+					action='Stop service'
+					icon={IconPlayerStop}
+					onConfirm={() => act.mutate('stop')}
+				>
+					<Button disabled={!stoppable || acting === 'restart'} loading={acting === 'stop'}>
+						<IconPlayerStop size={16} stroke={1.75} />
+						Stop
+					</Button>
+				</Confirm>
 				<Button render={<Link to='/projects/$projectId/services/$serviceId/terminal' params={params} />}>
 					<IconTerminal2 size={16} stroke={1.75} />
 					Open terminal
 				</Button>
-				<span className='flex w-full flex-wrap items-center gap-x-6 gap-y-2'>
-					<Switch
-						label='Auto deploy'
-						checked={service.auto_deploy}
-						onChange={on => switches.mutate({ auto_deploy: on })}
-					/>
-					<Switch
-						label='Prune build cache'
-						checked={service.prune_build_cache}
-						onChange={on => switches.mutate({ prune_build_cache: on })}
-					/>
-				</span>
+				{builds ? (
+					<span className='flex w-full flex-wrap items-center gap-x-6 gap-y-2'>
+						{fromGit ? (
+							<Switch
+								label='Auto deploy'
+								checked={switching.auto_deploy ?? service.auto_deploy}
+								disabled={switches.isPending}
+								onChange={on => switches.mutate({ auto_deploy: on })}
+							/>
+						) : null}
+						<Switch
+							label='Prune build cache'
+							checked={switching.prune_build_cache ?? service.prune_build_cache}
+							disabled={switches.isPending}
+							onChange={on => switches.mutate({ prune_build_cache: on })}
+						/>
+					</span>
+				) : null}
 			</div>
 		</FormSection>
 	)
@@ -205,9 +261,20 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 	})
 
 	const { data } = connection
-	if (!data) return null
+	if (!data) {
+		if (connection.error) return <ErrorText error={connection.error} />
+		return <FormSkeleton label='Loading the connection' cards={2} />
+	}
 
-	const mask = (value: string) => (revealed ? value : '•'.repeat(12))
+	const mask = (value: string) =>
+		revealed ? (
+			value
+		) : (
+			<>
+				<span aria-hidden>{'•'.repeat(12)}</span>
+				<span className='sr-only'>Hidden</span>
+			</>
+		)
 	const upgrades = data.versions.filter(tag => !data.image.endsWith(`:${tag}`))
 
 	return (
@@ -219,29 +286,36 @@ function DatabaseSections({ serviceId }: { serviceId: string }) {
 				actions={
 					<Button variant='ghost' onClick={() => setRevealed(value => !value)}>
 						{revealed ? <IconEyeOff size={16} stroke={1.75} /> : <IconEye size={16} stroke={1.75} />}
-						{revealed ? 'Hide' : 'Reveal'}
+						{revealed ? 'Hide password' : 'Reveal password'}
 					</Button>
 				}
 			>
-				<Facts>
+				{/* The FormSection is the frame; a framed Facts inside it would be a card in a card. */}
+				<Facts className='border-0 bg-transparent px-0'>
 					<Fact label='Host' value={data.host} />
 					<Fact label='Port' value={data.port} />
 					{data.database ? <Fact label='Database' value={data.database} /> : null}
 					{data.user ? <Fact label='User' value={data.user} /> : null}
 					{data.password ? <Fact label='Password' value={mask(data.password)} /> : null}
 					{data.url ? (
-						<Fact label='URL' value={revealed ? data.url : data.url.replace(data.password, '•••')} />
+						<Fact
+							label='URL'
+							value={revealed ? data.url : maskUrlPassword(data.url, data.user, data.host)}
+						/>
 					) : null}
 					{data.node ? <Fact label='Node' value={data.node} /> : null}
 					{data.replication_url ? <Fact label='Replication URL' value={data.replication_url} /> : null}
 				</Facts>
 			</FormSection>
-			<FormSection title='Engine' icon={IconDatabase}>
-				<Facts>
+			<FormSection
+				title='Engine'
+				icon={IconDatabase}
+				hint='Other tags are the versions Vexdock offers for this engine besides the one running.'
+			>
+				<Facts className='border-0 bg-transparent px-0'>
 					<Fact label='Engine' value={data.engine} />
-					<Fact label='Image' value={data.image} />
 					<Fact label='Volume' value={data.data_volume} />
-					<Fact label='Other tags' value={upgrades.slice(0, 4).join(', ') || '-'} />
+					<Fact label='Other tags' value={upgrades.join(', ') || '-'} />
 				</Facts>
 			</FormSection>
 		</>
@@ -279,7 +353,8 @@ function SourceSection({ service }: { service: Service }) {
 	// repositories it can clone, and its token is what clones them.
 	const connections = useQuery({ queryKey: ['git-providers'], queryFn: api.gitProviders, enabled: git })
 	const connectionOptions = [
-		{ value: '', label: 'Repository URL' },
+		// Arc's Select reads '' as nothing picked, so the URL choice travels as 'url' and is stored as ''.
+		{ value: 'url', label: 'Repository URL' },
 		...(connections.data ?? [])
 			.filter(connection => connection.provider_type === showing && connection.connected)
 			.map(connection => ({ value: connection.git_provider_id, label: connection.name })),
@@ -381,6 +456,7 @@ function SourceSection({ service }: { service: Service }) {
 				{editable ? (
 					<div className='mb-4'>
 						<Segmented
+							label='Source'
 							value={provider}
 							onChange={next => {
 								setProvider(next)
@@ -394,23 +470,28 @@ function SourceSection({ service }: { service: Service }) {
 				<div className={editable ? '[contain:inline-size]' : undefined}>
 					{git ? (
 						<>
+							{/* Without the list, the connection picker below cannot offer the saved ones. */}
+							<ErrorText error={connections.error} />
 							{connectionOptions.length > 1 || providerId !== '' ? (
 								<Field label='Connection'>
-									<Select value={providerId} onChange={setProviderId} options={connectionOptions} />
+									<Select
+										value={providerId || 'url'}
+										onChange={next => setProviderId(next === 'url' ? '' : next)}
+										options={connectionOptions}
+									/>
 								</Field>
 							) : null}
-							<Field
-								label='Repository'
-								hint={providerId === '' ? undefined : (repositories.error?.message ?? undefined)}
-							>
+							<ErrorText error={repositories.error} />
+							<ErrorText error={branches.error} />
+							<Field label='Repository'>
 								{providerId === '' ? (
 									<Input
+										mono
 										value={repositoryUrl}
 										onChange={event => setRepositoryUrl(event.target.value)}
 									/>
 								) : (
 									<Combo
-										label='Repository'
 										value={repository}
 										disabled={repositories.isPending}
 										placeholder={repositories.isPending ? 'Loading…' : 'Search repositories'}
@@ -421,10 +502,9 @@ function SourceSection({ service }: { service: Service }) {
 								)}
 							</Field>
 							<div className='grid gap-x-6 md:grid-cols-2'>
-								<Field label='Branch' hint={branches.error?.message ?? undefined}>
+								<Field label='Branch'>
 									{branches.isSuccess ? (
 										<Combo
-											label='Branch'
 											value={branch}
 											placeholder='Search branches'
 											empty='No branches'
@@ -432,7 +512,7 @@ function SourceSection({ service }: { service: Service }) {
 											onChange={setBranch}
 										/>
 									) : (
-										<Input value={branch} onChange={event => setBranch(event.target.value)} />
+										<Input mono value={branch} onChange={event => setBranch(event.target.value)} />
 									)}
 								</Field>
 								{providerId === '' ? (
@@ -447,13 +527,28 @@ function SourceSection({ service }: { service: Service }) {
 								{providerId !== '' || credentialKind === 'none' ? null : (
 									<Field
 										label={credentialKind === 'token' ? 'Token' : 'Private key'}
-										hint='Leave empty to keep the stored value.'
+										hint={
+											credentialKind === savedCredentialKind
+												? 'One is saved; typing replaces it.'
+												: undefined
+										}
 									>
-										<Textarea
-											rows={credentialKind === 'token' ? 1 : 5}
-											value={credentialSecret}
-											onChange={event => setCredentialSecret(event.target.value)}
-										/>
+										{credentialKind === 'token' ? (
+											<Input
+												type='password'
+												autoComplete='new-password'
+												value={credentialSecret}
+												onChange={event => setCredentialSecret(event.target.value)}
+											/>
+										) : (
+											<Textarea
+												mono
+												autoComplete='off'
+												rows={5}
+												value={credentialSecret}
+												onChange={event => setCredentialSecret(event.target.value)}
+											/>
+										)}
 									</Field>
 								)}
 							</div>
@@ -468,13 +563,14 @@ function SourceSection({ service }: { service: Service }) {
 									: undefined
 							}
 						>
-							<Input value={image} onChange={event => setImage(event.target.value)} />
+							<Input mono value={image} onChange={event => setImage(event.target.value)} />
 						</Field>
 					) : null}
 					{editable && showing === 'image' ? (
 						<div className='grid gap-x-6 md:grid-cols-2'>
 							<Field label='Registry URL'>
 								<Input
+									mono
 									value={registryUrl}
 									placeholder='Docker Hub'
 									onChange={event => setRegistryUrl(event.target.value)}
@@ -482,6 +578,7 @@ function SourceSection({ service }: { service: Service }) {
 							</Field>
 							<Field label='Username' hint='Leave empty for a public image.'>
 								<Input
+									mono
 									value={registryUsername}
 									autoComplete='off'
 									onChange={event => setRegistryUsername(event.target.value)}
@@ -489,7 +586,7 @@ function SourceSection({ service }: { service: Service }) {
 							</Field>
 							<Field
 								label='Password'
-								hint={service.registry_username ? 'Leave empty to keep the stored value.' : undefined}
+								hint={service.registry_username ? 'One is saved; typing replaces it.' : undefined}
 							>
 								<Input
 									type='password'
@@ -504,12 +601,7 @@ function SourceSection({ service }: { service: Service }) {
 			</div>
 			{showing === 'raw' ? (
 				<Field label='Compose fragment'>
-					<Textarea
-						rows={10}
-						value={fragment}
-						onChange={event => setFragment(event.target.value)}
-						spellCheck={false}
-					/>
+					<Textarea rows={10} value={fragment} onChange={event => setFragment(event.target.value)} mono />
 				</Field>
 			) : null}
 		</FormSection>
@@ -544,7 +636,7 @@ function BuildSection({ service }: { service: Service }) {
 			icon={IconHammer}
 			hint={
 				buildType === 'static'
-					? 'Runs the root directory package.json build script if there is one, then serves only the output directory with nginx on port 80; unknown paths fall back to index.html.'
+					? 'Runs the build script from package.json in the root directory, if there is one, then serves only the output directory with Nginx on port 80; unknown paths fall back to index.html.'
 					: 'Applied on the next deploy.'
 			}
 			onSave={() => save.mutate()}
@@ -563,7 +655,7 @@ function BuildSection({ service }: { service: Service }) {
 		>
 			<ErrorText error={save.error} />
 			<div className='mb-4'>
-				<Segmented value={buildType} onChange={setBuildType} options={buildTypeOptions} />
+				<Segmented label='Build type' value={buildType} onChange={setBuildType} options={buildTypeOptions} />
 			</div>
 			<Field
 				label={buildType === 'static' ? 'Root directory' : 'Context path'}
@@ -582,12 +674,7 @@ function BuildSection({ service }: { service: Service }) {
 						/>
 					</Field>
 					<Field label='Build stage' hint='Empty builds the last stage.'>
-						<Input
-							value={buildTarget}
-							placeholder='production'
-							onChange={event => setBuildTarget(event.target.value)}
-							mono
-						/>
+						<Input value={buildTarget} onChange={event => setBuildTarget(event.target.value)} mono />
 					</Field>
 				</div>
 			) : (
@@ -595,12 +682,7 @@ function BuildSection({ service }: { service: Service }) {
 					label='Output directory'
 					hint='Relative to the root directory. Empty serves the first of dist/client, dist, build, out, .output/public, public holding an index.html.'
 				>
-					<Input
-						value={outputDir}
-						placeholder='dist'
-						onChange={event => setOutputDir(event.target.value)}
-						mono
-					/>
+					<Input value={outputDir} onChange={event => setOutputDir(event.target.value)} mono />
 				</Field>
 			)}
 		</FormSection>

@@ -1,24 +1,39 @@
 import { useMemo, useState } from 'react'
-import { IconPlus } from '@tabler/icons-react'
+import { IconPlayerPause, IconPlayerPlay, IconPlus } from '@tabler/icons-react'
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, type LinkOptions, linkOptions, useNavigate } from '@tanstack/react-router'
+import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
-import { type Columns, DataTable, columnsFor } from '../components/data-table'
+import { type Columns, DataTable, RowTitle, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
 import { HostMetrics, WINDOWS } from '../components/host-metrics'
 import { useHistory } from '../components/metric-chart'
 import { NewProjectDialog } from '../components/new-project'
-import { Button, Page, Refresh, RelativeTime, Section, Segmented, Status } from '../components/primitives'
+import {
+	Button,
+	EmptyState,
+	ErrorText,
+	IconButton,
+	Page,
+	PendingReading,
+	Refresh,
+	RelativeTime,
+	Section,
+	Segmented,
+	Status,
+	textLink,
+} from '../components/primitives'
 import {
 	api,
 	type Certificate,
+	certificateStatus,
 	type HostPoint,
 	type HostStats,
 	type MetricWindow,
 	type Project,
 	type SystemInfo,
 } from '../lib/api'
-import { until } from '../lib/format'
+import { since, until } from '../lib/format'
 import { certificatesQuery, preload, projectsQuery, systemInfoQuery, versionQuery } from '../lib/queries'
 import { useEventSource } from '../lib/sse'
 
@@ -28,11 +43,13 @@ type HostSample = HostPoint & { load_average?: number }
 /** Close enough to expiry that a renewal which has not happened yet is worth reading as a problem. */
 const EXPIRY_WARNING_DAYS = 21
 
-type Concern = { id: string; state: string; subject: string; detail: string; to: string }
+/** Where a concern is fixed: a project's services, an uploaded certificate's list, or the Domains tab that renews one. */
+type Concern = { id: string; state: string; subject: string; detail: string; link: LinkOptions }
 
 /** The two things on this page that are wrong rather than merely notable: services Docker gave up on, and certificates running out. */
 function concernsOf(projects: Project[], certificates: Certificate[]): Concern[] {
 	const deadline = Date.now() + EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000
+	const certificateOf = new Map(certificates.map(certificate => [certificate.domain_id, certificate]))
 	const concerns: Concern[] = []
 	for (const project of projects) {
 		if (project.errored_count > 0) {
@@ -40,24 +57,37 @@ function concernsOf(projects: Project[], certificates: Certificate[]): Concern[]
 				id: project.id,
 				state: 'failed',
 				subject: project.name,
-				detail: `${project.errored_count} of ${project.service_count} services errored`,
-				to: `/projects/${project.id}`,
+				detail: `${project.errored_count} of ${project.service_count} service${project.service_count === 1 ? '' : 's'} errored`,
+				link: linkOptions({
+					to: '/projects/$projectId',
+					params: { projectId: project.id },
+					search: project.errored_environment ? { env: project.errored_environment } : {},
+				}),
 			})
 		}
-	}
-	for (const certificate of certificates) {
-		const expiry = Date.parse(certificate.expires_at)
-		const expiring = !Number.isNaN(expiry) && expiry < deadline
-		if (certificate.status === 'failed' || expiring) {
+		for (const domain of project.domains) {
+			const certificate = certificateOf.get(domain.id)
+			if (!certificate) continue
+			const expiry = Date.parse(certificate.expires_at)
+			const expiring = !Number.isNaN(expiry) && expiry < deadline
+			if (certificate.status !== 'failed' && !expiring) continue
+			const uploaded = certificate.source === 'custom'
+			const expired = certificateStatus(certificate) === 'expired'
+			let detail = `certificate expires ${until(certificate.expires_at)}`
+			if (certificate.status === 'failed') detail = certificate.last_error || 'certificate could not be issued'
+			else if (expired) detail = `certificate expired ${since(certificate.expires_at)}`
 			concerns.push({
 				id: certificate.id,
-				state: certificate.status === 'failed' ? 'failed' : 'pending',
+				state: certificate.status === 'failed' || expired ? 'failed' : 'pending',
 				subject: certificate.hostname,
-				detail:
-					certificate.status === 'failed'
-						? certificate.last_error || 'certificate could not be issued'
-						: `certificate expires ${until(certificate.expires_at)}`,
-				to: '/system/certificates',
+				detail,
+				link: uploaded
+					? linkOptions({ to: '/system/certificates' })
+					: linkOptions({
+							to: '/projects/$projectId/services/$serviceId/domains',
+							params: { projectId: domain.project_id, serviceId: domain.service_id },
+							search: { env: domain.environment_id },
+						}),
 			})
 		}
 	}
@@ -70,25 +100,24 @@ const toMillis = (point: HostPoint): HostSample => ({ ...point, at: point.at * 1
 type RecentDeployment = SystemInfo['recent_deployments'][number]
 
 const renderDeploymentDetail = ({ deployment }: RecentDeployment) => <DeploymentDetail deploymentId={deployment.id} />
-const deploymentDetailTitle = ({ deployment, project_name }: RecentDeployment) =>
-	`${project_name || deployment.project_id} / ${deployment.service_name} #${deployment.number}`
+const deploymentName = ({ deployment }: RecentDeployment) => `${deployment.service_name} #${deployment.number}`
+const deploymentPlace = ({ project_name, environment_name }: RecentDeployment) =>
+	[project_name || '-', environment_name].filter(Boolean).join(' · ')
 
 const recentDeploymentColumns: Columns<RecentDeployment> = (() => {
 	const cell = columnsFor<RecentDeployment>()
 	return [
-		cell.accessor(({ deployment }) => `${deployment.service_name} #${deployment.number}`, {
+		cell.accessor(deploymentName, {
 			id: 'deployment',
 			header: 'Deployment',
 			cell: ({ row: { original } }) => (
 				<span className='flex items-center gap-2.5'>
-					<Status dot value={original.deployment.status} />
+					<Status dot run value={original.deployment.status} />
 					<span className='grid max-w-60 min-w-0'>
-						<span className='truncate font-mono'>
-							{original.deployment.service_name} #{original.deployment.number}
-						</span>
-						<span className='truncate text-xs text-muted'>
-							{original.project_name || original.deployment.project_id} · {original.environment_name}
-						</span>
+						<RowTitle className='max-w-full justify-self-start truncate font-mono'>
+							{deploymentName(original)}
+						</RowTitle>
+						<span className='truncate text-xs text-muted'>{deploymentPlace(original)}</span>
 					</span>
 				</span>
 			),
@@ -108,9 +137,15 @@ const projectColumns: Columns<Project> = (() => {
 			id: 'name',
 			header: 'Project',
 			cell: ({ row }) => (
-				<span title={row.original.name} className='block max-w-56 truncate font-medium'>
+				<Link
+					to='/projects/$projectId'
+					params={{ projectId: row.original.id }}
+					tabIndex={-1}
+					title={row.original.name}
+					className={cn(textLink, 'block max-w-56 truncate font-medium')}
+				>
 					{row.original.name}
-				</span>
+				</Link>
 			),
 		}),
 		cell.accessor(project => project.running_count, {
@@ -138,10 +173,10 @@ const projectColumns: Columns<Project> = (() => {
 			header: 'Latest deployment',
 			cell: ({ row: { original } }) => {
 				const latest = original.latest_deployment
-				if (!latest) return <span className='text-muted'>never</span>
+				if (!latest) return <span className='text-muted'>Never</span>
 				return (
 					<span className='flex items-center gap-2 whitespace-nowrap'>
-						<Status value={latest.status} />
+						<Status run value={latest.status} />
 						<span className='font-mono'>
 							{latest.service_name} #{latest.number}
 						</span>
@@ -170,11 +205,11 @@ function ServiceSquares({ project }: { project: Project }) {
 		<span
 			role='img'
 			aria-label={`${project.running_count} running, ${project.errored_count} errored, ${idle} idle`}
-			className='flex flex-wrap gap-0.75'
+			className='flex flex-wrap gap-1'
 		>
 			{squares.map((tone, index) => (
 				// oxlint-disable-next-line react/no-array-index-key -- squares carry no identity, only a count
-				<span key={index} className={`size-2.5 rounded-[3px] ${tone}`} />
+				<span key={index} className={cn('size-2.5 rounded-[3px]', tone)} />
 			))}
 		</span>
 	)
@@ -194,6 +229,7 @@ export const Route = createFileRoute('/')({
 			preload(queryClient, metricsQuery('30m')),
 			preload(queryClient, versionQuery),
 			preload(queryClient, certificatesQuery),
+			preload(queryClient, projectsQuery),
 		]),
 	component: DashboardPage,
 })
@@ -207,12 +243,15 @@ function DashboardPage() {
 	const projects = useQuery(projectsQuery)
 	const certificates = useQuery(certificatesQuery)
 	const [stats, setStats] = useState<HostSample | null>(null)
+	const [paused, setPaused] = useState(false)
 	const [openDeployment, setOpenDeployment] = useState<string | null>(null)
 	const [creating, setCreating] = useState(false)
 
-	useEventSource('/api/system/stats', {
-		stats: data => setStats({ ...(data as HostStats), at: Date.now() }),
-	})
+	const stream = useEventSource(
+		'/api/system/stats',
+		{ stats: data => setStats({ ...(data as HostStats), at: Date.now() }) },
+		!paused,
+	)
 
 	const history = useHistory(
 		stats,
@@ -232,22 +271,39 @@ function DashboardPage() {
 	return (
 		<Page
 			fill
+			// A caption, not a FactBar: the page's one strip is HostMetrics, and these words fit beside the filters.
 			toolbar={
-				<p className='min-w-0 truncate text-sm text-secondary'>
-					{host ? `${host.name} · Docker ${host.docker_version} · ` : null}
-					Vexdock{' '}
-					{version.data?.update_available ? (
-						<Link to='/system/settings/about' className='text-warning underline-offset-4 hover:underline'>
-							{info.data?.version}, update available
-						</Link>
-					) : (
-						info.data?.version
-					)}
-				</p>
+				info.data ? (
+					<p className='min-w-0 truncate text-sm text-secondary max-sm:whitespace-normal'>
+						{`${info.data.host.name} · Docker ${info.data.host.docker_version} · `}
+						Vexdock{' '}
+						{version.data?.update_available ? (
+							<Link to='/system/settings/about' className={cn(textLink, 'text-warning')}>
+								{info.data.version}, update available
+							</Link>
+						) : (
+							info.data.version
+						)}
+					</p>
+				) : (
+					<PendingReading label='host' failed={info.isError} />
+				)
 			}
-			filters={<Segmented label='Window' value={window} options={WINDOWS} onChange={setWindow} />}
+			filters={
+				<>
+					<Segmented label='Window' value={window} options={WINDOWS} onChange={setWindow} />
+					{/* WCAG 2.2.2: readings that keep moving beside other content can be held still. */}
+					<IconButton
+						icon={paused ? IconPlayerPlay : IconPlayerPause}
+						label={paused ? 'Resume live readings' : 'Pause live readings'}
+						onClick={() => setPaused(!paused)}
+					/>
+				</>
+			}
 		>
 			<NewProjectDialog open={creating} onOpenChange={setCreating} />
+			{/* Without it, a failed read drops every certificate concern and the page reads as all clear. */}
+			<ErrorText error={certificates.error} className='mb-6' />
 
 			{concerns.length > 0 ? (
 				<Alert
@@ -258,9 +314,12 @@ function DashboardPage() {
 					<ul className='grid gap-1'>
 						{concerns.map(concern => (
 							<li key={concern.id}>
-								<Link to={concern.to} className='group/concern inline-flex min-w-0 items-center gap-2'>
+								<Link
+									{...concern.link}
+									className='group/concern inline-flex min-w-0 press items-center gap-2'
+								>
 									<Status dot value={concern.state} />
-									<span className='font-medium text-foreground group-hover/concern:underline'>
+									<span className='font-medium text-foreground underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-110 ease-standard group-hover/concern:decoration-current group-active/concern:decoration-current'>
 										{concern.subject}
 									</span>
 									<span className='truncate'>{concern.detail}</span>
@@ -271,7 +330,14 @@ function DashboardPage() {
 				</Alert>
 			) : null}
 
-			<HostMetrics history={history} window={window} load={stats?.load_average} cpus={host?.cpus} />
+			<ErrorText error={recorded.error} />
+			<HostMetrics
+				history={history}
+				window={window}
+				load={stats?.load_average}
+				cpus={host?.cpus}
+				failed={history.length === 0 && (recorded.isError || stream === 'lost')}
+			/>
 
 			<div className='grid flex-1 grid-cols-[minmax(0,1fr)] gap-6 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_24rem] xl:grid-rows-[minmax(0,1fr)]'>
 				<Section
@@ -279,10 +345,13 @@ function DashboardPage() {
 					total={projects.data?.length}
 					fill
 					actions={
-						<Button variant='primary' onClick={() => setCreating(true)}>
-							<IconPlus size={16} stroke={1.75} />
-							New project
-						</Button>
+						<>
+							<Refresh label='Refresh projects' onClick={() => projects.refetch()} />
+							<Button variant='primary' size='sm' onClick={() => setCreating(true)}>
+								<IconPlus size={16} stroke={1.75} />
+								New project
+							</Button>
+						</>
 					}
 				>
 					<DataTable
@@ -294,14 +363,19 @@ function DashboardPage() {
 						onRowClick={project =>
 							navigate({ to: '/projects/$projectId', params: { projectId: project.id } })
 						}
-						empty='No projects yet. Create one, then add services to it.'
+						empty={
+							<EmptyState
+								title='No projects yet'
+								description='New project creates one, then add services to it.'
+							/>
+						}
 					/>
 				</Section>
 
 				<Section
 					title='Deployments'
 					fill
-					actions={<Refresh onClick={() => info.refetch()} busy={info.isFetching} />}
+					actions={<Refresh label='Refresh deployments' onClick={() => info.refetch()} />}
 				>
 					<DataTable
 						data={deployments}
@@ -312,10 +386,16 @@ function DashboardPage() {
 						detail={{
 							openId: openDeployment,
 							onOpenChange: setOpenDeployment,
-							title: deploymentDetailTitle,
+							title: deploymentName,
+							description: deploymentPlace,
 							render: renderDeploymentDetail,
 						}}
-						empty='No deployments yet'
+						empty={
+							<EmptyState
+								title='No deployments yet'
+								description='Open a project in the list and deploy one of its services; the run lists here.'
+							/>
+						}
 					/>
 				</Section>
 			</div>

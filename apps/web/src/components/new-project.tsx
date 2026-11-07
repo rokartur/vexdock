@@ -2,29 +2,18 @@ import { useState } from 'react'
 import { IconPlus } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { TagInput } from '@/components/ui/tag-input'
 import { api } from '../lib/api'
-import { Button, DialogFooter, ErrorText, Field, Input } from './primitives'
-
-export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title='New project' className='[--dialog-width:32rem]'>
-				<NewProjectForm onDone={() => onOpenChange(false)} />
-			</DialogContent>
-		</Dialog>
-	)
-}
+import { projectsQuery } from '../lib/queries'
+import { Field, FormDialog, Input } from './primitives'
 
 /**
  * A project is the folder its services live in. What it runs is decided one
- * service at a time inside it, so this form only needs a name.
+ * service at a time inside it, so this form asks only for a name and its tags.
  */
-function NewProjectForm({ onDone }: { onDone: () => void }) {
+export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
-	const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects })
 
 	const [name, setName] = useState('')
 	const [tags, setTags] = useState<string[]>([])
@@ -33,47 +22,59 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
 		mutationFn: () => api.createProject({ name, tags }),
 		onSuccess: async project => {
 			await queryClient.invalidateQueries({ queryKey: ['projects'] })
-			onDone()
-			await navigate({ to: '/projects/$projectId', params: { projectId: project.id } })
+			onOpenChange(false)
+			setName('')
+			setTags([])
+			// The dialog's exit is the motion; a page swap would freeze it in the snapshot.
+			await navigate({ to: '/projects/$projectId', params: { projectId: project.id }, viewTransition: false })
 		},
 	})
 
-	const knownTags = [...new Set((projects.data ?? []).flatMap(project => project.tags ?? []))]
-
 	return (
-		<form
-			onSubmit={event => {
-				event.preventDefault()
-				create.mutate()
+		<FormDialog
+			open={open}
+			onOpenChange={next => {
+				onOpenChange(next)
+				if (next) return
+				setName('')
+				setTags([])
 			}}
+			title='New project'
+			action='Create project'
+			icon={IconPlus}
+			mutation={create}
+			onSubmit={() => create.mutate()}
 		>
-			<div className='grid gap-x-6 md:grid-cols-2'>
+			<div className='grid gap-x-6 gap-y-3 md:grid-cols-2 [&>*]:mb-0'>
 				<Field label='Name'>
 					<Input required value={name} onChange={event => setName(event.target.value)} placeholder='my-app' />
 				</Field>
-
-				<div className='mb-4'>
-					<TagInput
-						label='Tags (optional)'
-						placeholder='staging'
-						value={tags}
-						onValueChange={next => setTags([...new Set(next.map(toTag).filter(Boolean))])}
-						suggestions={knownTags}
-					/>
-				</div>
+				<ProjectTags label='Tags (optional)' value={tags} onChange={setTags} />
 			</div>
+		</FormDialog>
+	)
+}
 
-			<ErrorText error={create.error} />
-			<DialogFooter>
-				<Button variant='ghost' onClick={onDone}>
-					Cancel
-				</Button>
-				<Button type='submit' variant='primary' loading={create.isPending}>
-					<IconPlus size={16} stroke={1.75} />
-					Create
-				</Button>
-			</DialogFooter>
-		</form>
+/** Tags are slugs, so what is typed is lowercased and dashed; the suggestions are every tag already in use. */
+export function ProjectTags({
+	label,
+	value,
+	onChange,
+}: {
+	label: string
+	value: string[]
+	onChange: (tags: string[]) => void
+}) {
+	const projects = useQuery(projectsQuery)
+	const knownTags = [...new Set((projects.data ?? []).flatMap(project => project.tags))]
+	return (
+		<TagInput
+			label={label}
+			placeholder='staging'
+			value={value}
+			onValueChange={next => onChange([...new Set(next.map(toTag).filter(Boolean))])}
+			suggestions={knownTags}
+		/>
 	)
 }
 

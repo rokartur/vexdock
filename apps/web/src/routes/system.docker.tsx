@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { IconBox, IconDatabase, IconStack2, IconTrash, type Icon as TablerIcon } from '@tabler/icons-react'
+import { useMemo } from 'react'
+import { IconBox, IconDatabase, IconStack2, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Alert } from '@/components/ui/alert'
@@ -17,16 +17,38 @@ export const Route = createFileRoute('/system/docker')({
 })
 
 const targets = [
-	{ kind: 'images', label: 'Unused images', field: 'unused_images', icon: IconStack2 },
-	{ kind: 'build-cache', label: 'Build cache', field: 'build_cache', icon: IconStack2 },
-	{ kind: 'containers', label: 'Stopped containers', field: 'stopped_containers', icon: IconBox },
-	{ kind: 'volumes', label: 'Unused volumes', field: 'unused_volumes', icon: IconDatabase },
+	{ kind: 'images', label: 'Unused images', noun: ['image', 'images'], field: 'unused_images', icon: IconStack2 },
+	{
+		kind: 'build-cache',
+		label: 'Build cache',
+		noun: ['cache record', 'cache records'],
+		field: 'build_cache',
+		icon: IconStack2,
+	},
+	{
+		kind: 'containers',
+		label: 'Stopped containers',
+		noun: ['container', 'containers'],
+		field: 'stopped_containers',
+		icon: IconBox,
+	},
+	{
+		kind: 'volumes',
+		label: 'Anonymous volumes',
+		noun: ['volume', 'volumes'],
+		field: 'unused_volumes',
+		icon: IconDatabase,
+	},
 ] as const
 
 type CleanupTarget = (typeof targets)[number]
-type CleanupRow = { kind: CleanupTarget['kind']; label: string; icon: TablerIcon; size: number | undefined }
+type CleanupRow = CleanupTarget & { size: number | undefined }
 
-function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void, total: number): Columns<CleanupRow> {
+function cleanupTableColumns(
+	clean: (target: CleanupTarget) => void,
+	cleaning: CleanupTarget['kind'] | undefined,
+	total: number,
+): Columns<CleanupRow> {
 	const cell = columnsFor<CleanupRow>()
 	return [
 		cell.accessor(row => row.label, {
@@ -48,16 +70,30 @@ function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void, total
 			id: 'actions',
 			header: '',
 			meta: { align: 'right' },
-			cell: ({ row: { original } }) => (
-				<Confirm
-					title={`Remove ${original.label.toLowerCase()}?`}
-					description={`Reclaims about ${bytes(original.size)}. Nothing in use is touched.`}
-					action='Remove'
-					onConfirm={() => clean(original.kind)}
-				>
-					<IconButton icon={IconTrash} label='Remove' />
-				</Confirm>
-			),
+			cell: ({ row: { original } }) => {
+				const name = original.label.toLowerCase()
+				const volumes = original.kind === 'volumes'
+				return (
+					<Confirm
+						title={`Remove ${name}?`}
+						description={
+							volumes
+								? `Reclaims about ${bytes(original.size)}. Everything stored in them is destroyed. There is no undo.`
+								: `Reclaims about ${bytes(original.size)}. Nothing in use is touched.`
+						}
+						action={`Remove ${name}`}
+						type={volumes ? name : undefined}
+						onConfirm={() => clean(original)}
+					>
+						<IconButton
+							icon={IconTrash}
+							label={`Remove ${name}`}
+							loading={cleaning === original.kind}
+							disabled={cleaning !== undefined || original.size === undefined}
+						/>
+					</Confirm>
+				)
+			},
 		}),
 	]
 }
@@ -68,32 +104,34 @@ function cleanupTableColumns(clean: (kind: CleanupTarget['kind']) => void, total
  */
 function CleanupPage() {
 	const queryClient = useQueryClient()
-	const [result, setResult] = useState('')
-
 	const preview = useQuery(cleanupQuery)
 
 	const cleanup = useMutation({
-		mutationFn: (kind: (typeof targets)[number]['kind']) => api.cleanup(kind),
-		onSuccess: async report => {
-			setResult(`Removed ${report.removed} ${report.kind}, reclaimed ${bytes(report.space_reclaimed)}.`)
+		mutationFn: (target: CleanupTarget) => api.cleanup(target.kind),
+		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ['cleanup'] })
 		},
 	})
+	// Read from the last run, so a run that fails replaces the success it would otherwise sit beside.
+	const result = cleanup.isSuccess
+		? `Removed ${cleanup.data.removed.toLocaleString('en-US')} ${cleanup.variables.noun[cleanup.data.removed === 1 ? 0 : 1]}, reclaimed ${bytes(cleanup.data.space_reclaimed)}.`
+		: ''
 
 	const rows = useMemo<CleanupRow[]>(
-		() => targets.map(({ kind, label, field, icon }) => ({ kind, label, icon, size: preview.data?.[field] })),
+		() => targets.map(target => ({ ...target, size: preview.data?.[target.field] })),
 		[preview.data],
 	)
 	const { mutate: clean } = cleanup
+	const cleaning = cleanup.isPending ? cleanup.variables.kind : undefined
 	const total = rows.reduce((sum, row) => sum + (row.size ?? 0), 0)
-	const columns = useMemo(() => cleanupTableColumns(clean, total), [clean, total])
+	const columns = useMemo(() => cleanupTableColumns(clean, cleaning, total), [clean, cleaning, total])
 
 	return (
 		<Page labels={{ docker: 'Docker cleanup' }}>
 			<Section
 				title='Reclaimable space'
 				total={preview.data ? bytes(total) : undefined}
-				actions={<Refresh onClick={() => preview.refetch()} busy={preview.isFetching} />}
+				actions={<Refresh onClick={() => preview.refetch()} />}
 			>
 				<ErrorText error={cleanup.error} />
 				{result ? <Alert tone='success' title={result} className='mb-3' /> : null}

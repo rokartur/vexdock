@@ -40,6 +40,10 @@ test('a stored port that moved its target is one row opening and one closing', (
 	])
 })
 
+test('a stopped container publishes nothing, so stored ports read closed and nothing drifts', () => {
+	expect(portRows([stored('a', 5403)], undefined).map(row => row.state)).toEqual(['closed'])
+})
+
 test('rows sort by published port', () => {
 	expect(portRows([stored('b', 9000), stored('a', 8080)], [live(5403)]).map(row => row.published)).toEqual([
 		5403, 8080, 9000,

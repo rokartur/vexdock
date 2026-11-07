@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
 	IconClock,
 	IconDeviceFloppy,
 	IconFileText,
+	IconFolder,
 	IconPencil,
 	IconPlayerPlay,
 	IconPlus,
@@ -10,29 +11,35 @@ import {
 } from '@tabler/icons-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from 'cn'
 import { Switch as ArcSwitch } from '@/components/ui/switch'
-import { api, type ScheduledTask, type TaskInput } from '../lib/api'
-import { duration, since } from '../lib/format'
+import { api, type ScheduledTask, type TaskInput, type TaskRun } from '../lib/api'
+import { duration } from '../lib/format'
 import { tasksQuery } from '../lib/queries'
-import { LogViewer } from './log-viewer'
+import { LogViewer, outputLines } from './log-viewer'
 import {
 	Button,
+	Combo,
 	Confirm,
+	DetailDialog,
 	EmptyState,
 	ErrorText,
+	ListPlaceholder,
 	Field,
+	FormDialog,
 	IconButton,
 	Input,
+	Announcement,
+	LoadingStatus,
+	PendingReading,
 	RelativeTime,
 	Section,
-	Segmented,
 	Select,
 	StatStrip,
 	Status,
 	Switch,
 	Textarea,
+	textLink,
 } from './primitives'
 
 /** A task being written. `id` is null while it is still a new one. */
@@ -61,7 +68,8 @@ const cronPresets = [
 	{ label: 'First of the month', value: '0 0 1 * *' },
 ]
 
-const scheduleOptions = [{ label: 'Custom', value: '' }, ...cronPresets]
+// Arc's Select reads '' as nothing picked, so Custom needs a value of its own.
+const scheduleOptions = [{ label: 'Custom', value: 'custom' }, ...cronPresets]
 
 const timezoneOptions = ['UTC', ...Intl.supportedValuesOf('timeZone').filter(zone => zone !== 'UTC')].map(zone => ({
 	value: zone,
@@ -73,8 +81,11 @@ type TaskActions = {
 	edit: (task: ScheduledTask) => void
 	run: (id: string) => void
 	toggle: (task: ScheduledTask) => void
+	togglingIds: string[]
 	remove: (id: string) => void
-	runningId: string | null
+	removingId: string | undefined
+	runningIds: string[]
+	failures: Record<string, string>
 	/** Off on a service's own tab, where every row has the same owner. */
 	owner: boolean
 }
@@ -82,16 +93,18 @@ type TaskActions = {
 /** Arc's agent-routines row: what runs and when, its last run, the schedule switch and Run now. */
 function TaskRow({
 	task,
-	actions: { select, edit, run, toggle, remove, runningId, owner },
+	actions: { select, edit, run, toggle, togglingIds, remove, removingId, runningIds, failures, owner },
 }: {
 	task: ScheduledTask
 	actions: TaskActions
 }) {
-	const running = runningId === task.id
+	const running = runningIds.includes(task.id)
+	// The switch moves on the click; the PATCH and the refetch behind it take a moment to agree.
+	const toggling = togglingIds.includes(task.id)
 	const last = task.last_run
 	const schedule = cronPresets.find(preset => preset.value === task.schedule)?.label
 	return (
-		<li className='grid gap-x-4 gap-y-2 px-4 py-3 not-first:border-t not-first:border-border-subtle md:grid-cols-[minmax(0,1fr)_11rem_auto] md:items-center'>
+		<li className='grid gap-x-4 gap-y-2 px-4 py-3 not-first:border-t not-first:border-border-subtle @2xl:grid-cols-[minmax(0,1fr)_11rem_auto] @2xl:items-center'>
 			<div className='grid min-w-0 gap-0.5'>
 				<span className='flex min-w-0 items-center gap-2'>
 					<span className='truncate font-medium'>{task.name}</span>
@@ -99,7 +112,8 @@ function TaskRow({
 						<Link
 							to='/projects/$projectId/services/$serviceId/tasks'
 							params={{ projectId: task.project_id, serviceId: task.service_id }}
-							className='truncate text-xs text-muted underline-offset-4 hover:underline'
+							search={{ env: task.environment_id }}
+							className={cn(textLink, 'truncate text-xs text-muted')}
 						>
 							{task.project_name} / {task.service_name}
 						</Link>
@@ -114,65 +128,60 @@ function TaskRow({
 				<span className='truncate font-mono text-xs text-secondary'>{task.command}</span>
 			</div>
 
-			<button
-				type='button'
-				onClick={() => select(task.id)}
-				className='-mx-2 grid justify-items-start gap-0.5 justify-self-start rounded-control px-2 py-1 text-left text-xs hover:bg-surface-muted md:mx-0'
-			>
+			<div className='grid justify-items-start gap-0.5 text-xs'>
 				<span className='text-secondary'>
-					{running ? (
-						'Running'
-					) : task.enabled ? (
-						task.next_run ? (
-							<>
-								Next run <RelativeTime at={task.next_run} />
-							</>
-						) : (
-							'Never comes round'
-						)
-					) : (
-						'Paused'
-					)}
+					<NextRun task={task} running={running} />
 				</span>
 				<span className='flex items-center gap-1.5 text-muted'>
 					{last ? (
 						<>
-							<Status dot value={last.exit_code === 0 ? 'success' : 'failed'} />
-							<RelativeTime at={last.started_at} />
-							<span className='font-mono'>
-								{last.finished_at ? duration(last.started_at, last.finished_at) : 'running'}
+							<Status dot run value={outcome(last)} />
+							<span>
+								Last run <RelativeTime at={last.started_at} />
 							</span>
-							{last.exit_code === 0 ? null : (
+							{outcome(last) === 'failed' ? (
 								<span className='font-mono text-danger'>exit {last.exit_code}</span>
-							)}
+							) : null}
+							{outcome(last) === 'running' ? <span className='font-mono'>running</span> : null}
 						</>
 					) : (
 						'No runs yet'
 					)}
 				</span>
-			</button>
+			</div>
 
 			<div className='flex items-center gap-1.5'>
 				<ArcSwitch
 					aria-label={`Run ${task.name} on schedule`}
-					checked={task.enabled}
+					checked={toggling ? !task.enabled : task.enabled}
+					disabled={toggling}
 					onCheckedChange={() => toggle(task)}
 				/>
-				<Button disabled={runningId !== null} onClick={() => run(task.id)}>
+				<Button size='sm' loading={running} onClick={() => run(task.id)} aria-label={`Run ${task.name}`}>
 					<IconPlayerPlay size={16} stroke={1.75} />
-					{running ? 'Running…' : 'Run'}
+					Run
 				</Button>
-				<IconButton icon={IconFileText} label='Runs' onClick={() => select(task.id)} />
-				<IconButton icon={IconPencil} label='Edit' onClick={() => edit(task)} />
-				{/* Deleting a task takes its whole run history with it, so it asks first. */}
+				<IconButton icon={IconFileText} label={`Show runs of ${task.name}`} onClick={() => select(task.id)} />
+				<IconButton icon={IconPencil} label={`Edit ${task.name}`} onClick={() => edit(task)} />
 				<Confirm
 					title={`Delete ${task.name}?`}
 					description='The task and every run it recorded are removed.'
+					action='Delete task'
 					onConfirm={() => remove(task.id)}
 				>
-					<IconButton icon={IconTrash} label='Delete' />
+					<IconButton
+						icon={IconTrash}
+						label={`Delete ${task.name}`}
+						loading={removingId === task.id}
+						disabled={removingId !== undefined}
+					/>
 				</Confirm>
 			</div>
+			{failures[task.id] ? (
+				<p role='alert' className='text-xs text-danger @2xl:col-span-3'>
+					{failures[task.id]}
+				</p>
+			) : null}
 		</li>
 	)
 }
@@ -187,6 +196,15 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 	// A form is open exactly when there is one to edit, so one state covers both.
 	const [form, setForm] = useState<TaskForm | null>(null)
 	const [selected, setSelected] = useState<string | null>(null)
+	const [runningIds, setRunningIds] = useState<string[]>([])
+	const [togglingIds, setTogglingIds] = useState<string[]>([])
+	// Rows run, toggle and delete at the same time, so a failure is kept on the row it belongs to.
+	const [failures, setFailures] = useState<Record<string, string>>({})
+	const fail = (id: string, verb: string, error: Error) =>
+		setFailures(current => ({ ...current, [id]: `Could not ${verb}: ${error.message}` }))
+	const clearFailure = (id: string) => setFailures(current => ({ ...current, [id]: '' }))
+	// A run that lands changes only its row's dot, so a screen reader hears it here.
+	const [announced, setAnnounced] = useState({ text: '', at: 0 })
 
 	const tasks = useQuery({
 		...tasksQuery(serviceId),
@@ -194,12 +212,8 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 		// down to zero and stay there.
 		refetchInterval: 30_000,
 	})
-	// Editing from the cross-project page changes a row the service tab also
-	// shows, and the other way round, so both lists go stale together.
-	const invalidate = async () => {
-		await queryClient.invalidateQueries({ queryKey: ['tasks'] })
-		if (serviceId) await queryClient.invalidateQueries({ queryKey: ['service', serviceId, 'tasks'] })
-	}
+	// Both lists show the same rows: `['tasks']` on the cross-project page, `['service', id, 'tasks']` on a service tab.
+	const invalidate = () => queryClient.invalidateQueries({ predicate: query => query.queryKey.at(-1) === 'tasks' })
 	const selectedTask = tasks.data?.find(task => task.id === selected)
 
 	const save = useMutation({
@@ -216,65 +230,93 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 	})
 	const run = useMutation({
 		mutationFn: api.runTask,
-		onSuccess: async (_result, id) => {
-			setSelected(id)
+		// One mutation, many rows: a run holds its request open until the command exits, and other tasks may start meanwhile.
+		onMutate: id => {
+			clearFailure(id)
+			setRunningIds(ids => [...ids, id])
+		},
+		onError: (error, id) => fail(id, 'run it', error),
+		onSettled: (_result, _error, id) => setRunningIds(ids => ids.filter(running => running !== id)),
+		onSuccess: async (result, id) => {
+			const name = tasks.data?.find(task => task.id === id)?.name ?? 'Task'
+			setAnnounced({ text: `${name} ran: ${outcome(result)}`, at: Date.now() })
 			await queryClient.invalidateQueries({ queryKey: ['task', id, 'runs'] })
 			await invalidate()
 		},
 	})
 	const toggle = useMutation({
 		mutationFn: (task: ScheduledTask) => api.updateTask(task.id, { enabled: !task.enabled }),
+		onMutate: task => {
+			clearFailure(task.id)
+			setTogglingIds(ids => [...ids, task.id])
+		},
+		onError: (error, task) => fail(task.id, task.enabled ? 'pause it' : 'resume it', error),
 		onSuccess: invalidate,
+		// Cleared after the refetch lands, so the switch never flips back to the old value in between.
+		onSettled: (_result, _error, task) => setTogglingIds(ids => ids.filter(toggling => toggling !== task.id)),
 	})
 	const remove = useMutation({
 		mutationFn: api.deleteTask,
-		onSuccess: async (_result, id) => {
+		onMutate: clearFailure,
+		onError: (error, id) => fail(id, 'delete it', error),
+		onSuccess: async (result, id) => {
 			if (selected === id) setSelected(null)
 			if (form?.id === id) setForm(null)
 			await invalidate()
 		},
 	})
 
-	// A manual run holds the request open until the command exits, so the row has
-	// to say so; a second click would only earn a 409.
 	const actions: TaskActions = {
 		select: setSelected,
 		edit: task => setForm(taskToForm(task)),
 		run: run.mutate,
 		toggle: toggle.mutate,
+		togglingIds,
 		remove: remove.mutate,
-		runningId: run.isPending ? run.variables : null,
+		removingId: remove.isPending ? remove.variables : undefined,
+		runningIds,
+		failures,
 		owner: serviceId === undefined,
 	}
 
 	const listed = tasks.data ?? []
+	const reading = (value: ReactNode) => (tasks.data ? value : <PendingReading label='tasks' />)
 	const soonest = listed
 		.map(task => task.next_run)
-		.filter(at => at !== null)
+		.filter(at => at !== undefined)
 		.toSorted()
 		.at(0)
 
 	return (
 		<>
-			{serviceId === undefined && listed.length > 0 ? (
+			<Announcement message={announced} />
+			{serviceId === undefined && (tasks.isLoading || listed.length > 0) ? (
 				<StatStrip
 					className='mb-4'
 					items={[
-						{ label: 'Tasks', value: listed.length },
-						{ label: 'Enabled', value: listed.filter(task => task.enabled).length },
+						{ label: 'Tasks', value: reading(listed.length.toLocaleString('en-US')) },
+						{
+							label: 'Enabled',
+							value: reading(listed.filter(task => task.enabled).length.toLocaleString('en-US')),
+						},
 						{
 							label: 'Failing',
-							value: listed.filter(task => task.last_run && task.last_run.exit_code !== 0).length,
+							value: reading(
+								listed
+									.filter(task => task.last_run && outcome(task.last_run) === 'failed')
+									.length.toLocaleString('en-US'),
+							),
 						},
-						{ label: 'Next run', value: soonest ? <RelativeTime at={soonest} /> : '-' },
+						{ label: 'Next run', value: reading(soonest ? <RelativeTime at={soonest} future /> : '-') },
 					]}
 				/>
 			) : null}
 			<Section
 				title='Scheduled tasks'
+				total={tasks.data?.length}
 				actions={
 					serviceId ? (
-						<Button variant='primary' onClick={() => setForm(emptyTask)}>
+						<Button variant='primary' size='sm' onClick={() => setForm(emptyTask)}>
 							<IconPlus size={16} stroke={1.75} />
 							New task
 						</Button>
@@ -282,63 +324,49 @@ export function ScheduledTasks({ serviceId }: { serviceId?: string }) {
 				}
 			>
 				<ErrorText error={tasks.error} />
-				{listed.length === 0 ? (
-					<div className='rounded-surface border bg-surface'>
-						{tasks.isLoading ? (
-							<Skeleton label='Loading tasks' className='p-5' />
-						) : (
-							<EmptyState
-								icon={IconClock}
-								title='No scheduled tasks'
-								description={serviceId ? undefined : 'Add one from a service.'}
-							/>
-						)}
-					</div>
-				) : (
-					<ul className='rounded-surface border bg-surface'>
+				{listed.length > 0 ? (
+					<ul className='@container rounded-surface border bg-surface'>
 						{listed.map(task => (
 							<TaskRow key={task.id} task={task} actions={actions} />
 						))}
 					</ul>
+				) : tasks.error ? null : (
+					<ListPlaceholder loading={tasks.isLoading} label='Loading tasks'>
+						<EmptyState
+							icon={IconClock}
+							title='No scheduled tasks'
+							description={serviceId ? 'Add one with New task.' : 'Add one from a service.'}
+						>
+							{serviceId ? null : (
+								<Button render={<Link to='/projects' />}>
+									<IconFolder size={16} stroke={1.75} />
+									Open projects
+								</Button>
+							)}
+						</EmptyState>
+					</ListPlaceholder>
 				)}
-				<ErrorText error={run.error ?? toggle.error ?? remove.error} />
 			</Section>
 
-			<Dialog
+			<FormDialog
 				open={form !== null}
-				onOpenChange={open => {
-					if (open) return
-					setForm(null)
-					// Otherwise the next task opened inherits this one's failure.
-					save.reset()
-				}}
+				onOpenChange={open => !open && setForm(null)}
+				title={form?.id ? 'Edit task' : 'New task'}
+				action={form?.id ? 'Save task' : 'Add task'}
+				icon={form?.id ? IconDeviceFloppy : IconPlus}
+				mutation={save}
+				onSubmit={() => form && save.mutate(form)}
 			>
-				<DialogContent title={form?.id ? 'Edit task' : 'New task'} className='[--dialog-width:32rem]'>
-					{form ? (
-						<TaskFormFields
-							form={form}
-							onChange={setForm}
-							onSubmit={() => save.mutate(form)}
-							saving={save.isPending}
-							error={save.error}
-						/>
-					) : null}
-				</DialogContent>
-			</Dialog>
+				{form ? <TaskFormFields form={form} onChange={setForm} /> : null}
+			</FormDialog>
 
-			<Dialog
+			<DetailDialog
 				open={selectedTask !== undefined}
-				onOpenChange={open => {
-					if (!open) setSelected(null)
-				}}
+				onOpenChange={open => open || setSelected(null)}
+				title={selectedTask ? `Runs of ${selectedTask.name}` : ''}
 			>
-				<DialogContent
-					title={selectedTask ? `Runs of ${selectedTask.name}` : ''}
-					className='[--dialog-width:42rem]'
-				>
-					{selectedTask ? <TaskRuns task={selectedTask} /> : null}
-				</DialogContent>
-			</Dialog>
+				{selectedTask ? <TaskRuns task={selectedTask} /> : null}
+			</DetailDialog>
 		</>
 	)
 }
@@ -355,26 +383,9 @@ const taskToForm = ({
 	enabled,
 }: ScheduledTask): TaskForm => ({ id, name, description, schedule, timezone, command, shell, enabled })
 
-function TaskFormFields({
-	form,
-	onChange,
-	onSubmit,
-	saving,
-	error,
-}: {
-	form: TaskForm
-	onChange: (form: TaskForm) => void
-	onSubmit: () => void
-	saving: boolean
-	error: unknown
-}) {
+function TaskFormFields({ form, onChange }: { form: TaskForm; onChange: (form: TaskForm) => void }) {
 	return (
-		<form
-			onSubmit={event => {
-				event.preventDefault()
-				onSubmit()
-			}}
-		>
+		<>
 			<Field label='Name'>
 				<Input
 					required
@@ -387,33 +398,34 @@ function TaskFormFields({
 				<Input
 					value={form.description}
 					onChange={event => onChange({ ...form, description: event.target.value })}
-					placeholder='what it does, for whoever reads this next'
+					placeholder='What it does, for whoever reads this next'
 				/>
 			</Field>
-			<Field label='Schedule' hint='cron, or @daily'>
+			<Field label='Schedule' hint='A cron expression, or @daily.'>
 				{/* The preset writes the expression rather than replacing it, so the
 				    field stays the one source of truth. */}
 				<Select
-					value={cronPresets.some(preset => preset.value === form.schedule) ? form.schedule : ''}
-					onChange={schedule => onChange({ ...form, schedule })}
+					label='Schedule preset'
+					value={cronPresets.some(preset => preset.value === form.schedule) ? form.schedule : 'custom'}
+					onChange={schedule => onChange({ ...form, schedule: schedule === 'custom' ? '' : schedule })}
 					options={scheduleOptions}
 				/>
 				<Input
+					mono
 					required
 					value={form.schedule}
 					onChange={event => onChange({ ...form, schedule: event.target.value })}
-					spellCheck={false}
 				/>
 			</Field>
-			<div className='grid grid-cols-2 gap-3'>
-				<Field label='Timezone' hint='the zone those hours are read in'>
-					<Select
+			<div className='grid gap-x-6 md:grid-cols-2'>
+				<Field label='Timezone' hint='The zone those hours are read in.'>
+					<Combo
 						value={form.timezone}
 						onChange={timezone => onChange({ ...form, timezone })}
 						options={timezoneOptions}
 					/>
 				</Field>
-				<Field label='Shell' hint='sh is the one Alpine images have'>
+				<Field label='Shell' hint='Alpine images have only sh.'>
 					<Select
 						value={form.shell}
 						onChange={shell => onChange({ ...form, shell })}
@@ -426,65 +438,107 @@ function TaskFormFields({
 			</div>
 			<Field label='Command'>
 				<Textarea
+					mono
 					required
 					rows={4}
 					value={form.command}
 					onChange={event => onChange({ ...form, command: event.target.value })}
 					placeholder='php artisan schedule:run'
-					spellCheck={false}
 				/>
 			</Field>
 			<Switch label='Enabled' checked={form.enabled} onChange={enabled => onChange({ ...form, enabled })} />
-			<ErrorText error={error} />
-			<div className='mt-4 flex justify-end'>
-				<Button type='submit' variant='primary' disabled={saving}>
-					{form.id ? <IconDeviceFloppy size={16} stroke={1.75} /> : <IconPlus size={16} stroke={1.75} />}
-					{form.id ? 'Save task' : 'Add task'}
-				</Button>
-			</div>
-		</form>
+		</>
 	)
 }
 
-/** Recent executions of one task, newest first, with the output it produced. */
 function TaskRuns({ task }: { task: ScheduledTask }) {
 	const [openRun, setOpenRun] = useState<string | null>(null)
-	const runs = useQuery({ queryKey: ['task', task.id, 'runs'], queryFn: () => api.taskRuns(task.id) })
+	const runs = useQuery({
+		queryKey: ['task', task.id, 'runs'],
+		queryFn: () => api.taskRuns(task.id),
+		// A run still going shows partial output; keep reading until it finishes.
+		refetchInterval: query => (query.state.data?.some(run => !run.finished_at) ? 5000 : false),
+	})
 
-	const shown = runs.data?.find(candidate => candidate.id === openRun) ?? runs.data?.[0]
+	if (!runs.data) return runs.error ? <ErrorText error={runs.error} /> : <RunsSkeleton />
+	const [newest] = runs.data
+	if (!newest)
+		return (
+			<p className='text-sm text-muted'>
+				This task has not run yet. Run it from the list to see its output here.
+			</p>
+		)
+	const shown = runs.data.find(candidate => candidate.id === openRun) ?? newest
 
 	return (
 		<div>
-			{runs.data?.length ? (
-				<Segmented
-					label='Runs'
-					value={shown?.id ?? ''}
+			{/* A failed poll keeps the log on screen; the error rides above it. */}
+			<ErrorText error={runs.error} />
+			{/* Up to 20 runs, often minutes apart, so a list named by start time: a segment per run would scroll. The
+			    fixed width holds the longest label, since the popup is as wide as the trigger. */}
+			<div className='flex flex-wrap items-center gap-x-3 gap-y-2'>
+				<Select
+					label='Run'
+					value={shown.id}
 					onChange={setOpenRun}
-					options={runs.data.map(item => ({
-						value: item.id,
-						label: since(item.started_at),
-						accessory: (
-							<span className={item.exit_code === 0 ? 'font-mono text-muted' : 'font-mono text-danger'}>
-								{item.finished_at ? duration(item.started_at, item.finished_at) : 'running'}
-							</span>
-						),
-					}))}
+					options={runs.data.map(item => ({ value: item.id, label: runLabel(item) }))}
+					className='w-64'
 				/>
-			) : (
-				<p className='text-sm text-muted'>This task has not run yet.</p>
-			)}
-			{shown ? (
-				<div className='mt-3'>
-					<LogViewer
-						key={shown.id}
-						lines={shown.output
-							.split('\n')
-							.filter(Boolean)
-							.map(text => ({ stream: 'stdout', text }))}
-						className='h-64'
-					/>
-				</div>
-			) : null}
+				<RunOutcome run={shown} />
+			</div>
+			<div className='mt-3'>
+				<LogViewer key={shown.id} lines={outputLines(shown.output)} inset className='h-64' />
+			</div>
 		</div>
+	)
+}
+
+function NextRun({ task, running }: { task: ScheduledTask; running: boolean }) {
+	if (running) return 'Running'
+	if (!task.enabled) return 'Paused'
+	if (!task.next_run) return 'No upcoming run'
+	return (
+		<>
+			Next run <RelativeTime at={task.next_run} future />
+		</>
+	)
+}
+
+function runLabel(run: TaskRun) {
+	const started = new Date(run.started_at).toLocaleString([], {
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		second: '2-digit',
+	})
+	const result = outcome(run)
+	return result === 'success' ? started : `${started}, ${result}`
+}
+
+/** A run without a finish stamp is still going; its exit code is the -1 placeholder until then. */
+function outcome(run: TaskRun) {
+	if (!run.finished_at) return 'running'
+	return run.exit_code === 0 ? 'success' : 'failed'
+}
+
+/** The run picker and its log while the runs load, held still in the frames they fill. */
+function RunsSkeleton() {
+	return (
+		<div className='grid gap-3'>
+			<LoadingStatus label='Loading runs' />
+			<span aria-hidden className='h-control-md w-64 max-w-full rounded-control border bg-surface' />
+			<span aria-hidden className='h-64 rounded-[max(6px,calc(var(--radius-surface)-16px))] border bg-surface' />
+		</div>
+	)
+}
+
+function RunOutcome({ run }: { run: TaskRun }) {
+	if (!run.finished_at) return <span className='font-mono text-muted'>running</span>
+	return (
+		<span className='font-mono text-muted'>
+			{duration(run.started_at, run.finished_at)}
+			{run.exit_code === 0 ? null : <span className='text-danger'> exit {run.exit_code}</span>}
+		</span>
 	)
 }

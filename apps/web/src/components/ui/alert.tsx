@@ -123,8 +123,8 @@ function AlertBox({
 		<div
 			{...props}
 			role={tone === 'danger' ? 'alert' : 'status'}
-			// vexdock: rounded-panel, not Arc's rounded-control, so an alert's corner matches the cards around it.
-			className={cn('flex items-start gap-2.5 rounded-panel border bg-surface p-3 shadow-resting', className)}
+			// vexdock: rounded-surface, not Arc's rounded-control, so an alert's corner matches the cards around it.
+			className={cn('flex items-start gap-2.5 rounded-surface border bg-surface p-3 shadow-resting', className)}
 		>
 			{/* A new tone morphs its icon in place; a newly shown alert gives the icon a small settle. */}
 			<motion.span
@@ -159,7 +159,8 @@ function AlertBox({
 				</strong>
 				<AnimatePresence mode='popLayout' initial={false}>
 					{hasDetails && (
-						<motion.p key='details' className='relative mt-1 text-xs text-secondary' {...swap}>
+						// vexdock: a div, not Arc's p: pages pass a list or a code block as details, which a p cannot hold.
+						<motion.div key='details' className='relative mt-1 text-xs text-secondary' {...swap}>
 							{text === null ? (
 								children
 							) : (
@@ -169,7 +170,7 @@ function AlertBox({
 									</Swap>
 								</AnimatePresence>
 							)}
-						</motion.p>
+						</motion.div>
 					)}
 				</AnimatePresence>
 			</HeightFrame>
@@ -215,11 +216,14 @@ function HeightFrame({
 	}, [morphKey])
 
 	useEffect(() => {
+		// vexdock: held here, not read from the ref, as skeleton.tsx does; the observer fires once more after an unmount
+		// has already cleared the ref, and `frame.current!` threw.
+		const frameNode = frame.current!
 		let last: number | undefined
 		let controls: AnimationPlaybackControls | undefined
 		const settle = () => {
 			height.jump('auto')
-			Object.assign(frame.current!.style, { overflow: '', height: 'auto' })
+			Object.assign(frameNode.style, { overflow: '', height: 'auto' })
 		}
 		const observer = new ResizeObserver(([entry]) => {
 			const next = entry!.borderBoxSize[0]!.blockSize
@@ -230,7 +234,7 @@ function HeightFrame({
 			if (reduce || from === undefined || from === next || performance.now() - changedAt.current > 120)
 				return settle()
 			// Pin the old height before this frame paints, then spring to the new one.
-			Object.assign(frame.current!.style, { overflow: 'hidden', height: `${from}px` })
+			Object.assign(frameNode.style, { overflow: 'hidden', height: `${from}px` })
 			controls = animate(height, [from, next], { ...spring.smooth, onComplete: settle })
 		})
 		observer.observe(content.current!)

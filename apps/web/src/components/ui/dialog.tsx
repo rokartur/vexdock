@@ -1,4 +1,4 @@
-import { type ComponentProps, createContext, type ReactNode, useContext, useState } from 'react'
+import { type ComponentProps, createContext, type CSSProperties, type ReactNode, useContext, useState } from 'react'
 import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import { IconX } from '@tabler/icons-react'
 import { cn } from 'cn'
@@ -37,6 +37,8 @@ export const DialogClose = BaseDialog.Close
 type DialogContentProps = Omit<ComponentProps<typeof BaseDialog.Popup>, 'title' | 'children' | 'className'> & {
 	title: string
 	description?: string
+	// vexdock: the Morph recipe's name (styles.css); the title carries over from the row that opened the dialog.
+	morph?: string
 	children: ReactNode
 	className?: string
 }
@@ -45,15 +47,20 @@ const fade: Transition = { duration: duration.instant }
 const leave: Transition = { duration: duration.fast, ease: [...ease.standard] }
 
 // The overlay fades while the dialog rises 8px and scales up on a spring. Closing is shorter and quieter, and starts from wherever the entrance is.
-export function DialogContent({ title, description, children, className, ...props }: DialogContentProps) {
+export function DialogContent({ title, description, morph, children, className, ...props }: DialogContentProps) {
 	const open = useContext(OpenContext)
 	const reduced = useReducedMotion()
+	const morphTarget: (CSSProperties & Record<'--morph', string>) | undefined = morph
+		? { '--morph': morph }
+		: undefined
 
 	return (
 		<AnimatePresence>
 			{open && (
 				<BaseDialog.Portal key='dialog' keepMounted>
 					<BaseDialog.Backdrop
+						// vexdock: marks the backdrop for the Recede rule in styles.css, so the page steps back under it.
+						data-scrim
 						className='fixed inset-0 z-50 bg-background/46 backdrop-blur-[7px] data-closed:pointer-events-none'
 						render={
 							<motion.div
@@ -73,7 +80,8 @@ export function DialogContent({ title, description, children, className, ...prop
 						)}
 						render={
 							<motion.div
-								initial={reduced ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.96 }}
+								// vexdock: a morphing dialog only fades, so its title is captured where it lands.
+								initial={reduced || morph ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.96 }}
 								animate={{ opacity: 1, y: 0, scale: 1 }}
 								exit={
 									reduced
@@ -93,7 +101,12 @@ export function DialogContent({ title, description, children, className, ...prop
 					>
 						<div className='flex items-start justify-between gap-3.5 border-b p-4'>
 							<div>
-								<BaseDialog.Title className='relative m-0 text-lg font-medium wrap-anywhere'>
+								{/* vexdock: w-fit, so a morph lands on the title's own box, not the width of a longer description. */}
+								<BaseDialog.Title
+									data-morph={morph ? '' : undefined}
+									style={morphTarget}
+									className='relative m-0 w-fit text-lg font-medium wrap-anywhere'
+								>
 									<SwapText text={title} />
 								</BaseDialog.Title>
 								{description ? (

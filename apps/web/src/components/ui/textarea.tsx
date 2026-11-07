@@ -221,5 +221,5 @@ function isNumber(word: string) {
 }
 
 function numericValue(word: string) {
-	return Number.parseFloat(word.replaceAll(',', ''))
+	return parseFloat(word.replace(/,/g, ''))
 }

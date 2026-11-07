@@ -26,6 +26,8 @@ type EmptyStateProps = {
 	illustration?: ReactNode
 	className?: string
 	label?: string
+	// vexdock: a page-sized empty state sits right under the page's h1, so its title is an h2 there.
+	heading?: 'h2' | 'h3'
 }
 
 const { blur, duration, ease, spring } = motionTokens
@@ -42,7 +44,16 @@ const iconIn: TargetAndTransition = { opacity: 0, scale: 0.6, filter: `blur(${bl
 const shown: TargetAndTransition = { opacity: 1, y: '0em', scale: 1, filter: 'blur(0px)' }
 const fadeOut: TargetAndTransition = { opacity: 0, transition: { duration: duration.instant } }
 
-export function EmptyState({ title, description, action, icon, illustration, className, label }: EmptyStateProps) {
+export function EmptyState({
+	title,
+	description,
+	action,
+	icon,
+	illustration,
+	className,
+	label,
+	heading: Heading = 'h3',
+}: EmptyStateProps) {
 	const reduce = useReducedMotion()
 	const glyph = icon ?? <IconFolder size={24} stroke={1.5} />
 	const enter: Transition = reduce
@@ -82,13 +93,13 @@ export function EmptyState({ title, description, action, icon, illustration, cla
 				</div>
 			)}
 			<HeightFrame reduce={reduce} morphKey={`${title}\n${description}`}>
-				<h3 className='relative mt-4 font-display text-base leading-[1.1] font-medium tracking-[-0.03em] text-foreground'>
+				<Heading className='relative mt-4 font-display text-base leading-[1.1] font-medium tracking-[-0.03em] text-foreground'>
 					<AnimatePresence mode='popLayout' initial={false}>
 						<Swap key={title} className='block text-balance' {...swap}>
 							{title}
 						</Swap>
 					</AnimatePresence>
-				</h3>
+				</Heading>
 				{description && (
 					<p className='relative mx-auto mt-1.5 max-w-[18rem] text-sm text-secondary'>
 						<AnimatePresence mode='popLayout' initial={false}>

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { IconAlertCircle, IconLoader2, IconRefresh } from '@tabler/icons-react'
+import { IconAlertCircle, IconProgress, IconRefresh } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { fetchSetupStatus, useSession } from '../lib/auth-client'
@@ -51,8 +51,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 		// A failed status query never fills `setup.data`, so both the error and the
 		// silent-for-too-long case have to be answered from inside the unresolved
 		// branch or the gate would sit on "connecting" forever.
-		if (setup.isError || phase === 'stalled') return <BootScreen stalled />
-		return phase === 'hidden' ? null : <BootScreen />
+		return <BootScreen phase={setup.isError ? 'stalled' : phase} />
 	}
 
 	// Hold the route back while the redirect above is in flight. Rendering the
@@ -91,19 +90,22 @@ function useBootScreenPhase() {
 	return phase
 }
 
-function BootScreen({ stalled = false }: { stalled?: boolean }) {
-	let message = 'Connecting to the manager'
+function BootScreen({ phase }: { phase: ReturnType<typeof useBootScreenPhase> }) {
+	const stalled = phase === 'stalled'
 	// An installed dashboard opens from its cached shell without a network.
-	if (stalled) message = navigator.onLine ? 'The manager is not responding' : 'You are offline'
+	const stall = navigator.onLine ? 'The manager is not responding' : 'You are offline'
+	// A static glyph: a spinner repaints for the whole boot wait, and a still one reads as frozen.
+	let glyph = <IconProgress stroke={1.75} className='size-5 text-muted' />
+	if (stalled) glyph = <IconAlertCircle stroke={1.75} className='size-5 text-muted' />
+	// Both lines are mounted empty: a live region that mounts already full is not announced. The wait is polite, the
+	// stall an alert, and a region that changes its role mid-way is not reliably read.
 	return (
-		<div className='flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center'>
-			{/* Static on purpose: a spinning loader repaints for the whole boot wait. */}
-			{stalled ? (
-				<IconAlertCircle stroke={1.75} className='size-5 text-muted' />
-			) : (
-				<IconLoader2 stroke={1.75} className='size-5 text-muted' />
-			)}
-			<p className='text-sm text-muted'>{message}</p>
+		<main className='flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center'>
+			{phase === 'hidden' ? null : glyph}
+			<div className='text-sm text-muted'>
+				<p role='status'>{phase === 'waiting' ? 'Connecting to the manager' : null}</p>
+				<p role='alert'>{stalled ? stall : null}</p>
+			</div>
 			{stalled ? (
 				<Button
 					onClick={() => {
@@ -111,9 +113,9 @@ function BootScreen({ stalled = false }: { stalled?: boolean }) {
 					}}
 				>
 					<IconRefresh size={16} stroke={1.75} />
-					Retry
+					Try again
 				</Button>
 			) : null}
-		</div>
+		</main>
 	)
 }

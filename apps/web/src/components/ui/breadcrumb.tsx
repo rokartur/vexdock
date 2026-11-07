@@ -14,32 +14,40 @@ export type BreadcrumbItem = {
 	node?: ReactNode
 }
 
-type BreadcrumbProps = { items: BreadcrumbItem[]; ariaLabel?: string; className?: string }
+type BreadcrumbProps = {
+	items: BreadcrumbItem[]
+	ariaLabel?: string
+	// vexdock: the app header lists only a page's parents (its h1 is the page), so its last crumb stays a link.
+	lastIsCurrent?: boolean
+}
 
 const { blur, duration, ease, spring } = motionTokens
 const still = { duration: 0 }
 
 // Each crumb reserves the width of its medium weight label, so becoming the current page never shifts the path.
+// vexdock: `min-w-0 max-w-full` and the label's own `truncate` end a long name in an ellipsis instead of mid-letter.
 const crumb =
-	'inline-flex flex-col rounded-[7px] px-0.5 py-1 after:pointer-events-none after:invisible after:h-0 after:overflow-hidden after:font-medium after:select-none after:content-[attr(data-label)]'
+	'inline-flex min-w-0 max-w-full flex-col rounded-[7px] px-0.5 py-1 after:pointer-events-none after:invisible after:h-0 after:overflow-hidden after:font-medium after:select-none after:content-[attr(data-label)]'
+// vexdock: `press` (in place of Arc's transition) scales a crumb under the pointer and the press draws its underline whole.
 const link =
-	'text-secondary underline decoration-transparent decoration-1 underline-offset-4 transition-[color,text-decoration-color] hover:text-accent-strong hover:decoration-current/45'
+	'press text-secondary underline decoration-transparent decoration-1 underline-offset-4 hover:text-accent-strong hover:decoration-current/45 active:decoration-current'
 
 // Crumbs present on first render stay still; crumbs added later slide in from the path before them.
-export function Breadcrumb({ items, ariaLabel = 'Breadcrumb', className }: BreadcrumbProps) {
+export function Breadcrumb({ items, ariaLabel = 'Breadcrumb', lastIsCurrent = true }: BreadcrumbProps) {
 	const reduced = useReducedMotion() ?? false
 	const path = items.map(item => item.label).join('/')
 
 	return (
-		<nav aria-label={ariaLabel} className={className}>
+		<nav aria-label={ariaLabel}>
 			{/* The gap between crumbs matches the gap inside one, so every chevron sits centered between its two labels. */}
-			{/* vexdock: one line in the app header, so crumbs truncate instead of wrapping. */}
-			<ol className='relative flex min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden'>
+			{/* vexdock: one line in the app header, so crumbs clip instead of wrapping; the 4px padding keeps a crumb's
+			    2px focus ring at 2px offset inside the clip. */}
+			<ol className='relative -m-1 flex min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden p-1'>
 				<AnimatePresence mode='popLayout' initial={false}>
 					{items.map((item, index) => (
 						<motion.li
 							key={`${item.label}-${index}`}
-							// vexdock: phone widths only fit the page's own crumb next to the header actions.
+							// vexdock: phone widths only fit the nearest parent crumb above the h1, next to the header actions.
 							className='inline-flex min-w-0 items-center gap-1.5 text-sm whitespace-nowrap text-muted max-sm:not-last:hidden'
 							layout={reduced ? false : 'position'}
 							layoutDependency={path}
@@ -70,7 +78,7 @@ export function Breadcrumb({ items, ariaLabel = 'Breadcrumb', className }: Bread
 									className='flex-none text-border-strong max-sm:hidden'
 								/>
 							)}
-							<Crumb item={item} current={index === items.length - 1} />
+							<Crumb item={item} current={lastIsCurrent && index === items.length - 1} />
 						</motion.li>
 					))}
 				</AnimatePresence>
@@ -79,11 +87,12 @@ export function Breadcrumb({ items, ariaLabel = 'Breadcrumb', className }: Bread
 	)
 }
 
-// The last item is the current page and never a link.
+// The current crumb is never a link.
 function Crumb({ item, current }: { item: BreadcrumbItem; current: boolean }) {
 	if (item.node) {
 		return <div className='flex min-w-0 items-center gap-1.5 text-foreground'>{item.node}</div>
 	}
+	// vexdock: a router Link in place of Arc's <a>, so a crumb navigates inside the app instead of reloading it.
 	if (!current && item.href) {
 		return (
 			<Link
@@ -93,7 +102,7 @@ function Crumb({ item, current }: { item: BreadcrumbItem; current: boolean }) {
 				onClick={item.onClick}
 				className={cn(crumb, link)}
 			>
-				{item.label}
+				<span className='truncate'>{item.label}</span>
 			</Link>
 		)
 	}
@@ -105,7 +114,7 @@ function Crumb({ item, current }: { item: BreadcrumbItem; current: boolean }) {
 				onClick={item.onClick}
 				className={cn(crumb, link, 'text-start')}
 			>
-				{item.label}
+				<span className='truncate'>{item.label}</span>
 			</button>
 		)
 	}
@@ -115,7 +124,7 @@ function Crumb({ item, current }: { item: BreadcrumbItem; current: boolean }) {
 			data-label={item.label}
 			className={cn(crumb, current && 'font-medium text-accent-strong transition-[color]')}
 		>
-			{item.label}
+			<span className='truncate'>{item.label}</span>
 		</span>
 	)
 }

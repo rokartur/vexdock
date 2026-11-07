@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react'
 import { IconVariable } from '@tabler/icons-react'
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { VariablesEditor } from '../components/env-editor'
-import { ErrorText, FormSection, SaveButton } from '../components/primitives'
+import { VariablesCard } from '../components/env-editor'
 import { api } from '../lib/api'
-import { fromDotenv, toDotenv } from '../lib/dotenv'
 import { preload } from '../lib/queries'
 
 const serviceVariablesQuery = (serviceId: string) =>
@@ -23,32 +20,15 @@ export const Route = createFileRoute('/projects/$projectId_/services/$serviceId/
  */
 function ServiceEnvironment() {
 	const { serviceId } = Route.useParams()
-	const queryClient = useQueryClient()
-	const [text, setText] = useState('')
-
-	const environment = useQuery(serviceVariablesQuery(serviceId))
-
-	useEffect(() => {
-		if (environment.data) setText(toDotenv(environment.data))
-	}, [environment.data])
-
-	const save = useMutation({
-		mutationFn: () => api.saveServiceVariables(serviceId, fromDotenv(text, environment.data ?? [])),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service', serviceId, 'environment'] }),
-	})
-
 	return (
 		<div className='max-w-3xl'>
-			<FormSection
+			<VariablesCard
 				title='Environment variables'
 				icon={IconVariable}
-				hint='Redeploy to apply.'
-				onSave={() => save.mutate()}
-				actions={<SaveButton mutation={save} dirty={text !== toDotenv(environment.data ?? [])} />}
-			>
-				<ErrorText error={save.error} />
-				<VariablesEditor rows={18} value={text} onChange={setText} stored={environment.data ?? []} />
-			</FormSection>
+				rows={18}
+				query={serviceVariablesQuery(serviceId)}
+				save={variables => api.saveServiceVariables(serviceId, variables)}
+			/>
 		</div>
 	)
 }

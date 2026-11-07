@@ -138,18 +138,16 @@ export function IslandBar({
 	const observeLayer = useCallback(
 		(node: HTMLDivElement | null) => {
 			if (!node) return
-			if (!observer.current)
-				observer.current = new ResizeObserver(entries => {
-					for (const entry of entries) {
-						if (!(entry.target instanceof HTMLElement)) continue
-						const layer = entry.target.dataset.layer
-						if (!layer) continue
-						const box = entry.borderBoxSize[0]
-						if (!box) continue
-						sizes.current.set(layer, { width: box.inlineSize, height: box.blockSize })
-					}
-					resize()
-				})
+			observer.current ??= new ResizeObserver(entries => {
+				for (const entry of entries) {
+					if (!(entry.target instanceof HTMLElement)) continue
+					const layer = entry.target.dataset.layer
+					if (!layer) continue
+					const box = entry.borderBoxSize[0]!
+					sizes.current.set(layer, { width: box.inlineSize, height: box.blockSize })
+				}
+				resize()
+			})
 			const current = observer.current
 			current.observe(node)
 			return () => current.unobserve(node)
@@ -170,9 +168,9 @@ export function IslandBar({
 		shownView.current = view
 		const island = islandRef.current
 		if (island && previous === 'hidden' && view !== 'hidden') {
-			island.dataset.entering = ''
+			island.setAttribute('data-entering', '')
 			clearTimeout(enteringTimer.current)
-			enteringTimer.current = setTimeout(() => delete island.dataset.entering, 700)
+			enteringTimer.current = setTimeout(() => island.removeAttribute('data-entering'), 700)
 		}
 		if (island && previous !== view && island.contains(document.activeElement)) {
 			const primary = island.querySelector<HTMLElement>(`[data-layer="${view}"] [data-island-primary]`)
@@ -528,9 +526,9 @@ function Kbd({ keys }: { keys: string }) {
 }
 
 function ariaShortcut(shortcut: string | null) {
-	const named = shortcut?.toLowerCase().startsWith('mod+') ? shortcut.slice(4) : ''
-	if (!named) return
-	const key = named.length === 1 ? named.toUpperCase() : named
+	const match = shortcut ? /^mod\+(.+)$/i.exec(shortcut) : null
+	if (!match) return undefined
+	const key = match[1]!.length === 1 ? match[1]!.toUpperCase() : match[1]!
 	return `Meta+${key} Control+${key}`
 }
 
@@ -598,11 +596,11 @@ export function useIslandBar({
 		try {
 			await latest.current.onSave()
 			if (id === attempt.current) setPhase('saved')
-		} catch (error_) {
+		} catch (reason) {
 			if (id !== attempt.current) return
 			setError(
-				error_ instanceof Error && error_.message
-					? `Couldn’t save. ${error_.message}`
+				reason instanceof Error && reason.message
+					? `Couldn’t save. ${reason.message}`
 					: 'Couldn’t save your changes. Try again.',
 			)
 			setPhase('error')

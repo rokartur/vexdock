@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test'
+import { bytesTick } from '../lib/format'
 import { ratesOf, totalOf } from './metric-chart'
+import { binaryScale } from './ui/line-chart'
 
 const total = (sample: { at: number; total: number }) => sample.total
+const ticks = (high: number) => binaryScale(0, high).ticks.map(bytesTick)
 
 test('turns a cumulative counter into per-second rates', () => {
 	const history = [
@@ -37,4 +40,11 @@ test('adds up a climbing counter, counting a restart from zero', () => {
 
 	expect(totalOf(history, total)).toBe(300 + 50 + 100)
 	expect(totalOf([], total)).toBe(0)
+})
+
+test('a byte axis steps in whole binary units, also just under the next one', () => {
+	expect(ticks(14.3 * 1024 ** 2)).toEqual(['0 B', '5 MB', '10 MB', '15 MB'])
+	expect(ticks(1023)).toEqual(['0 B', '256 B', '512 B', '768 B', '1 KB'])
+	expect(ticks(1010 * 1024 ** 2)).toEqual(['0 B', '256 MB', '512 MB', '768 MB', '1 GB'])
+	expect(ticks(999 * 1024)).toEqual(['0 B', '256 KB', '512 KB', '768 KB', '1 MB'])
 })

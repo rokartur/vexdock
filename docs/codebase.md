@@ -414,6 +414,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/api.ts` | Types for every response and one function per endpoint |
 | `src/lib/auth-client.ts` | better-auth client: `signIn`, `signUp`, `signOut`, `useSession` |
 | `src/lib/sse.ts` | `useEventSource` for one stream, `useSystemEvents` for cache invalidation |
+| `src/lib/focus-rescue.ts` | `useFocusRescue`, mounted once in the shell: when a focused control removes itself, focus moves to its dialog, its table's scroll box, the section heading or `main` instead of `<body>` |
 | `src/lib/format.ts`, `dotenv.ts`, `breadcrumb.ts` | Pure helpers, each with a test beside it |
 | `src/router.tsx` | The TanStack router built from `routeTree.gen.ts`, owning the `QueryClient` it hands every loader as context; links preload on hover, and a route still loading after 300 ms shows a skeleton page |
 | `src/lib/queries.ts` | `queryOptions` for data more than one file reads, and `preload`, the loader's non-throwing prefetch |

@@ -33,7 +33,8 @@ function StudioConsole() {
 				className='flex flex-col gap-2 border-b p-3'
 				onSubmit={event => {
 					event.preventDefault()
-					run.mutate()
+					// Cmd+Enter submits through requestSubmit, which skips the button's own disabled and loading checks.
+					if (query.trim() && !run.isPending) run.mutate()
 				}}
 			>
 				<Textarea
@@ -49,19 +50,28 @@ function StudioConsole() {
 					}}
 				/>
 				<div className='flex items-center gap-3'>
-					<Button type='submit' variant='primary' disabled={!query.trim() || run.isPending}>
+					<Button
+						type='submit'
+						variant='primary'
+						disabled={!query.trim()}
+						loading={run.isPending}
+						aria-keyshortcuts='Meta+Enter Control+Enter'
+					>
 						<IconPlayerPlay size={16} stroke={1.75} />
-						Run
+						Run statement
 						<Keys keys={[mod, 'Enter']} />
 					</Button>
-					{result ? (
-						<span className='text-xs text-muted tabular-nums'>
-							{result.columns.length > 0
-								? `${count(result.rows.length)} rows`
-								: `${count(result.affected)} affected`}
-							{result.truncated ? ', the first ones only' : ''} in {count(result.duration_ms)} ms
-						</span>
-					) : null}
+					{/* Mounted empty so a screen reader hears the first result too. */}
+					<span role='status' className='text-xs text-muted tabular-nums'>
+						{result ? (
+							<>
+								{result.columns.length > 0
+									? `${count(result.rows.length)} row${result.rows.length === 1 ? '' : 's'}`
+									: `${count(result.affected)} affected`}
+								{result.truncated ? ' (first rows only)' : ''} in {count(result.duration_ms)} ms
+							</>
+						) : null}
+					</span>
 				</div>
 			</form>
 			{run.error ? (
@@ -69,13 +79,26 @@ function StudioConsole() {
 					<ErrorText error={run.error} />
 				</div>
 			) : null}
+			{result || run.error || run.isPending ? null : (
+				<EmptyState
+					heading='h2'
+					title='No statement run yet'
+					description='Run statement runs the query above.'
+				/>
+			)}
 			{result && result.columns.length > 0 ? (
 				<StudioGrid
 					columns={result.columns.map(name => ({ name }))}
 					rows={result.rows.map((cells, index) => ({ id: String(index), cells }))}
 				/>
 			) : null}
-			{result && result.columns.length === 0 ? <EmptyState title='The statement returned no rows.' /> : null}
+			{result && result.columns.length === 0 ? (
+				<EmptyState
+					heading='h2'
+					title='The statement ran'
+					description='It returns no rows; the count above is what it changed.'
+				/>
+			) : null}
 		</>
 	)
 }

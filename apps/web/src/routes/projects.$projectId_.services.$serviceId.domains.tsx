@@ -13,6 +13,5 @@ function ServiceDomains() {
 	const { projectId, serviceId } = Route.useParams()
 	const service = useService(serviceId)
 	if (!service.data) return null
-	// Remounts on switch, so the add form's service follows the URL.
-	return <DomainsPanel key={service.data.id} projectId={projectId} service={service.data} />
+	return <DomainsPanel projectId={projectId} service={service.data} />
 }

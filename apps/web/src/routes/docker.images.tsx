@@ -2,10 +2,12 @@ import { Fragment, useMemo } from 'react'
 import { IconStack2, IconTrash } from '@tabler/icons-react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { cn } from 'cn'
 import { Badge } from '@/components/ui/badge'
 import { columnsFor, DataTable, type Columns } from '../components/data-table'
 import {
 	Confirm,
+	EmptyState,
 	ErrorText,
 	IconButton,
 	Meter,
@@ -14,6 +16,7 @@ import {
 	RelativeTime,
 	Section,
 	StatStrip,
+	textLink,
 } from '../components/primitives'
 import { api, type ImageSummary } from '../lib/api'
 import { bytes } from '../lib/format'
@@ -40,14 +43,16 @@ function imageName(image: ImageSummary) {
 	return image.repo_tags?.join(', ') || shortId(image)
 }
 
-function imageTableColumns(remove: (id: string) => void, largest: number): Columns<ImageSummary> {
+function imageTableColumns(
+	remove: (id: string) => void,
+	removing: string | undefined,
+	largest: number,
+): Columns<ImageSummary> {
 	const cell = columnsFor<ImageSummary>()
 	return [
 		cell.accessor(
-			image =>
-				imageTags(image)
-					.map(({ repository }) => repository)
-					.join(', '),
+			// Two tags of one repository name it once; the Tag column lists each tag.
+			image => [...new Set(imageTags(image).map(({ repository }) => repository))].join(', '),
 			{
 				id: 'repository',
 				header: 'Repository',
@@ -69,8 +74,8 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 				header: 'Tag',
 				cell: ({ row }) => (
 					<span className='flex flex-wrap gap-1'>
-						{imageTags(row.original).map(({ tag }) => (
-							<Badge key={tag}>{tag}</Badge>
+						{imageTags(row.original).map(({ repository, tag }) => (
+							<Badge key={`${repository}:${tag}`}>{tag}</Badge>
 						))}
 					</span>
 				),
@@ -98,7 +103,7 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 								<Link
 									to='/docker/containers'
 									search={{ q: container.name }}
-									className='underline-offset-2 hover:text-foreground hover:underline'
+									className={cn(textLink, 'hover:text-foreground')}
 								>
 									{container.name}
 								</Link>
@@ -117,16 +122,23 @@ function imageTableColumns(remove: (id: string) => void, largest: number): Colum
 			header: '',
 			enableSorting: false,
 			meta: { align: 'right' },
-			cell: ({ row }) => (
-				<Confirm
-					title={`Remove ${imageName(row.original)}?`}
-					description='An image still used by a container is refused.'
-					action='Remove'
-					onConfirm={() => remove(row.original.id)}
-				>
-					<IconButton icon={IconTrash} label='Remove' />
-				</Confirm>
-			),
+			// An image in use has no Delete: Docker refuses it, and the Containers column says who holds it.
+			cell: ({ row }) =>
+				row.original.containers.length > 0 ? null : (
+					<Confirm
+						title={`Delete ${imageName(row.original)}?`}
+						description='Its layers are deleted; pulling or building it again brings it back.'
+						action='Delete image'
+						onConfirm={() => remove(row.original.id)}
+					>
+						<IconButton
+							icon={IconTrash}
+							label={`Delete ${imageName(row.original)}`}
+							loading={removing === row.original.id}
+							disabled={removing !== undefined}
+						/>
+					</Confirm>
+				),
 		}),
 	]
 }
@@ -151,12 +163,13 @@ function ImagesPage() {
 	const data = images.data ?? []
 	const { mutate: removeImage } = remove
 	const largest = Math.max(0, ...data.map(image => image.size))
-	const columns = useMemo(() => imageTableColumns(removeImage, largest), [removeImage, largest])
+	const removing = remove.isPending ? remove.variables : undefined
+	const columns = useMemo(() => imageTableColumns(removeImage, removing, largest), [removeImage, removing, largest])
 
 	const unused = data.filter(image => image.containers.length === 0)
 	const reclaimable = unused.reduce((total, image) => total + image.size, 0)
+	// The Local images section carries the count.
 	const stats = [
-		{ label: 'Images', value: data.length },
 		{ label: 'On disk', value: bytes(data.reduce((total, image) => total + image.size, 0)) },
 		{ label: 'Unused', value: unused.length },
 		{ label: 'Reclaimable', value: bytes(reclaimable) },
@@ -164,12 +177,13 @@ function ImagesPage() {
 	]
 
 	return (
-		<Page>
+		<Page fill>
 			{data.length > 0 ? <StatStrip className='mb-4' items={stats} /> : null}
 			<Section
 				title='Local images'
-				total={data.length}
-				actions={<Refresh onClick={() => images.refetch()} busy={images.isFetching} />}
+				total={images.data?.length}
+				fill
+				actions={<Refresh onClick={() => images.refetch()} />}
 			>
 				<ErrorText error={remove.error} />
 				<DataTable
@@ -179,7 +193,7 @@ function ImagesPage() {
 					error={images.error}
 					getRowId={image => image.id}
 					filter='Filter images'
-					empty='No images'
+					empty={<EmptyState title='No images' description='A deploy pulls or builds one.' />}
 				/>
 			</Section>
 		</Page>

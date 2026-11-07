@@ -126,7 +126,7 @@ export function Sparkline({
 	const target = useMemo(() => curveFor(key.split(',').map(Number), max), [key, max])
 	const description = `${label}: ${value ?? points[last]}. ${change ?? ''}`.trim()
 	// url(#id) breaks on the colons older React puts in ids.
-	const uid = `sparkline${useId().replaceAll(/[^a-zA-Z0-9_-]/g, '')}`
+	const uid = `sparkline${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
 	const figure = useRef<HTMLElement>(null)
 	const plot = useRef<HTMLDivElement>(null)
 	const inView = useInView(figure, { once: true, amount: 0.5 })
@@ -512,9 +512,9 @@ function Roll({
 function amountIn(text: string) {
 	return Number(
 		text
-			.replaceAll(',', '')
-			.replaceAll('−', '-')
-			.match(/-?\d+(?:\.\d+)?/)?.[0] ?? Number.NaN,
+			.replace(/,/g, '')
+			.replace(/−/g, '-')
+			.match(/-?\d+(?:\.\d+)?/)?.[0] ?? NaN,
 	)
 }
 
@@ -618,5 +618,5 @@ function tipAt(points: Point[], progress: number) {
 		if (left <= step) return from + (points[index + 1]![0] - from) * (step ? left / step : 1)
 		left -= step
 	}
-	return points.at(-1)![0]
+	return points[points.length - 1]![0]
 }

@@ -248,6 +248,8 @@ export type Project = {
 	running_count: number
 	/** Containers that crashed, died or keep restarting; a stopped one counts as idle. */
 	errored_count: number
+	/** The first environment holding an errored container, null when none errored. */
+	errored_environment: string | null
 	database_count: number
 	compose_count: number
 	domains: Domain[]
@@ -391,6 +393,8 @@ export type ScheduledTask = {
 	service_name: string
 	project_id: string
 	project_name: string
+	/** The owner service's environment, so its link opens that environment and not the default. */
+	environment_id: string
 	name: string
 	description: string
 	/** Five field cron expression, read against the task's timezone. */
@@ -443,6 +447,12 @@ export type Certificate = {
 	status: 'pending' | 'issued' | 'failed'
 	last_error: string
 	source: CertificateSource
+}
+
+// The manager has no expired status: a certificate past its expiry stays `issued` (an upload never renews).
+export function certificateStatus(certificate: Certificate) {
+	const expired = certificate.status === 'issued' && Date.parse(certificate.expires_at) <= Date.now()
+	return expired ? 'expired' : certificate.status
 }
 
 /** A port bound on the host; ip is 0.0.0.0 or :: when it listens on every address. */
@@ -851,7 +861,8 @@ export type Backup = {
 
 export type HealthReport = {
 	status: 'healthy' | 'unhealthy'
-	checks: Record<string, string>
+	// Only an authenticated caller gets the per-check verdicts.
+	checks?: Record<string, string>
 }
 
 /** The manager's uniform error envelope. */
@@ -884,18 +895,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 	if (response.status === 204) return undefined as T
 
-	const text = await response.text()
-	// A proxy in front of the manager (Cloudflare, Nginx) answers an outage with an HTML page;
-	// its <title> ("host | 502: Bad gateway") says what happened, the markup does not.
-	let payload: unknown
-	if (text) {
-		try {
-			payload = JSON.parse(text)
-		} catch {
-			const title = new DOMParser().parseFromString(text, 'text/html').title.trim()
-			throw new ApiError('BAD_RESPONSE', title || `HTTP ${response.status}`, response.status)
-		}
-	}
+	const payload = await readJson(response)
 
 	if (!response.ok) {
 		// The manager's session outlived the browser's: every mounted query would
@@ -916,6 +916,19 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		)
 	}
 	return payload as T
+}
+
+// A proxy in front of the manager (Cloudflare, Nginx) answers an outage with an HTML page;
+// its <title> ("host | 502: Bad gateway") says what happened, the markup does not.
+async function readJson(response: Response): Promise<unknown> {
+	const text = await response.text()
+	if (!text) return undefined
+	try {
+		return JSON.parse(text)
+	} catch {
+		const title = new DOMParser().parseFromString(text, 'text/html').title.trim()
+		throw new ApiError('BAD_RESPONSE', title || `HTTP ${response.status}`, response.status)
+	}
 }
 
 /**
@@ -1021,8 +1034,12 @@ export const api = {
 		request<{ payload: string; secrets: boolean }>(
 			`/api/projects/${projectId}/services/export?secrets=${secrets}${environmentId ? `&environment=${environmentId}` : ''}`,
 		),
-	deployments: (id: string, environmentId?: string) =>
-		request<Deployment[]>(`/api/projects/${id}/deployments${environmentQuery(environmentId)}`),
+	deployments: (id: string, environmentId?: string, serviceName?: string) => {
+		const query = new URLSearchParams()
+		if (environmentId) query.set('environment', environmentId)
+		if (serviceName) query.set('service', serviceName)
+		return request<Deployment[]>(`/api/projects/${id}/deployments?${query}`)
+	},
 	projectDomains: (id: string) => request<Domain[]>(`/api/projects/${id}/domains`),
 	domains: () => request<Domain[]>('/api/domains'),
 	analyticsSites: () => request<AnalyticsSite[]>('/api/analytics'),
@@ -1325,6 +1342,8 @@ export const api = {
 	// body are exactly what the caller wants to render.
 	health: async (): Promise<HealthReport> => {
 		const response = await fetch('/api/health', { credentials: 'same-origin' })
-		return (await response.json()) as HealthReport
+		const payload = await readJson(response)
+		if ((response.ok || response.status === 503) && payload !== undefined) return payload as HealthReport
+		throw new ApiError('BAD_RESPONSE', `HTTP ${response.status}`, response.status)
 	},
 }

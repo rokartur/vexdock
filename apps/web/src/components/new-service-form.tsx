@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { IconEye, IconEyeOff, IconPlus, IconRefresh } from '@tabler/icons-react'
+import { IconPlus, IconRefresh } from '@tabler/icons-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { RadioCards } from '@/components/ui/radio-cards'
 import { api, type Engine, type Service, type ServiceProvider } from '../lib/api'
 import { engineMarks } from '../lib/engine-marks'
 import { useCurrentEnvironment, useEnvironmentId } from '../lib/environment'
+import { projectQuery } from '../lib/queries'
 import {
 	Button,
 	Combo,
@@ -13,6 +14,7 @@ import {
 	Field,
 	IconButton,
 	Input,
+	LoadingStatus,
 	Select,
 	Switch,
 	Textarea,
@@ -72,7 +74,6 @@ export function NewServiceForm({
 	const [image, setImage] = useState('')
 	const [dataPath, setDataPath] = useState('')
 	const [password, setPassword] = useState(generatePassword)
-	const [revealed, setRevealed] = useState(false)
 	const [sqldNode, setSqldNode] = useState<SqldNode>('primary')
 	const [sqldPrimaryURL, setSqldPrimaryURL] = useState('')
 	const [sqldNamespaces, setSqldNamespaces] = useState(false)
@@ -96,7 +97,7 @@ export function NewServiceForm({
 	const environmentId = useEnvironmentId()
 	// Both queries are the ones the project shell already runs, so this reads
 	// the cache to show the name the manager would pick on its own.
-	const project = useQuery({ queryKey: ['project', projectId], queryFn: () => api.project(projectId) })
+	const project = useQuery(projectQuery(projectId))
 	const { current: environment } = useCurrentEnvironment(projectId)
 	const derivedContainer =
 		project.data && environment && name
@@ -104,6 +105,7 @@ export function NewServiceForm({
 			: ''
 
 	const create = useMutation({
+		mutationKey: ['add-services', projectId],
 		mutationFn: () =>
 			api.createService(
 				projectId,
@@ -147,21 +149,26 @@ export function NewServiceForm({
 		>
 			{kind === 'database' ? (
 				<Field label='Engine'>
-					<EnginePicker
-						engines={engines.data ?? []}
-						value={engine}
-						onChange={next => {
-							setEngine(next)
-							setVersion('')
-							setUser(next === 'libsql' ? 'libsql' : 'app')
-						}}
-					/>
+					<ErrorText error={engines.error} />
+					{engines.isPending ? <EnginePickerSkeleton /> : null}
+					{engines.data ? (
+						<EnginePicker
+							engines={engines.data}
+							value={engine}
+							onChange={next => {
+								setEngine(next)
+								setVersion('')
+								setUser(next === 'libsql' ? 'libsql' : 'app')
+							}}
+						/>
+					) : null}
 				</Field>
 			) : null}
 
 			<div className='grid gap-x-6 md:grid-cols-2'>
 				<Field label='Name' hint='Its name in compose, and how siblings reach it.'>
 					<Input
+						mono
 						required
 						value={name}
 						onChange={event => setName(event.target.value)}
@@ -172,10 +179,10 @@ export function NewServiceForm({
 				{kind === 'compose' ? null : (
 					<Field label='Container name' hint='What docker ps shows.'>
 						<Input
+							mono
 							value={containerName}
 							onChange={event => setContainerName(event.target.value)}
 							placeholder={derivedContainer}
-							spellCheck={false}
 						/>
 					</Field>
 				)}
@@ -186,6 +193,7 @@ export function NewServiceForm({
 							<>
 								<Field label='Image' hint='Including the tag.'>
 									<Input
+										mono
 										required
 										value={image}
 										onChange={event => setImage(event.target.value)}
@@ -197,6 +205,7 @@ export function NewServiceForm({
 									hint='Where the image stores its data. Without it a redeploy wipes the database.'
 								>
 									<Input
+										mono
 										required
 										value={dataPath}
 										onChange={event => setDataPath(event.target.value)}
@@ -205,16 +214,8 @@ export function NewServiceForm({
 								</Field>
 							</>
 						) : (
-							<Field
-								label='Version'
-								hint={
-									versions.data?.live === false
-										? 'Registry unreachable, showing the built-in list. Any tag can be typed.'
-										: 'Read from the registry. Any tag can be typed.'
-								}
-							>
+							<Field label='Version' hint={versionHint(versions.data?.live)}>
 								<Combo
-									label='Version'
 									value={version}
 									options={(versions.data?.versions ?? selected?.versions ?? []).map(tag => ({
 										value: tag,
@@ -230,7 +231,11 @@ export function NewServiceForm({
 
 						{selected?.database_var ? (
 							<Field label='Database'>
-								<Input value={databaseName} onChange={event => setDatabaseName(event.target.value)} />
+								<Input
+									mono
+									value={databaseName}
+									onChange={event => setDatabaseName(event.target.value)}
+								/>
 							</Field>
 						) : null}
 						{isLibsql ? (
@@ -244,11 +249,11 @@ export function NewServiceForm({
 								{sqldNode === 'replica' ? (
 									<Field label='Primary URL' hint='The gRPC address of the primary.'>
 										<Input
+											mono
 											required
 											value={sqldPrimaryURL}
 											onChange={event => setSqldPrimaryURL(event.target.value)}
 											placeholder='http://primary:5001'
-											spellCheck={false}
 										/>
 									</Field>
 								) : null}
@@ -256,7 +261,12 @@ export function NewServiceForm({
 						) : null}
 						{selected?.user_var || isLibsql ? (
 							<Field label='User'>
-								<Input value={user} onChange={event => setUser(event.target.value)} />
+								<Input
+									mono
+									autoComplete='off'
+									value={user}
+									onChange={event => setUser(event.target.value)}
+								/>
 							</Field>
 						) : null}
 						{selected?.password_var || isLibsql ? (
@@ -267,20 +277,16 @@ export function NewServiceForm({
 								<div className='flex items-center gap-1'>
 									<Input
 										required
-										type={revealed ? 'text' : 'password'}
+										type='password'
+										autoComplete='new-password'
 										value={password}
 										onChange={event => setPassword(event.target.value)}
 										spellCheck={false}
 									/>
 									<IconButton
 										icon={IconRefresh}
-										label='Regenerate'
+										label='Generate another password'
 										onClick={() => setPassword(generatePassword())}
-									/>
-									<IconButton
-										icon={revealed ? IconEyeOff : IconEye}
-										label={revealed ? 'Hide' : 'Reveal'}
-										onClick={() => setRevealed(value => !value)}
 									/>
 								</div>
 							</Field>
@@ -306,11 +312,11 @@ export function NewServiceForm({
 					hint='The service body, without its name. Named volumes are declared for you. env_file: .env is the project environment.'
 				>
 					<Textarea
+						mono
 						required
 						rows={6}
 						value={fragment}
 						onChange={event => setFragment(event.target.value)}
-						spellCheck={false}
 						placeholder={'image: redis:7\nrestart: unless-stopped'}
 					/>
 				</Field>
@@ -323,22 +329,32 @@ export function NewServiceForm({
 			) : null}
 			<ErrorText error={create.error} />
 			<DialogFooter>
-				<Button variant='ghost' onClick={onCancel}>
+				<Button variant='ghost' onClick={onCancel} disabled={create.isPending}>
 					Cancel
 				</Button>
-				<Button type='submit' variant='primary' disabled={create.isPending}>
+				{/* A database needs the catalog to say what it creates; without it the form has nothing to send. */}
+				<Button
+					type='submit'
+					variant='primary'
+					loading={create.isPending}
+					disabled={kind === 'database' && !engines.data}
+				>
 					<IconPlus size={16} stroke={1.75} />
-					{create.isPending ? 'Adding…' : 'Add service'}
+					Add service
 				</Button>
 			</DialogFooter>
 		</form>
 	)
 }
 
-/**
- * The catalog as a list: one row per engine, with the image it will pull on the
- * right so the version can be sanity-checked before anything is picked.
- */
+/** The version list is the registry's only while it answered; before that, and after it failed, it is a guess. */
+function versionHint(live: boolean | undefined) {
+	if (live === true) return 'Read from the registry. Any tag can be typed.'
+	if (live === false) return 'Registry unreachable, showing the built-in list. Any tag can be typed.'
+	return 'Any tag can be typed.'
+}
+
+/** The catalog as cards, each with the image it will pull, so the version can be sanity-checked before anything is picked. */
 function EnginePicker({
 	engines,
 	value,
@@ -372,8 +388,9 @@ function EnginePicker({
 							)}
 						</svg>
 					),
-					meta: (
-						<span className='font-mono text-xs font-normal text-muted'>
+					// The description, not Arc's meta, so the image reads with the option (`aria-describedby`).
+					description: (
+						<span className='font-mono wrap-anywhere'>
 							{engine.repository
 								? `${engine.repository.replace('library/', '')}:${engine.default_tag}`
 								: 'any image'}
@@ -382,5 +399,17 @@ function EnginePicker({
 				}
 			})}
 		/>
+	)
+}
+
+/** `EnginePicker`'s grid of cards before the catalog answers, so the dialog does not jump when it lands. */
+function EnginePickerSkeleton() {
+	return (
+		<div className='grid grid-cols-[repeat(auto-fill,minmax(min(100%,180px),1fr))] gap-2.5'>
+			<LoadingStatus label='Loading engines' />
+			{['a', 'b', 'c', 'd', 'e', 'f'].map(card => (
+				<span key={card} aria-hidden className='h-17 rounded-surface border bg-surface' />
+			))}
+		</div>
 	)
 }

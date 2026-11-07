@@ -7,6 +7,7 @@ import {
 	IconChecks,
 	IconCircleCheck,
 	IconCircleDot,
+	IconCircleX,
 	IconMessageCircle,
 	IconX,
 } from '@tabler/icons-react'
@@ -32,8 +33,10 @@ export interface NotificationItem {
 	title: string
 	description?: string
 	time: string
+	// vexdock: the machine-readable stamp behind `time`, which is display text such as "3m ago".
+	dateTime?: string
 	read?: boolean
-	tone?: 'info' | 'success' | 'warning'
+	tone?: 'info' | 'success' | 'warning' | 'danger'
 	actor?: { name: string; photo: string }
 }
 
@@ -45,6 +48,8 @@ export interface NotificationCenterProps {
 	open?: boolean
 	onOpenChange?: (open: boolean) => void
 	avoidCollisions?: boolean
+	// vexdock: replaces the all-clear text while the list is not known, such as a failed read, with a way out.
+	empty?: { title: string; description: string; action?: ReactNode }
 }
 
 type View = 'all' | 'unread'
@@ -75,6 +80,16 @@ const toneClass = {
 	info: 'text-accent',
 	success: 'text-success',
 	warning: 'text-warning',
+	// vexdock: a failed deploy outranks a cancelled one.
+	danger: 'text-danger',
+}
+
+// vexdock: a map in place of Arc's ternary, which had no branch for `danger`.
+const toneIcon = {
+	info: IconMessageCircle,
+	success: IconCircleCheck,
+	warning: IconAlertTriangle,
+	danger: IconCircleX,
 }
 
 // Outgoing copies are hidden from assistive tech while they fade, so live text reads only the current value.
@@ -172,8 +187,8 @@ function MorphWidth({ reduce, morphKey, children }: { reduce: boolean; morphKey:
 			width.jump('auto')
 			if (frame.current) frame.current.style.width = 'auto'
 		}
-		const observer = new ResizeObserver(() => {
-			const next = node.getBoundingClientRect().width
+		const observer = new ResizeObserver(([entry]) => {
+			const next = entry!.borderBoxSize[0]!.inlineSize
 			const current = width.get()
 			const from = typeof current === 'number' ? current : last
 			last = next
@@ -205,7 +220,7 @@ function MorphWidth({ reduce, morphKey, children }: { reduce: boolean; morphKey:
 function NotificationVisual({ item }: { item: NotificationItem }) {
 	if (item.actor) return <Avatar name={item.actor.name} src={item.actor.photo} size='md' />
 	const tone = item.tone ?? 'info'
-	const Icon = tone === 'warning' ? IconAlertTriangle : tone === 'success' ? IconCircleCheck : IconMessageCircle
+	const Icon = toneIcon[tone]
 	return (
 		<span className={cn('grid size-9 flex-none place-items-center', toneClass[tone])} aria-hidden='true'>
 			<Icon size={18} stroke={1.7} />
@@ -221,6 +236,7 @@ export function NotificationCenter({
 	open,
 	onOpenChange,
 	avoidCollisions = true,
+	empty,
 }: NotificationCenterProps) {
 	const reduce = useReducedMotion() ?? false
 	const layoutId = useId()
@@ -242,9 +258,11 @@ export function NotificationCenter({
 	const unreadCount = useMemo(() => items.filter(item => !item.read).length, [items])
 	const readCount = items.length - unreadCount
 	const visible = view === 'unread' ? items.filter(item => !item.read) : items
-	const summary = unreadCount
+	// vexdock: while `empty` stands in for an unknown list, nothing claims the list is read.
+	let summary = unreadCount
 		? `${unreadCount} update${unreadCount === 1 ? '' : 's'} waiting for you`
 		: 'You’re all caught up'
+	if (empty) summary = empty.title
 
 	function setOpen(next: boolean) {
 		if (open === undefined) setInternalOpen(next)
@@ -294,7 +312,7 @@ export function NotificationCenter({
 	return (
 		<Popover.Root open={isOpen} onOpenChange={setOpen}>
 			{/* The trigger anchors the panel, so it gives press feedback with color only; scaling it would shift the panel. */}
-			{/* vexdock: a ghost 36px trigger, the size and look of the header's other icon buttons */}
+			{/* vexdock: a ghost trigger, the size and look of the header's other icon buttons; its badge rings in `background`, the header's own fill */}
 			<Popover.Trigger
 				className='relative grid size-control-md place-items-center rounded-control text-secondary transition-colors duration-110 ease-standard hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:text-foreground data-popup-open:bg-surface-muted data-popup-open:text-foreground motion-reduce:transition-none'
 				aria-label={`${label}${unreadCount ? `, ${unreadCount} unread` : ''}`}
@@ -350,9 +368,11 @@ export function NotificationCenter({
 							<div>
 								<div className='flex items-center gap-1.5'>
 									<h2 className='m-0 text-xl/[1.2] font-medium max-[380px]:text-lg/[1.2]'>{label}</h2>
-									<span className='grid h-[21px] min-w-[21px] place-items-center overflow-hidden rounded-[7px] bg-surface-muted px-[5px] text-xs leading-none text-secondary tabular-nums'>
-										<RollingCount value={unreadCount} reduce={reduce} />
-									</span>
+									{empty ? null : (
+										<span className='grid h-[21px] min-w-[21px] place-items-center overflow-hidden rounded-[7px] bg-surface-muted px-[5px] text-xs leading-none text-secondary tabular-nums'>
+											<RollingCount value={unreadCount} reduce={reduce} />
+										</span>
+									)}
 								</div>
 								<p className='relative mt-1 text-xs text-secondary' aria-live='polite'>
 									<SwapText reduce={reduce}>{summary}</SwapText>
@@ -542,7 +562,10 @@ export function NotificationCenter({
 																	: 'View update details')}
 														</span>
 													</button>
-													<time className='flex-none pt-1 text-xs whitespace-nowrap text-muted tabular-nums'>
+													<time
+														dateTime={item.dateTime}
+														className='flex-none pt-1 text-xs whitespace-nowrap text-muted tabular-nums'
+													>
 														{item.time}
 													</time>
 												</div>
@@ -658,24 +681,29 @@ export function NotificationCenter({
 											animate={{ y: 0 }}
 											transition={reduce ? instant : { ...enter, delay: duration.fast }}
 										>
-											<IconCircleCheck
-												size={24}
-												stroke={1.5}
-												className='mb-[13px] text-muted'
-												aria-hidden='true'
-											/>
+											{empty ? null : (
+												<IconCircleCheck
+													size={24}
+													stroke={1.5}
+													className='mb-[13px] text-muted'
+													aria-hidden='true'
+												/>
+											)}
 											<strong className='text-sm font-medium'>
 												<SwapText reduce={reduce}>
-													{view === 'unread' ? 'Nothing unread' : 'All clear'}
+													{empty?.title ??
+														(view === 'unread' ? 'Nothing unread' : 'All clear')}
 												</SwapText>
 											</strong>
 											<p className='mt-1 text-xs text-secondary'>
 												<SwapText reduce={reduce}>
-													{view === 'unread'
-														? 'You’ve seen every update.'
-														: 'New updates will appear here.'}
+													{empty?.description ??
+														(view === 'unread'
+															? 'You’ve seen every update.'
+															: 'New updates will appear here.')}
 												</SwapText>
 											</p>
+											{empty?.action ? <div className='mt-4'>{empty.action}</div> : null}
 											{view === 'unread' && items.length > 0 && (
 												<button
 													type='button'

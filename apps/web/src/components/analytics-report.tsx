@@ -1,21 +1,23 @@
 import { type ReactNode, useState } from 'react'
-import { IconChartBar, IconX } from '@tabler/icons-react'
+import { IconChartBar } from '@tabler/icons-react'
+import { cn } from 'cn'
 import { LineChart } from '@/components/ui/line-chart'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { AnalyticsReport, AnalyticsReportBody, AnalyticsRow, Annotation } from '../lib/api'
 import { percent } from '../lib/format'
-import { EmptyState, IconButton, Segmented, StatStrip } from './primitives'
+import { EmptyState, FilterChip, LoadingStatus, PendingReading, Segmented, StatStrip, textLink } from './primitives'
 
-export type Money = ((minor: number) => string) | null
+type Money = ((minor: number) => string) | null
 
 /** Formats minor units in `currency`, with that currency's own number of decimals (none for JPY). */
 export function moneyFormat(currency: string): Money {
 	if (!currency) return null
-	const format = new Intl.NumberFormat(undefined, { style: 'currency', currency })
+	const format = new Intl.NumberFormat('en-US', { style: 'currency', currency })
 	const scale = 10 ** (format.resolvedOptions().maximumFractionDigits ?? 2)
 	return (minor: number) => format.format(minor / scale)
 }
 
-export function sessionLength(seconds: number) {
+function sessionLength(seconds: number) {
 	const whole = Math.round(seconds)
 	return whole < 60 ? `${whole}s` : `${Math.floor(whole / 60)}m ${whole % 60}s`
 }
@@ -24,20 +26,28 @@ export function sessionLength(seconds: number) {
 function Delta({ now, before, lowerIsBetter }: { now: number; before: number | undefined; lowerIsBetter?: boolean }) {
 	if (before === undefined || before === 0) return null
 	const change = ((now - before) / before) * 100
-	if (Math.abs(change) < 0.5) return <span className='ml-2 text-sm text-muted'>0%</span>
+	if (Math.abs(change) < 0.5) {
+		return (
+			<span className='text-sm text-muted'>
+				0%<span className='sr-only'> against the range before</span>
+			</span>
+		)
+	}
 	const good = lowerIsBetter ? change < 0 : change > 0
 	return (
-		<span className={`ml-2 text-sm ${good ? 'text-success' : 'text-danger'}`}>
+		<span className={cn('text-sm', good ? 'text-success' : 'text-danger')}>
 			{change > 0 ? '+' : ''}
-			{Math.round(change)}%
+			{Math.round(change)}%<span className='sr-only'>, {good ? 'better' : 'worse'} than the range before</span>
 		</span>
 	)
 }
 
-function reading(value: ReactNode, now: number, before: number | undefined, lowerIsBetter?: boolean) {
+function reading(value: string, now: number, before: number | undefined, lowerIsBetter?: boolean) {
 	return (
-		<span className='inline-flex items-baseline'>
-			{value}
+		// Wraps rather than clips: at 390 px a figure and its change outgrow the cell, and a figure wider than the cell
+		// alone breaks inside itself, so touch and keyboard readers get all of it.
+		<span className='inline-flex max-w-full flex-wrap items-baseline gap-x-2'>
+			<span className='min-w-0 wrap-anywhere whitespace-normal'>{value}</span>
 			<Delta now={now} before={before} lowerIsBetter={lowerIsBetter} />
 		</span>
 	)
@@ -49,8 +59,11 @@ export function Readings({ report, previous }: { report: AnalyticsReport; previo
 	const money = moneyFormat(report.currency)
 	const before = previous ?? undefined
 	const items = [
-		{ label: 'Online', value: report.online },
-		{ label: 'Visitors', value: reading(report.visitors.toLocaleString(), report.visitors, before?.visitors) },
+		{ label: 'Online', value: report.online.toLocaleString('en-US') },
+		{
+			label: 'Visitors',
+			value: reading(report.visitors.toLocaleString('en-US'), report.visitors, before?.visitors),
+		},
 		...(money
 			? [
 					{ label: 'Revenue', value: reading(money(report.revenue), report.revenue, before?.revenue) },
@@ -62,12 +75,19 @@ export function Readings({ report, previous }: { report: AnalyticsReport; previo
 							before && conversion(before),
 						),
 					},
-					{ label: 'Revenue / visitor', value: money(report.revenue / Math.max(report.visitors, 1)) },
+					{
+						label: 'Revenue / visitor',
+						value: (
+							<span className='min-w-0 wrap-anywhere whitespace-normal'>
+								{money(report.revenue / Math.max(report.visitors, 1))}
+							</span>
+						),
+					},
 				]
 			: [
 					{
 						label: 'Pageviews',
-						value: reading(report.pageviews.toLocaleString(), report.pageviews, before?.pageviews),
+						value: reading(report.pageviews.toLocaleString('en-US'), report.pageviews, before?.pageviews),
 					},
 				]),
 		{
@@ -84,6 +104,7 @@ export function Readings({ report, previous }: { report: AnalyticsReport; previo
 
 const HOUR = 3600
 const DAY = 86_400
+const CHART_HEIGHT = 220
 
 /** Visitors per bucket, the span before as a dashed line, and each annotation named in its bucket's tooltip. */
 export function TrafficChart({ body }: { body: AnalyticsReportBody }) {
@@ -92,11 +113,11 @@ export function TrafficChart({ body }: { body: AnalyticsReportBody }) {
 	const bucket = first && second ? second.at - first.at : HOUR
 	const stamp = (at: number) =>
 		bucket < DAY
-			? new Date(at * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+			? new Date(at * 1000).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
 			: new Date(at * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })
 	// The axis gets 76 px a label (line-chart.tsx axisPicks), so an hourly tick drops the weekday the tooltip keeps.
 	const tick = (at: number) =>
-		bucket < DAY ? new Date(at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : stamp(at)
+		bucket < DAY ? new Date(at * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : stamp(at)
 	const notes = (at: number) => {
 		const texts: string[] = []
 		for (const note of body.annotations) {
@@ -109,14 +130,13 @@ export function TrafficChart({ body }: { body: AnalyticsReportBody }) {
 		...(body.previous ? [{ key: 'previous', label: 'Previous period', dashed: true }] : []),
 	]
 	return (
-		<section className='rounded-surface border bg-surface p-4'>
-			<h2 className='mb-3 font-medium'>Traffic</h2>
+		<ReportCard title='Traffic'>
 			<LineChart
 				label='Visitors per period'
-				height={220}
+				height={CHART_HEIGHT}
 				categoryLabel='Time'
 				series={series}
-				formatValue={value => Math.round(value).toLocaleString()}
+				formatValue={value => Math.round(value).toLocaleString('en-US')}
 				data={points.map((point, index) => ({
 					key: String(point.at),
 					label: stamp(point.at) + notes(point.at),
@@ -124,6 +144,30 @@ export function TrafficChart({ body }: { body: AnalyticsReportBody }) {
 					values: { visitors: point.visitors, previous: body.previous?.series[index]?.visitors },
 				}))}
 			/>
+		</ReportCard>
+	)
+}
+
+/** One card of a report: its title with what acts on it, then the body. `level` 3 sits under a Section's own title. */
+export function ReportCard({
+	title,
+	level = 2,
+	actions,
+	children,
+}: {
+	title: string
+	level?: 2 | 3
+	actions?: ReactNode
+	children: ReactNode
+}) {
+	const Heading = level === 3 ? 'h3' : 'h2'
+	return (
+		<section className='flex min-w-0 flex-col rounded-surface border bg-surface p-4'>
+			<header className='mb-3 flex h-11 items-center justify-between gap-4'>
+				<Heading className='min-w-0 truncate font-medium'>{title}</Heading>
+				{actions}
+			</header>
+			{children}
 		</section>
 	)
 }
@@ -134,7 +178,7 @@ export function annotationTitle(note: Annotation) {
 	return note.text
 }
 
-export type Pick = (dimension: string, value: string) => void
+type OnPick = (dimension: string, value: string) => void
 
 /** Every breakdown card of a report. `onPick` filters the report to a clicked row. */
 export function Breakdowns({
@@ -143,7 +187,7 @@ export function Breakdowns({
 	children,
 }: {
 	report: AnalyticsReport
-	onPick?: Pick
+	onPick?: OnPick
 	children?: ReactNode
 }) {
 	const money = moneyFormat(report.currency)
@@ -201,11 +245,42 @@ export function Breakdowns({
 	)
 }
 
-/** The empty report: nothing to chart yet. */
 export function NoVisits({ description }: { description: string }) {
 	return (
 		<div className='rounded-surface border bg-surface'>
 			<EmptyState icon={IconChartBar} title='No visits in this range' description={description} />
+		</div>
+	)
+}
+
+/** The report's shape while it loads: the readings, the traffic chart at its own height and the breakdowns. */
+export function ReportSkeleton() {
+	return (
+		<div className='flex flex-col gap-4'>
+			<LoadingStatus label='Loading the report' />
+			<div aria-hidden>
+				{/* The currency is unknown until the report lands, so the five cells every report has. */}
+				<StatStrip
+					items={['Online', 'Visitors', 'Pageviews', 'Bounce rate', 'Session'].map(label => ({
+						label,
+						value: <PendingReading label={label} />,
+					}))}
+				/>
+			</div>
+			<div aria-hidden>
+				<ReportCard title='Traffic'>
+					<div style={{ height: CHART_HEIGHT }}>
+						<Skeleton lines={6} />
+					</div>
+				</ReportCard>
+			</div>
+			<div aria-hidden className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+				{['Sources', 'Pages', 'Locations', 'Devices', 'Goals'].map(title => (
+					<ReportCard key={title} title={title}>
+						<Skeleton lines={5} />
+					</ReportCard>
+				))}
+			</div>
 		</div>
 	)
 }
@@ -219,11 +294,14 @@ function SourceIcon({ name }: { name: string }) {
 			alt=''
 			loading='lazy'
 			referrerPolicy='no-referrer'
-			className='rounded-sm size-4 shrink-0'
+			className='size-4 shrink-0'
 			src={`https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`}
 		/>
 	)
 }
+
+const breakdownRow =
+	'relative col-span-full grid min-h-9 w-full grid-cols-subgrid items-center rounded-[calc(var(--radius-control)-4px)] px-2 py-1.5 text-left text-sm pointer-coarse:min-h-11'
 
 /** One card of the report: a ranked list of one dimension, each bar as wide as its share of the top row. */
 function Breakdown({
@@ -239,7 +317,7 @@ function Breakdown({
 		...{ value: string; label: string; rows: AnalyticsRow[] }[],
 	]
 	money: Money
-	onPick?: Pick
+	onPick?: OnPick
 	footer?: ReactNode
 }) {
 	const [picked, setPicked] = useState(views[0].value)
@@ -247,55 +325,82 @@ function Breakdown({
 	const top = Math.max(1, ...view.rows.map(row => row.visitors))
 
 	return (
-		<section className='flex min-w-0 flex-col rounded-surface border bg-surface p-4'>
-			<header className='mb-3 flex h-8 items-center justify-between gap-4'>
-				<h2 className='font-medium'>{title}</h2>
-				{views.length > 1 ? (
+		<ReportCard
+			title={title}
+			actions={
+				views.length > 1 ? (
 					<Segmented label={title} value={picked} onChange={setPicked} options={views} />
-				) : null}
-			</header>
-			<div className='flex justify-between px-2 pb-1 text-xs text-muted'>
-				<span>{view.label}</span>
-				<span className='flex gap-6'>
-					<span className='w-16 text-right'>Visitors</span>
-					{money ? <span className='w-20 text-right'>Revenue</span> : null}
-				</span>
-			</div>
-			{view.rows.length === 0 ? (
-				<p className='px-2 py-6 text-center text-sm text-muted'>Nothing recorded in this range</p>
-			) : (
-				<ol className='flex flex-col gap-0.5'>
-					{view.rows.map(row => (
-						<li key={row.name}>
-							<button
-								type='button'
-								disabled={!onPick}
-								onClick={() => onPick?.(view.value, row.name)}
-								title={onPick ? `Show only ${row.name || 'Direct'}` : row.name}
-								className='relative flex w-full items-center justify-between gap-4 rounded-[calc(var(--radius-control)-4px)] px-2 py-1.5 text-left text-sm enabled:hover:bg-surface-muted'
-							>
-								<span
-									aria-hidden
-									className='absolute inset-y-0 left-0 rounded-[calc(var(--radius-control)-4px)] bg-accent/12'
-									style={{ width: `${(row.visitors / top) * 100}%` }}
-								/>
-								<span className='relative flex min-w-0 items-center gap-2'>
-									{view.value === 'referrer' ? <SourceIcon name={row.name} /> : null}
-									<span className='truncate'>{row.name || 'Direct'}</span>
-								</span>
-								<span className='relative flex shrink-0 gap-6 tabular-nums'>
-									<span className='w-16 text-right'>{row.visitors.toLocaleString()}</span>
+				) : null
+			}
+		>
+			<div
+				className={cn(
+					'grid gap-x-6',
+					money ? 'grid-cols-[minmax(0,1fr)_auto_auto]' : 'grid-cols-[minmax(0,1fr)_auto]',
+				)}
+			>
+				<div className='col-span-full grid grid-cols-subgrid px-2 pb-1 text-xs text-muted'>
+					<span>{view.label}</span>
+					<span className='text-right'>Visitors</span>
+					{money ? <span className='text-right'>Revenue</span> : null}
+				</div>
+				{view.rows.length === 0 ? (
+					<p className='col-span-full px-2 py-6 text-center text-sm text-muted'>
+						Nothing recorded in this range
+					</p>
+				) : (
+					<ol className='col-span-full grid grid-cols-subgrid gap-y-0.5'>
+						{view.rows.map(row => {
+							const { name } = row
+							const cells = (
+								<>
+									<span
+										aria-hidden
+										className='absolute inset-y-0 left-0 rounded-[calc(var(--radius-control)-4px)] bg-accent/12'
+										style={{ width: `${(row.visitors / top) * 100}%` }}
+									/>
+									<span className='relative flex min-w-0 items-center gap-2'>
+										{view.value === 'referrer' ? <SourceIcon name={row.name} /> : null}
+										{/* A shared report has no filter to open, so its long names wrap instead of hiding. */}
+										<span className={onPick ? 'truncate' : '[overflow-wrap:anywhere]'}>{name}</span>
+									</span>
+									<span className='relative text-right tabular-nums'>
+										{row.visitors.toLocaleString('en-US')}
+										<span className='sr-only'> visitors</span>
+									</span>
 									{money ? (
-										<span className='w-20 text-right text-success'>{money(row.revenue)}</span>
+										<span className='relative text-right tabular-nums'>
+											{money(row.revenue)}
+											<span className='sr-only'> revenue</span>
+										</span>
 									) : null}
-								</span>
-							</button>
-						</li>
-					))}
-				</ol>
-			)}
+								</>
+							)
+							return (
+								<li key={row.name} className='col-span-full grid grid-cols-subgrid'>
+									{onPick ? (
+										<button
+											type='button'
+											onClick={() => onPick(view.value, row.name)}
+											title={`Show only ${name}`}
+											className={cn(
+												breakdownRow,
+												'transition-colors hover:bg-surface-muted active:bg-surface-pressed',
+											)}
+										>
+											{cells}
+										</button>
+									) : (
+										<div className={breakdownRow}>{cells}</div>
+									)}
+								</li>
+							)
+						})}
+					</ol>
+				)}
+			</div>
 			{footer}
-		</section>
+		</ReportCard>
 	)
 }
 
@@ -303,27 +408,31 @@ function Breakdown({
 export function GeoCredit() {
 	return (
 		<p className='mt-auto px-2 pt-3 text-xs text-muted'>
-			<a href='https://db-ip.com' target='_blank' rel='noreferrer' className='hover:text-foreground'>
+			<a
+				href='https://db-ip.com'
+				target='_blank'
+				rel='noreferrer'
+				className={cn(textLink, 'hover:text-foreground')}
+			>
 				IP Geolocation by DB-IP
+				<span className='sr-only'> (opens in a new tab)</span>
 			</a>
 		</p>
 	)
 }
 
-/** The filters a report is narrowed to, each removable. */
 export function FilterChips({ filters, onRemove }: { filters: [string, string][]; onRemove: (index: number) => void }) {
 	return (
 		<div className='flex flex-wrap items-center gap-2'>
-			{filters.map(([dimension, value], index) => (
-				<span
-					key={`${dimension}:${value}`}
-					className='inline-flex items-center gap-1 rounded-control border bg-surface py-0.5 pr-0.5 pl-2 text-sm'
-				>
-					<span className='text-muted'>{dimension.replace('_', ' ')}</span>
-					{value || 'Direct'}
-					<IconButton label={`Remove the ${dimension} filter`} icon={IconX} onClick={() => onRemove(index)} />
-				</span>
-			))}
+			{filters.map(([dimension, value], index) => {
+				const name = dimension.replaceAll('_', ' ')
+				return (
+					<FilterChip key={`${dimension}:${value}`} label={name} onRemove={() => onRemove(index)}>
+						<span className='text-muted'>{name}</span>
+						{value}
+					</FilterChip>
+				)
+			})}
 		</div>
 	)
 }
