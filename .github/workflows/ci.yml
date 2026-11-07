@@ -111,6 +111,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # Overlaps the pulls with the cache restore below. The last four are what smoke-test.sh deploys.
+      - name: Pull base images in the background
+        run: |
+          for image in $(sed -n 's/^FROM \([^ ]*\).*/\1/p' docker/*.Dockerfile | sort -u) registry:2 \
+            nginx:alpine httpd:alpine postgres:17-alpine curlimages/curl:latest; do
+            nohup docker pull -q "$image" >/dev/null 2>&1 &
+          done
+
       # The target mount in docker/*.Dockerfile dies with the runner. Registry stays out (fetch 3 s, inject 18 s);
       # restore-keys stop at the toolchain hash so a new rustc never inherits stale artifacts.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
