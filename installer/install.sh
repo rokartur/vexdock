@@ -144,6 +144,11 @@ install_docker() {
         ok "Docker installed"
     fi
 
+    # Database healthchecks use start_interval, which Compose rejects below Engine 25.
+    engine="$(docker version --format '{{.Server.Version}}')"
+    [ "${engine%%.*}" -ge 25 ] 2>/dev/null ||
+        die "Docker Engine 25 or newer is required, found $engine. Upgrade Docker, then run the installer again."
+
     if docker compose version >/dev/null 2>&1; then
         ok "Docker Compose ready"
     else

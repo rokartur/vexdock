@@ -6,6 +6,8 @@
   but are untested; the installer warns and continues.
 - amd64. The published images are amd64 only and the installer stops on anything
   else rather than failing later on a missing manifest.
+- Docker Engine 25 or newer, when Docker is already installed. The installer
+  stops on an older one; database services need it for their healthchecks.
 - 1 GB RAM minimum. Building images on the server needs 2 GB.
 - 2 GB free disk space. Site analytics keeps every event for three years
   ([api.md](api.md#analytics)), so a busy site's database and every backup of

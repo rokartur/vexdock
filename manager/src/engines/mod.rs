@@ -112,6 +112,7 @@ pub struct Rendered {
 }
 
 /// The curated list, in the order the create form shows it.
+// start_interval in the healthchecks needs Docker Engine 25; installer/install.sh refuses older ones.
 pub static CATALOG: &[Engine] = &[
 	Engine {
 		slug: "postgres",
@@ -138,6 +139,8 @@ pub static CATALOG: &[Engine] = &[
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
+      start_period: 60s
+      start_interval: 1s
       timeout: 5s
       retries: 5"#,
 	},
@@ -160,6 +163,8 @@ pub static CATALOG: &[Engine] = &[
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 10s
+      start_period: 60s
+      start_interval: 1s
       timeout: 5s
       retries: 10"#,
 	},
@@ -182,6 +187,8 @@ pub static CATALOG: &[Engine] = &[
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
+      start_period: 60s
+      start_interval: 1s
       timeout: 5s
       retries: 10"#,
 	},
@@ -204,6 +211,8 @@ pub static CATALOG: &[Engine] = &[
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
+      start_period: 60s
+      start_interval: 1s
       timeout: 5s
       retries: 10"#,
 	},
@@ -230,6 +239,8 @@ pub static CATALOG: &[Engine] = &[
     healthcheck:
       test: ["CMD-SHELL", "valkey-cli --no-auth-warning -a \"$$VALKEY_PASSWORD\" ping"]
       interval: 10s
+      start_period: 60s
+      start_interval: 1s
       timeout: 5s
       retries: 5"#,
 	},
