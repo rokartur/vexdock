@@ -142,6 +142,7 @@ change.
 ## Requirements
 
 - Ubuntu 22.04+ or Debian 12+, amd64 (the published images are amd64 only)
+- Docker Engine 25+ if Docker is already installed (the installer installs it otherwise)
 - 1 GB RAM (2 GB if you build images on the server)
 - Ports 80, 443 and 3000 free
 

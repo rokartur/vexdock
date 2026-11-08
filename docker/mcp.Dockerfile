@@ -7,9 +7,10 @@ RUN apk add --no-cache musl-dev
 WORKDIR /src
 COPY manager/ ./
 ARG CARGO_PROFILE=release
+# Keep identical to manager.Dockerfile's build stage, so BuildKit runs it once for both images.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
-    cargo build --profile "$CARGO_PROFILE" --locked --bin mcp && cp "target/$CARGO_PROFILE/mcp" /mcp
+    cargo build --profile "$CARGO_PROFILE" --locked --bins && cp "target/$CARGO_PROFILE/manager" "target/$CARGO_PROFILE/mcp" /
 
 FROM gcr.io/distroless/static-debian12:nonroot
 

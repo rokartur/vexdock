@@ -46,6 +46,10 @@ Open the deployment and read the step that failed. The step name says where:
 For `healthcheck` failures, open the service's Logs tab: the application's own
 output is almost always the answer.
 
+A database service that fails with `healthcheck.start_interval` and "Docker
+Engine v25 or later" runs on an older Docker. Upgrade Docker on the server
+(`docker version` shows the Engine version) and deploy again.
+
 A deployment that stays `queued` is waiting: for an earlier deployment of the
 same environment, or for one of the two deploy slots the manager runs at once
 ([architecture.md](architecture.md#deployment-pipeline)). Cancel the one in

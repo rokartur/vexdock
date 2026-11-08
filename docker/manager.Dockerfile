@@ -8,9 +8,10 @@ RUN apk add --no-cache musl-dev
 WORKDIR /src
 COPY manager/ ./
 ARG CARGO_PROFILE=release
+# Builds mcp too: this stage is byte-identical to mcp.Dockerfile's, so BuildKit runs it once for both images.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
-    cargo build --profile "$CARGO_PROFILE" --locked --bin manager && cp "target/$CARGO_PROFILE/manager" /manager
+    cargo build --profile "$CARGO_PROFILE" --locked --bins && cp "target/$CARGO_PROFILE/manager" "target/$CARGO_PROFILE/mcp" /
 
 FROM alpine:3.22
 

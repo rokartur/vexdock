@@ -63,7 +63,7 @@ pass 'the manager validates the better-auth session'
 auth_post() { curl -fsS -b "$COOKIES" -H "Origin: $ORIGIN" -H 'Content-Type: application/json' "$@"; }
 
 wait_for_deployment() {
-    for _ in $(seq 1 60); do
+    for _ in $(seq 1 240); do
         state=$(curl -fsS -b "$COOKIES" "$API/deployments/$1" | json "d['deployment']['status']")
         case "$state" in
             success) return ;;
@@ -72,7 +72,7 @@ wait_for_deployment() {
                 fail "deployment finished as $state"
                 ;;
         esac
-        sleep 2
+        sleep 0.5
     done
     fail "deployment did not succeed in time (last state: $state)"
 }
