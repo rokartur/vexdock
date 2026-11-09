@@ -180,7 +180,6 @@ function ServiceMonitoring() {
 						hint={`avg ${percent(meanOf(cpu))} · peak ${percent(peakOf(cpu))} · 100% is one core`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis
 					/>
 					<MetricCard
 						label='Memory'
@@ -194,7 +193,6 @@ function ServiceMonitoring() {
 						hint={`of ${bytes(newest?.memory_limit)} · peak ${bytes(peakOf(memory))}`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis
 					/>
 					<MetricCard
 						label='Network'
@@ -218,7 +216,6 @@ function ServiceMonitoring() {
 						hint={`in ${bytes(totalOf(history, sample => sample.network_rx))} · out ${bytes(totalOf(history, sample => sample.network_tx))}`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis
 						max={1024}
 					/>
 					<MetricCard
@@ -243,7 +240,6 @@ function ServiceMonitoring() {
 						hint={`read ${bytes(totalOf(history, sample => sample.block_read))} · written ${bytes(totalOf(history, sample => sample.block_write))}`}
 						windowLabel={`last ${label}`}
 						height={140}
-						axis
 						max={1024}
 					/>
 				</Cells>

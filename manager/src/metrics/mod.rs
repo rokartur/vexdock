@@ -1,6 +1,6 @@
-//! Host-level CPU, memory and disk usage for the dashboard, sampled into the
-//! database on a tick so the panel can draw history instead of only what
-//! arrived while the page was open.
+//! Host CPU, memory and disk usage, read live for the dashboard, and container
+//! usage, sampled into the database on a tick so a service's charts can draw
+//! history instead of only what arrived while the page was open.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,11 +10,11 @@ use anyhow::Result;
 use futures::StreamExt;
 use serde::Serialize;
 
-use crate::database::{ContainerSample, Db, HostPoint};
+use crate::database::{ContainerSample, Db};
 use crate::docker::{COMPOSE_PROJECT_LABEL, COMPOSE_SERVICE_LABEL, Docker};
 
 /// Between readings, and the resolution every chart is drawn at: the API refuses
-/// to bucket finer. A minute keeps a week at ten thousand host rows.
+/// to bucket finer. A minute keeps a week at ten thousand rows per container.
 pub const INTERVAL: Duration = Duration::from_secs(60);
 
 /// How far back readings are kept; the scheduler prunes the rest.
@@ -108,17 +108,16 @@ fn load_average() -> f64 {
 		.unwrap_or(0.0)
 }
 
-/// Writes host and container readings on a fixed tick. Without it nothing is
-/// recorded: the SSE endpoints only sample while a browser is watching.
+/// Writes container readings on a fixed tick. Without it nothing is recorded:
+/// the SSE endpoints only sample while a browser is watching.
 pub struct Sampler {
 	db: Arc<Db>,
 	docker: Arc<Docker>,
-	root: String,
 }
 
 impl Sampler {
-	pub fn new(db: Arc<Db>, docker: Arc<Docker>, root: String) -> Sampler {
-		Sampler { db, docker, root }
+	pub fn new(db: Arc<Db>, docker: Arc<Docker>) -> Sampler {
+		Sampler { db, docker }
 	}
 
 	pub async fn run(self) {
@@ -131,18 +130,6 @@ impl Sampler {
 
 	async fn sample(&self) {
 		let at = chrono::Utc::now().timestamp();
-		let host = read(&self.root).await;
-		let point = HostPoint {
-			at,
-			cpu_percent: host.cpu_percent,
-			memory_used: host.memory_used,
-			memory_total: host.memory_total,
-			disk_used: host.disk_used,
-			disk_total: host.disk_total,
-		};
-		if let Err(err) = self.db.record_host_metric(at, &point) {
-			tracing::warn!(component = "metrics", error = %format!("{err:#}"), "record host metrics");
-		}
 		let samples = match self.containers().await {
 			Ok(samples) => samples,
 			Err(err) => {

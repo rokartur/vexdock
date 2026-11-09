@@ -294,7 +294,7 @@ last numbers.
 | `POST /api/services/{id}/deploy` | Deploy this service only |
 | `POST /api/services/{id}/start\|stop\|restart` | Container lifecycle without a pipeline |
 | `POST /api/services/{id}/exec` | `{"command", "shell"?}`; runs it in the container, answers `{"exit_code", "output"}`. `shell` is `sh` or `bash`, as for a [task](#scheduled-tasks); after ten minutes the process is abandoned; output over 1 MiB keeps its tail |
-| `GET /api/services/{id}/metrics` | Recorded usage over `?window=`, the same windows as `/api/system/metrics` |
+| `GET /api/services/{id}/metrics` | Recorded usage over `?window=`: `30m`, `1h`, `6h`, `24h` or `7d`, and anything else is `30m`. At most 240 points, so a wider window returns coarser buckets rather than more rows |
 | `GET \| POST /api/services/{id}/tasks` | Its [scheduled tasks](#scheduled-tasks) |
 | `GET \| POST /api/services/{id}/redirects`, `DELETE .../redirects/{redirectId}` | Its [redirects](#redirects-basic-auth-and-ports) |
 | `GET \| POST /api/services/{id}/basic-auth`, `DELETE .../basic-auth/{userId}` | Its [basic-auth users](#redirects-basic-auth-and-ports) |
@@ -670,16 +670,11 @@ and keeps polling until the manager returns.
 | Endpoint | Does |
 |---|---|
 | `GET /api/system/info` | Host and Docker facts, project and container counts, the twenty most recent deployments |
-| `GET /api/system/metrics` | Recorded host usage over `?window=`, which seeds the charts before live samples arrive |
 | `GET \| PUT /api/system/settings` | Dashboard domain, ACME email, Cloudflare token |
 | `GET /api/system/certificates` | Every issued certificate |
 | `POST /api/system/backup` | Takes a snapshot; `?volumes=true` includes volume archives. `201` |
 | `GET /api/system/backups` | The snapshots on disk |
 | `DELETE /api/system/backups/{name}` | Removes one snapshot directory |
-
-`?window=` is `30m`, `1h`, `6h`, `24h` or `7d`, and anything else is `30m`. The
-range is reduced to at most 240 points, so a wider window returns coarser
-buckets rather than more rows.
 
 Settings are written whole, like the other settings screens. Within them
 `cloudflare_api_token` is write-only: leave it out to keep the stored token,

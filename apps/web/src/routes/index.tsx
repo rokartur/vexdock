@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import { IconPlayerPause, IconPlayerPlay, IconPlus } from '@tabler/icons-react'
-import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, type LinkOptions, linkOptions, useNavigate } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { Alert } from '@/components/ui/alert'
 import { type Columns, DataTable, RowTitle, columnsFor } from '../components/data-table'
 import { DeploymentDetail } from '../components/deployment-detail'
-import { HostMetrics, WINDOWS } from '../components/host-metrics'
-import { useHistory } from '../components/metric-chart'
+import { HostMetrics } from '../components/host-metrics'
 import { NewProjectDialog } from '../components/new-project'
 import {
 	Button,
@@ -19,26 +18,13 @@ import {
 	Refresh,
 	RelativeTime,
 	Section,
-	Segmented,
 	Status,
 	textLink,
 } from '../components/primitives'
-import {
-	api,
-	type Certificate,
-	certificateStatus,
-	type HostPoint,
-	type HostStats,
-	type MetricWindow,
-	type Project,
-	type SystemInfo,
-} from '../lib/api'
+import { type Certificate, certificateStatus, type HostStats, type Project, type SystemInfo } from '../lib/api'
 import { since, until } from '../lib/format'
 import { certificatesQuery, preload, projectsQuery, systemInfoQuery, versionQuery } from '../lib/queries'
 import { useEventSource } from '../lib/sse'
-
-/** The live stream carries a load average the recorded buckets do not. */
-type HostSample = HostPoint & { load_average?: number }
 
 /** Close enough to expiry that a renewal which has not happened yet is worth reading as a problem. */
 const EXPIRY_WARNING_DAYS = 21
@@ -93,9 +79,6 @@ function concernsOf(projects: Project[], certificates: Certificate[]): Concern[]
 	}
 	return concerns
 }
-
-/** Recorded buckets are stamped in unix seconds; live samples use the browser clock. */
-const toMillis = (point: HostPoint): HostSample => ({ ...point, at: point.at * 1000 })
 
 type RecentDeployment = SystemInfo['recent_deployments'][number]
 
@@ -215,18 +198,10 @@ function ServiceSquares({ project }: { project: Project }) {
 	)
 }
 
-const metricsQuery = (window: MetricWindow) =>
-	queryOptions({
-		queryKey: ['system', 'metrics', window],
-		queryFn: () => api.systemMetrics(window),
-		placeholderData: keepPreviousData,
-	})
-
 export const Route = createFileRoute('/')({
 	loader: ({ context: { queryClient } }) =>
 		Promise.all([
 			preload(queryClient, systemInfoQuery),
-			preload(queryClient, metricsQuery('30m')),
 			preload(queryClient, versionQuery),
 			preload(queryClient, certificatesQuery),
 			preload(queryClient, projectsQuery),
@@ -237,27 +212,16 @@ export const Route = createFileRoute('/')({
 function DashboardPage() {
 	const navigate = useNavigate()
 	const info = useQuery(systemInfoQuery)
-	const [window, setWindow] = useState<MetricWindow>('30m')
-	const recorded = useQuery(metricsQuery(window))
 	const version = useQuery(versionQuery)
 	const projects = useQuery(projectsQuery)
 	const certificates = useQuery(certificatesQuery)
-	const [stats, setStats] = useState<HostSample | null>(null)
+	const [stats, setStats] = useState<HostStats | null>(null)
 	const [paused, setPaused] = useState(false)
 	const [openDeployment, setOpenDeployment] = useState<string | null>(null)
 	const [creating, setCreating] = useState(false)
 
-	const stream = useEventSource(
-		'/api/system/stats',
-		{ stats: data => setStats({ ...(data as HostStats), at: Date.now() }) },
-		!paused,
-	)
+	const stream = useEventSource('/api/system/stats', { stats: data => setStats(data as HostStats) }, !paused)
 
-	const history = useHistory(
-		stats,
-		useMemo(() => (recorded.data ?? []).map(toMillis), [recorded.data]),
-		WINDOWS.find(option => option.value === window)?.ms,
-	)
 	const host = info.data?.host
 
 	// The API already returns these newest-first, capped.
@@ -271,7 +235,7 @@ function DashboardPage() {
 	return (
 		<Page
 			fill
-			// A caption, not a FactBar: the page's one strip is HostMetrics, and these words fit beside the filters.
+			// A caption, not a FactBar: the page's one strip is HostMetrics, and these words fit beside the pause button.
 			toolbar={
 				info.data ? (
 					<p className='min-w-0 truncate text-sm text-secondary max-sm:whitespace-normal'>
@@ -289,16 +253,13 @@ function DashboardPage() {
 					<PendingReading label='host' failed={info.isError} />
 				)
 			}
+			// WCAG 2.2.2: readings that keep moving beside other content can be held still.
 			filters={
-				<>
-					<Segmented label='Window' value={window} options={WINDOWS} onChange={setWindow} />
-					{/* WCAG 2.2.2: readings that keep moving beside other content can be held still. */}
-					<IconButton
-						icon={paused ? IconPlayerPlay : IconPlayerPause}
-						label={paused ? 'Resume live readings' : 'Pause live readings'}
-						onClick={() => setPaused(!paused)}
-					/>
-				</>
+				<IconButton
+					icon={paused ? IconPlayerPlay : IconPlayerPause}
+					label={paused ? 'Resume live readings' : 'Pause live readings'}
+					onClick={() => setPaused(!paused)}
+				/>
 			}
 		>
 			<NewProjectDialog open={creating} onOpenChange={setCreating} />
@@ -330,14 +291,7 @@ function DashboardPage() {
 				</Alert>
 			) : null}
 
-			<ErrorText error={recorded.error} />
-			<HostMetrics
-				history={history}
-				window={window}
-				load={stats?.load_average}
-				cpus={host?.cpus}
-				failed={history.length === 0 && (recorded.isError || stream === 'lost')}
-			/>
+			<HostMetrics stats={stats} cpus={host?.cpus} failed={stream === 'lost'} />
 
 			<div className='grid flex-1 grid-cols-[minmax(0,1fr)] gap-6 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_24rem] xl:grid-rows-[minmax(0,1fr)]'>
 				<Section

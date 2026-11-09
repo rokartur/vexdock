@@ -787,13 +787,12 @@ export function PendingReading({ label, failed = false }: { label: string; faile
 	return <Skeleton label={`Loading ${label}`} lines={1} className='w-20' />
 }
 
-/** One reading in a `Cells` frame: label, the number, then what it is out of. `children` is a sparkline or a bar. */
+/** One reading in a `Cells` frame: label, the number, then what it is out of. `children` is a chart or a bar. */
 export function Cell({
 	label,
 	icon: Icon,
 	value,
 	hint,
-	inline = false,
 	children,
 }: {
 	label: string
@@ -801,13 +800,10 @@ export function Cell({
 	/** Left out by a cell whose body is its content, e.g. a list of facts. */
 	value?: ReactNode
 	hint?: ReactNode
-	/** `children` sit beside the reading instead of under it, and take the width it leaves: a chart in a wide cell.
-	 * Decided by the cell's own width, not the window's, so a narrow cell in a wide grid still stacks. */
-	inline?: boolean
 	children?: ReactNode
 }) {
-	const reading = (
-		<>
+	return (
+		<div className='min-w-0 bg-surface p-4 ring ring-border'>
 			<div className='flex min-h-5.5 items-center gap-2 text-secondary'>
 				{Icon ? <Icon stroke={1.75} className='size-4 text-muted' /> : null}
 				{label}
@@ -830,22 +826,6 @@ export function Cell({
 					{hint}
 				</div>
 			) : null}
-		</>
-	)
-	const card = 'min-w-0 bg-surface p-4 ring ring-border'
-	if (inline) {
-		return (
-			<div className={cn('@container', card)}>
-				<div className='@sm:flex @sm:items-stretch @sm:gap-4'>
-					<div className='min-w-0 @sm:max-w-[45%] @sm:shrink-0'>{reading}</div>
-					<div className='mt-3 min-w-0 @sm:mt-0 @sm:flex-1'>{children}</div>
-				</div>
-			</div>
-		)
-	}
-	return (
-		<div className={card}>
-			{reading}
 			{children}
 		</div>
 	)

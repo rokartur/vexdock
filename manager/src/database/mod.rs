@@ -77,6 +77,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
 	("0029_oauth.sql", include_str!("../../migrations/0029_oauth.sql")),
 	("0030_site_analytics.sql", include_str!("../../migrations/0030_site_analytics.sql")),
 	("0031_analytics_insights.sql", include_str!("../../migrations/0031_analytics_insights.sql")),
+	("0032_drop_host_metrics.sql", include_str!("../../migrations/0032_drop_host_metrics.sql")),
 ];
 
 // Opts a migration out of foreign key enforcement while it runs. A table

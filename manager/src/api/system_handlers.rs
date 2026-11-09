@@ -219,15 +219,8 @@ impl WindowQuery {
 	}
 }
 
-/// Recorded host usage for the requested window, which seeds the dashboard
-/// charts before live samples start arriving.
-pub async fn system_metrics(State(s): State<Arc<Server>>, Query(q): Query<WindowQuery>) -> ApiResult {
-	let (since, bucket) = q.range();
-	ok(&s.db.host_metrics(since, bucket)?)
-}
-
-/// Streams host CPU, RAM and disk over SSE. The sampler records a point every
-/// metrics::INTERVAL, so this only keeps the panel's current reading fresh.
+/// Streams host CPU, RAM and disk over SSE, the dashboard's only source of
+/// host readings: nothing records them.
 pub async fn system_stats(State(s): State<Arc<Server>>) -> Response {
 	let root = s.cfg.root.clone();
 	let ticker = tokio::time::interval(STATS_INTERVAL);

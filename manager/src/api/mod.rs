@@ -298,7 +298,6 @@ pub fn router(s: Arc<Server>) -> Router {
 		.route("GET /api/engines/{slug}/versions", SignedIn, engine_handlers::engine_versions)
 		.route("GET /api/system/info", Admin, system_handlers::system_info)
 		.route("GET /api/system/stats", Admin, system_handlers::system_stats)
-		.route("GET /api/system/metrics", Admin, system_handlers::system_metrics)
 		.route("GET /api/system/events", Admin, system_handlers::system_events)
 		.route("GET /api/system/settings", Admin, system_handlers::get_settings)
 		.route("PUT /api/system/settings", Admin, system_handlers::put_settings)

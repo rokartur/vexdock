@@ -6,17 +6,6 @@ use serde::Serialize;
 
 use super::Db;
 
-/// One bucket of host usage. `at` is unix seconds.
-#[derive(Clone, Debug, Default, Serialize)]
-pub struct HostPoint {
-	pub at: i64,
-	pub cpu_percent: f64,
-	pub memory_used: u64,
-	pub memory_total: u64,
-	pub disk_used: u64,
-	pub disk_total: u64,
-}
-
 /// One bucket of container usage. The byte counters are cumulative since
 /// container start; the panel turns them into rates.
 #[derive(Clone, Debug, Default, Serialize)]
@@ -56,14 +45,6 @@ pub struct ContainerUsage {
 }
 
 impl Db {
-	pub fn record_host_metric(&self, at: i64, p: &HostPoint) -> Result<()> {
-		self.exec(
-			"INSERT INTO host_metrics (at, cpu_percent, memory_used, memory_total, disk_used, disk_total) VALUES (?, ?, ?, ?, ?, ?)",
-			params![at, p.cpu_percent, p.memory_used as i64, p.memory_total as i64, p.disk_used as i64, p.disk_total as i64],
-		)?;
-		Ok(())
-	}
-
 	/// One reading per container in a single transaction, so a tick lands whole or not at all.
 	pub fn record_container_metrics(&self, at: i64, samples: &[ContainerSample]) -> Result<()> {
 		if samples.is_empty() {
@@ -96,28 +77,8 @@ impl Db {
 		Ok(())
 	}
 
-	/// Host usage since `since`, averaged into buckets of `bucket` seconds so a
-	/// long window still yields a chart-sized series.
-	pub fn host_metrics(&self, since: i64, bucket: i64) -> Result<Vec<HostPoint>> {
-		let bucket = bucket.max(1);
-		self.all(
-			"SELECT (at / ?) * ? AS b, AVG(cpu_percent), AVG(memory_used), MAX(memory_total), AVG(disk_used), MAX(disk_total)
-			 FROM host_metrics WHERE at >= ? GROUP BY b ORDER BY b",
-			params![bucket, bucket, since],
-			|r| {
-				Ok(HostPoint {
-					at: r.get(0)?,
-					cpu_percent: r.get(1)?,
-					memory_used: r.get::<_, f64>(2)? as u64,
-					memory_total: r.get::<_, i64>(3)? as u64,
-					disk_used: r.get::<_, f64>(4)? as u64,
-					disk_total: r.get::<_, i64>(5)? as u64,
-				})
-			},
-		)
-	}
-
-	/// One service's usage since `since`, bucketed like host_metrics. Cumulative
+	/// One service's usage since `since`, averaged into buckets of `bucket`
+	/// seconds so a long window still yields a chart-sized series. Cumulative
 	/// counters take the bucket maximum, so consecutive buckets still differ by
 	/// the bytes moved between them.
 	pub fn service_metrics(&self, service_id: &str, since: i64, bucket: i64) -> Result<Vec<ContainerPoint>> {
@@ -164,7 +125,7 @@ impl Db {
 		Ok(rows.into_iter().collect())
 	}
 
-	/// Usage per container id since `since`, bucketed like host_metrics. Keyed
+	/// Usage per container id since `since`, bucketed like service_metrics. Keyed
 	/// by container id, so containers the platform does not manage are in it too.
 	pub fn container_usage(&self, since: i64, bucket: i64) -> Result<HashMap<String, ContainerUsage>> {
 		let rows = self.all(
@@ -186,9 +147,8 @@ impl Db {
 		Ok(out)
 	}
 
-	/// Drops readings older than `before` (unix seconds), keeping both tables bounded.
+	/// Drops readings older than `before` (unix seconds), keeping the table bounded.
 	pub fn prune_metrics(&self, before: i64) -> Result<()> {
-		self.exec("DELETE FROM host_metrics WHERE at < ?", [before])?;
 		self.exec("DELETE FROM container_metrics WHERE at < ?", [before])?;
 		Ok(())
 	}
