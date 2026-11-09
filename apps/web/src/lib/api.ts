@@ -561,16 +561,6 @@ export type ContainerStats = {
 /** How far back a recorded metrics window may reach. */
 export type MetricWindow = '30m' | '1h' | '6h' | '24h' | '7d'
 
-/** One recorded bucket of host usage. `at` is unix seconds. */
-export type HostPoint = {
-	at: number
-	cpu_percent: number
-	memory_used: number
-	memory_total: number
-	disk_used: number
-	disk_total: number
-}
-
 /** One recorded bucket of service usage; the byte counters are cumulative. */
 export type ServicePoint = {
 	at: number
@@ -1318,7 +1308,6 @@ export const api = {
 	engineVersions: (slug: string) => request<{ versions: string[]; live: boolean }>(`/api/engines/${slug}/versions`),
 
 	systemInfo: () => request<SystemInfo>('/api/system/info'),
-	systemMetrics: (window: MetricWindow = '30m') => request<HostPoint[]>(`/api/system/metrics?window=${window}`),
 	settings: () => request<Settings>('/api/system/settings'),
 	saveSettings: (body: SettingsUpdate) => request<Settings>('/api/system/settings', { method: 'PUT', body }),
 	certificates: () => request<Certificate[]>('/api/system/certificates'),

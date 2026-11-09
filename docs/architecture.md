@@ -241,11 +241,12 @@ embedded in the binary and applied on start.
 Container logs are never copied into the database: they are streamed straight
 from the Docker Engine on demand.
 
-CPU, memory, network and disk readings are recorded, because a chart has to show
-what happened while nobody was watching. A sampler writes one host row and one
-row per running container a minute, and the scheduler prunes anything older than
-seven days, so both tables stay bounded without operator attention. Deployment
-records are bounded the same way, at the newest fifty per service.
+Container CPU, memory, network and disk readings are recorded, because a
+service's chart has to show what happened while nobody was watching. A sampler
+writes one row per running container a minute, and the scheduler prunes anything
+older than seven days, so the table stays bounded without operator attention.
+Deployment records are bounded the same way, at the newest fifty per service.
+The host's own readings are not recorded: the dashboard shows them live.
 
 Site analytics events and payments live in the same database, one row per hit,
 and are pruned after the retention [api.md](api.md#analytics) gives. A report

@@ -65,7 +65,7 @@ async fn run() -> Result<()> {
 
 	tokio::spawn(Reconciler::new(Arc::clone(&docker), Arc::clone(&server.domains), Arc::clone(&server.bus)).run());
 	tokio::spawn(scheduler(Arc::clone(&server)));
-	tokio::spawn(metrics::Sampler::new(Arc::clone(&db), Arc::clone(&docker), cfg.root.clone()).run());
+	tokio::spawn(metrics::Sampler::new(Arc::clone(&db), Arc::clone(&docker)).run());
 	tokio::spawn(Arc::clone(&server.tasks).run());
 
 	// Dropping the sender is the shutdown signal every listener waits for.

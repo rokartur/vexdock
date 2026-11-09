@@ -1,9 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Icon as TablerIcon } from '@tabler/icons-react'
-import { cn } from 'cn'
 import { Cell } from './primitives'
 import { LineChart } from './ui/line-chart'
-import { Sparkline } from './ui/sparkline'
 
 /** How much history a chart shows unless told otherwise. Matches the default metrics window. */
 const WINDOW_MS = 30 * 60 * 1000
@@ -106,10 +104,6 @@ type MetricCardProps = {
 	windowLabel: string
 	/** Drawn height in px. */
 	height: number
-	/** The chart beside the reading instead of under it, for a card wide enough to spare the row. */
-	inline?: boolean
-	/** Arc's line chart with axes and a legend, for a chart tall enough to read a level off; without it, Arc's sparkline. */
-	axis?: boolean
 	/** Lowest ceiling for the scale, from zero: 100 for a percent, the total for memory, 1024 for an idle byte rate. */
 	max?: number
 	/** An axis tick, when it needs more decimals than a reading: 0.25% stays 0.25%. */
@@ -120,7 +114,7 @@ type MetricCardProps = {
 	onCursor?: (at: number | null) => void
 }
 
-/** Compact metric: label, current reading, and the recorded window as Arc's line chart or sparkline. */
+/** Compact metric: label, current reading, and the recorded window as Arc's line chart with axes. */
 export function MetricCard({
 	label,
 	icon,
@@ -130,46 +124,26 @@ export function MetricCard({
 	hint,
 	windowLabel,
 	height,
-	inline = false,
-	axis = false,
 	max,
 	formatTick,
 	binary,
 	cursor,
 	onCursor,
 }: MetricCardProps) {
-	const samples = Object.values(series)[0] ?? []
-	const name = `${label}, ${windowLabel}`
-
 	return (
-		<Cell label={label} icon={icon} hint={hint} value={value} inline={inline}>
-			<div className={cn('min-w-0 flex-1', !inline && 'mt-3')} style={{ minHeight: height }}>
-				{axis ? (
-					<HistoryChart
-						label={name}
-						height={height}
-						series={series}
-						format={format}
-						formatTick={formatTick}
-						binary={binary}
-						max={max}
-						cursor={cursor}
-						onCursor={onCursor}
-					/>
-				) : (
-					// Arc's sparkline draws an empty series as a flat line at zero, a reading nobody took.
-					samples.length > 0 && (
-						<Sparkline
-							label={name}
-							data={samples.map(sample => sample.value)}
-							height={height}
-							width={320}
-							interactive={false}
-							caption={false}
-							max={max}
-						/>
-					)
-				)}
+		<Cell label={label} icon={icon} hint={hint} value={value}>
+			<div className='mt-3 min-w-0' style={{ minHeight: height }}>
+				<HistoryChart
+					label={`${label}, ${windowLabel}`}
+					height={height}
+					series={series}
+					format={format}
+					formatTick={formatTick}
+					binary={binary}
+					max={max}
+					cursor={cursor}
+					onCursor={onCursor}
+				/>
 			</div>
 		</Cell>
 	)
