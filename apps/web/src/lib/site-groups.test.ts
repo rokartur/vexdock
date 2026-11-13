@@ -12,10 +12,17 @@ test('files subdomains under the shortest listed parent and sums the group', () 
 		site('r', 'rokartur.com', 10),
 		site('x', 'notrokartur.com', 2),
 	])
-	expect(groups.map(group => group.domain.id)).toEqual(['r', 'x'])
-	expect(groups[0].subdomains?.map(sub => sub.domain.id)).toEqual(['a', 'd'])
-	expect([groups[0].visitors, groups[0].hourly]).toEqual([14, [14, 0]])
-	expect(groups[1].subdomains).toBeUndefined()
+	expect(
+		groups.map(group => [
+			group.domain.id,
+			group.visitors,
+			group.hourly,
+			group.subdomains?.map(sub => sub.domain.id),
+		]),
+	).toEqual([
+		['r', 14, [14, 0], ['a', 'd']],
+		['x', 2, [2, 0], undefined],
+	])
 })
 
 test('leaves subdomains apart when their parent is not listed', () => {
