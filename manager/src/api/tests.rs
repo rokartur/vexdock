@@ -336,11 +336,16 @@ async fn site_analytics_flow() {
 	assert!(headers["content-type"].to_str().unwrap().starts_with("text/javascript"));
 	assert!(script.contains("/_vx/event"));
 
-	for host in ["p1.example.com:443", "unknown.example.com"] {
+	for (id, hostname) in [("d-p1-www", "www.p1.example.com"), ("d-p2-www", "www.p2.example.com")] {
+		let mut www = Domain { id: id.into(), hostname: hostname.into(), ..h.server.db.domain_by_id("d-p1").unwrap() };
+		h.server.db.create_domain(&mut www).unwrap();
+	}
+	for host in ["p1.example.com:443", "www.p1.example.com", "www.p2.example.com", "unknown.example.com"] {
 		let (status, _, _) = h.send("POST", "/api/analytics/event", &[("host", host), ("user-agent", chrome)], &hit).await;
 		assert_eq!(status, StatusCode::NO_CONTENT, "{host}");
 	}
-	assert_eq!(h.server.db.analytics_events("d-p1", 0, i64::MAX).unwrap().len(), 1, "the known host's hit, and only that one");
+	assert_eq!(h.server.db.analytics_events("d-p1", 0, i64::MAX).unwrap().len(), 2, "the known hosts' hits, www folded into the bare one");
+	assert_eq!(h.server.db.analytics_events("d-p2", 0, i64::MAX).unwrap().len(), 0, "never folded into another project's domain");
 
 	let payment = json!({"payment_id": "pi_1", "amount": 4900, "currency": "usd", "visitor_id": "visitor-0001"}).to_string();
 	let as_reader = [("authorization", reader.as_str()), ("content-type", "application/json")];
@@ -362,7 +367,8 @@ async fn site_analytics_flow() {
 
 	let (_, _, body) = h.send("GET", "/api/analytics", &[("authorization", &reader)], "").await;
 	let sites: Vec<Value> = serde_json::from_str(&body).unwrap();
-	assert_eq!(sites.len(), 1, "a project token lists its own sites only: {body}");
+	let ids: Vec<_> = sites.iter().map(|site| site["domain"]["id"].as_str().unwrap()).collect();
+	assert_eq!(ids, ["d-p1", "d-p2-www"], "its own sites only, a folded www left out: {body}");
 	assert_eq!((sites[0]["domain"]["id"].as_str(), sites[0]["visitors"].as_u64()), (Some("d-p1"), Some(1)));
 	assert_eq!(sites[0]["hourly"].as_array().unwrap().len(), 24);
 
