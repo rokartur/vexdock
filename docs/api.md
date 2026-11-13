@@ -917,15 +917,17 @@ and `GET /api/analytics` leaves it out.
 
 The hit names its domain by the `Host` it arrived on. It is dropped without an
 error when the host is no domain, the address is excluded, the body is over
-4 KiB, the user agent is a bot, or a field does not parse, so a prober learns
-nothing from the answer.
+4 KiB, the user agent is a bot (anything not starting with `Mozilla/`, or one
+naming a crawler, headless browser or speed test), or a field does not parse,
+so a prober learns nothing from the answer.
 
 The script records a pageview on load and on every history change, a heartbeat
 each minute while the tab is visible, and a goal for `window.vx('name', {key:
 'value'})` or a click on an element with `data-vx-goal="name"` (each
 `data-vx-goal-key="value"` on it becomes a parameter). A goal name is 1 to 64
 of `a-z0-9_-`; at most 10 parameters, values cut to 255 bytes, are kept.
-`localStorage.vx_ignore = 'true'` in a browser keeps its visits out.
+`localStorage.vx_ignore = 'true'` in a browser keeps its visits out, and a
+browser under automation (`navigator.webdriver`) sends nothing.
 `data-cookieless` on the script tag sets no cookie: the manager names the
 visitor by a SHA-256 of a salt, the domain, the address and the user agent.
 The salt is random per UTC day and kept in memory only, so a cookieless

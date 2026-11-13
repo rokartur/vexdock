@@ -3,7 +3,8 @@
 // or a data-vx-goal="signup" attribute on a clickable element records a goal. The vx_vid cookie is
 // the visitor id a backend sends with a payment so its revenue lands on the channel that brought
 // the visitor. data-cookieless on the script tag sets no cookie: the manager derives a daily id.
-// localStorage.vx_ignore = 'true' keeps the owner's own visits out.
+// localStorage.vx_ignore = 'true' keeps the owner's own visits out, and a browser driven by
+// Selenium, Puppeteer or Playwright (navigator.webdriver) sends nothing, whatever its user agent says.
 // oxlint-disable unicorn/consistent-function-scoping, unicorn/no-document-cookie -- a classic script on someone
 // else's page: the IIFE keeps names off its global scope, and Firefox and Safari lack the Cookie Store API.
 ;(() => {
@@ -15,6 +16,7 @@
 	const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
 
 	const ignored = () => {
+		if (navigator.webdriver) return true
 		try {
 			return localStorage.getItem('vx_ignore') === 'true'
 		} catch {
