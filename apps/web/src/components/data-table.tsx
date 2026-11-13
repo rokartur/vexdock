@@ -2,14 +2,17 @@ import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } 
 import { IconArrowNarrowDown, IconArrowNarrowUp, IconFilterOff } from '@tabler/icons-react'
 import {
 	type ColumnDef,
+	type ExpandedState,
 	type RowData,
 	type SortingState,
 	columnFilteringFeature,
 	createColumnHelper,
+	createExpandedRowModel,
 	createFilteredRowModel,
 	createSortedRowModel,
 	filterFn_includesString,
 	globalFilteringFeature,
+	rowExpandingFeature,
 	rowSortingFeature,
 	sortFn_alphanumeric,
 	sortFn_basic,
@@ -34,8 +37,10 @@ const OWN_CLICK = 'a, button:not([data-morph-from]), input, label, [role="checkb
 // An alert inside the card sits in a p-2 inset, so its radius is the card's minus that inset, like the filter box.
 const insetAlert =
 	'mb-0 rounded-[calc(var(--radius-surface)-0.5rem)] in-data-[slot=form-section]:rounded-[max(4px,calc(var(--radius-surface)-28px))]'
-/** Client-side sorting and filtering only. DataTable renders the rows in view itself. */
+/** Client-side sorting, filtering and expanding only. DataTable renders the rows in view itself. */
 const tableFeatureSet = tableFeatures({
+	rowExpandingFeature,
+	expandedRowModel: createExpandedRowModel(),
 	rowSortingFeature,
 	sortedRowModel: createSortedRowModel(),
 	sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text, basic: sortFn_basic },
@@ -70,6 +75,9 @@ type DataTableProps<TData extends RowData> = {
 	/** Shown instead of rows when there is nothing to display. A string becomes the empty state's title. */
 	empty?: ReactNode
 	getRowId?: (row: TData, index: number) => string
+	/** Rows nested under this one. They show once the row's own cell calls `row.toggleExpanded()`, and all of them
+	 * while the filter has text, so a match inside a closed row is not hidden. */
+	getSubRows?: (row: TData) => TData[] | undefined
 	/** Placeholder for a text box above the rows, which keeps the rows whose accessor values contain what was typed. */
 	filter?: string
 	/** Seeds the filter box, for a page reached with a term already in its URL. */
@@ -146,6 +154,7 @@ export function DataTable<TData extends RowData>({
 	error,
 	empty = 'No results',
 	getRowId,
+	getSubRows,
 	filter,
 	initialFilter = '',
 	onRowClick,
@@ -156,6 +165,7 @@ export function DataTable<TData extends RowData>({
 	const [sorting, setSorting] = useState<SortingState>([])
 	const viewport = useRef<HTMLDivElement>(null)
 	const [globalFilter, setGlobalFilter] = useState(initialFilter)
+	const [expanded, setExpanded] = useState<ExpandedState>({})
 	// table-core caches accessor values per row and rebuilds rows only on new `data`; an accessor reading outside
 	// state (a project name that loads after the list) needs new columns to rebuild them too, so the two change together.
 	const model = useMemo(() => ({ columns, data: [...data] }), [data, columns])
@@ -165,13 +175,18 @@ export function DataTable<TData extends RowData>({
 		columns: model.columns,
 		data: model.data,
 		getRowId,
+		getSubRows,
 		globalFilterFn: 'includesString',
-		state: { sorting, globalFilter },
+		// A parent stays when one of its rows matches, and a refetch keeps what the user opened.
+		filterFromLeafRows: true,
+		autoResetExpanded: false,
+		state: { sorting, globalFilter, expanded: globalFilter ? true : expanded },
 		onSortingChange: setSorting,
+		onExpandedChange: setExpanded,
 		onGlobalFilterChange: setGlobalFilter,
 	})
 
-	const { rows } = table.getSortedRowModel()
+	const { rows } = table.getRowModel()
 	// ponytail: auto column widths follow the rendered rows, so a list longer than its window can shift a column while
 	// scrolling; give columns fixed sizes if that shows.
 	const count = loading ? 0 : rows.length

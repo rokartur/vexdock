@@ -176,25 +176,14 @@ pub fn parse_user_agent(ua: &str) -> Client {
 	Client { device, browser, os }
 }
 
-const BOT_MARKERS: &[&str] = &[
-	"bot",
-	"crawl",
-	"spider",
-	"slurp",
-	"curl",
-	"wget",
-	"headless",
-	"monitor",
-	"preview",
-	"python-requests",
-	"go-http-client",
-	"lighthouse",
-	"pingdom",
-];
+const BOT_MARKERS: &[&str] =
+	&["bot", "crawl", "spider", "slurp", "headless", "monitor", "preview", "lighthouse", "pingdom", "gtmetrix", "inspectiontool"];
 
+/// Every browser's user agent starts with `Mozilla/`, so anything else (curl, an HTTP
+/// library, a link unfurler) is a script posting to the beacon directly.
 pub fn is_bot(user_agent: &str) -> bool {
 	let ua = user_agent.to_ascii_lowercase();
-	ua.is_empty() || BOT_MARKERS.iter().any(|marker| ua.contains(marker))
+	!ua.starts_with("mozilla/") || BOT_MARKERS.iter().any(|marker| ua.contains(marker))
 }
 
 /// The path without its query string, which is where session ids and tokens live.

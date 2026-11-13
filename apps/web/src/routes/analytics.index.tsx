@@ -1,36 +1,68 @@
 import { useMemo } from 'react'
-import { IconFolder, IconWorld } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight, IconFolder, IconWorld } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { cn } from 'cn'
+import { Badge } from '@/components/ui/badge'
 import { Sparkline } from '@/components/ui/sparkline'
 import { type Columns, DataTable, columnsFor } from '../components/data-table'
-import { Button, EmptyState, Page, Refresh, Section, StatStrip, textLink } from '../components/primitives'
-import type { AnalyticsSite } from '../lib/api'
+import { Button, EmptyState, IconButton, Page, Refresh, Section, StatStrip, textLink } from '../components/primitives'
 import { analyticsSitesQuery, preload } from '../lib/queries'
+import { groupSites, type SiteRow } from '../lib/site-groups'
 
 export const Route = createFileRoute('/analytics/')({
 	loader: ({ context: { queryClient } }) => preload(queryClient, analyticsSitesQuery),
 	component: AnalyticsSites,
 })
 
-function siteColumns(): Columns<AnalyticsSite> {
-	const cell = columnsFor<AnalyticsSite>()
+function siteColumns(): Columns<SiteRow> {
+	const cell = columnsFor<SiteRow>()
 	return [
 		cell.accessor(site => site.domain.hostname, {
 			id: 'site',
 			header: 'Site',
-			cell: ({ row }) => (
-				<Link
-					to='/analytics/$domainId'
-					params={{ domainId: row.original.domain.id }}
-					tabIndex={-1}
-					className={cn(textLink, 'inline-flex items-center gap-2')}
-				>
-					<IconWorld stroke={1.75} className='size-4 text-muted' />
-					{row.original.domain.hostname}
-				</Link>
-			),
+			cell: ({ row }) => {
+				const { domain, subdomains = [] } = row.original
+				const parent = row.getParentRow()?.original.domain.hostname
+				const open = row.getIsExpanded()
+				return (
+					<div className={cn('flex items-center gap-2', parent && 'pl-9')}>
+						{parent ? null : subdomains.length > 0 ? (
+							<IconButton
+								icon={open ? IconChevronDown : IconChevronRight}
+								label={open ? 'Hide subdomains' : 'Show subdomains'}
+								aria-expanded={open}
+								onClick={() => row.toggleExpanded()}
+							/>
+						) : (
+							<span className='w-7' />
+						)}
+						<Link
+							to='/analytics/$domainId'
+							params={{ domainId: domain.id }}
+							tabIndex={-1}
+							className={cn(textLink, 'inline-flex items-center gap-2')}
+						>
+							{parent ? (
+								<span>
+									{domain.hostname.slice(0, -parent.length - 1)}
+									<span className='text-muted'>.{parent}</span>
+								</span>
+							) : (
+								<>
+									<IconWorld stroke={1.75} className='size-4 text-muted' />
+									{domain.hostname}
+								</>
+							)}
+						</Link>
+						{subdomains.length > 0 ? (
+							<Badge size='sm'>
+								+{subdomains.length} {subdomains.length === 1 ? 'subdomain' : 'subdomains'}
+							</Badge>
+						) : null}
+					</div>
+				)
+			},
 		}),
 		cell.accessor(site => site.visitors, {
 			id: 'visitors',
@@ -62,6 +94,7 @@ function AnalyticsSites() {
 	const navigate = useNavigate()
 	const sites = useQuery(analyticsSitesQuery)
 	const data = sites.data ?? []
+	const groups = useMemo(() => groupSites(sites.data ?? []), [sites.data])
 	const columns = useMemo(siteColumns, [])
 	let visitors = 0
 	for (const site of data) visitors += site.visitors
@@ -81,8 +114,9 @@ function AnalyticsSites() {
 				actions={<Refresh onClick={() => sites.refetch()} />}
 			>
 				<DataTable
-					data={data}
+					data={groups}
 					columns={columns}
+					getSubRows={site => site.subdomains}
 					loading={sites.isLoading}
 					error={sites.error}
 					getRowId={site => site.domain.id}

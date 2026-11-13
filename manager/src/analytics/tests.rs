@@ -29,6 +29,9 @@ fn event_cleans_what_the_beacon_sends() {
 fn event_drops_what_it_cannot_trust() {
 	assert!(event(hit(KIND_PAGEVIEW), "a.com", "Googlebot/2.1", "", &Place::default(), 1).is_none(), "bot");
 	assert!(event(hit(KIND_PAGEVIEW), "a.com", "", "", &Place::default(), 1).is_none(), "no user agent");
+	for ua in ["python-requests/2.32", "axios/1.7.2", "facebookexternalhit/1.1", "Mozilla/5.0 (compatible; Google-InspectionTool/1.0)"] {
+		assert!(event(hit(KIND_PAGEVIEW), "a.com", ua, "", &Place::default(), 1).is_none(), "{ua}");
+	}
 	assert!(event(hit("delete"), "a.com", CHROME_MAC, "", &Place::default(), 1).is_none(), "unknown kind");
 	let mut h = hit(KIND_PAGEVIEW);
 	h.visitor = "x'; DROP".into();
