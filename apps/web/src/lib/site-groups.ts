@@ -8,7 +8,8 @@ export function groupSites(sites: AnalyticsSite[]): SiteRow[] {
 	const hostnames = new Set(sites.map(site => site.domain.hostname))
 	const roots = new Map<string, SiteRow>()
 	for (const site of sites) {
-		if (rootOf(site.domain.hostname, hostnames) === site.domain.hostname) roots.set(site.domain.hostname, { ...site })
+		const { hostname } = site.domain
+		if (rootOf(hostname, hostnames) === hostname) roots.set(hostname, { ...site })
 	}
 	for (const site of sites) {
 		const root = roots.get(rootOf(site.domain.hostname, hostnames))

@@ -176,19 +176,8 @@ pub fn parse_user_agent(ua: &str) -> Client {
 	Client { device, browser, os }
 }
 
-const BOT_MARKERS: &[&str] = &[
-	"bot",
-	"crawl",
-	"spider",
-	"slurp",
-	"headless",
-	"monitor",
-	"preview",
-	"lighthouse",
-	"pingdom",
-	"gtmetrix",
-	"inspectiontool",
-];
+const BOT_MARKERS: &[&str] =
+	&["bot", "crawl", "spider", "slurp", "headless", "monitor", "preview", "lighthouse", "pingdom", "gtmetrix", "inspectiontool"];
 
 /// Every browser's user agent starts with `Mozilla/`, so anything else (curl, an HTTP
 /// library, a link unfurler) is a script posting to the beacon directly.
