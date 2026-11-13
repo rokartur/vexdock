@@ -50,6 +50,21 @@ const assetFromCache = async event => {
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()))
 
+// The tag is the deployment id: every open tab hears the click and marks it read, the last focused comes forward.
+// shortcut: with no tab open it stays unread, a worker has no localStorage; put the id in the URL if that matters.
+const openFromNotification = async deploymentId => {
+	const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+	// oxlint-disable-next-line unicorn/require-post-message-target-origin -- Client.postMessage's second argument is the transfer list
+	for (const client of windows) client.postMessage({ type: 'notification-click', deploymentId })
+	if (windows[0]) return windows[0].focus()
+	return self.clients.openWindow('/')
+}
+
+self.addEventListener('notificationclick', event => {
+	event.notification.close()
+	event.waitUntil(openFromNotification(event.notification.tag))
+})
+
 self.addEventListener('fetch', event => {
 	const { request } = event
 	const url = new URL(request.url)
