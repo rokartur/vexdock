@@ -890,7 +890,10 @@ so the domain serves over HTTP and TLS can be retried through `certificate`.
 
 Every domain counts its own visits once the site loads
 `<script defer src="/_vx/script.js"></script>`. Nginx answers `/_vx/*` on each
-domain's hostname, so the beacon is first-party and the site needs no CORS.
+domain's hostname, so the beacon is first-party and the site needs no CORS. A
+`www.` domain whose bare hostname is a domain of the same project counts for
+that one: its hits, short links and visitors land in the bare domain's report,
+and `GET /api/analytics` leaves it out.
 
 | Route | Access | |
 |---|---|---|

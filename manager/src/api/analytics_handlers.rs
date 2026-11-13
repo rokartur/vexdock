@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use axum::Extension;
@@ -55,7 +56,7 @@ pub async fn collect(State(s): State<Arc<Server>>, headers: HeaderMap, body: Byt
 }
 
 fn record_hit(s: &Server, hostname: &str, headers: &HeaderMap, hit: &mut analytics::Hit) -> anyhow::Result<()> {
-	let domain = s.db.domain_by_hostname(hostname)?;
+	let domain = s.db.site_by_hostname(hostname)?;
 	// Nginx sets X-Real-IP from the connection, replacing whatever the client sent.
 	let ip = header_of(headers, "x-real-ip");
 	let user_agent = header_of(headers, "user-agent");
@@ -76,14 +77,18 @@ fn record_hit(s: &Server, hostname: &str, headers: &HeaderMap, hit: &mut analyti
 	s.db.record_analytics_event(&domain.id, &event)
 }
 
-/// Every domain the caller may read, with its visitors over the last 24 hours.
+/// Every domain the caller may read, with its visitors over the last 24 hours. A
+/// `www.` domain whose bare hostname is in the same project is left out: its hits count there.
 pub async fn list_sites(State(s): State<Arc<Server>>, Extension(caller): Extension<Caller>) -> ApiResult {
 	let now = chrono::Utc::now().timestamp();
 	let day = Window::new("24h", now, 0, None).expect("24h is a range");
 	let mut traffic = s.db.site_traffic(day.since)?;
 	let mut sites = Vec::new();
-	for domain in s.db.list_domains()? {
-		if !caller.allows(&domain.project_id, database::ACCESS_READ) {
+	let domains = s.db.list_domains()?;
+	let hostnames: HashSet<(&str, &str)> = domains.iter().map(|d| (d.project_id.as_str(), d.hostname.as_str())).collect();
+	for domain in &domains {
+		let folded = domain.hostname.strip_prefix("www.").is_some_and(|apex| hostnames.contains(&(domain.project_id.as_str(), apex)));
+		if folded || !caller.allows(&domain.project_id, database::ACCESS_READ) {
 			continue;
 		}
 		let t = traffic.remove(&domain.id).unwrap_or_default();
@@ -471,7 +476,7 @@ pub async fn delete_link(State(s): State<Arc<Server>>, Path((id, slug)): Path<(S
 /// `/_vx/l/{slug}` on a site's hostname: a redirect to the link's target with
 /// its UTM parameters, so the landing page's script files the visit under them.
 pub async fn follow_link(State(s): State<Arc<Server>>, Path(slug): Path<String>, headers: HeaderMap) -> Response {
-	let found = s.db.domain_by_hostname(&host_of(&headers)).and_then(|domain| s.db.short_link(&domain.id, &slug));
+	let found = s.db.site_by_hostname(&host_of(&headers)).and_then(|domain| s.db.short_link(&domain.id, &slug));
 	let link = match found {
 		Ok(link) => link,
 		Err(err) => {

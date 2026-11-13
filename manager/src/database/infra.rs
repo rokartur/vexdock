@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rusqlite::{Row, params};
 
-use super::{Certificate, Db, Domain, Registry, bool_to_int, new_id, now};
+use super::{Certificate, Db, Domain, Registry, bool_to_int, is_not_found, new_id, now};
 
 const DOMAIN_COLUMNS: &str = "id, project_id, environment_id, service_id, hostname, container_port, https_enabled, redirect_https,
 	certificate_source, created_at, updated_at";
@@ -61,6 +61,20 @@ impl Db {
 
 	pub fn domain_by_hostname(&self, hostname: &str) -> Result<Domain> {
 		self.one(&format!("SELECT {DOMAIN_COLUMNS} FROM domains WHERE hostname = ?"), [hostname], scan_domain)
+	}
+
+	/// The domain whose analytics a request on `hostname` counts for: `www.example.com`
+	/// folds into `example.com` when both are domains of one project, so the two share one
+	/// report. Across projects it stays apart, or one project's visits would land in another's.
+	pub fn site_by_hostname(&self, hostname: &str) -> Result<Domain> {
+		let domain = self.domain_by_hostname(hostname)?;
+		let Some(apex) = hostname.strip_prefix("www.") else { return Ok(domain) };
+		match self.domain_by_hostname(apex) {
+			Ok(bare) if bare.project_id == domain.project_id => Ok(bare),
+			Ok(_) => Ok(domain),
+			Err(err) if is_not_found(&err) => Ok(domain),
+			Err(err) => Err(err),
+		}
 	}
 
 	pub fn list_domains(&self) -> Result<Vec<Domain>> {
