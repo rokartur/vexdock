@@ -397,7 +397,7 @@ serves. React Query holds server state; component state stays local.
 | `src/components/host-metrics.tsx` | `HostMetrics`, the dashboard's live host readings: CPU, memory and disk as one `StatStrip`, fed by the `/api/system/stats` stream |
 | `src/components/auth-screen.tsx` | `AuthScreen`, the frame of the sign-in, setup and OAuth consent screens, after Arc's login-centered block |
 | `src/components/command-menu.tsx` | `CommandMenu`, the Cmd/Ctrl+K palette over `ui/command-palette.tsx`: the sidebar's pages and every project; the shell owns `open`, so the sidebar's search row opens it too |
-| `src/components/deployment-inbox.tsx` | `DeploymentInbox`, the header's bell over `ui/notification-center.tsx`, fed by the system info's recent deployments; read and dismissed ids live in localStorage, since the server keeps no inbox |
+| `src/components/deployment-inbox.tsx` | `DeploymentInbox`, the header's bell over `ui/notification-center.tsx`, fed by the system info's recent deployments; read and dismissed ids live in localStorage, since the server keeps no inbox. Its header bell turns on browser notifications for the same deploys, shown through `public/sw.js` with the deployment id as the tag: reading or dismissing one in the panel closes the system's copy, and clicking the system's copy marks it read in every open tab |
 | `src/components/health-status.tsx` | `HealthStatus`, the system overview's component health after Arc's uptime-status block, without its 90-day strip since the manager keeps no history |
 | `src/components/integration-list.tsx` | `IntegrationList` and `IntegrationRow`, the git provider and registry rows after Arc's integrations block |
 | `src/components/animated-number.tsx` | `AnimatedNumber`, a live reading whose digits roll to its new value, over Arc's `ui/rolling-number.tsx` |
@@ -421,7 +421,7 @@ serves. React Query holds server state; component state stays local.
 | `src/lib/environment.ts` | Which environment a project route is looking at: `environmentSearch` keeps `?env=` across navigations, `useEnvironmentId` reads it, and `undefined` means the project's default |
 | `src/lib/engine-marks.ts` | Each database engine's own brand logo, as the path its project ships |
 | `src/components/logo.tsx`, `public/favicon.svg` | Vexdock's own mark, six squares in a 3×3 grid: `Logo` in the sidebar, login and setup, the same geometry as the tab icon |
-| `public/manifest.webmanifest`, `public/sw.js`, `public/icon*`, `public/apple-touch-icon.png` | The installable app: the manifest, the same mark on a `#0b0b0b` tile with room for a maskable crop, and a service worker that keeps the last app shell and the hashed assets it names for offline start; `__root.tsx` registers it in production builds |
+| `public/manifest.webmanifest`, `public/sw.js`, `public/icon*`, `public/apple-touch-icon.png` | The installable app: the manifest, the same mark on a `#0b0b0b` tile with room for a maskable crop, and a service worker that keeps the last app shell and the hashed assets it names for offline start and owns the click on a deploy notification; `__root.tsx` registers it in production builds |
 | `src/styles.css` | The ui skill's `styles.css` unchanged (tokens, base layer, `page`/`press`/`popup`/`scrim`), then vexdock's additions: the console colors, `enter-children` |
 
 A page is: a `queryOptions` (from `lib/queries.ts`, or a local `const` when

@@ -29,6 +29,19 @@ Browsers offer "Install" only on HTTPS or `localhost`, so a panel reached as
 shows "You are offline" opened from its cached shell and will load once the
 server answers again.
 
+## Browser notifications do not show up
+
+The Deployments panel (the bell in the header) asks once with a Turn on card;
+after that the bell beside the panel's close button switches them. It is missing
+on plain HTTP for the same reason as installing: browsers allow notifications
+and the service worker that shows them only on HTTPS or `localhost`. A
+crossed-out bell whose tooltip says "blocked" means the browser was told to refuse this
+site; allow notifications in the site's settings. A notification fires only for
+a deploy that ends while the dashboard tab is not focused, and only from an open
+tab, so a deploy that finishes with every tab closed is waiting in the panel
+instead. If the bell is on and still nothing appears, check the operating
+system's own notification settings and Focus mode for the browser.
+
 ## A deployment fails
 
 Open the deployment and read the step that failed. The step name says where:

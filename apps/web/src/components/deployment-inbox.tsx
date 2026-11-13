@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
-import { IconRefresh } from '@tabler/icons-react'
+import { useEffect, useRef, useState } from 'react'
+import { IconBellOff, IconBellRinging, IconRefresh, IconX } from '@tabler/icons-react'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
-import { NotificationCenter, type NotificationItem } from '@/components/ui/notification-center'
-import type { DeploymentStatus } from '../lib/api'
+import {
+	NotificationCenter,
+	type NotificationCenterProps,
+	type NotificationItem,
+} from '@/components/ui/notification-center'
+import type { Deployment, DeploymentStatus } from '../lib/api'
 import { since } from '../lib/format'
 import { systemInfoQuery } from '../lib/queries'
 import { Button } from './primitives'
@@ -15,8 +19,11 @@ const outcomes: Record<DeploymentStatus, { tone: NotificationItem['tone']; word:
 	cancelled: { tone: 'warning', word: 'canceled' },
 }
 
+const finished = new Set<DeploymentStatus>(['success', 'failed', 'cancelled'])
+
 const READ_KEY = 'vexdock:deployments-read'
 const DISMISSED_KEY = 'vexdock:deployments-dismissed'
+const BROWSER_KEY = 'vexdock:browser-notifications'
 
 /** Arc's notification-center over the twenty latest deployments `/api/system/info` returns. Read and dismissed are
  * this browser's own, kept in localStorage; the server has no inbox. */
@@ -24,6 +31,8 @@ export function DeploymentInbox() {
 	const info = useQuery(systemInfoQuery)
 	const [read, setRead] = useStoredIds(READ_KEY)
 	const [dismissed, setDismissed] = useStoredIds(DISMISSED_KEY)
+	const browser = useBrowserNotifications(deploymentId => setRead(deploymentId, true))
+	const settled = useRef<Set<string>>(null)
 	const [, redraw] = useState(0)
 
 	const notifications: NotificationItem[] = []
@@ -59,14 +68,118 @@ export function DeploymentInbox() {
 		const timer = setInterval(() => redraw(count => count + 1), tickMs)
 		return () => clearInterval(timer)
 	}, [empty, tickMs])
+
+	// After every render, as it reads this render's items; `settled` is what makes each deploy fire once.
+	useEffect(() => {
+		if (!info.data) return
+		const next = newlySettled(settled.current, info.data.recent_deployments)
+		settled.current = next.settled
+		for (const item of notifications) if (next.fresh.has(item.id) && !item.read) browser?.show(item)
+	})
+
 	return (
 		<NotificationCenter
 			label='Deployments'
 			notifications={notifications}
-			onReadChange={(item, next) => setRead(item.id, next)}
-			onDismiss={item => setDismissed(item.id, true)}
+			onReadChange={(item, next) => {
+				setRead(item.id, next)
+				if (next) void browser?.close(item.id)
+			}}
+			onDismiss={item => {
+				setDismissed(item.id, true)
+				void browser?.close(item.id)
+			}}
 			empty={inboxEmpty(info)}
+			headerAction={browser?.headerAction}
+			notice={
+				browser?.asking ? (
+					<AskCard onTurnOn={() => browser.turnOn()} onNotNow={() => browser.turnOff()} />
+				) : undefined
+			}
 		/>
+	)
+}
+
+/** The ids of the deploys that reached a final status, and which of them did since `before`, the previous answer's.
+ * The first answer (`before` null) has none fresh: what finished before the tab opened is already in the inbox. */
+export function newlySettled(before: Set<string> | null, recent: { deployment: Pick<Deployment, 'id' | 'status'> }[]) {
+	const settled = new Set<string>()
+	for (const { deployment } of recent) if (finished.has(deployment.status)) settled.add(deployment.id)
+	const fresh = new Set(before ? [...settled].filter(id => !before.has(id)) : [])
+	return { settled, fresh }
+}
+
+/** The system's own notification for a deploy that ends while the dashboard is not in front, one per deploy (its id
+ * is the tag), so tabs showing the same one replace each other. Undefined where the service worker never activates:
+ * dev builds, and plain HTTP, where browsers refuse both the worker and notifications. */
+function useBrowserNotifications(onClick: (deploymentId: string) => void) {
+	const [worker, setWorker] = useState<ServiceWorkerRegistration>()
+	const [choice, setChoice] = useState(() => localStorage.getItem(BROWSER_KEY))
+	const clicked = useRef(onClick)
+	clicked.current = onClick
+
+	useEffect(() => {
+		if (!('Notification' in window && 'serviceWorker' in navigator)) return
+		void navigator.serviceWorker.ready.then(setWorker)
+		const listener = ({ data }: MessageEvent) => {
+			if (data?.type === 'notification-click') clicked.current(data.deploymentId)
+		}
+		navigator.serviceWorker.addEventListener('message', listener)
+		return () => navigator.serviceWorker.removeEventListener('message', listener)
+	}, [])
+
+	if (!worker) return
+	const choose = (next: 'on' | 'off') => {
+		localStorage.setItem(BROWSER_KEY, next)
+		setChoice(next)
+	}
+	const turnOn = async () => choose((await Notification.requestPermission()) === 'granted' ? 'on' : 'off')
+	const turnOff = () => choose('off')
+	// Read live on every render: the permission can be revoked in the site's settings at any time.
+	const { permission } = Notification
+	const on = choice === 'on' && permission === 'granted'
+
+	let headerAction: NotificationCenterProps['headerAction'] = {
+		icon: IconBellOff,
+		label: 'Turn on browser notifications',
+		onClick: turnOn,
+	}
+	if (on) headerAction = { icon: IconBellRinging, label: 'Turn off browser notifications', onClick: turnOff }
+	if (permission === 'denied')
+		headerAction = { icon: IconBellOff, label: 'Browser notifications are blocked in site settings' }
+
+	return {
+		asking: choice === null && permission !== 'denied',
+		headerAction,
+		turnOn,
+		turnOff,
+		show(item: NotificationItem) {
+			if (!on || document.hasFocus()) return
+			void worker.showNotification(item.title, { body: item.description, tag: item.id, icon: '/icon-192.png' })
+		},
+		async close(deploymentId: string) {
+			for (const shown of await worker.getNotifications({ tag: deploymentId })) shown.close()
+		},
+	}
+}
+
+/** Asks once per browser; after Turn on or Not now the header's bell switches it. */
+function AskCard({ onTurnOn, onNotNow }: { onTurnOn: () => void; onNotNow: () => void }) {
+	return (
+		<div className='mx-[11px] mt-[9px] flex items-center gap-3 rounded-[calc(var(--radius-panel)-6px)] border border-border-subtle bg-surface-muted p-3 max-[380px]:mx-[5px] max-[380px]:flex-wrap'>
+			<p className='m-0 min-w-0 flex-1 text-xs text-secondary'>
+				<strong className='block text-sm font-medium text-foreground'>Know when a deploy ends</strong>
+				A browser notification while this tab is in the background.
+			</p>
+			<Button size='sm' onClick={onTurnOn}>
+				<IconBellRinging size={16} stroke={1.75} />
+				Turn on
+			</Button>
+			<Button size='sm' variant='ghost' onClick={onNotNow}>
+				<IconX size={16} stroke={1.75} />
+				Not now
+			</Button>
+		</div>
 	)
 }
 

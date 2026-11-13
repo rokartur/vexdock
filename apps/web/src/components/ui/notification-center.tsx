@@ -10,6 +10,7 @@ import {
 	IconCircleX,
 	IconMessageCircle,
 	IconX,
+	type TablerIcon,
 } from '@tabler/icons-react'
 import { cn } from 'cn'
 import {
@@ -27,6 +28,7 @@ import {
 } from 'motion/react'
 import { motionTokens } from '../../lib/motion'
 import { Avatar } from './avatar'
+import { Tooltip } from './tooltip'
 
 export interface NotificationItem {
 	id: string
@@ -50,6 +52,10 @@ export interface NotificationCenterProps {
 	avoidCollisions?: boolean
 	// vexdock: replaces the all-clear text while the list is not known, such as a failed read, with a way out.
 	empty?: { title: string; description: string; action?: ReactNode }
+	// vexdock: one icon button beside the close button, such as a switch for the browser's own notifications.
+	headerAction?: { icon: TablerIcon; label: string; onClick?: () => void }
+	// vexdock: a card between the view switch and the list, which collapses when it goes.
+	notice?: ReactNode
 }
 
 type View = 'all' | 'unread'
@@ -237,6 +243,8 @@ export function NotificationCenter({
 	onOpenChange,
 	avoidCollisions = true,
 	empty,
+	headerAction,
+	notice,
 }: NotificationCenterProps) {
 	const reduce = useReducedMotion() ?? false
 	const layoutId = useId()
@@ -378,12 +386,12 @@ export function NotificationCenter({
 									<SwapText reduce={reduce}>{summary}</SwapText>
 								</p>
 							</div>
-							<Popover.Close
-								className='grid size-[30px] flex-none place-items-center rounded-[8px] text-muted [transition:scale_400ms_var(--ease-spring),color_110ms_var(--ease-standard),background-color_110ms_var(--ease-standard)] hover:bg-surface-muted hover:text-foreground active:duration-85 active:ease-standard motion-safe:active:scale-96'
-								aria-label='Close notifications'
-							>
-								<IconX size={17} stroke={1.75} aria-hidden='true' />
-							</Popover.Close>
+							<div className='flex flex-none items-center gap-0.5'>
+								{headerAction ? <HeaderAction {...headerAction} reduce={reduce} /> : null}
+								<Popover.Close className={headerButtonClass} aria-label='Close notifications'>
+									<IconX size={17} stroke={1.75} aria-hidden='true' />
+								</Popover.Close>
+							</div>
 						</div>
 
 						<div className='flex min-h-[52px] items-center justify-between gap-3 border-b border-border-subtle pr-[17px] pb-[13px] pl-5 max-[380px]:items-start max-[380px]:px-3 max-[380px]:pb-3'>
@@ -443,6 +451,22 @@ export function NotificationCenter({
 								)}
 							</AnimatePresence>
 						</div>
+
+						{/* vexdock: a card above the list, outside it, since a list may only hold its items. */}
+						<AnimatePresence initial={false}>
+							{notice && (
+								<motion.div
+									key='notice'
+									className='flex-none overflow-hidden'
+									initial={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+									animate={{ height: 'auto', opacity: 1 }}
+									exit={reduce ? fadeOut : collapse}
+									transition={height}
+								>
+									{notice}
+								</motion.div>
+							)}
+						</AnimatePresence>
 
 						{/* Rows collapse their own height on the way out, so the list and the panel close the gap together. */}
 						<div
@@ -751,6 +775,43 @@ export function NotificationCenter({
 				</Popover.Positioner>
 			</Popover.Portal>
 		</Popover.Root>
+	)
+}
+
+// vexdock: the close button's look, shared with `headerAction` so the two read as a pair.
+const headerButtonClass =
+	'grid size-[30px] flex-none place-items-center rounded-[8px] text-muted [transition:scale_400ms_var(--ease-spring),color_110ms_var(--ease-standard),background-color_110ms_var(--ease-standard)] hover:bg-surface-muted hover:text-foreground active:duration-85 active:ease-standard motion-safe:active:scale-96'
+
+// vexdock: without `onClick` the button stays focusable, so its tooltip can still say why it does nothing.
+function HeaderAction({
+	icon: Icon,
+	label,
+	onClick,
+	reduce,
+}: NonNullable<NotificationCenterProps['headerAction']> & { reduce: boolean }) {
+	return (
+		<Tooltip content={label}>
+			<button
+				type='button'
+				className={headerButtonClass}
+				aria-label={label}
+				aria-disabled={onClick ? undefined : true}
+				onClick={onClick}
+			>
+				<AnimatePresence mode='popLayout' initial={false}>
+					<Swap
+						key={label}
+						className='grid place-items-center'
+						initial={reduce ? { opacity: 0 } : iconIn}
+						animate={shown}
+						exit={reduce ? fadeOut : { ...iconIn, transition: exitFast }}
+						transition={reduce ? instant : enter}
+					>
+						<Icon size={16} stroke={1.75} aria-hidden='true' />
+					</Swap>
+				</AnimatePresence>
+			</button>
+		</Tooltip>
 	)
 }
 
