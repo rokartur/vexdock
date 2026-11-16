@@ -52,7 +52,7 @@ import { useSystemEvents } from '../lib/sse'
 import { CommandMenu } from './command-menu'
 import { DeploymentInbox } from './deployment-inbox'
 import { Logo } from './logo'
-import { ActivePill, IconButton, Keys, mod, PageChrome, Tabs, useServedPath } from './primitives'
+import { ActivePill, IconButton, PageChrome, Tabs, useServedPath } from './primitives'
 
 type NavItem = { to: string; label: string; icon: TablerIcon; exact?: boolean }
 
@@ -114,9 +114,9 @@ function railMarkTransition(collapsed: boolean, instant: boolean): Transition {
 const iconButton =
 	'inline-grid size-control-md flex-none place-items-center rounded-control text-secondary transition-colors duration-110 ease-standard [-webkit-tap-highlight-color:transparent] hover:bg-surface-muted hover:text-foreground active:bg-[color-mix(in_oklab,var(--foreground)_9%,transparent)] active:text-foreground pointer-coarse:size-11'
 
-// workspace-sidebar's toggleClass, pinned to the search row's right edge so the 64 wide rail keeps it centered.
-const railToggle =
-	'absolute top-1/2 right-1 -mt-4 grid size-8 place-items-center rounded-[8px] text-secondary [-webkit-tap-highlight-color:transparent] hover:bg-(--row-hover) hover:text-foreground active:bg-(--row-active) active:text-foreground pointer-coarse:-right-0.5 pointer-coarse:-mt-5.5 pointer-coarse:size-11'
+// Pinned to the brand row's right edge; right-4 keeps the toggle centered in the 64 wide rail.
+const railTool =
+	'absolute top-2.5 grid size-8 place-items-center rounded-[8px] text-secondary [-webkit-tap-highlight-color:transparent] hover:bg-(--row-hover) hover:text-foreground active:bg-(--row-active) active:text-foreground pointer-coarse:top-1 pointer-coarse:size-11'
 
 const scrim =
 	'absolute inset-0 bg-[color-mix(in_oklab,var(--foreground)_30%,transparent)] [-webkit-tap-highlight-color:transparent] dark:bg-background/50'
@@ -282,7 +282,7 @@ export function Shell({ children }: { children: ReactNode }) {
 		<BaseTooltip.Provider delay={250} timeout={300}>
 			<div
 				ref={setShell}
-				className='@container/shell relative isolate flex h-dvh min-h-0 min-w-0 overflow-hidden bg-background text-foreground [--rail:color-mix(in_oklab,var(--surface-muted)_55%,var(--surface))] [--row-active:color-mix(in_oklab,var(--foreground)_7%,transparent)] [--row-hover:color-mix(in_oklab,var(--foreground)_4.5%,transparent)] dark:[--rail:color-mix(in_oklab,var(--background)_60%,var(--surface))] dark:[--row-active:color-mix(in_oklab,var(--foreground)_8%,transparent)] dark:[--row-hover:color-mix(in_oklab,var(--foreground)_5%,transparent)]'
+				className='@container/shell relative isolate flex h-dvh min-h-0 min-w-0 overflow-hidden bg-(--rail) text-foreground [--rail:color-mix(in_oklab,var(--surface-muted)_55%,var(--surface))] [--row-active:color-mix(in_oklab,var(--foreground)_7%,transparent)] [--row-hover:color-mix(in_oklab,var(--foreground)_4.5%,transparent)] dark:[--rail:color-mix(in_oklab,var(--background)_60%,var(--surface))] dark:[--row-active:color-mix(in_oklab,var(--foreground)_8%,transparent)] dark:[--row-hover:color-mix(in_oklab,var(--foreground)_5%,transparent)]'
 				onKeyDown={event => {
 					if (event.key !== 'Escape' || !floating || event.defaultPrevented) return
 					event.preventDefault()
@@ -303,21 +303,45 @@ export function Shell({ children }: { children: ReactNode }) {
 				>
 					<motion.div
 						id={sidebarId}
-						className='absolute inset-y-0 left-0 flex min-w-0 flex-col overflow-hidden bg-(--rail) transition-shadow duration-170 ease-standard after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border data-floating:shadow-floating'
+						className='absolute inset-y-0 left-0 flex min-w-0 flex-col overflow-hidden bg-(--rail) transition-shadow duration-170 ease-standard data-floating:shadow-floating'
 						initial={false}
 						animate={{ width: collapsed ? 64 : 240 }}
 						transition={panelSpring}
 						data-collapsed={collapsed || undefined}
 						data-floating={floating || undefined}
 					>
-						<Brand
-							collapsed={collapsed}
-							instant={instant}
-							eventsLost={eventsLost}
-							onNavigate={() => navigated(false)}
-							overlay={floating}
-						/>
-						<SearchRow collapsed={collapsed} instant={instant} onSearch={() => setSearchOpen(true)}>
+						<div className='relative flex-none'>
+							<Brand
+								collapsed={collapsed}
+								instant={instant}
+								eventsLost={eventsLost}
+								className={collapsed ? undefined : 'pr-[88px] pointer-coarse:pr-[106px]'}
+								onNavigate={() => navigated(false)}
+								overlay={floating}
+							/>
+							{/* The 64 wide rail has no room beside the mark, so the toggle drops into this row. */}
+							<motion.div
+								aria-hidden='true'
+								initial={false}
+								animate={{ height: collapsed ? 44 : 0 }}
+								transition={panelSpring}
+							/>
+							<Tooltip side='bottom' content='Search'>
+								<motion.button
+									type='button'
+									inert={collapsed}
+									className={cn(railTool, 'right-[52px] pointer-coarse:right-[58px]')}
+									aria-label='Search'
+									aria-haspopup='dialog'
+									aria-keyshortcuts='Meta+K Control+K'
+									initial={false}
+									animate={{ opacity: collapsed ? 0 : 1 }}
+									transition={labelTransition(collapsed, instant)}
+									onClick={() => setSearchOpen(true)}
+								>
+									<IconSearch size={18} stroke={1.75} aria-hidden='true' />
+								</motion.button>
+							</Tooltip>
 							<Tooltip
 								side={collapsed ? 'right' : 'bottom'}
 								content={
@@ -329,9 +353,12 @@ export function Shell({ children }: { children: ReactNode }) {
 									</span>
 								}
 							>
-								<button
+								<motion.button
 									type='button'
-									className={railToggle}
+									className={cn(railTool, 'right-4 pointer-coarse:right-2.5')}
+									initial={false}
+									animate={{ y: collapsed ? 46 : 0 }}
+									transition={panelSpring}
 									aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 									aria-expanded={!collapsed}
 									aria-controls={sidebarId}
@@ -339,9 +366,9 @@ export function Shell({ children }: { children: ReactNode }) {
 									onClick={toggleRail}
 								>
 									<PaneIcon collapsed={collapsed} instant={instant} />
-								</button>
+								</motion.button>
 							</Tooltip>
-						</SearchRow>
+						</div>
 						<SidebarNav
 							baseId={baseId}
 							collapsed={collapsed}
@@ -367,7 +394,11 @@ export function Shell({ children }: { children: ReactNode }) {
 					)}
 				/>
 				{/* The floating rail is modal over the page: Tab stays in the rail until it closes. */}
-				<div inert={floating} className='relative isolate flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
+				{/* Linear's inset: the page is a card on the rail's color, edge to edge only under the phone's tab bar. */}
+				<div
+					inert={floating}
+					className='relative isolate flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background @min-[480px]/shell:my-2 @min-[480px]/shell:mr-2 @min-[480px]/shell:rounded-[12px] @min-[480px]/shell:border @min-[480px]/shell:border-border'
+				>
 					<header className='flex min-h-13 flex-none items-center gap-3 px-6 pt-6 @max-[480px]/shell:gap-1 @max-[480px]/shell:px-4 @max-[480px]/shell:pt-[max(0.75rem,env(safe-area-inset-top,0px))]'>
 						{/* The page's breadcrumb, title and actions land here, so a page owns what it
 						    is called without owning a bar of its own. The 4px padding keeps the actions'
@@ -509,43 +540,6 @@ export function Shell({ children }: { children: ReactNode }) {
 				/>
 			</div>
 		</BaseTooltip.Provider>
-	)
-}
-
-/** workspace-sidebar's search row: a field-shaped button that opens the command menu, faded out in the rail. */
-function SearchRow({
-	collapsed,
-	instant,
-	onSearch,
-	children,
-}: {
-	collapsed: boolean
-	instant: boolean
-	onSearch: () => void
-	children?: ReactNode
-}) {
-	return (
-		<div className='relative mx-3 mb-2 flex h-10 flex-none items-center pointer-coarse:h-11'>
-			<motion.button
-				type='button'
-				inert={collapsed}
-				aria-haspopup='dialog'
-				aria-keyshortcuts='Meta+K Control+K'
-				className={cn(
-					'flex h-8 w-full min-w-0 items-center gap-2 rounded-[8px] border border-border bg-surface pr-1.5 pl-2.5 text-left text-[13px] whitespace-nowrap text-muted transition-colors duration-110 ease-standard [-webkit-tap-highlight-color:transparent] hover:border-border-strong hover:text-secondary active:bg-surface-pressed pointer-coarse:h-11',
-					children && 'mr-10 pointer-coarse:mr-12',
-				)}
-				initial={false}
-				animate={{ opacity: collapsed ? 0 : 1 }}
-				transition={labelTransition(collapsed, instant)}
-				onClick={onSearch}
-			>
-				<IconSearch size={16} stroke={1.75} aria-hidden='true' className='flex-none' />
-				<span className='flex-1'>Search</span>
-				<Keys keys={[mod, 'K']} />
-			</motion.button>
-			{children}
-		</div>
 	)
 }
 
@@ -1129,9 +1123,9 @@ function Brand({
 				>
 					<span
 						aria-hidden='true'
-						className='relative grid size-7 flex-none place-items-center rounded-[9px] bg-foreground text-background shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--background)_12%,transparent)] dark:shadow-none'
+						className='relative grid size-7 flex-none place-items-center text-foreground'
 					>
-						<Logo className='size-[55%]' />
+						<Logo className='size-5' />
 						{/* The collapsed rail hides the tinted version line; the dot keeps its tone in view, the tooltip says it. */}
 						{collapsed && versionClass ? (
 							<span
@@ -1143,8 +1137,10 @@ function Brand({
 						) : null}
 					</span>
 					<IdentityText
-						title='vexdock'
-						detail={versionText}
+						title='Vexdock'
+						titleClassName='text-[15px] font-semibold'
+						// The plain version lives in About; the row only speaks up for an update or a lost stream.
+						detail={versionClass ? versionText : ''}
 						detailClassName={versionClass}
 						collapsed={collapsed}
 						instant={instant}
@@ -1175,7 +1171,7 @@ function Profile({ collapsed, instant, onNavigate }: { collapsed: boolean; insta
 	const label = logout.isError ? `${name}, log out failed` : name
 
 	return (
-		<div className='flex h-13 min-w-0 flex-none items-center border-t border-border-subtle px-2'>
+		<div className='flex h-13 min-w-0 flex-none items-center px-2'>
 			<BaseTooltip.Root disabled={!collapsed}>
 				<DropdownMenu
 					side='top'
@@ -1224,12 +1220,14 @@ function Profile({ collapsed, instant, onNavigate }: { collapsed: boolean; insta
 
 function IdentityText({
 	title,
+	titleClassName,
 	detail,
 	detailClassName,
 	collapsed,
 	instant,
 }: {
 	title: string
+	titleClassName?: string
 	detail: string
 	detailClassName?: string
 	collapsed: boolean
@@ -1242,10 +1240,16 @@ function IdentityText({
 			animate={{ opacity: collapsed ? 0 : 1, x: collapsed ? -6 : 0 }}
 			transition={labelTransition(collapsed, instant)}
 		>
-			<strong className='overflow-hidden text-[13px] font-medium text-ellipsis text-foreground'>{title}</strong>
-			<span className={cn('overflow-hidden text-xs/[1.25] text-ellipsis text-muted', detailClassName)}>
-				{detail}
-			</span>
+			<strong
+				className={cn('overflow-hidden text-[13px] font-medium text-ellipsis text-foreground', titleClassName)}
+			>
+				{title}
+			</strong>
+			{detail ? (
+				<span className={cn('overflow-hidden text-xs/[1.25] text-ellipsis text-muted', detailClassName)}>
+					{detail}
+				</span>
+			) : null}
 		</motion.span>
 	)
 }
