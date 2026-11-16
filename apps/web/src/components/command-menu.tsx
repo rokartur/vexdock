@@ -11,7 +11,7 @@ const LOADING = 'projects:loading'
 const RETRY = 'projects:retry'
 
 /** Arc's command-palette in a dialog on Cmd/Ctrl+K: every sidebar destination, then every project. The sidebar's
- * search row opens it too, so the caller owns `open`. */
+ * search button opens it too, so the caller owns `open`. */
 export function CommandMenu({
 	groups,
 	open,
