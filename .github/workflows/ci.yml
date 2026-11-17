@@ -121,12 +121,20 @@ jobs:
 
       # The target mount in docker/*.Dockerfile dies with the runner. Registry stays out (fetch 3 s, inject 18 s);
       # restore-keys stop at the toolchain hash so a new rustc never inherits stale artifacts.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: cargo-image-cache
-        with:
+      # Saved per main commit, so a PR compiles the manager crate on its base's incremental state (M1 Max: 7 s, not 22 s).
+      - name: Restore the cargo image cache, saved after the build
+        if: github.event_name != 'pull_request'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with: &cargo-image-cache
           path: ${{ runner.temp }}/cargo-target
-          key: cargo-image-ci-${{ hashFiles('manager/rust-toolchain.toml', 'docker/manager.Dockerfile', '.dockerignore') }}-${{ hashFiles('manager/Cargo.lock') }}
+          key: cargo-image-ci-${{ hashFiles('manager/rust-toolchain.toml', 'docker/manager.Dockerfile', '.dockerignore') }}-${{ github.sha }}
           restore-keys: cargo-image-ci-${{ hashFiles('manager/rust-toolchain.toml', 'docker/manager.Dockerfile', '.dockerignore') }}-
+
+      # A PR only restores: saving would cost it the extraction below (about 60 s) for a cache no other PR reads.
+      - name: Restore the cargo image cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with: *cargo-image-cache
 
       - uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
         with:
@@ -135,7 +143,7 @@ jobs:
               "${{ runner.temp }}/cargo-target": "/src/target"
             }
           scratch-dir: ${{ runner.temp }}/cache-dance-scratch
-          skip-extraction: ${{ steps.cargo-image-cache.outputs.cache-hit }}
+          skip-extraction: ${{ github.event_name == 'pull_request' }}
 
       - name: Publish the images to a local registry
         run: |
