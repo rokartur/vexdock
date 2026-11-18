@@ -939,8 +939,8 @@ export function NumberField({
 			<div
 				ref={controlRef}
 				className={cn(
-					'group/control flex min-h-(--nf-height) w-[min(100%,var(--nf-width))] items-center gap-0.5 rounded-control border border-border bg-surface p-(--nf-inset) [transition:border-color_110ms_var(--ease-standard),background-color_170ms_var(--ease-standard),opacity_110ms_var(--ease-standard)]',
-					'hover:border-border-strong has-[input:focus]:border-foreground data-scrubbing:border-foreground pointer-fine:group-has-[[data-scrub]:hover]/field:border-border-strong',
+					'group/control flex min-h-(--nf-height) w-[min(100%,var(--nf-width))] items-center gap-0.5 rounded-control border border-input-border bg-input p-(--nf-inset) [transition:border-color_110ms_var(--ease-standard),background-color_170ms_var(--ease-standard),opacity_110ms_var(--ease-standard)]',
+					'hover:border-border-strong has-[input:focus]:border-focus-ring data-scrubbing:border-focus-ring pointer-fine:group-has-[[data-scrub]:hover]/field:border-border-strong',
 					'data-warn:border-[color-mix(in_oklab,var(--warning)_55%,var(--border))] data-warn:bg-[color-mix(in_oklab,var(--warning)_5%,var(--surface))] data-warn:has-[input:focus]:border-[color-mix(in_oklab,var(--warning)_80%,var(--border))]',
 					'data-disabled:bg-surface-muted data-disabled:opacity-50',
 				)}

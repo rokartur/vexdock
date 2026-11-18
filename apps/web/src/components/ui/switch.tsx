@@ -9,10 +9,10 @@ export type SwitchProps = Omit<ComponentProps<typeof SwitchPrimitive.Root>, 'cla
 	className?: string
 }
 
-// Track inner width (42 - 6 padding) minus the 18px thumb.
-const size = 18
-const travel = 18
-const stretch = 5
+// rarv's (Linear's) 30x20 track: inner width (30 - 4 padding) minus the 16px thumb.
+const size = 16
+const travel = 10
+const stretch = 3
 // Critically damped: the thumb lands on its end without overshooting the state it reports.
 const glide: Transition = { type: 'spring', visualDuration: 0.21, bounce: 0 }
 
@@ -103,10 +103,10 @@ export function Switch({
 		>
 			{/* Fixed box: the thumb moves inside it with transforms, so nothing around the switch shifts.
           transition-none under reduced motion as in Arc: the kill switch's 0.01ms paints one stale-color frame. */}
-			<span className="relative isolate flex h-6 w-[42px] shrink-0 items-center rounded-full bg-control-track p-[3px] transition-[background-color] duration-110 ease-standard group-hover/switch:group-data-unchecked/switch:bg-control-track-hover before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:bg-control-on before:opacity-0 before:transition-opacity before:duration-170 before:ease-standard before:content-[''] group-data-checked/switch:before:opacity-100 motion-reduce:transition-none motion-reduce:before:transition-none">
+			<span className="relative isolate flex h-5 w-[30px] shrink-0 items-center rounded-full bg-control-track p-0.5 transition-[background-color] duration-110 ease-standard group-hover/switch:group-data-unchecked/switch:bg-control-track-hover before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:bg-control-on before:opacity-0 before:transition-opacity before:duration-170 before:ease-standard before:content-[''] group-data-checked/switch:before:opacity-100 motion-reduce:transition-none motion-reduce:before:transition-none">
 				{/* The thumb stretches like a held finger and keeps its far edge anchored, then travels on a spring. */}
 				<motion.span
-					className='size-[18px] shrink-0 rounded-full bg-control-thumb shadow-thumb transition-[background-color] duration-170 ease-standard will-change-transform group-data-checked/switch:bg-control-thumb-on motion-reduce:transition-none'
+					className='size-4 shrink-0 rounded-full bg-control-thumb shadow-thumb transition-[background-color] duration-170 ease-standard will-change-transform group-data-checked/switch:bg-control-thumb-on motion-reduce:transition-none'
 					style={{ scaleX }}
 					initial={false}
 					animate={{ x: on ? travel - extra : 0, width: size + extra }}

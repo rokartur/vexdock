@@ -26,28 +26,21 @@ import {
 } from 'motion/react'
 import { motionTokens } from '../../lib/motion'
 
+// rarv's pills: primary is its default, secondary its outline, danger its destructive.
 // vexdock: `data-held:` repeats each `active:` for a button that opens a DropdownMenu, whose backdrop clears :active.
 const variants = {
 	primary:
-		'border-foreground bg-foreground text-background hover:opacity-91 hover:shadow-resting active:opacity-84 data-held:opacity-84 disabled:opacity-52',
+		'border-transparent bg-accent text-accent-foreground hover:bg-accent-strong active:bg-accent-strong data-held:bg-accent-strong',
 	secondary:
-		'border-border bg-surface text-foreground hover:bg-surface-muted hover:shadow-resting active:bg-surface-pressed data-held:bg-surface-pressed disabled:bg-surface-muted disabled:text-muted',
-	ghost: 'border-transparent text-secondary hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:text-foreground data-held:bg-surface-pressed data-held:text-foreground disabled:text-muted',
-	danger: 'border-border bg-surface text-danger hover:border-danger hover:bg-surface-muted active:border-danger active:bg-surface-pressed data-held:border-danger data-held:bg-surface-pressed disabled:bg-surface-muted disabled:text-[color-mix(in_oklab,var(--danger)_55%,var(--surface-muted))]',
+		'border-border-strong bg-transparent text-secondary hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed data-held:bg-surface-pressed aria-expanded:bg-surface-muted',
+	ghost: 'border-transparent text-secondary hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:text-foreground data-held:bg-surface-pressed data-held:text-foreground aria-expanded:bg-surface-muted aria-expanded:text-foreground',
+	danger: 'border-border-strong bg-transparent text-danger hover:border-danger hover:bg-surface-muted active:bg-surface-pressed data-held:bg-surface-pressed',
 } satisfies Record<string, string>
 
-// vexdock: a link has no :disabled to match, so the render path's inert look repeats each variant's disabled: classes.
-const inertLink = {
-	primary: 'opacity-52',
-	secondary: 'bg-surface-muted text-muted',
-	ghost: 'text-muted',
-	danger: 'bg-surface-muted text-[color-mix(in_oklab,var(--danger)_55%,var(--surface-muted))]',
-} satisfies Record<keyof typeof variants, string>
-
 const sizes = {
-	sm: 'min-h-control-sm px-2.5',
-	md: 'min-h-control-md px-3',
-	lg: 'min-h-control-lg px-4',
+	sm: "min-h-6 gap-1 px-2.5 [&_svg:not([class*='size-'])]:size-3.5",
+	md: 'min-h-control-sm px-2.5',
+	lg: 'min-h-control-md px-3.5 text-sm',
 } satisfies Record<string, string>
 
 // The drag and animation handlers would reach motion.button as gestures, so they are not forwarded.
@@ -167,7 +160,7 @@ export function Button({
 	}, [reduceMotion, width])
 
 	const classes = cn(
-		'relative inline-flex items-center justify-center gap-1.5 rounded-control border text-sm font-medium whitespace-nowrap',
+		"relative inline-flex items-center justify-center gap-1.5 rounded-full border text-xs font-medium whitespace-nowrap disabled:opacity-52 [&_svg:not([class*='size-'])]:size-4",
 		variants[variant],
 		sizes[size],
 		icon && 'aspect-square px-0',
@@ -188,7 +181,8 @@ export function Button({
 			// The hover and active variants (styles.css) skip [data-disabled], so an inert link takes no fill.
 			'data-disabled': inert ? '' : undefined,
 			onClick: inert ? (event: MouseEvent) => event.preventDefault() : onClick,
-			className: cn(classes, inert ? inertLink[variant] : 'press'),
+			// A link has no :disabled to match, so the inert look repeats the button's disabled:opacity-52.
+			className: cn(classes, inert ? 'opacity-52' : 'press'),
 			children,
 		},
 	})

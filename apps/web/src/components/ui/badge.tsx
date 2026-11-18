@@ -26,7 +26,7 @@ const tones = {
 
 const sizes = {
 	sm: 'min-h-5.5 px-2 text-[11px]/none',
-	md: 'min-h-6.5 px-2.5 text-xs/none',
+	md: 'min-h-6 px-2 text-xs/none',
 } satisfies Record<string, string>
 
 export type BadgeTone = keyof typeof tones
@@ -100,7 +100,7 @@ export function Badge({ tone = 'neutral', size = 'md', icon, className, children
 		<span
 			{...props}
 			className={cn(
-				'inline-flex items-center overflow-clip rounded-full border font-medium tracking-[-0.01em] whitespace-nowrap transition-[border-color,background-color,color] duration-170 ease-standard hover:border-[color-mix(in_oklab,var(--badge-color)_32%,var(--border))] hover:bg-[color-mix(in_oklab,var(--badge-color)_10%,var(--surface))]',
+				'inline-flex items-center overflow-clip rounded-full border font-normal whitespace-nowrap transition-[border-color,background-color,color] duration-170 ease-standard hover:border-[color-mix(in_oklab,var(--badge-color)_32%,var(--border))] hover:bg-[color-mix(in_oklab,var(--badge-color)_10%,var(--surface))]',
 				tones[tone],
 				sizes[size],
 				className,

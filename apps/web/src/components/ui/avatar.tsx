@@ -14,9 +14,9 @@ export interface AvatarProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const sizeClass: Record<AvatarSize, string> = {
-	sm: 'size-7 text-[10px]/[1.4]',
-	md: 'size-9',
-	lg: 'size-12 text-sm',
+	sm: 'size-6 text-[10px]/[1.4]',
+	md: 'size-8',
+	lg: 'size-10 text-sm',
 	xl: 'size-22 text-xl',
 }
 

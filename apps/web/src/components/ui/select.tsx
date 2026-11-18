@@ -108,7 +108,7 @@ export function Select({
 					id={controlId}
 					aria-describedby={hintId}
 					className={cn(
-						'relative flex min-h-control-md w-full items-center justify-between gap-3 rounded-control border border-border bg-surface px-3 text-left text-sm text-foreground transition-[border-color,background-color,box-shadow] duration-110 hover:border-border-strong hover:bg-surface-muted focus-visible:border-border-strong active:border-border-strong active:bg-surface-pressed data-disabled:opacity-50 data-popup-open:border-border-strong data-popup-open:bg-surface-muted',
+						'relative flex min-h-7.5 w-full items-center justify-between gap-3 rounded-control border border-border-strong bg-surface-raised px-2.5 text-left text-sm text-foreground transition-[border-color,background-color,box-shadow] duration-110 hover:border-border-strong hover:bg-surface-muted focus-visible:border-border-strong active:border-border-strong active:bg-surface-pressed data-disabled:opacity-50 data-popup-open:border-border-strong data-popup-open:bg-surface-muted',
 						className,
 					)}
 				>

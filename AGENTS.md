@@ -87,9 +87,8 @@ references a variable nobody declares.
 `docker` or `system` in `components/shell.tsx` if it belongs in the sidebar;
 those three arrays are its groups, the Projects row under `home` opens the
 project list, `settings` sits alone at the bottom of the rail, and the
-breadcrumb derives itself from the URL. Below 480 px the same arrays feed the
-phone's tab bar, its More sheet and the Docker and System section strip, so
-there is no second list to edit. A section of a page is a child route, never a `?tab=`:
+breadcrumb derives itself from the URL. Below 768 px the same sidebar opens as
+a drawer from the top bar, so there is no second list to edit. A section of a page is a child route, never a `?tab=`:
 `projects.$projectId_.services.$serviceId.*` is the pattern, and the trailing
 `_` is what keeps it out of the project's own tab strip.
 
@@ -102,7 +101,7 @@ bug. Sub-navigation and page filters belong in `Page`'s `toolbar` and
 the actions ride up into the shell's page header and the rest becomes the page's own first row, so a page never
 draws chrome of its own. `Tabs` moves through the URL, `Segmented` moves a value; never
 hand-roll a third switch. Both slide their own selection; a selected sidebar row
-draws its background with `ActivePill` for the same reason. Every action has
+slides its background (`components/sidebar.tsx`) for the same reason. Every action has
 a Tabler icon: a row action is an
 `IconButton`, anything destructive is wrapped in `Confirm`. A settings page is
 a stack of `FormSection` cards, each with its hint and its own Save in the

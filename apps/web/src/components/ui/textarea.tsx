@@ -26,7 +26,7 @@ export function Textarea({ label, description, error, hideLabel, id, className, 
 				{...props}
 				id={controlId}
 				className={cn(
-					'min-h-[110px] w-full resize-y rounded-control border border-border-strong bg-surface p-3 text-sm text-foreground transition-[border-color,background-color] placeholder:text-muted not-aria-invalid:hover:border-foreground focus-visible:border-foreground disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-60 aria-invalid:border-danger',
+					'min-h-[110px] w-full resize-y rounded-control border border-input-border bg-input px-2.5 py-2 text-sm text-foreground transition-[border-color,background-color] placeholder:text-faint not-aria-invalid:hover:border-border-strong focus-visible:border-focus-ring disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-50 aria-invalid:border-danger',
 					className,
 				)}
 				aria-invalid={error ? true : props['aria-invalid']}

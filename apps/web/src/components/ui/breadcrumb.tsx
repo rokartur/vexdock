@@ -28,9 +28,8 @@ const still = { duration: 0 }
 // vexdock: `min-w-0 max-w-full` and the label's own `truncate` end a long name in an ellipsis instead of mid-letter.
 const crumb =
 	'inline-flex min-w-0 max-w-full flex-col rounded-[7px] px-0.5 py-1 after:pointer-events-none after:invisible after:h-0 after:overflow-hidden after:font-medium after:select-none after:content-[attr(data-label)]'
-// vexdock: `press` (in place of Arc's transition) scales a crumb under the pointer and the press draws its underline whole.
-const link =
-	'press text-secondary underline decoration-transparent decoration-1 underline-offset-4 hover:text-accent-strong hover:decoration-current/45 active:decoration-current'
+// vexdock: rarv's topbar crumb, muted until hovered.
+const link = 'transition-colors duration-110 ease-standard hover:text-foreground'
 
 // Crumbs present on first render stay still; crumbs added later slide in from the path before them.
 export function Breadcrumb({ items, ariaLabel = 'Breadcrumb', lastIsCurrent = true }: BreadcrumbProps) {
@@ -71,7 +70,7 @@ export function Breadcrumb({ items, ariaLabel = 'Breadcrumb', lastIsCurrent = tr
 						>
 							{index > 0 && (
 								<IconChevronRight
-									size={16}
+									size={14}
 									stroke={1.75}
 									aria-hidden='true'
 									// vexdock: phone widths show one crumb, so no chevron leads it.

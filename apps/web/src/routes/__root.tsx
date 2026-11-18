@@ -15,7 +15,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 			{ charSet: 'utf-8' },
 			{ name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
 			{ name: 'color-scheme', content: 'dark' },
-			{ name: 'theme-color', content: '#0b0b0b' },
+			{ name: 'theme-color', content: '#09090a' },
 			{ name: 'apple-mobile-web-app-title', content: 'Vexdock' },
 			{ name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
 			// Pages replace this from their breadcrumb; it stands for login and setup.
@@ -69,9 +69,9 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 				<HeadContent />
 			</head>
 			{/* The inline colors paint before the stylesheet arrives, so booting
-          the SPA never flashes white. They are the dark --background and
+          the SPA never flashes white. They are the dark --surface-sunken and
           --foreground from styles.css, resolved to sRGB. */}
-			<body style={{ background: '#0b0b0b', color: '#f2f2f2' }}>
+			<body style={{ background: '#09090a', color: '#ffffff' }}>
 				<div id='root'>{children}</div>
 				<Scripts />
 			</body>

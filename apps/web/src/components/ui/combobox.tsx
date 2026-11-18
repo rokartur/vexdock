@@ -195,7 +195,7 @@ export function Combobox({
 				data-open={open || undefined}
 				data-disabled={disabled || undefined}
 				className={cn(
-					'group/control relative z-2 flex min-h-control-md items-center gap-1.5 rounded-control border border-border bg-surface px-2.5 text-foreground transition-[border-color,background-color,box-shadow] duration-110 ease-standard focus-within:border-accent hover:border-border-strong hover:bg-surface-muted data-disabled:cursor-not-allowed data-disabled:opacity-50 data-open:border-border-strong data-open:bg-surface-muted',
+					'group/control relative z-2 flex min-h-control-sm items-center gap-1.5 rounded-control border border-input-border bg-input px-2.5 text-foreground transition-[border-color,background-color,box-shadow] duration-110 ease-standard focus-within:border-focus-ring hover:border-border-strong hover:bg-surface-muted data-disabled:cursor-not-allowed data-disabled:opacity-50 data-open:border-border-strong data-open:bg-surface-muted',
 					className,
 				)}
 			>

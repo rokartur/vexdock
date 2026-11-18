@@ -76,8 +76,9 @@ Pages go through the vocabulary first:
 `src/components/primitives.tsx` maps them to the vocabulary the dashboard uses
 (Page, Tabs, Section, FormSection, Cell, Field, Input, Select, Switch, Button,
 IconButton, Status, Confirm, EmptyState), so a design change happens in one
-file. The shell is Arc's workspace sidebar, the same on every page, carrying every
-destination, the project list and the search that opens the command menu, and a page header beside it (on a phone, a bottom tab bar instead); tables are `DataTable` in
+file. The shell is rarv's layout, the same on every page: a top bar carrying the
+page header and the search that opens the command menu, and a sidebar with every
+destination and the project list (below 768 px, a drawer opened from the top bar); tables are `DataTable` in
 `components/data-table.tsx`, its own primitive that pages import directly. A
 page reaches for a `ui/*` component only for what the vocabulary has no word
 for (a dialog, a dropdown menu, an alert).

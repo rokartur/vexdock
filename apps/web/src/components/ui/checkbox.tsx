@@ -52,7 +52,7 @@ export function Checkbox({
 				nativeButton
 				render={<button type='button' />}
 				className={cn(
-					'group/press relative grid size-control-md shrink-0 place-items-center rounded-control text-control-glyph disabled:opacity-50',
+					'group/press relative grid size-6 shrink-0 place-items-center rounded-control text-control-glyph disabled:opacity-50',
 					className,
 				)}
 				aria-describedby={description ? `${controlId}-description` : undefined}
@@ -100,8 +100,8 @@ export function Checkbox({
 				</span>
 			</CheckboxPrimitive.Root>
 			{label || description ? (
-				// The label's first line centers on the square: (control height - 1.4 line) / 2.
-				<div className='ml-px grid min-w-0 gap-0.5 pt-[calc((var(--spacing-control-md)-var(--text-sm)*1.4)/2)]'>
+				// The label's first line centers on the square: (24px hit area - 1.4 line) / 2.
+				<div className='ml-px grid min-w-0 gap-0.5 pt-[calc((1.5rem-var(--text-sm)*1.4)/2)]'>
 					{label ? (
 						<label htmlFor={controlId} className='text-sm font-medium text-foreground'>
 							{label}

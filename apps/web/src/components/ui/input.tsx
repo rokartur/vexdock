@@ -29,7 +29,7 @@ export function Input({ label, description, error, hideLabel, id, className, ...
 				{...props}
 				id={controlId}
 				className={cn(
-					'min-h-control-md w-full rounded-control border border-border-strong bg-surface px-3 text-sm text-foreground transition-[border-color,background-color] placeholder:text-muted not-aria-invalid:hover:border-foreground focus-visible:border-foreground disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-50 aria-invalid:border-danger',
+					'min-h-control-sm w-full min-w-0 rounded-control border border-input-border bg-input px-2.5 text-sm text-foreground transition-[border-color,background-color] placeholder:text-faint not-aria-invalid:hover:border-border-strong focus-visible:border-focus-ring disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-50 aria-invalid:border-danger',
 					className,
 				)}
 				aria-invalid={error ? true : props['aria-invalid']}

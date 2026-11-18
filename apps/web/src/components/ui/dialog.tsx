@@ -75,7 +75,7 @@ export function DialogContent({ title, description, morph, children, className, 
 						{...props}
 						className={cn(
 							// vexdock: --dialog-width lets a call site widen it (forms 32rem, log viewers 72rem); Arc pins 440px.
-							'fixed inset-0 z-51 m-auto h-fit max-h-[calc(100dvh-2rem)] w-[min(100%-2rem,var(--dialog-width,440px))] overflow-auto rounded-surface border bg-surface-raised text-foreground shadow-floating data-closed:pointer-events-none',
+							'fixed inset-0 z-51 m-auto h-fit max-h-[calc(100dvh-2rem)] w-[min(100%-2rem,var(--dialog-width,440px))] overflow-auto rounded-surface border-[0.5px] border-border-strong bg-surface text-foreground shadow-floating data-closed:pointer-events-none',
 							className,
 						)}
 						render={
@@ -99,18 +99,18 @@ export function DialogContent({ title, description, morph, children, className, 
 							/>
 						}
 					>
-						<div className='flex items-start justify-between gap-3.5 border-b p-4'>
+						<div className='flex items-start justify-between gap-3.5 px-5 pt-5'>
 							<div>
 								{/* vexdock: w-fit, so a morph lands on the title's own box, not the width of a longer description. */}
 								<BaseDialog.Title
 									data-morph={morph ? '' : undefined}
 									style={morphTarget}
-									className='relative m-0 w-fit text-lg font-medium wrap-anywhere'
+									className='relative m-0 w-fit text-lg font-semibold wrap-anywhere'
 								>
 									<SwapText text={title} />
 								</BaseDialog.Title>
 								{description ? (
-									<BaseDialog.Description className='relative mt-1.5 text-sm wrap-anywhere text-secondary'>
+									<BaseDialog.Description className='relative mt-1 text-base wrap-anywhere text-secondary'>
 										<SwapText text={description} />
 									</BaseDialog.Description>
 								) : null}
@@ -118,12 +118,12 @@ export function DialogContent({ title, description, morph, children, className, 
 							{/* The negative margin centres the button on the title's first line. */}
 							<BaseDialog.Close
 								aria-label='Close dialog'
-								className='-my-[calc((1.75rem-var(--text-lg)*var(--text-lg--line-height))/2)] grid size-7 flex-none place-items-center rounded-control border bg-surface-muted/50 text-secondary [transition:background-color_110ms_var(--ease-standard),color_110ms_var(--ease-standard),scale_400ms_var(--ease-spring)] hover:bg-surface-muted hover:text-foreground active:[transition-duration:110ms,110ms,85ms] active:ease-standard motion-safe:active:scale-96'
+								className='-my-[calc((var(--spacing-control-md)-var(--text-lg)*var(--text-lg--line-height))/2)] -mr-2 grid size-control-md flex-none place-items-center rounded-full text-secondary [transition:background-color_110ms_var(--ease-standard),color_110ms_var(--ease-standard),scale_400ms_var(--ease-spring)] hover:bg-surface-muted hover:text-foreground active:bg-surface-pressed active:[transition-duration:110ms,110ms,85ms] active:ease-standard motion-safe:active:scale-96'
 							>
 								<IconX size={16} stroke={1.75} aria-hidden />
 							</BaseDialog.Close>
 						</div>
-						<div className='p-4 text-sm'>{children}</div>
+						<div className='p-5 pt-4 text-sm'>{children}</div>
 					</BaseDialog.Popup>
 				</BaseDialog.Portal>
 			)}
