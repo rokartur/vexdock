@@ -227,7 +227,7 @@ RUN if [ -n "$$OUTPUT_DIR" ]; then cp -r "$$OUTPUT_DIR" /site && rm -rf /site/.g
     done; \
     echo 'no index.html in dist/client, dist, build, out, .output/public, public or the build path' >&2; exit 1
 
-FROM nginx:alpine
+FROM nginx:1.31.9-alpine
 COPY --from=build /site /usr/share/nginx/html
 RUN echo 'server { listen 80; root /usr/share/nginx/html; location / { try_files $$uri $$uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
 "#;

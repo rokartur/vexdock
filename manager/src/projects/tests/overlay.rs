@@ -80,7 +80,7 @@ fn container_names() {
 
 	// An application with no mount or port starts beside its old container on
 	// deploy, and compose refuses --scale on a fixed name, so the deploy names it.
-	let web = s.create_service(&default, &ServiceInput { image: "nginx:alpine".into(), ..database_service("web", None) }).unwrap();
+	let web = s.create_service(&default, &ServiceInput { image: "nginx:1.31.9-alpine".into(), ..database_service("web", None) }).unwrap();
 	assert_eq!(web.container_name, "rokartur-web");
 	let overlay = std::fs::read_to_string(s.write_overlay(&default).unwrap()).unwrap();
 	assert!(overlay.contains("container_name: rokartur-db"), "{overlay}");

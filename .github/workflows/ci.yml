@@ -115,7 +115,7 @@ jobs:
       - name: Pull base images in the background
         run: |
           for image in $(sed -n 's/^FROM \([^ ]*\).*/\1/p' docker/*.Dockerfile | sort -u) registry:2 \
-            nginx:alpine httpd:alpine postgres:17-alpine curlimages/curl:latest; do
+            nginx:1.31.9-alpine httpd:alpine postgres:17-alpine curlimages/curl:latest; do
             nohup docker pull -q "$image" >/dev/null 2>&1 &
           done
 

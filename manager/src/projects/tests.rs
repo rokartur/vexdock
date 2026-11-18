@@ -182,7 +182,7 @@ fn transfer_fixture() -> (Fixture, Project, Environment, Environment, Service) {
 			&ServiceInput {
 				name: "web".into(),
 				provider: database::PROVIDER_IMAGE.into(),
-				image: "nginx:1.27".into(),
+				image: "nginx:1.31.9-alpine".into(),
 				..Default::default()
 			},
 		)
