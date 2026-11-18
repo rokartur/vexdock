@@ -27,48 +27,51 @@
 	--font-sans: 'Inter Variable', sans-serif;
 	--font-display: 'Geist Variable', sans-serif;
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-	--font-weight-normal: 400;
+	/* Linear sets body copy in Inter at 450, labels at 500. */
+	--font-weight-normal: 450;
 	--font-weight-medium: 500;
+	--font-weight-semibold: 600;
 
+	/* Linear's scale: 12 mini, 13 UI, 15 body, 18 dialog title, 24 page title; UI text carries no tracking. */
 	--text-xs: 0.75rem;
 	--text-xs--line-height: 1.4;
-	--text-xs--letter-spacing: -0.01em;
-	--text-sm: 0.875rem;
+	--text-xs--letter-spacing: 0;
+	--text-sm: 0.8125rem;
 	--text-sm--line-height: 1.4;
-	--text-sm--letter-spacing: -0.01em;
-	--text-base: 1rem;
-	--text-base--line-height: 1.4;
-	--text-base--letter-spacing: -0.01em;
+	--text-sm--letter-spacing: 0;
+	--text-base: 0.9375rem;
+	--text-base--line-height: 1.5;
+	--text-base--letter-spacing: 0;
 	--text-lg: 1.125rem;
 	--text-lg--line-height: 1.4;
-	--text-lg--letter-spacing: -0.01em;
-	--text-xl: 1.375rem;
+	--text-lg--letter-spacing: -0.005em;
+	--text-xl: 1.25rem;
 	--text-xl--line-height: 1.4;
 	--text-xl--letter-spacing: -0.01em;
-	--text-2xl: 1.75rem;
-	--text-2xl--line-height: 1.4;
+	--text-2xl: 1.5rem;
+	--text-2xl--line-height: 1.3;
 	--text-2xl--letter-spacing: -0.01em;
-	/* 3xl and up are display sizes: Geist, Arc's --leading-display and --tracking-display. */
-	--text-3xl: 2.25rem;
-	--text-3xl--line-height: 1.1;
+	/* 3xl and up are display sizes: Geist, tight leading and tracking. Arc ships 36/52/72; this system is one step smaller */
+	--text-3xl: 1.875rem;
+	--text-3xl--line-height: 1.15;
 	--text-3xl--letter-spacing: -0.03em;
-	--text-4xl: 3.25rem;
+	--text-4xl: 2.5rem;
 	--text-4xl--line-height: 1.1;
 	--text-4xl--letter-spacing: -0.03em;
-	--text-5xl: 4.5rem;
-	--text-5xl--line-height: 1.1;
+	--text-5xl: 3.5rem;
+	--text-5xl--line-height: 1.05;
 	--text-5xl--letter-spacing: -0.03em;
 
-	/* The skill's 14/20/26 (Arc's 18/26/34 one step smaller) cut to 12/16/16, so a card, an alert and a popup share one
-	   corner: operator's call. */
-	--radius-control: 0.75rem;
-	--radius-panel: 1rem;
-	--radius-surface: 1rem;
+	/* Linear's radii: 8 control, row and input; 12 panel and menu; 21 dialog. Buttons, tabs and chips are full pills. */
+	--radius-control: 0.5rem;
+	--radius-panel: 0.75rem;
+	--radius-surface: 1.3125rem;
 	--radius-pill: 9999px;
 
-	--spacing-control-sm: 2.25rem;
-	--spacing-control-md: 2.75rem;
-	--spacing-control-lg: 3.125rem;
+	/* Linear's control heights: 28 button, input, nav item and tab; 32 menu item and dialog button; 36 group header. */
+	--spacing-control-sm: 1.75rem;
+	--spacing-control-md: 2rem;
+	--spacing-control-lg: 2.25rem;
 
 	--ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
 	--ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
@@ -76,50 +79,51 @@
 	--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 	--ease-spring: linear(
 		0,
-		0.0213,
-		0.0739,
-		0.1443,
-		0.2235,
-		0.305,
-		0.3849,
-		0.4606,
-		0.5305,
-		0.594,
-		0.6508,
-		0.7011,
-		0.7452,
-		0.7836,
-		0.8168,
-		0.8454,
-		0.8699,
-		0.8907,
-		0.9084,
-		0.9234,
-		0.9361,
-		0.9467,
-		0.9557,
-		0.9632,
-		0.9694,
-		0.9747,
-		0.979,
-		0.9826,
-		0.9857,
-		0.9882,
-		0.9902,
-		0.992,
-		0.9934,
-		0.9946,
-		0.9955,
-		0.9963,
+		0.0258,
+		0.09,
+		0.1763,
+		0.2732,
+		0.3724,
+		0.4683,
+		0.5573,
+		0.6376,
+		0.7082,
+		0.7689,
+		0.8202,
+		0.8628,
+		0.8976,
+		0.9256,
+		0.9476,
+		0.9648,
+		0.9778,
+		0.9875,
+		0.9945,
+		0.9994,
+		1.0026,
+		1.0047,
+		1.0058,
+		1.0062,
+		1.0062,
+		1.0059,
+		1.0055,
+		1.0049,
+		1.0043,
+		1.0036,
+		1.0031,
+		1.0025,
+		1.002,
+		1.0016,
+		1.0013,
 		1
 	);
 	--default-transition-timing-function: var(--ease-standard);
-	/* Every duration is Arc's at 0.7x on Arc's curves: 85, 110, 125, 170, 225, 280, 340, 400. */
+	/* Every duration is Arc's at 0.7x on Arc's curves: 85, 110, 125, 170, 280, 340, 400. */
 	--default-transition-duration: 110ms;
 }
 
 @theme inline {
 	--color-background: var(--background);
+	--color-surface-sunken: var(--surface-sunken);
 	--color-surface: var(--surface);
 	--color-surface-raised: var(--surface-raised);
 	--color-surface-muted: var(--surface-muted);
@@ -128,13 +132,18 @@
 	--color-foreground: var(--foreground);
 	--color-secondary: var(--text-secondary);
 	--color-muted: var(--text-muted);
+	--color-faint: var(--text-faint);
 	--color-border: var(--border);
 	--color-border-subtle: var(--border-subtle);
 	--color-border-strong: var(--border-strong);
+	--color-input: var(--input);
+	--color-input-border: var(--input-border);
+	--color-focus-ring: var(--focus-ring);
 	--color-accent: var(--accent);
 	--color-accent-strong: var(--accent-strong);
 	--color-accent-subtle: var(--accent-subtle);
 	--color-accent-foreground: var(--accent-foreground);
+	--color-on-fill: oklch(100% 0 0);
 	--color-success: var(--success);
 	--color-warning: var(--warning);
 	--color-danger: var(--danger);
@@ -173,35 +182,41 @@
 	--shadow-thumb: var(--control-thumb-shadow);
 }
 
-/* Arc's foundation.css values. Pressed and the segmented thumb are this skill's extras: tints of the text color. */
+/* Hover, pressed and the segmented track are tints of the text color, so they read the same on every layer. */
 :root {
 	color-scheme: light;
-	--background: oklch(100% 0 0);
+	/* Linear's light boot palette: panel #f9f9fa, sidebar #efeff0, border #e2e2e2. */
+	--background: #f9f9fa;
+	--surface-sunken: #efeff0;
 	--surface: oklch(100% 0 0);
 	--surface-raised: oklch(100% 0 0);
-	--surface-muted: oklch(97.8% 0 0);
+	--surface-muted: color-mix(in oklab, var(--foreground) 5%, transparent);
 	--surface-pressed: color-mix(in oklab, var(--foreground) 9%, transparent);
 	--surface-thumb: var(--surface-raised);
-	--foreground: oklch(15% 0 0);
-	--text-secondary: oklch(46% 0 0);
-	--text-muted: oklch(59% 0 0);
-	--border: oklch(93.5% 0 0);
-	--border-subtle: oklch(96.5% 0 0);
-	--border-strong: oklch(82% 0 0);
-	--accent: oklch(33% 0 0);
-	--accent-strong: oklch(24% 0 0);
-	--accent-subtle: oklch(33% 0 0 / 0.1);
-	--accent-foreground: var(--background);
-	--control-on: oklch(23% 0 0);
+	--foreground: oklch(17% 0.006 286);
+	--text-secondary: oklch(45% 0.014 286);
+	--text-muted: oklch(53% 0.014 286);
+	--text-faint: oklch(70% 0.01 286);
+	--border: #e2e2e2;
+	--input: oklch(100% 0 0);
+	--input-border: #e2e2e2;
+	--focus-ring: #5e69d1;
+	--border-subtle: oklch(94% 0.004 286);
+	--border-strong: oklch(80% 0.008 286);
+	--accent: lch(47.918% 59.303 288.421);
+	--accent-strong: lch(42.918% 59.303 288.421);
+	--accent-subtle: lch(47.918% 59.303 288.421 / 0.12);
+	--accent-foreground: lch(100% 5 288.421);
+	--control-on: var(--accent);
 	--control-glyph: oklch(100% 0 0);
-	--control-track: oklch(89.5% 0 0);
-	--control-track-hover: oklch(86% 0 0);
+	--control-track: oklch(89.5% 0.005 286);
+	--control-track-hover: oklch(86% 0.006 286);
 	--control-thumb: oklch(100% 0 0);
 	--control-thumb-on: oklch(100% 0 0);
-	--control-thumb-shadow:
-		0 0 0 0.5px oklch(0% 0 0 / 0.07), 0 1px 2px oklch(0% 0 0 / 0.14), 0 2px 6px oklch(0% 0 0 / 0.06);
 	--control-on-subtle: color-mix(in oklab, var(--control-on) 10%, transparent);
 	--control-fill: var(--control-on);
+	--control-thumb-shadow:
+		0 0 0 0.5px oklch(0% 0 0 / 0.07), 0 1px 2px oklch(0% 0 0 / 0.14), 0 2px 6px oklch(0% 0 0 / 0.06);
 	/* Categorical tones for tags, labels and status; tint them with color-mix(in oklab, ...), never oklch. */
 	--tone-teal: oklch(50% 0.095 182);
 	--tone-sky: oklch(51% 0.11 240);
@@ -210,14 +225,13 @@
 	--tone-rose: oklch(53% 0.18 10);
 	--tone-amber: oklch(55% 0.12 68);
 	--tone-green: oklch(50% 0.12 162);
-	--success: var(--tone-green);
-	--warning: var(--tone-amber);
-	--danger: var(--tone-rose);
+	--success: oklch(49% 0.19 150);
+	--warning: oklch(58% 0.18 75);
+	--danger: oklch(54% 0.21 25);
 	--info: var(--tone-sky);
-	/* Arc's shadows at half offset and blur, same opacity: operator's call. */
-	--shadow-resting: 0 0.5px 1px oklch(0% 0 0 / 0.035);
-	--shadow-raised: 0 3px 9px oklch(0% 0 0 / 0.065), 0 0.5px 1.5px oklch(0% 0 0 / 0.035);
-	--shadow-floating: 0 10px 24px oklch(0% 0 0 / 0.105), 0 1.5px 5px oklch(0% 0 0 / 0.045);
+	--shadow-resting: 0 1px 2px oklch(0% 0 0 / 0.05);
+	--shadow-raised: 0 6px 18px oklch(0% 0 0 / 0.07), 0 1px 3px oklch(0% 0 0 / 0.04);
+	--shadow-floating: 0 16px 40px oklch(0% 0 0 / 0.12), 0 3px 10px oklch(0% 0 0 / 0.05);
 	--series-1: #1f7dcf;
 	--series-2: #7128a5;
 	--series-3: #e58f00;
@@ -240,39 +254,37 @@
 	--duration-spring: 400ms;
 }
 
-/* vexdock: the phone tab bar's height, for the shell and anything fixed to the window's bottom (the save bar portals to body). Same 480px as the shell's container query. */
-@media (width < 480px) {
-	:root {
-		--tab-bar: calc(3.5rem + env(safe-area-inset-bottom, 0px));
-	}
-}
+/* Linear's dark layers, measured on linear.app: sidebar, panel, card and dialog, menu. */
 :root[data-theme='dark'] {
 	color-scheme: dark;
-	/* Arc's dark neutrals (grays, borders, control tracks and glyphs) 4 points darker, border-strong 5 (background
-	   19% there): operator's call. */
-	--background: oklch(15% 0 0);
-	--surface: oklch(17.5% 0 0);
-	--surface-raised: oklch(20% 0 0);
-	--surface-muted: oklch(22% 0 0);
-	--surface-pressed: color-mix(in oklab, var(--foreground) 11%, transparent);
+	--background: lch(5.52% 0.4 272);
+	--surface-sunken: lch(2.595% 0.4 272);
+	--surface: lch(9.232% 0.85 272);
+	--surface-raised: lch(12.72% 0.85 272);
+	/* 5% on the panel is Linear's pill fill lch(10.149%), 12% its active tab and active sidebar row. */
+	--surface-muted: color-mix(in oklab, var(--foreground) 5%, transparent);
+	--surface-pressed: color-mix(in oklab, var(--foreground) 12%, transparent);
 	--surface-thumb: color-mix(in oklab, var(--foreground) 18%, var(--surface-raised));
-	--foreground: oklch(96% 0 0);
-	--text-secondary: oklch(77% 0 0);
-	--text-muted: oklch(64% 0 0);
-	--border: oklch(25% 0 0);
-	--border-subtle: oklch(21% 0 0);
-	--border-strong: oklch(35% 0 0);
-	--accent: oklch(80% 0 0);
-	--accent-strong: oklch(91% 0 0);
-	--accent-subtle: oklch(80% 0 0 / 0.13);
-	/* Neutral dark inverts: near-white track, dark thumb, so on and off never read alike */
-	--control-on: oklch(93% 0 0);
-	--control-glyph: oklch(15% 0 0);
-	--control-track: oklch(29% 0 0);
-	--control-track-hover: oklch(33% 0 0);
-	--control-thumb: oklch(97% 0 0);
-	--control-thumb-on: oklch(15% 0 0);
-	--control-fill: oklch(62% 0 0);
+	--foreground: lch(100% 0 272);
+	--text-secondary: lch(90.451% 1.2 272);
+	--text-muted: lch(61.803% 1.2 272);
+	--text-faint: lch(36.975% 1.2 272);
+	--border: lch(13.08% 1.48 272);
+	--border-subtle: lch(9.84% 1.48 272);
+	--border-strong: lch(21.36% 1.93 272);
+	--input: lch(7.32% 0.85 272);
+	--input-border: lch(14.16% 1.48 272);
+	--accent: lch(47.918% 59.303 288.421);
+	--accent-strong: lch(52.918% 59.303 288.421);
+	--accent-subtle: lch(47.918% 59.303 288.421 / 0.18);
+	--accent-foreground: lch(100% 5 288.421);
+	--control-on: var(--accent);
+	--control-glyph: lch(100% 0 272);
+	--control-track: lch(47.551% 0.913 272);
+	--control-track-hover: lch(52% 0.913 272);
+	--control-thumb: lch(100% 0 272);
+	--control-thumb-on: lch(100% 0 272);
+	--control-fill: lch(61.803% 1.2 272);
 	--control-thumb-shadow:
 		0 0 0 0.5px oklch(0% 0 0 / 0.3), 0 1px 2px oklch(0% 0 0 / 0.35), 0 2px 6px oklch(0% 0 0 / 0.2);
 	--tone-teal: oklch(79% 0.13 182);
@@ -282,9 +294,14 @@
 	--tone-rose: oklch(71% 0.155 8);
 	--tone-amber: oklch(83% 0.12 78);
 	--tone-green: oklch(79% 0.14 162);
-	--shadow-resting: 0 0.5px 1px oklch(0% 0 0 / 0.18);
-	--shadow-raised: 0 4px 11px oklch(0% 0 0 / 0.22);
-	--shadow-floating: 0 11px 28px oklch(0% 0 0 / 0.34);
+	--success: oklch(78% 0.18 150);
+	--warning: oklch(83% 0.17 80);
+	--danger: oklch(76% 0.2 25);
+	--shadow-resting: 0 0.5px 1px 1px lch(0% 0 0 / 0.3);
+	--shadow-raised: 0 3px 8px lch(0% 0 0 / 0.125), 0 2px 5px lch(0% 0 0 / 0.125), 0 1px 1px lch(0% 0 0 / 0.125);
+	--shadow-floating:
+		0 4px 40px lch(0% 0 0 / 0.1), 0 3px 20px lch(0% 0 0 / 0.125), 0 3px 12px lch(0% 0 0 / 0.125),
+		0 2px 8px lch(0% 0 0 / 0.125), 0 1px 1px lch(0% 0 0 / 0.125);
 	--series-1: #55adff;
 	--series-2: #9c37be;
 	--series-3: #e66e00;
@@ -302,11 +319,11 @@
 		@apply border-border;
 	}
 	html {
-		@apply font-sans antialiased;
+		@apply font-sans font-normal antialiased;
 		-webkit-tap-highlight-color: transparent;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-background text-sm text-foreground;
 	}
 	/* Base UI menu items and options render a div: without this they show the text cursor. */
 	:is(
@@ -396,8 +413,7 @@
 		outline: none !important;
 	}
 	:is(:focus-visible, :has(> input[type='range']:focus-visible)) {
-		outline: var(--focus-outline-width, 2px) solid
-			var(--focus-outline, color-mix(in oklab, var(--accent-strong) 72%, transparent)) !important;
+		outline: var(--focus-outline-width, 2px) solid var(--focus-outline, var(--focus-ring)) !important;
 		outline-offset: var(--focus-outline-offset, 2px) !important;
 	}
 	/* Outside forced colors, text fields (border, caret), menu items and options (highlight fill) and tabindex="-1"
@@ -453,7 +469,7 @@
 @utility page {
 	max-width: 1200px;
 	margin-inline: auto;
-	padding: 32px clamp(16px, 4vw, 32px);
+	padding: 24px clamp(16px, 3vw, 24px);
 	& > * {
 		min-width: 0;
 	}
@@ -526,8 +542,8 @@
 
 /* Recede (the Recede recipe): the page under a blocking layer steps back while the layer is up. Only a `scrim`
    (dialog, drawer, sheet) triggers it; menus and popovers float over a page that stays put. vexdock: `[data-scrim]`
-   marks a backdrop that draws its own fade (Arc's Dialog and the More sheet through motion, the floating rail in CSS),
-   where the scrim utility's transition would fight it. */
+   marks a backdrop that draws its own fade (Arc's Dialog, through motion), where the scrim utility's transition would
+   fight it. */
 [data-recede] {
 	transition:
 		scale 340ms var(--ease-enter),
@@ -671,9 +687,9 @@ body:has(:is(.scrim, [data-scrim])[data-open]:not([data-ending-style])) [data-re
 	animation: 170ms var(--ease-enter) both fade-in;
 }
 
-/* Everything above is the ui skill's styles.css but for the xterm import, --tab-bar, [data-scrim], the morph source,
-   `a` in the disabled and busy cursor rules (each but the import marked vexdock:) and the values marked operator's call (radii, dark
-   neutrals); below are vexdock's own additions. */
+/* Everything above is rarv's index.css (Linear's tokens) but for the fontsource and xterm imports, the tone and info colors,
+   [data-scrim], the morph source and `a` in the disabled and busy cursor rules (each marked vexdock:); below are vexdock's own
+   additions. */
 
 /* No page region carries data-swap: a named region leaves main's scroll clip for the swap, so a page scrolled down
    would draw its old top blocks over the header. The page swaps as one piece. */

@@ -39,9 +39,9 @@ const TabsContext = createContext<{
 
 // Room for the scroll button on an edge that can still scroll, so a revealed tab is not left under it.
 const EDGE_BUTTON = 34
-// surface-muted is a tint here, so it sits on bg-background to paint the shell's color and hide the tabs scrolled under it.
+// bg-background hides the tabs scrolled under it.
 const scrollButton =
-	'absolute inset-y-0 z-2 grid w-[33px] place-items-center bg-background text-foreground transition-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-surface-muted focus-visible:[--focus-outline-offset:-3px] disabled:pointer-events-none disabled:opacity-0'
+	'absolute inset-y-0 z-2 grid w-[33px] place-items-center bg-background text-foreground transition-none focus-visible:[--focus-outline-offset:-3px] disabled:pointer-events-none disabled:opacity-0'
 
 export function Tabs({ value, defaultValue, onValueChange, className, ...props }: TabsProps) {
 	const [internal, setInternal] = useState(defaultValue ?? '')
@@ -135,7 +135,9 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
 			data-overflow={edges.overflow}
 			data-left={edges.left}
 			data-right={edges.right}
-			className='group/shell relative isolate inline-flex max-w-full min-w-0 items-center rounded-control border border-border bg-surface-muted'
+			// vexdock: rarv's project tabs, separate pills with no track; the list's p-1 keeps focus outlines inside the clip.
+			// The -m-1 pulls the list's p-1 back out, so the cap is the parent's width plus those 8px, not 100%.
+			className='group/shell relative isolate -m-1 inline-flex max-w-[calc(100%+0.5rem)] min-w-0 items-center'
 		>
 			{edges.overflow && (
 				<button
@@ -143,7 +145,7 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
 					aria-label='Scroll tabs left'
 					disabled={!edges.left}
 					onClick={() => scrollTabs(-1)}
-					className={cn(scrollButton, 'left-0 rounded-l-control')}
+					className={cn(scrollButton, 'left-0')}
 				>
 					<IconChevronLeft size={16} stroke={1.75} aria-hidden className='relative' />
 				</button>
@@ -157,7 +159,7 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
 					}
 				}}
 				className={cn(
-					'min-w-0 [scrollbar-width:none] overflow-x-auto rounded-[inherit] [&::-webkit-scrollbar]:hidden',
+					'min-w-0 [scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden',
 					'group-data-[left=true]/shell:[mask-image:linear-gradient(to_right,transparent,black_35px,black)]',
 					'group-data-[right=true]/shell:[mask-image:linear-gradient(to_right,black,black_calc(100%-35px),transparent)]',
 					'group-data-[left=true]/shell:group-data-[right=true]/shell:[mask-image:linear-gradient(to_right,transparent,black_35px,black_calc(100%-35px),transparent)]',
@@ -167,12 +169,12 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
 					{...props}
 					ref={listRef}
 					activateOnFocus
-					className={cn('relative isolate inline-flex w-max items-center gap-0.75 p-0.75', className)}
+					className={cn('relative isolate inline-flex w-max items-center gap-1 p-1', className)}
 				>
 					{children}
 					<BaseTabs.Indicator
 						renderBeforeHydration
-						className='absolute top-(--active-tab-top) left-0 -z-1 h-(--active-tab-height) w-(--active-tab-width) translate-x-(--active-tab-left) rounded-[calc(var(--radius-control)-3px)] border border-border bg-surface shadow-resting transition-[translate,width] duration-400 ease-spring'
+						className='absolute top-(--active-tab-top) left-0 -z-1 h-(--active-tab-height) w-(--active-tab-width) translate-x-(--active-tab-left) rounded-full bg-surface-pressed transition-[translate,width] duration-400 ease-spring'
 					/>
 				</BaseTabs.List>
 			</div>
@@ -182,7 +184,7 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
 					aria-label='Scroll tabs right'
 					disabled={!edges.right}
 					onClick={() => scrollTabs(1)}
-					className={cn(scrollButton, 'right-0 rounded-r-control')}
+					className={cn(scrollButton, 'right-0')}
 				>
 					<IconChevronRight size={16} stroke={1.75} aria-hidden className='relative' />
 				</button>
@@ -199,7 +201,7 @@ export function TabsTrigger({ className, children, href, ...props }: TabsTrigger
 			render={href === undefined ? undefined : <Link to={href} activeOptions={{ exact: true }} />}
 			// vexdock: no min-w-22, each tab fits its label so a ten-tab strip keeps even gaps; the label row holds a count.
 			className={cn(
-				'relative inline-grid min-h-control-sm flex-none place-items-center rounded-[calc(var(--radius-control)-3px)] px-2.5 text-sm font-medium whitespace-nowrap text-muted transition-colors hover:text-foreground active:text-foreground data-active:text-accent-strong data-disabled:opacity-50',
+				'relative inline-grid h-control-sm flex-none place-items-center rounded-full bg-surface-muted px-2.5 text-xs font-medium whitespace-nowrap text-muted transition-colors duration-110 ease-standard hover:text-foreground active:text-foreground data-active:text-foreground data-disabled:opacity-50',
 				className,
 			)}
 		>

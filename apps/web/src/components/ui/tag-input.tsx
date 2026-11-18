@@ -190,14 +190,14 @@ export function TagInput({
 			</label>
 			<motion.div
 				ref={scope}
-				className='box-content overflow-hidden rounded-control border border-border bg-surface transition-[border-color] duration-110 ease-standard focus-within:border-foreground hover:not-focus-within:border-border-strong'
+				className='box-content overflow-hidden rounded-control border border-input-border bg-input transition-[border-color] duration-110 ease-standard focus-within:border-focus-ring hover:not-focus-within:border-border-strong'
 				initial={false}
 				animate={{ height }}
 				transition={glide}
 			>
 				<div
 					ref={contentRef}
-					className='relative box-border flex min-h-[calc(var(--spacing-control-md)-2px)] cursor-text flex-wrap content-start items-center gap-1.5 p-[7px]'
+					className='relative box-border flex min-h-[calc(var(--spacing-control-sm)-2px)] cursor-text flex-wrap content-start items-center gap-1 p-0.5'
 					onClick={event => {
 						if (event.target === event.currentTarget) inputRef.current?.focus()
 					}}
@@ -235,7 +235,7 @@ export function TagInput({
 						{tags.map(tag => (
 							<motion.span
 								layout={reduced ? false : 'position'}
-								className='group/tag relative box-border inline-flex min-h-7 items-center gap-[3px] rounded-full border border-border bg-surface-muted pr-1 pl-[9px] text-sm whitespace-nowrap text-foreground'
+								className='group/tag relative box-border inline-flex min-h-5.5 items-center gap-0.5 rounded-full border border-border bg-surface-muted pr-0.5 pl-2 text-xs whitespace-nowrap text-foreground'
 								key={tag}
 								data-tag={tag}
 								data-picked={tag === active || undefined}
@@ -286,7 +286,7 @@ export function TagInput({
 								<span className='relative z-2'>{tag}</span>
 								<button
 									type='button'
-									className='relative z-2 grid size-[22px] place-items-center rounded-full bg-transparent text-secondary [transition:background-color_110ms_var(--ease-standard),color_110ms_var(--ease-standard),scale_400ms_var(--ease-spring)] group-data-picked/tag:text-foreground hover:bg-surface-muted hover:text-foreground focus-visible:bg-surface-muted focus-visible:text-foreground motion-safe:active:scale-96 motion-safe:active:[transition:background-color_110ms_var(--ease-standard),color_110ms_var(--ease-standard),scale_85ms_var(--ease-standard)]'
+									className='relative z-2 grid size-[18px] place-items-center rounded-full bg-transparent text-secondary [transition:background-color_110ms_var(--ease-standard),color_110ms_var(--ease-standard),scale_400ms_var(--ease-spring)] group-data-picked/tag:text-foreground hover:bg-surface-muted hover:text-foreground focus-visible:bg-surface-muted focus-visible:text-foreground motion-safe:active:scale-96 motion-safe:active:[transition:background-color_110ms_var(--ease-standard),color_110ms_var(--ease-standard),scale_85ms_var(--ease-standard)]'
 									onClick={() => remove(tag)}
 									aria-label={`Remove ${tag}`}
 								>
@@ -300,7 +300,7 @@ export function TagInput({
 						transition={{ layout: move }}
 						ref={inputRef}
 						id={inputId}
-						className='box-border min-h-7 min-w-20 flex-[1_1_100px] border-0 bg-transparent px-[5px] text-sm text-foreground placeholder:text-transparent'
+						className='box-border min-h-5.5 min-w-20 flex-[1_1_100px] border-0 bg-transparent px-1.5 text-sm text-foreground placeholder:text-transparent'
 						value={draft}
 						onChange={event => {
 							const text = event.currentTarget.value

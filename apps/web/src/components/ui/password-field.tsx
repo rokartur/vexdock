@@ -46,7 +46,7 @@ export function PasswordField({
 			<label className={cn('mb-2 text-sm font-medium', hideLabel && 'sr-only')} htmlFor={controlId}>
 				{label}
 			</label>
-			<div className='flex min-h-control-md items-center rounded-control border border-border-strong bg-surface pr-[calc((var(--spacing-control-md)-2px-30px)/2)] pl-3 transition-[border-color] duration-110 ease-standard focus-within:border-foreground hover:not-focus-within:not-has-[input[aria-invalid=true]]:border-foreground has-[input[aria-invalid=true]]:border-danger'>
+			<div className='flex min-h-control-sm items-center rounded-control border border-input-border bg-input pr-px pl-2.5 transition-[border-color] duration-110 ease-standard focus-within:border-focus-ring hover:not-focus-within:not-has-[input[aria-invalid=true]]:border-border-strong has-[input[aria-invalid=true]]:border-danger'>
 				<input
 					{...props}
 					id={controlId}
@@ -55,14 +55,14 @@ export function PasswordField({
 					data-reveal={toggled ? (visible ? 'shown' : 'hidden') : undefined}
 					aria-describedby={describedBy}
 					className={cn(
-						'w-full min-w-0 border-0 bg-transparent text-sm text-foreground placeholder:text-muted motion-safe:data-[reveal=hidden]:animate-[password-reveal-hidden_170ms_var(--ease-enter)] motion-safe:data-[reveal=shown]:animate-[password-reveal-shown_170ms_var(--ease-enter)]',
+						'w-full min-w-0 border-0 bg-transparent text-sm text-foreground placeholder:text-faint motion-safe:data-[reveal=hidden]:animate-[password-reveal-hidden_170ms_var(--ease-enter)] motion-safe:data-[reveal=shown]:animate-[password-reveal-shown_170ms_var(--ease-enter)]',
 						className,
 					)}
 				/>
 				{/* The shell leaves the 30px button a 2px inset, so the ring sits inside it instead of over the shell border. */}
 				<button
 					type='button'
-					className='grid size-[30px] flex-none press place-items-center rounded-control text-muted [--focus-outline-offset:-1px] hover:bg-surface-muted hover:text-foreground aria-pressed:text-foreground'
+					className='grid size-6 flex-none press place-items-center rounded-control text-muted [--focus-outline-offset:-1px] hover:bg-surface-muted hover:text-foreground aria-pressed:text-foreground'
 					onClick={() => {
 						setVisible(current => !current)
 						setToggled(true)

@@ -90,7 +90,8 @@ export function SegmentedControl({
 			role='group'
 			aria-label={label}
 			className={cn(
-				'inline-flex max-w-full min-w-0 shrink rounded-control border border-border bg-surface-muted',
+				// vexdock: rarv's separate pills; the track's -m-1 p-1 keeps their focus outlines inside its scroll clip.
+				'inline-flex max-w-full min-w-0 shrink rounded-full',
 				className,
 			)}
 		>
@@ -98,7 +99,7 @@ export function SegmentedControl({
 				<motion.div
 					ref={track}
 					layoutScroll
-					className='isolate flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain rounded-[inherit] [mask-image:linear-gradient(to_right,transparent,black_var(--fade-start),black_calc(100%-var(--fade-end)),transparent)] p-[3px] [--fade-end:0px] [--fade-start:0px] data-fade-end:[--fade-end:20px] data-fade-start:[--fade-start:20px] [&::-webkit-scrollbar]:hidden'
+					className='isolate -m-1 flex min-w-0 [scrollbar-width:none] gap-2 overflow-x-auto overscroll-x-contain [mask-image:linear-gradient(to_right,transparent,black_var(--fade-start),black_calc(100%-var(--fade-end)),transparent)] p-1 [--fade-end:0px] [--fade-start:0px] data-fade-end:[--fade-end:20px] data-fade-start:[--fade-start:20px] [&::-webkit-scrollbar]:hidden'
 				>
 					{options.map((option, index) => (
 						<button
@@ -112,7 +113,7 @@ export function SegmentedControl({
 							onKeyDown={onKeyDown}
 							onPointerEnter={onOptionIntent ? () => onOptionIntent(option.value) : undefined}
 							onFocus={onOptionIntent ? () => onOptionIntent(option.value) : undefined}
-							className='relative min-h-control-sm flex-none rounded-[calc(var(--radius-control)-4px)] px-3 text-sm font-medium whitespace-nowrap text-muted [-webkit-tap-highlight-color:transparent] hover:text-foreground active:text-foreground aria-pressed:text-foreground max-[380px]:px-2.5'
+							className='relative h-control-sm flex-none rounded-full bg-surface-muted px-2.5 text-xs font-medium whitespace-nowrap text-muted [-webkit-tap-highlight-color:transparent] hover:text-foreground active:text-foreground aria-pressed:text-foreground'
 						>
 							{value === option.value && (
 								<motion.span
@@ -120,7 +121,7 @@ export function SegmentedControl({
 									layoutId='selection'
 									layoutDependency={value}
 									transition={reduced ? { duration: 0 } : motionTokens.spring.morph}
-									className='absolute inset-0 -z-1 rounded-[inherit] border border-border bg-surface shadow-resting'
+									className='absolute inset-0 -z-1 rounded-[inherit] bg-surface-pressed'
 								/>
 							)}
 							<span className='relative z-1 inline-flex items-center gap-1.5'>

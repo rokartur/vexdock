@@ -15,6 +15,7 @@ import {
 	IconAlertTriangle,
 	IconArrowDown,
 	IconCheck,
+	IconChevronRight,
 	IconCircleCheck,
 	IconClock,
 	IconDeviceFloppy,
@@ -252,7 +253,7 @@ function NoFill({ children }: { children: ReactNode }) {
 	return <FillContext.Provider value={false}>{children}</FillContext.Provider>
 }
 
-/** Carries the shell's header element, which Page portals its breadcrumb and actions into. */
+/** Carries the topbar's title slot, which Page portals its breadcrumb and h1 into. */
 export function PageChrome({ value, children }: { value: HTMLElement | null; children: ReactNode }) {
 	return <ChromeContext.Provider value={value}>{children}</ChromeContext.Provider>
 }
@@ -316,12 +317,13 @@ export function Page({
 	}, [nested, title])
 
 	const parents = indexed || notFound ? trail : trail.slice(0, -1)
+	// rarv's topbar title: the parents, a chevron and the h1 on one line.
 	const head = (
-		<>
-			<div className='grid min-w-0 flex-1 gap-0.5'>
-				{/* A labeled segment renders its own picker, never wrapped in a link that would navigate on the click
-				    that opens it. Only a plain segment links. */}
-				{parents.length > 0 ? (
+		<div className='flex min-w-0 items-center gap-1.5'>
+			{/* A labeled segment renders its own picker, never wrapped in a link that would navigate on the click
+			    that opens it. Only a plain segment links. */}
+			{parents.length > 0 ? (
+				<div className='min-w-0 flex-[0_1_auto]'>
 					<Breadcrumb
 						lastIsCurrent={false}
 						items={parents.map(({ segment, to, linkable }, position) => ({
@@ -335,29 +337,36 @@ export function Page({
 							node: labels?.[segment],
 						}))}
 					/>
-				) : null}
-				{heading ? (
-					<h1 className='flex min-w-0 items-center gap-2 text-2xl font-medium @max-[480px]/shell:text-xl'>
-						{typeof heading === 'string' ? <span className='truncate'>{heading}</span> : heading}
-					</h1>
-				) : null}
-			</div>
-			{/* Buttons carry their own shrink-0, so this only squeezes text actions. */}
-			{actions ? <div className='flex min-w-0 items-center gap-2'>{actions}</div> : null}
-		</>
+				</div>
+			) : null}
+			{parents.length > 0 && heading ? (
+				<IconChevronRight aria-hidden='true' className='size-3.5 flex-none text-border-strong' />
+			) : null}
+			{heading ? (
+				<h1 className='flex min-w-0 flex-[0_1_auto] items-center gap-2 text-sm font-medium whitespace-nowrap'>
+					{typeof heading === 'string' ? <span className='truncate'>{heading}</span> : heading}
+				</h1>
+			) : null}
+		</div>
 	)
 
 	if (nested) return children
-	// Null only on the shell's very first render, before its bar has been
+	// Null only on the shell's very first render, before its topbar has been
 	// committed; it sets it during that commit, so nothing paints without it.
 	return (
 		<>
 			{header ? createPortal(head, header) : null}
-			{toolbar || filters ? (
-				// Too narrow for both, the filters wrap under the toolbar and start at its left edge.
-				<div className='flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b px-6 py-3 @max-[480px]/shell:px-4'>
+			{toolbar || filters || actions ? (
+				// rarv's ListViewTitle row. Too narrow for everything, the right side wraps under the toolbar.
+				<div className='flex min-h-11 flex-none flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b py-1.5 pr-3 pl-[18px] max-md:px-3.5'>
 					{toolbar}
-					{filters ? <div className='flex max-w-full min-w-0 items-center gap-2'>{filters}</div> : null}
+					{filters || actions ? (
+						<div className='ml-auto flex max-w-full min-w-0 items-center gap-1.5'>
+							{filters}
+							{/* Buttons carry their own shrink-0, so this only squeezes text actions. */}
+							{actions}
+						</div>
+					) : null}
 				</div>
 			) : null}
 			{/* data-content is what a navigation's page swap snapshots, data-recede what steps back under a dialog
@@ -369,10 +378,7 @@ export function Page({
 				data-content
 				data-recede
 				data-scroll-restoration-id='content'
-				className={cn(
-					'min-h-0 flex-1 overflow-y-auto p-6 outline-none @max-[480px]/shell:px-4',
-					fill && 'flex flex-col',
-				)}
+				className={cn('min-h-0 flex-1 overflow-y-auto p-6 outline-none max-md:px-4', fill && 'flex flex-col')}
 			>
 				<InPageContext.Provider value>
 					<FillContext.Provider value={fill}>{children}</FillContext.Provider>
@@ -677,7 +683,7 @@ export function FormSection({
 					{aside.map(fact => (
 						<div key={fact.label}>
 							<dt className='text-xs text-muted'>{fact.label}</dt>
-							<dd className='text-sm'>{fact.value}</dd>
+							<dd className='text-sm wrap-anywhere'>{fact.value}</dd>
 						</div>
 					))}
 				</dl>
@@ -1266,7 +1272,7 @@ export function FormDialog({
 					<ErrorText error={mutation.error} />
 					<NoFill>{children}</NoFill>
 					<DialogFooter>
-						<Button variant='ghost' onClick={close} disabled={mutation.isPending}>
+						<Button onClick={close} disabled={mutation.isPending}>
 							Cancel
 						</Button>
 						<Button type='submit' variant='primary' disabled={disabled} loading={mutation.isPending}>

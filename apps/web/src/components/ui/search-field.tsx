@@ -29,7 +29,7 @@ export function SearchField({ label, value, onValueChange, hideLabel, id, classN
 				{label}
 			</label>
 			<div
-				className='group flex min-h-control-md items-center gap-1.5 rounded-control border border-border-strong bg-surface px-2.5 transition-[border-color] duration-110 ease-standard focus-within:border-foreground hover:not-focus-within:border-foreground'
+				className='group flex min-h-control-sm items-center gap-1.5 rounded-control border border-input-border bg-input px-2.5 transition-[border-color] duration-110 ease-standard focus-within:border-focus-ring hover:not-focus-within:border-border-strong'
 				data-filled={value ? 'true' : undefined}
 			>
 				<IconSearch
