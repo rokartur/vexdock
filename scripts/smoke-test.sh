@@ -104,7 +104,7 @@ PROJECT_ID=$(echo "$project" | json "d['id']")
 pass "project created: $PROJECT_ID"
 
 # A project is a grouping; what runs is one service with its own provider.
-auth_post -d '{"name":"web","provider":"image","image":"nginx:alpine"}' \
+auth_post -d '{"name":"web","provider":"image","image":"nginx:1.31.9-alpine"}' \
     "$API/projects/$PROJECT_ID/services" >/dev/null
 pass 'image service added'
 

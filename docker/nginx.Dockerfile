@@ -12,7 +12,7 @@ RUN bun install --frozen-lockfile
 COPY apps/web ./apps/web
 RUN cd apps/web && bun run build
 
-FROM nginx:1.29-alpine
+FROM nginx:1.31.9-alpine
 
 COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/nginx/proxy-headers.conf /etc/nginx/proxy-headers.conf

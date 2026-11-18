@@ -209,7 +209,7 @@ mod tests {
 	const RESOLVED: &str = r#"{
 	  "name": "p_01jabc",
 	  "services": {
-	    "web": {"image": "nginx:alpine", "ports": [{"mode": "ingress", "target": 3000, "published": "3000", "protocol": "tcp"}], "healthcheck": {"test": ["CMD", "true"]}},
+	    "web": {"image": "nginx:1.31.9-alpine", "ports": [{"mode": "ingress", "target": 3000, "published": "3000", "protocol": "tcp"}], "healthcheck": {"test": ["CMD", "true"]}},
 	    "api": {"build": {"context": "."}, "ports": [{"mode": "ingress", "target": 8080, "protocol": "tcp"}]},
 	    "worker": {"image": "busybox"}
 	  },
