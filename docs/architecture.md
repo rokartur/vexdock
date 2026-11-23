@@ -96,6 +96,11 @@ from the single project `--env-file`, which two Postgres services in one project
 would collide over; an `env_file` is per service, so they do not. Rendered
 fragments therefore never contain `${...}`; a variable meant for the container
 is escaped `$$VAR`.
+A built service's secret variables also go to its build: each one is a file
+under `services/<name>/build-secrets/`, declared in the overlay's top-level
+`secrets:` as `<service>.<KEY>` and listed in the service's `build.secrets`
+with `KEY` as its id, which a Dockerfile mounts with
+`RUN --mount=type=secret,id=KEY` ([security](security.md#secrets)).
 
 A database's volume is named after its service (`<service>-data`), so a second
 database cannot mount the first one's data. Deleting a service leaves the volume

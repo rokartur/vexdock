@@ -136,6 +136,11 @@ row every mutation gets.
   A fresh nonce per value means two identical secrets are not linkable.
 - The master key is a 0600 file under `/opt/vexdock/secrets`, never in the
   database it protects.
+- A service variable marked secret is also a BuildKit secret of that service's
+  build: a 0600 file in `services/<name>/build-secrets/`, beside the build
+  context and never in it, rewritten on every overlay write and removed with the
+  service or the flag. A Dockerfile reads it only through
+  `RUN --mount=type=secret,id=<KEY>`, so it reaches no image layer.
 - Git credentials belong to a service, not to a project: each one is encrypted
   with the same AES-256-GCM key and only ever decrypted for that service's own
   clone. The secret is write-only over the API and never read back, so an export

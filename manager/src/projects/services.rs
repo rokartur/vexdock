@@ -223,6 +223,7 @@ impl Projects {
 	pub fn delete_service(&self, svc: &Service, env: &Environment) -> Result<()> {
 		self.db.delete_service(&svc.id)?;
 		ignore_missing(std::fs::remove_file(self.service_env_file_path(env, &svc.compose_service_name)))?;
+		ignore_missing(std::fs::remove_dir_all(self.build_secrets_dir(env, &svc.compose_service_name)))?;
 		self.write_overlay(env)?;
 		Ok(())
 	}

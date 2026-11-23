@@ -223,6 +223,43 @@ fn overlay_renders_build_types() {
 	);
 }
 
+// A private registry token reaches `RUN --mount=type=secret` through a file
+// compose reads, never through the YAML, and leaves with the secret flag.
+#[test]
+fn overlay_hands_secret_variables_to_the_build() {
+	let f = test_projects();
+	let s = &f.projects;
+	let p = create(s, "rokartur");
+	let env = default_env(s, &p);
+	let input = ServiceInput {
+		name: "web".into(),
+		provider: database::PROVIDER_GIT.into(),
+		repository_url: "https://example.com/app.git".into(),
+		..Default::default()
+	};
+	let web = s.create_service(&env, &input).unwrap();
+	let var = |key: &str, value: &str, is_secret| EnvVar { key: key.into(), value: value.into(), is_secret, ..Default::default() };
+	s.set_service_variables(&web.id, &[var("NPM_TOKEN", "ghp_s3cret", true), var("PORT", "3000", false)]).unwrap();
+
+	let overlay = std::fs::read_to_string(s.write_overlay(&env).unwrap()).unwrap();
+	let file = format!("{}/NPM_TOKEN", s.build_secrets_dir(&env, "web"));
+	assert_contains_all(
+		&overlay,
+		&[
+			"      secrets:\n        - source: \"web.NPM_TOKEN\"\n          target: \"NPM_TOKEN\"\n",
+			&format!("\nsecrets:\n  \"web.NPM_TOKEN\":\n    file: \"{file}\"\n"),
+		],
+	);
+	assert!(!overlay.contains("ghp_s3cret"), "the token was inlined into the compose file:\n{overlay}");
+	assert!(!overlay.contains("PORT"), "a plain variable became a build secret:\n{overlay}");
+	assert_eq!(std::fs::read_to_string(&file).unwrap(), "ghp_s3cret");
+
+	s.set_service_variables(&web.id, &[var("NPM_TOKEN", "ghp_s3cret", false)]).unwrap();
+	let overlay = std::fs::read_to_string(s.write_overlay(&env).unwrap()).unwrap();
+	assert!(!overlay.contains("secrets:"), "{overlay}");
+	assert!(!std::path::Path::new(&file).exists(), "an unmarked secret stayed on disk");
+}
+
 #[test]
 fn with_service_env_file_appends_the_service_file() {
 	let svc_env = r#""/p/services/web.env""#;
